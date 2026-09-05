@@ -1,0 +1,17 @@
+{
+  "itemGroup.villagepax.general": "Village Pax",
+
+  "block.villagepax.town_hall": "Ратуша",
+  "block.villagepax.marker_workstation": "Маркер: рабочее место",
+  "block.villagepax.marker_bed": "Маркер: кровать",
+  "block.villagepax.marker_storage": "Маркер: сундук",
+  "block.villagepax.marker_door": "Маркер: вход",
+  "block.villagepax.marker_decor": "Маркер: декор",
+
+  "item.villagepax.town_hall_blueprint": "Чертёж ратуши",
+
+  "villagepax.culture.norman": "Норманны",
+
+  "villagepax.tooltip.marker": "Служебный блок схемы. При постройке заменяется на воздух.",
+  "villagepax.tooltip.blueprint": "Поставь на свободной земле, чтобы основать колонию."
+}

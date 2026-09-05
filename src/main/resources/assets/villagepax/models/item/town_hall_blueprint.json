@@ -1,0 +1,4 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": { "layer0": "villagepax:item/town_hall_blueprint" }
+}

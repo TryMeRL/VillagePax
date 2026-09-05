@@ -57,14 +57,14 @@ MineColonies и Millénaire описывают **одну и ту же сущн�
 
 | Компонент | Роль | Примечание |
 |---|---|---|
-| **JDK 17** (Temurin) | рантайм и таргет игры | на машине стоит только JDK 21 — **нужно доставить 17** |
-| **Gradle Wrapper 8.x** | сборка | глобальный Gradle не нужен |
+| **JDK 17** | рантайм и таргет игры | уже установлен локально, доставлять ничего не нужно |
+| **Gradle Wrapper 9.7.1** | сборка | глобальный Gradle не нужен, wrapper в репозитории |
 | **Fabric Loom `1.17.20`** | моддинг-плагин Gradle | последний стабильный; при проблемах со старой версией игры откат на ветку 1.7.x |
 | **Fabric Loader `0.19.5`** | загрузчик | последний стабильный для 1.20.1 |
 | **Yarn `1.20.1+build.10`** | маппинги | стандарт Fabric, лучше документированы |
 | **Fabric API `0.92.12+1.20.1`** | базовые хуки | события, реестры, сеть, датапаки |
 | **Mixin** | правки ванильного кода | входит в Loom |
-| **IntelliJ IDEA Community** | IDE | не установлена — **нужно поставить** |
+| **IntelliJ IDEA Community** | IDE | не установлена; для сборки не требуется — всё идёт через Gradle wrapper |
 
 Версии проверены 2026-09-02 по `meta.fabricmc.net`, `maven.fabricmc.net` и Modrinth API.
 
@@ -184,7 +184,7 @@ Citizen {
 
 ```
 data/villagepax/
-├── cultures/norman.json
+├── villagepax/cultures/norman.json
 ├── buildings/norman/lumberjack.json
 ├── professions/lumberjack.json
 ├── quests/norman/founding_chain.json

@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "PPP",
+    "GBG",
+    "PEP"
+  ],
+  "key": {
+    "P": { "item": "minecraft:paper" },
+    "G": { "item": "minecraft:gold_ingot" },
+    "B": { "item": "minecraft:book" },
+    "E": { "item": "minecraft:emerald" }
+  },
+  "result": { "item": "villagepax:town_hall_blueprint", "count": 1 }
+}

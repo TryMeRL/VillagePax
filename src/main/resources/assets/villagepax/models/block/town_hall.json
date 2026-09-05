@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "top": "villagepax:block/town_hall_top",
+    "bottom": "villagepax:block/town_hall_bottom",
+    "side": "villagepax:block/town_hall_side"
+  }
+}

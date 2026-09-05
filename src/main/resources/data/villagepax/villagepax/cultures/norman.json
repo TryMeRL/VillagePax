@@ -1,0 +1,27 @@
+{
+  "display_name": "villagepax.culture.norman",
+  "kind": "historical",
+  "spawn": {
+    "biomes": "#minecraft:is_forest",
+    "weight": 10,
+    "min_distance_chunks": 48
+  },
+  "name_pools": {
+    "male": ["Rollo", "Guillaume", "Thibault", "Bertrand", "Aubert", "Ancel", "Foulques"],
+    "female": ["Adelise", "Mahaut", "Sibylle", "Aveline", "Emmeline", "Richilde"],
+    "settlement": ["Beauvoir", "Roquemont", "Valberge", "Sainte-Ombre", "Fontenay", "Clairbois"]
+  },
+  "buildings": [
+    "villagepax:norman/town_hall",
+    "villagepax:norman/house",
+    "villagepax:norman/warehouse",
+    "villagepax:norman/builder_hut",
+    "villagepax:norman/lumberjack",
+    "villagepax:norman/farm"
+  ],
+  "traits": [
+    "villagepax:stone_masonry",
+    "villagepax:mounted_warfare"
+  ],
+  "diplomacy_defaults": {}
+}

@@ -1,0 +1,17 @@
+{
+  "itemGroup.villagepax.general": "Village Pax",
+
+  "block.villagepax.town_hall": "Town Hall",
+  "block.villagepax.marker_workstation": "Marker: Workstation",
+  "block.villagepax.marker_bed": "Marker: Bed",
+  "block.villagepax.marker_storage": "Marker: Storage",
+  "block.villagepax.marker_door": "Marker: Entrance",
+  "block.villagepax.marker_decor": "Marker: Decor",
+
+  "item.villagepax.town_hall_blueprint": "Town Hall Blueprint",
+
+  "villagepax.culture.norman": "Normans",
+
+  "villagepax.tooltip.marker": "Schematic helper block. Replaced with air when built.",
+  "villagepax.tooltip.blueprint": "Place on free land to found a colony."
+}

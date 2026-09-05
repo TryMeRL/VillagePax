@@ -1,0 +1,11 @@
+# Единый перевод строки в репозитории: проект собирается и на Windows, и в Linux-CI.
+* text=auto eol=lf
+
+# Бинарные ассеты не трогать.
+*.png binary
+*.nbt binary
+*.jar binary
+
+# Скрипты Windows PowerShell читаются как ANSI при UTF-8 без BOM,
+# поэтому держим их в ASCII; перевод строки для них тоже LF.
+*.ps1 text eol=lf

@@ -4,6 +4,12 @@ import com.villagepax.block.ModBlocks;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureKind;
 import com.villagepax.core.culture.CultureManager;
+import com.villagepax.sim.BuildProgress;
+import com.villagepax.sim.ColonyFounder;
+import com.villagepax.sim.Founding;
+import com.villagepax.sim.FoundingOutcome;
+import com.villagepax.block.entity.TownHallBlockEntity;
+import net.minecraft.server.world.ServerWorld;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Gender;
@@ -183,6 +189,91 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
         } finally {
             manager.remove(first.id());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Полный путь основания колонии в живом мире: чертёж ставит ратушу,
+     * блок связывается с поселением, поселение попадает в менеджер.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void colonyIsFoundedOnSolidGround(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        context.setBlockState(new BlockPos(1, 1, 1), Blocks.STONE);
+        BlockPos target = context.getAbsolutePos(new BlockPos(1, 2, 1));
+
+        FoundingOutcome outcome = ColonyFounder.foundAt(world, player, NORMAN, target);
+
+        if (!(outcome instanceof FoundingOutcome.Founded founded)) {
+            context.throwGameTestException("Колония не основана: "
+                    + ((FoundingOutcome.Refused) outcome).translationKey());
+            return;
+        }
+
+        Settlement colony = founded.settlement();
+        try {
+            if (!world.getBlockState(target).isOf(ModBlocks.TOWN_HALL)) {
+                context.throwGameTestException("Ратуша не поставлена: " + world.getBlockState(target));
+            }
+
+            if (!(world.getBlockEntity(target) instanceof TownHallBlockEntity townHall)) {
+                context.throwGameTestException("У ратуши нет блок-энтити");
+                return;
+            }
+            if (!townHall.settlementId().equals(Optional.of(colony.id()))) {
+                context.throwGameTestException("Ратуша не связана со своим поселением");
+            }
+
+            if (manager.byId(colony.id()).isEmpty()) {
+                context.throwGameTestException("Поселение не попало в менеджер");
+            }
+            if (colony.buildings().size() != 1
+                    || colony.buildings().get(0).progress() != BuildProgress.DONE) {
+                context.throwGameTestException("Ратуша не записана как готовое здание поселения");
+            }
+
+            // Одна колония на игрока: вторая попытка того же игрока отклоняется.
+            context.setBlockState(new BlockPos(3, 1, 1), Blocks.STONE);
+            BlockPos second = context.getAbsolutePos(new BlockPos(3, 2, 1));
+            FoundingOutcome again = ColonyFounder.foundAt(world, player, NORMAN, second);
+            if (!(again instanceof FoundingOutcome.Refused refusedAgain)
+                    || !refusedAgain.translationKey().equals(Founding.KEY_ALREADY_OWNER)) {
+                context.throwGameTestException("Вторая колония того же игрока должна отклоняться, получено: " + again);
+            }
+
+            // Другому игроку мешают уже границы, а не правило одной колонии.
+            FoundingOutcome neighbour = ColonyFounder.foundAt(world, UUID.randomUUID(), NORMAN, second);
+            if (!(neighbour instanceof FoundingOutcome.Refused refusedNeighbour)
+                    || !refusedNeighbour.translationKey().equals(Founding.KEY_TOO_CLOSE)) {
+                context.throwGameTestException("Соседняя колония должна отклоняться по границам, получено: " + neighbour);
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(target, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Ратуша не должна вставать в воздухе. */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void foundingRequiresSolidGround(TestContext context) {
+        ServerWorld world = context.getWorld();
+        BlockPos midAir = context.getAbsolutePos(new BlockPos(1, 5, 1));
+
+        FoundingOutcome outcome = ColonyFounder.foundAt(world, UUID.randomUUID(), NORMAN, midAir);
+
+        if (!(outcome instanceof FoundingOutcome.Refused refused)
+                || !refused.translationKey().equals(ColonyFounder.KEY_BAD_GROUND)) {
+            context.throwGameTestException("В воздухе колония основываться не должна, получено: " + outcome);
+        }
+        if (world.getBlockState(midAir).isOf(ModBlocks.TOWN_HALL)) {
+            context.throwGameTestException("Ратуша всё-таки поставлена при отказе");
         }
 
         context.complete();

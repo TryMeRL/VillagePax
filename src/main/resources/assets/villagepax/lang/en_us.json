@@ -1,17 +1,20 @@
 {
   "itemGroup.villagepax.general": "Village Pax",
-
   "block.villagepax.town_hall": "Town Hall",
   "block.villagepax.marker_workstation": "Marker: Workstation",
   "block.villagepax.marker_bed": "Marker: Bed",
   "block.villagepax.marker_storage": "Marker: Storage",
   "block.villagepax.marker_door": "Marker: Entrance",
   "block.villagepax.marker_decor": "Marker: Decor",
-
   "item.villagepax.town_hall_blueprint": "Town Hall Blueprint",
-
   "villagepax.culture.norman": "Normans",
-
   "villagepax.tooltip.marker": "Schematic helper block. Replaced with air when built.",
-  "villagepax.tooltip.blueprint": "Place on free land to found a colony."
+  "villagepax.found.success": "Colony \"%s\" founded",
+  "villagepax.found.too_close": "Too close to \"%s\". Find a spot further away.",
+  "villagepax.found.already_owner": "You already run the colony \"%s\". One per player.",
+  "villagepax.found.bad_ground": "The town hall needs solid ground and free space here.",
+  "villagepax.found.unknown_culture": "Unknown culture: %s",
+  "villagepax.town_hall.destroyed": "Town hall destroyed. The colony \"%s\" survives, but rebuild it.",
+  "villagepax.blueprint.culture": "Culture: %s",
+  "villagepax.blueprint.hint": "Place on free land to found a colony"
 }

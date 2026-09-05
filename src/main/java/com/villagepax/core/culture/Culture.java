@@ -6,6 +6,7 @@ import net.minecraft.util.Identifier;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Народ целиком описывается данными — это несущее решение всего мода.
@@ -40,6 +41,14 @@ public record Culture(
             Codec.unboundedMap(Identifier.CODEC, Codec.INT).optionalFieldOf("diplomacy_defaults", Map.of())
                     .forGetter(Culture::diplomacyDefaults)
     ).apply(instance, Culture::new));
+
+    /**
+     * Тип здания ратуши у этого народа. Ищется по соглашению об именовании,
+     * чтобы датапак не обязан был объявлять его отдельным полем.
+     */
+    public Optional<Identifier> townHallBuilding() {
+        return buildings.stream().filter(id -> id.getPath().endsWith("town_hall")).findFirst();
+    }
 
     /**
      * Стартовое отношение к другому народу. Незнакомый народ считается нейтральным,

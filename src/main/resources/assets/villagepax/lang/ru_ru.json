@@ -1,17 +1,20 @@
 {
   "itemGroup.villagepax.general": "Village Pax",
-
   "block.villagepax.town_hall": "Ратуша",
   "block.villagepax.marker_workstation": "Маркер: рабочее место",
   "block.villagepax.marker_bed": "Маркер: кровать",
   "block.villagepax.marker_storage": "Маркер: сундук",
   "block.villagepax.marker_door": "Маркер: вход",
   "block.villagepax.marker_decor": "Маркер: декор",
-
   "item.villagepax.town_hall_blueprint": "Чертёж ратуши",
-
   "villagepax.culture.norman": "Норманны",
-
   "villagepax.tooltip.marker": "Служебный блок схемы. При постройке заменяется на воздух.",
-  "villagepax.tooltip.blueprint": "Поставь на свободной земле, чтобы основать колонию."
+  "villagepax.found.success": "Колония «%s» основана",
+  "villagepax.found.too_close": "Слишком близко к поселению «%s». Найди место подальше.",
+  "villagepax.found.already_owner": "У тебя уже есть колония «%s». Одна на игрока.",
+  "villagepax.found.bad_ground": "Здесь не встанет ратуша: нужна твёрдая опора и свободное место.",
+  "villagepax.found.unknown_culture": "Неизвестный народ: %s",
+  "villagepax.town_hall.destroyed": "Ратуша разрушена. Колония «%s» уцелела, но ратушу надо отстроить.",
+  "villagepax.blueprint.culture": "Народ: %s",
+  "villagepax.blueprint.hint": "Поставь на свободной земле, чтобы основать колонию"
 }

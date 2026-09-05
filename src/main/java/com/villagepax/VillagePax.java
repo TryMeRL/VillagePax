@@ -1,6 +1,7 @@
 package com.villagepax;
 
 import com.villagepax.block.ModBlocks;
+import com.villagepax.block.entity.ModBlockEntities;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.item.ModItems;
 import net.fabricmc.api.ModInitializer;
@@ -17,6 +18,7 @@ public class VillagePax implements ModInitializer {
     @Override
     public void onInitialize() {
         ModBlocks.init();
+        ModBlockEntities.init();
         ModItems.registerBlockItems();
         ModItems.init();
 

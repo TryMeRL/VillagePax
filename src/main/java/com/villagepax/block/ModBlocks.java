@@ -26,8 +26,8 @@ public final class ModBlocks {
     /** Порядок важен: в этом же порядке блоки попадают в творческую вкладку. */
     private static final Map<Identifier, Block> REGISTERED = new LinkedHashMap<>();
 
-    public static final Block TOWN_HALL = register("town_hall",
-            new Block(AbstractBlock.Settings.copy(Blocks.OAK_PLANKS)
+    public static final TownHallBlock TOWN_HALL = register("town_hall",
+            new TownHallBlock(AbstractBlock.Settings.copy(Blocks.OAK_PLANKS)
                     .strength(4.0f, 12.0f)
                     .sounds(BlockSoundGroup.WOOD)));
 
@@ -47,9 +47,9 @@ public final class ModBlocks {
                 .nonOpaque()));
     }
 
-    private static Block register(String name, Block block) {
+    private static <T extends Block> T register(String name, T block) {
         Identifier id = new Identifier(VillagePax.MOD_ID, name);
-        Block registered = Registry.register(Registries.BLOCK, id, block);
+        T registered = Registry.register(Registries.BLOCK, id, block);
         REGISTERED.put(id, registered);
         return registered;
     }

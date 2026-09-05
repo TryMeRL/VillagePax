@@ -29,7 +29,7 @@ public final class ModItems {
      * может не оказаться ни одного поселения, и без чертежа мод было бы не начать.
      */
     public static final Item TOWN_HALL_BLUEPRINT = register("town_hall_blueprint",
-            new Item(new Item.Settings().maxCount(1).rarity(Rarity.UNCOMMON)));
+            new TownHallBlueprintItem(new Item.Settings().maxCount(1).rarity(Rarity.UNCOMMON)));
 
     public static final ItemGroup GROUP = Registry.register(
             Registries.ITEM_GROUP,

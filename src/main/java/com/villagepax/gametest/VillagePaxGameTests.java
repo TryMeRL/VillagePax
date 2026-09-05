@@ -4,17 +4,29 @@ import com.villagepax.block.ModBlocks;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureKind;
 import com.villagepax.core.culture.CultureManager;
+import com.villagepax.sim.Building;
+import com.villagepax.sim.Citizen;
+import com.villagepax.sim.Gender;
+import com.villagepax.sim.Owner;
+import com.villagepax.sim.Settlement;
+import com.villagepax.sim.SettlementLevel;
+import com.villagepax.sim.SettlementManager;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
 import net.minecraft.block.Blocks;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.registry.Registries;
 import net.minecraft.test.GameTest;
 import net.minecraft.test.TestContext;
+import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
+import java.util.Optional;
+import java.util.UUID;
+
 /**
  * Игровые тесты — всё, что нельзя проверить без запущенного мира:
- * загрузка датапаков, реестры, состояние поселений, поведение жителей.
+ * загрузка датапаков, реестры, сохранение состояния, поведение жителей.
  */
 public class VillagePaxGameTests implements FabricGameTest {
 
@@ -64,6 +76,115 @@ public class VillagePaxGameTests implements FabricGameTest {
 
         context.setBlockState(pos, Blocks.AIR.getDefaultState());
         context.setBlockState(markerPos, Blocks.AIR.getDefaultState());
+        context.complete();
+    }
+
+    /**
+     * Настоящая проверка сохранения: поселение проходит через тот же
+     * PersistentStateManager, что и в живой игре, записывается в NBT
+     * и читается обратно. Это перезагрузка мира без перезапуска сервера.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void settlementSurvivesWorldReload(TestContext context) {
+        SettlementManager manager = SettlementManager.get(context.getWorld());
+        UUID player = UUID.randomUUID();
+
+        // Далёкие координаты, чтобы не пересечься с поселениями других тестов.
+        BlockPos center = new BlockPos(1_000_000, 70, 1_000_000);
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Бовуар", center);
+        colony.setLevel(SettlementLevel.VILLAGE);
+
+        Building lumberjack = Building.planned(
+                new Identifier("villagepax", "norman/lumberjack"),
+                center.add(12, 0, 4),
+                BlockRotation.CLOCKWISE_180);
+        Citizen worker = Citizen.newborn("Thibault", "de Beauvoir", NORMAN, Gender.MALE);
+        lumberjack.assign(worker.id());
+        colony.addBuilding(lumberjack);
+        colony.addCitizen(worker);
+
+        try {
+            manager.setDirty(false);
+            manager.add(colony);
+
+            if (!manager.isDirty()) {
+                context.throwGameTestException(
+                        "Менеджер не помечен грязным после добавления — состояние не сохранится");
+            }
+
+            NbtCompound saved = manager.writeNbt(new NbtCompound());
+            SettlementManager reloaded = SettlementManager.fromNbt(saved);
+
+            Optional<Settlement> restored = reloaded.byId(colony.id());
+            if (restored.isEmpty()) {
+                context.throwGameTestException("После перезагрузки поселение исчезло");
+            }
+
+            Settlement after = restored.get();
+            if (!after.name().equals("Бовуар")) {
+                context.throwGameTestException("Имя поселения потерялось: " + after.name());
+            }
+            if (after.level() != SettlementLevel.VILLAGE) {
+                context.throwGameTestException("Уровень поселения потерялся: " + after.level());
+            }
+            if (!after.owner().isOwnedBy(player)) {
+                context.throwGameTestException("Владелец колонии потерялся");
+            }
+            if (after.buildings().size() != 1 || after.citizens().size() != 1) {
+                context.throwGameTestException("Потеряны здания или жители: зданий "
+                        + after.buildings().size() + ", жителей " + after.citizens().size());
+            }
+            if (after.buildings().get(0).rotation() != BlockRotation.CLOCKWISE_180) {
+                context.throwGameTestException("Поворот схемы потерялся — здание встанет не так");
+            }
+            if (after.buildings().get(0).workers().size() != 1) {
+                context.throwGameTestException("Назначение работника потерялось");
+            }
+
+            // Границы должны работать и после перезагрузки.
+            if (reloaded.at(center).isEmpty()) {
+                context.throwGameTestException("Поселение не находится по своей же ратуше");
+            }
+            if (reloaded.at(center.add(2000, 0, 0)).isPresent()) {
+                context.throwGameTestException("Границы поселения растянулись слишком далеко");
+            }
+
+            // Изменение через update тоже обязано помечать состояние грязным.
+            manager.setDirty(false);
+            manager.update(colony.id(), settlement -> settlement.rename("Бовуар-сюр-Мер"));
+            if (!manager.isDirty()) {
+                context.throwGameTestException("update не пометил состояние грязным");
+            }
+        } finally {
+            manager.remove(colony.id());
+        }
+
+        context.complete();
+    }
+
+    /** Два поселения не должны спорить за одни и те же чанки. */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void overlappingSettlementIsRejected(TestContext context) {
+        SettlementManager manager = SettlementManager.get(context.getWorld());
+        BlockPos center = new BlockPos(2_000_000, 70, 2_000_000);
+
+        Settlement first = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Рокмон", center);
+        Settlement tooClose = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Валберж", center.add(32, 0, 0));
+        Settlement farEnough = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Фонтене", center.add(2000, 0, 0));
+
+        try {
+            manager.add(first);
+
+            if (manager.conflictWith(tooClose).isEmpty()) {
+                context.throwGameTestException("Пересечение границ не обнаружено");
+            }
+            if (manager.conflictWith(farEnough).isPresent()) {
+                context.throwGameTestException("Далёкое поселение ошибочно считается конфликтующим");
+            }
+        } finally {
+            manager.remove(first.id());
+        }
+
         context.complete();
     }
 }

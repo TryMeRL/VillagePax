@@ -10,6 +10,11 @@ import com.villagepax.sim.Founding;
 import com.villagepax.sim.FoundingOutcome;
 import com.villagepax.block.entity.TownHallBlockEntity;
 import net.minecraft.server.world.ServerWorld;
+import com.villagepax.entity.CitizenEntity;
+import com.villagepax.entity.CitizenSpawner;
+import com.villagepax.entity.ModEntities;
+import net.minecraft.util.math.ChunkPos;
+import net.minecraft.util.math.Vec3d;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Gender;
@@ -275,6 +280,119 @@ public class VillagePaxGameTests implements FabricGameTest {
         if (world.getBlockState(midAir).isOf(ModBlocks.TOWN_HALL)) {
             context.throwGameTestException("Ратуша всё-таки поставлена при отказе");
         }
+
+        context.complete();
+    }
+
+    /**
+     * Проверка ключевого архитектурного решения мода: тело жителя одноразовое,
+     * сам житель — нет. Выгрузка чанка должна вернуть состояние в данные,
+     * загрузка — восстановить тело там же, где его оставили.
+     * <p>
+     * Настоящую выгрузку чанка внутри игрового теста не устроить, поэтому
+     * вызываются ровно те же методы, которые вызывают события чанков.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void citizenBodySurvivesChunkCycle(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos base = context.getAbsolutePos(new BlockPos(1, 2, 1));
+        ChunkPos chunk = new ChunkPos(base);
+
+        Settlement colony = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Тестовое", base);
+        Citizen citizen = Citizen.newborn("Rollo", "de Beauvoir", NORMAN, Gender.MALE);
+        citizen.setPosition(Vec3d.ofBottomCenter(base));
+        colony.addCitizen(citizen);
+
+        try {
+            manager.add(colony);
+
+            if (CitizenSpawner.onChunkLoad(world, chunk) != 1) {
+                context.throwGameTestException("Тело жителя не появилось при загрузке чанка");
+            }
+
+            UUID bodyUuid = citizen.entityUuid().orElse(null);
+            if (bodyUuid == null) {
+                context.throwGameTestException("Житель не запомнил своё тело");
+                return;
+            }
+            if (!(world.getEntity(bodyUuid) instanceof CitizenEntity body)) {
+                context.throwGameTestException("Тело жителя не найдено в мире");
+                return;
+            }
+            if (body.getCustomName() == null
+                    || !body.getCustomName().getString().equals("Rollo de Beauvoir")) {
+                context.throwGameTestException("Имя жителя не перенесено на тело");
+            }
+
+            // Житель отошёл: это изменение обязано пережить выгрузку.
+            Vec3d moved = new Vec3d(base.getX() + 0.5, base.getY() + 1, base.getZ() + 0.5);
+            body.setPosition(moved);
+
+            if (CitizenSpawner.unloadChunk(world, chunk) != 1) {
+                context.throwGameTestException("Тело не убрано при выгрузке чанка");
+            }
+            if (!body.isRemoved()) {
+                context.throwGameTestException("Тело осталось в мире после выгрузки");
+            }
+            if (citizen.entityUuid().isPresent()) {
+                context.throwGameTestException("Ссылка на исчезнувшее тело не очищена");
+            }
+            if (citizen.position().isEmpty() || citizen.position().get().squaredDistanceTo(moved) > 0.01) {
+                context.throwGameTestException("Позиция не вернулась в данные: " + citizen.position());
+            }
+
+            // И снова загрузка: житель должен появиться там же, где исчез.
+            if (CitizenSpawner.onChunkLoad(world, chunk) != 1) {
+                context.throwGameTestException("Житель не возродился при повторной загрузке чанка");
+            }
+
+            UUID secondBody = citizen.entityUuid().orElse(null);
+            if (secondBody == null || secondBody.equals(bodyUuid)) {
+                context.throwGameTestException("Ожидалось новое тело для того же жителя");
+                return;
+            }
+            if (!(world.getEntity(secondBody) instanceof CitizenEntity restored)) {
+                context.throwGameTestException("Новое тело не найдено");
+                return;
+            }
+            if (restored.getPos().squaredDistanceTo(moved) > 0.01) {
+                context.throwGameTestException("Житель возродился не там, где исчез: " + restored.getPos());
+            }
+            if (!restored.citizenId().equals(Optional.of(citizen.id()))) {
+                context.throwGameTestException("Новое тело привязано к чужому жителю");
+            }
+
+            // Повторная загрузка не должна плодить двойников.
+            if (CitizenSpawner.onChunkLoad(world, chunk) != 0) {
+                context.throwGameTestException("Повторная загрузка чанка создала лишнее тело");
+            }
+        } finally {
+            CitizenSpawner.unloadChunk(world, chunk);
+            manager.remove(colony.id());
+        }
+
+        context.complete();
+    }
+
+    /** Тело жителя не должно попадать в сохранение чанка: источник правды один. */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void citizenBodyIsNeverSaved(TestContext context) {
+        ServerWorld world = context.getWorld();
+        CitizenEntity body = ModEntities.CITIZEN.create(world);
+
+        if (body == null) {
+            context.throwGameTestException("Тип жителя не создаёт сущность");
+            return;
+        }
+        if (body.shouldSave()) {
+            context.throwGameTestException("Тело жителя записывается в чанк — источников правды станет два");
+        }
+        if (ModEntities.CITIZEN.isSaveable()) {
+            context.throwGameTestException("Тип жителя объявлен сохраняемым");
+        }
+        body.discard();
 
         context.complete();
     }

@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Uuids;
+import net.minecraft.util.math.Vec3d;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -34,7 +35,8 @@ public class Citizen {
             Codec.INT.optionalFieldOf("happiness", 70).forGetter(Citizen::happiness),
             Codec.INT.optionalFieldOf("saturation", 20).forGetter(Citizen::saturation),
             Uuids.STRING_CODEC.optionalFieldOf("home").forGetter(Citizen::home),
-            Uuids.STRING_CODEC.optionalFieldOf("workplace").forGetter(Citizen::workplace)
+            Uuids.STRING_CODEC.optionalFieldOf("workplace").forGetter(Citizen::workplace),
+            Vec3d.CODEC.optionalFieldOf("position").forGetter(Citizen::position)
     ).apply(instance, Citizen::new));
 
     private final UUID id;
@@ -48,10 +50,19 @@ public class Citizen {
     private int saturation;
     private Optional<UUID> home;
     private Optional<UUID> workplace;
+    private Optional<Vec3d> position;
+
+    /**
+     * Живое тело жителя, если оно сейчас есть в мире.
+     * <p>
+     * Намеренно не сохраняется: сущности жителей не пишутся в чанк, поэтому
+     * после перезапуска сервера любой такой идентификатор был бы протухшим.
+     */
+    private UUID entityUuid;
 
     public Citizen(UUID id, String firstName, String lastName, Identifier culture, Gender gender,
                    long ageTicks, Optional<Identifier> profession, int happiness, int saturation,
-                   Optional<UUID> home, Optional<UUID> workplace) {
+                   Optional<UUID> home, Optional<UUID> workplace, Optional<Vec3d> position) {
         this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;
@@ -63,11 +74,12 @@ public class Citizen {
         this.saturation = saturation;
         this.home = home;
         this.workplace = workplace;
+        this.position = position;
     }
 
     public static Citizen newborn(String firstName, String lastName, Identifier culture, Gender gender) {
         return new Citizen(UUID.randomUUID(), firstName, lastName, culture, gender, 0L,
-                Optional.empty(), 70, 20, Optional.empty(), Optional.empty());
+                Optional.empty(), 70, 20, Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     public UUID id() {
@@ -149,6 +161,22 @@ public class Citizen {
 
     public void setWorkplace(UUID building) {
         this.workplace = Optional.ofNullable(building);
+    }
+
+    public Optional<Vec3d> position() {
+        return position;
+    }
+
+    public void setPosition(Vec3d position) {
+        this.position = Optional.ofNullable(position);
+    }
+
+    public Optional<UUID> entityUuid() {
+        return Optional.ofNullable(entityUuid);
+    }
+
+    public void setEntityUuid(UUID entityUuid) {
+        this.entityUuid = entityUuid;
     }
 
     public boolean isHomeless() {

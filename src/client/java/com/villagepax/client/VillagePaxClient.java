@@ -1,10 +1,12 @@
 package com.villagepax.client;
 
 import com.villagepax.block.ModBlocks;
+import com.villagepax.entity.ModEntities;
 import com.villagepax.item.ModItems;
 import com.villagepax.item.TownHallBlueprintItem;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.minecraft.block.Block;
 import net.minecraft.item.BlockItem;
 import net.minecraft.text.Text;
@@ -15,6 +17,7 @@ public class VillagePaxClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        EntityRendererRegistry.register(ModEntities.CITIZEN, CitizenEntityRenderer::new);
         registerTooltips();
     }
 

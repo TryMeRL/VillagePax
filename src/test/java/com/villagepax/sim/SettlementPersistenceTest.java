@@ -7,6 +7,7 @@ import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
+import net.minecraft.util.math.Vec3d;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -64,7 +65,8 @@ class SettlementPersistenceTest {
                 Optional.of(new Identifier("villagepax", "builder")),
                 77, 14,
                 Optional.of(townHall.id()),
-                Optional.of(lumberjack.id()));
+                Optional.of(lumberjack.id()),
+                Optional.of(new Vec3d(134.5, 68.0, -330.5)));
 
         Citizen child = Citizen.newborn("Aveline", "de Beauvoir", NORMAN, Gender.FEMALE);
 
@@ -133,9 +135,13 @@ class SettlementPersistenceTest {
         assertTrue(builder.home().isPresent());
         assertTrue(builder.workplace().isPresent());
 
+        assertEquals(Optional.of(new Vec3d(134.5, 68.0, -330.5)), builder.position(),
+                "позиция нужна, чтобы житель возродился там же, где его оставили");
+
         Citizen child = after.citizens().get(1);
         assertTrue(child.isUnemployed(), "у новорождённого нет работы");
         assertTrue(child.isHomeless());
+        assertTrue(child.position().isEmpty(), "житель без позиции появится у ратуши");
     }
 
     @Test

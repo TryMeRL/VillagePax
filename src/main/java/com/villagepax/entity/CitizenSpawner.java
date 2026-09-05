@@ -5,8 +5,10 @@ import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.chunk.WorldChunk;
@@ -15,12 +17,13 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Связывает данные жителей с их телами по загрузке и выгрузке чанков.
+ * Связывает данные жителей с их телами.
  * <p>
- * Загрузился чанк — у живущих в нём жителей появляются тела; выгрузился —
- * тела возвращают состояние в данные и исчезают. Поселение за горизонтом
- * не стоит серверу ничего, а вернувшийся игрок застаёт жителей там же,
- * где оставил.
+ * Загрузился чанк — у живущих в нём жителей появляются тела. Обратный путь
+ * идёт не отсюда: состояние возвращает в данные сама сущность в
+ * {@link CitizenEntity#remove}, потому что тело может исчезнуть и без выгрузки
+ * чанка — от смерти, от остановки сервера, от выгрузки секции сущностей,
+ * которая с 1.17 живёт своей жизнью.
  */
 public final class CitizenSpawner {
 
@@ -29,7 +32,15 @@ public final class CitizenSpawner {
 
     public static void register() {
         ServerChunkEvents.CHUNK_LOAD.register((world, chunk) -> onChunkLoad(world, chunk.getPos()));
-        ServerChunkEvents.CHUNK_UNLOAD.register(CitizenSpawner::onChunkUnload);
+
+        // Подстраховка к CitizenEntity.remove: Fabric обещает, что это событие
+        // приходит до удаления сущности из мира, а порядок событий чанков
+        // относительно секций сущностей ничем не гарантирован.
+        ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
+            if (entity instanceof CitizenEntity body) {
+                body.writeBackTo(world);
+            }
+        });
     }
 
     public static int onChunkLoad(ServerWorld world, ChunkPos chunk) {
@@ -41,10 +52,7 @@ public final class CitizenSpawner {
                 continue;
             }
             for (Citizen citizen : settlement.citizens()) {
-                if (!livesIn(settlement, citizen, chunk)) {
-                    continue;
-                }
-                if (hasLiveBody(world, citizen)) {
+                if (!livesIn(settlement, citizen, chunk) || hasLiveBody(world, citizen)) {
                     continue;
                 }
                 if (spawnBody(world, settlement, citizen) != null) {
@@ -59,16 +67,18 @@ public final class CitizenSpawner {
         return unloadChunk(world, chunk.getPos());
     }
 
+    /**
+     * Убирает тела жителей в указанном чанке. Состояние возвращают сами тела
+     * в {@link CitizenEntity#remove}, поэтому здесь достаточно их отпустить.
+     */
     public static int unloadChunk(ServerWorld world, ChunkPos chunk) {
         List<CitizenEntity> bodies = world.getEntitiesByType(
                 ModEntities.CITIZEN,
-                new net.minecraft.util.math.Box(
-                        chunk.getStartX(), world.getBottomY(), chunk.getStartZ(),
+                new Box(chunk.getStartX(), world.getBottomY(), chunk.getStartZ(),
                         chunk.getEndX() + 1, world.getTopY(), chunk.getEndZ() + 1),
                 entity -> true);
 
         for (CitizenEntity body : bodies) {
-            body.writeBackTo(world);
             body.discard();
         }
         return bodies.size();
@@ -85,6 +95,7 @@ public final class CitizenSpawner {
         body.refreshPositionAndAngles(where.x, where.y, where.z, world.random.nextFloat() * 360f, 0f);
         body.link(settlement.id(), citizen.id());
         body.applyFrom(citizen);
+        tether(body, settlement);
 
         if (!world.spawnEntity(body)) {
             VillagePax.LOGGER.error("Мир отказался принять тело жителя {}", citizen.fullName());
@@ -95,14 +106,33 @@ public final class CitizenSpawner {
         return body;
     }
 
-    /** Житель без записанной позиции считается стоящим у ратуши. */
+    /**
+     * Житель не должен уходить за границы своего поселения.
+     * <p>
+     * Дело не в реализме: тела появляются только в тех чанках, которые
+     * поселение считает своими, и ушедший за границу житель больше никогда
+     * не получил бы тела — он остался бы записью в данных, занимающей место
+     * в населении, но невидимой и недостижимой.
+     */
+    private static void tether(CitizenEntity body, Settlement settlement) {
+        int radiusBlocks = settlement.level().claimRadiusChunks() * 16;
+        body.setPositionTarget(settlement.center(), radiusBlocks);
+    }
+
+    /**
+     * Где житель появится. Записанная позиция за границами поселения не
+     * используется — иначе житель, оказавшийся снаружи (после смены уровня
+     * поселения или правки данных руками), потерялся бы навсегда.
+     */
     private static Vec3d spawnPosition(Settlement settlement, Citizen citizen) {
-        return citizen.position().orElseGet(() -> Vec3d.ofBottomCenter(settlement.center().up()));
+        Vec3d fallback = Vec3d.ofBottomCenter(settlement.center().up());
+        return citizen.position()
+                .filter(pos -> settlement.claims(BlockPos.ofFloored(pos)))
+                .orElse(fallback);
     }
 
     private static boolean livesIn(Settlement settlement, Citizen citizen, ChunkPos chunk) {
-        Vec3d position = spawnPosition(settlement, citizen);
-        return new ChunkPos(BlockPos.ofFloored(position)).equals(chunk);
+        return new ChunkPos(BlockPos.ofFloored(spawnPosition(settlement, citizen))).equals(chunk);
     }
 
     private static boolean hasLiveBody(ServerWorld world, Citizen citizen) {

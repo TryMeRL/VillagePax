@@ -23,6 +23,7 @@ import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementLevel;
 import com.villagepax.sim.SettlementManager;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
+import net.minecraft.entity.Entity;
 import net.minecraft.block.Blocks;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.registry.Registries;
@@ -393,6 +394,132 @@ public class VillagePaxGameTests implements FabricGameTest {
             context.throwGameTestException("Тип жителя объявлен сохраняемым");
         }
         body.discard();
+
+        context.complete();
+    }
+
+    /**
+     * Раненый житель не должен исцеляться от того, что игрок отошёл.
+     * Иначе осада из фазы 3 перестанет работать как механика.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void woundsSurviveChunkCycle(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos base = context.getAbsolutePos(new BlockPos(1, 2, 1));
+        ChunkPos chunk = new ChunkPos(base);
+
+        Settlement colony = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Лазарет", base);
+        Citizen citizen = Citizen.newborn("Aubert", "", NORMAN, Gender.MALE);
+        citizen.setPosition(Vec3d.ofBottomCenter(base));
+        colony.addCitizen(citizen);
+
+        try {
+            manager.add(colony);
+            CitizenSpawner.onChunkLoad(world, chunk);
+
+            CitizenEntity body = (CitizenEntity) world.getEntity(citizen.entityUuid().orElseThrow());
+            body.setHealth(6.0f);
+
+            CitizenSpawner.unloadChunk(world, chunk);
+
+            if (Math.abs(citizen.health() - 6.0f) > 0.01f) {
+                context.throwGameTestException("Урон не вернулся в данные, здоровье: " + citizen.health());
+            }
+
+            CitizenSpawner.onChunkLoad(world, chunk);
+            CitizenEntity restored = (CitizenEntity) world.getEntity(citizen.entityUuid().orElseThrow());
+            if (Math.abs(restored.getHealth() - 6.0f) > 0.01f) {
+                context.throwGameTestException("Житель исцелился при перезагрузке: " + restored.getHealth());
+            }
+        } finally {
+            CitizenSpawner.unloadChunk(world, chunk);
+            manager.remove(colony.id());
+        }
+
+        context.complete();
+    }
+
+    /** Погибший житель уходит из поселения, а не возрождается целым. */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void deadCitizenLeavesSettlement(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos base = context.getAbsolutePos(new BlockPos(1, 2, 1));
+        ChunkPos chunk = new ChunkPos(base);
+
+        Settlement colony = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Погост", base);
+        Citizen citizen = Citizen.newborn("Ancel", "", NORMAN, Gender.MALE);
+        citizen.setPosition(Vec3d.ofBottomCenter(base));
+        colony.addCitizen(citizen);
+
+        try {
+            manager.add(colony);
+            CitizenSpawner.onChunkLoad(world, chunk);
+
+            CitizenEntity body = (CitizenEntity) world.getEntity(citizen.entityUuid().orElseThrow());
+            body.remove(Entity.RemovalReason.KILLED);
+
+            if (colony.citizen(citizen.id()).isPresent()) {
+                context.throwGameTestException("Погибший житель остался в поселении");
+            }
+            if (colony.population() != 0) {
+                context.throwGameTestException("Население не уменьшилось: " + colony.population());
+            }
+            if (CitizenSpawner.onChunkLoad(world, chunk) != 0) {
+                context.throwGameTestException("Погибший житель возродился");
+            }
+        } finally {
+            CitizenSpawner.unloadChunk(world, chunk);
+            manager.remove(colony.id());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Житель, чья записанная позиция оказалась за границами поселения,
+     * обязан вернуться к ратуше, а не пропасть навсегда.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void citizenOutsideClaimIsRecovered(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos base = context.getAbsolutePos(new BlockPos(1, 2, 1));
+        ChunkPos chunk = new ChunkPos(base);
+
+        Settlement colony = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Заблудший", base);
+        Citizen citizen = Citizen.newborn("Foulques", "", NORMAN, Gender.MALE);
+        // Далеко за пределами хутора: два чанка радиуса, а это больше тысячи блоков.
+        citizen.setPosition(new Vec3d(base.getX() + 2000, base.getY(), base.getZ()));
+        colony.addCitizen(citizen);
+
+        try {
+            manager.add(colony);
+
+            if (CitizenSpawner.onChunkLoad(world, chunk) != 1) {
+                context.throwGameTestException("Заблудившийся житель не вернулся к ратуше");
+            }
+
+            CitizenEntity body = (CitizenEntity) world.getEntity(citizen.entityUuid().orElseThrow());
+            if (body.getPos().squaredDistanceTo(Vec3d.ofBottomCenter(colony.center().up())) > 1.0) {
+                context.throwGameTestException("Житель появился не у ратуши: " + body.getPos());
+            }
+
+            // И его должно удерживать в границах, чтобы он не ушёл снова.
+            if (!body.hasPositionTarget()) {
+                context.throwGameTestException("Житель ничем не привязан к поселению");
+            }
+            if (body.getPositionTargetRange() > SettlementLevel.HAMLET.claimRadiusChunks() * 16f + 0.5f) {
+                context.throwGameTestException("Привязка шире границ поселения: " + body.getPositionTargetRange());
+            }
+        } finally {
+            CitizenSpawner.unloadChunk(world, chunk);
+            manager.remove(colony.id());
+        }
 
         context.complete();
     }

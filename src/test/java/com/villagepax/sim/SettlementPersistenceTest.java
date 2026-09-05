@@ -66,7 +66,8 @@ class SettlementPersistenceTest {
                 77, 14,
                 Optional.of(townHall.id()),
                 Optional.of(lumberjack.id()),
-                Optional.of(new Vec3d(134.5, 68.0, -330.5)));
+                Optional.of(new Vec3d(134.5, 68.0, -330.5)),
+                7.5f);
 
         Citizen child = Citizen.newborn("Aveline", "de Beauvoir", NORMAN, Gender.FEMALE);
 
@@ -137,6 +138,8 @@ class SettlementPersistenceTest {
 
         assertEquals(Optional.of(new Vec3d(134.5, 68.0, -330.5)), builder.position(),
                 "позиция нужна, чтобы житель возродился там же, где его оставили");
+        assertEquals(7.5f, builder.health(), 0.001f,
+                "раненый житель не должен исцеляться от выгрузки чанка");
 
         Citizen child = after.citizens().get(1);
         assertTrue(child.isUnemployed(), "у новорождённого нет работы");

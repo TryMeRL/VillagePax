@@ -24,6 +24,8 @@ public class Citizen {
     /** Ниже этого порога житель работает вполсилы, а затем уходит из колонии. */
     public static final int UNHAPPY_THRESHOLD = 30;
 
+    public static final float MAX_HEALTH = 20.0f;
+
     public static final Codec<Citizen> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Uuids.STRING_CODEC.fieldOf("id").forGetter(Citizen::id),
             Codec.STRING.fieldOf("first_name").forGetter(Citizen::firstName),
@@ -36,7 +38,8 @@ public class Citizen {
             Codec.INT.optionalFieldOf("saturation", 20).forGetter(Citizen::saturation),
             Uuids.STRING_CODEC.optionalFieldOf("home").forGetter(Citizen::home),
             Uuids.STRING_CODEC.optionalFieldOf("workplace").forGetter(Citizen::workplace),
-            Vec3d.CODEC.optionalFieldOf("position").forGetter(Citizen::position)
+            Vec3d.CODEC.optionalFieldOf("position").forGetter(Citizen::position),
+            Codec.FLOAT.optionalFieldOf("health", MAX_HEALTH).forGetter(Citizen::health)
     ).apply(instance, Citizen::new));
 
     private final UUID id;
@@ -51,6 +54,7 @@ public class Citizen {
     private Optional<UUID> home;
     private Optional<UUID> workplace;
     private Optional<Vec3d> position;
+    private float health;
 
     /**
      * Живое тело жителя, если оно сейчас есть в мире.
@@ -62,7 +66,8 @@ public class Citizen {
 
     public Citizen(UUID id, String firstName, String lastName, Identifier culture, Gender gender,
                    long ageTicks, Optional<Identifier> profession, int happiness, int saturation,
-                   Optional<UUID> home, Optional<UUID> workplace, Optional<Vec3d> position) {
+                   Optional<UUID> home, Optional<UUID> workplace, Optional<Vec3d> position,
+                   float health) {
         this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;
@@ -75,11 +80,12 @@ public class Citizen {
         this.home = home;
         this.workplace = workplace;
         this.position = position;
+        this.health = health;
     }
 
     public static Citizen newborn(String firstName, String lastName, Identifier culture, Gender gender) {
         return new Citizen(UUID.randomUUID(), firstName, lastName, culture, gender, 0L,
-                Optional.empty(), 70, 20, Optional.empty(), Optional.empty(), Optional.empty());
+                Optional.empty(), 70, 20, Optional.empty(), Optional.empty(), Optional.empty(), MAX_HEALTH);
     }
 
     public UUID id() {
@@ -169,6 +175,19 @@ public class Citizen {
 
     public void setPosition(Vec3d position) {
         this.position = Optional.ofNullable(position);
+    }
+
+    /**
+     * Здоровье хранится в данных, а не только в теле: иначе раненый житель
+     * полностью исцелялся бы каждый раз, когда игрок отходит и возвращается,
+     * и осада из фазы 3 перестала бы работать как механика.
+     */
+    public float health() {
+        return health;
+    }
+
+    public void setHealth(float health) {
+        this.health = Math.max(0.0f, Math.min(MAX_HEALTH, health));
     }
 
     public Optional<UUID> entityUuid() {

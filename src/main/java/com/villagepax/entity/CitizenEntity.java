@@ -1,5 +1,6 @@
 package com.villagepax.entity;
 
+import com.villagepax.VillagePax;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
@@ -87,7 +88,7 @@ public class CitizenEntity extends PathAwareEntity {
     public void applyFrom(Citizen citizen) {
         setCustomName(Text.literal(citizen.fullName()));
         setCustomNameVisible(true);
-        setHealth(getMaxHealth());
+        setHealth(citizen.health());
     }
 
     /**
@@ -101,7 +102,45 @@ public class CitizenEntity extends PathAwareEntity {
         SettlementManager.get(world).update(settlementId, settlement -> settlement.citizen(citizenId)
                 .ifPresent(citizen -> {
                     citizen.setPosition(getPos());
+                    citizen.setHealth(getHealth());
                     citizen.setEntityUuid(null);
+                }));
+    }
+
+    /**
+     * Единственная надёжная точка возврата состояния.
+     * <p>
+     * Раньше это делалось из обработчика выгрузки чанка, и это было ошибкой:
+     * начиная с 1.17 сущности живут в отдельном индексе и выгружаются
+     * независимо от чанков, а смерть и остановка сервера туда вообще
+     * не попадали. Здесь же перехватываются все пути исчезновения тела.
+     */
+    @Override
+    public void remove(RemovalReason reason) {
+        if (getWorld() instanceof ServerWorld serverWorld) {
+            if (reason == RemovalReason.KILLED) {
+                buryCitizen(serverWorld);
+            } else {
+                writeBackTo(serverWorld);
+            }
+        }
+        super.remove(reason);
+    }
+
+    /**
+     * Погибший житель уходит из поселения совсем. Возвращать в данные его
+     * позицию было бы хуже, чем ничего: на следующей загрузке чанка он
+     * возродился бы целым, и смерть перестала бы что-то значить.
+     */
+    private void buryCitizen(ServerWorld world) {
+        if (settlementId == null || citizenId == null) {
+            return;
+        }
+        SettlementManager.get(world).update(settlementId, settlement ->
+                settlement.citizen(citizenId).ifPresent(citizen -> {
+                    settlement.removeCitizen(citizenId);
+                    VillagePax.LOGGER.info("Житель {} из поселения {} погиб",
+                            citizen.fullName(), settlement.name());
                 }));
     }
 

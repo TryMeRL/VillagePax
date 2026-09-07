@@ -33,7 +33,26 @@ import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
+import com.villagepax.core.ModTags;
+import com.villagepax.sim.build.BuildCategory;
+import com.villagepax.sim.build.BuildPlan;
+import com.villagepax.sim.build.BuildPlanner;
+import com.villagepax.sim.build.BuildStep;
+import com.villagepax.sim.build.MarkerKind;
+import com.villagepax.sim.build.PointOfInterest;
+import com.villagepax.sim.build.Schematic;
+import com.villagepax.sim.build.SchematicLoader;
+import com.villagepax.sim.build.SchematicParser;
+import net.minecraft.block.BlockState;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.resource.Resource;
+import net.minecraft.util.math.Vec3i;
+
+import java.io.InputStream;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -522,5 +541,206 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
 
         context.complete();
+    }
+
+    // --- задача 1.5: схемы зданий и план стройки ---
+
+    private static final Identifier TOWN_HALL_SCHEMATIC =
+            new Identifier("villagepax", "norman/town_hall_lvl1");
+
+    private static final Identifier TOWN_HALL_SCHEMATIC_FILE =
+            new Identifier("villagepax", "villagepax/schematics/norman/town_hall_lvl1.nbt");
+
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void schematicIsLoadedFromDatapack(TestContext context) {
+        Schematic schematic = loadedTownHall(context);
+        Vec3i size = schematic.size();
+
+        if (!size.equals(new Vec3i(7, 6, 7))) {
+            context.throwGameTestException("Размер схемы " + size.toShortString() + ", ожидался 7, 6, 7");
+        }
+        if (schematic.palette().isEmpty()) {
+            context.throwGameTestException("Палитра схемы пуста");
+        }
+
+        int volume = size.getX() * size.getY() * size.getZ();
+        if (schematic.blocks().size() != volume) {
+            context.throwGameTestException("Блоков в схеме " + schematic.blocks().size()
+                    + ", а объём " + volume + " — часть схемы потерялась при разборе");
+        }
+
+        // Каждый блок схемы обязан стать либо установкой, либо расчисткой:
+        // потерянный блок — это дырка в готовом здании.
+        BuildPlan plan = schematic.plan();
+        long clearing = plan.steps().stream().filter(step -> !step.placesBlock()).count();
+        if (plan.blockCount() + clearing != plan.steps().size()) {
+            context.throwGameTestException("Шаги не сходятся: установок " + plan.blockCount()
+                    + ", расчисток " + clearing + ", всего " + plan.steps().size());
+        }
+        if (plan.steps().size() != volume) {
+            context.throwGameTestException("Шагов " + plan.steps().size() + " при объёме " + volume);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Маркеры — то, чем одна схема описывает и геометрию здания, и его логику.
+     * Проверяется вся сделка: каждый род найден, ни один маркер не остался
+     * блоком к установке, и место каждого расчищается.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void schematicMarkersBecomePointsOfInterest(TestContext context) {
+        Schematic schematic = loadedTownHall(context);
+        BuildPlan plan = schematic.plan();
+
+        for (MarkerKind kind : MarkerKind.values()) {
+            if (plan.positionsOf(kind).isEmpty()) {
+                context.throwGameTestException("В схеме ратуши не найден маркер: " + kind.id());
+            }
+        }
+
+        for (BuildStep step : plan.steps()) {
+            if (!step.placesBlock()) {
+                continue;
+            }
+            BlockState state = schematic.blockFor(step);
+            if (BuildPlanner.markerKind(state).isPresent()) {
+                context.throwGameTestException("Маркер попал в шаги установки блоков: "
+                        + step.pos().toShortString());
+            }
+        }
+
+        Set<BlockPos> cleared = new HashSet<>();
+        for (BuildStep step : plan.steps()) {
+            if (step.category() == BuildCategory.CLEAR) {
+                cleared.add(step.pos());
+            }
+        }
+        for (PointOfInterest poi : plan.pois()) {
+            if (!cleared.contains(poi.pos())) {
+                context.throwGameTestException("Место маркера " + poi.kind().id()
+                        + " не расчищается: " + poi.pos().toShortString());
+            }
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Приёмка задачи 1.5: список блоков детерминирован и одинаков между
+     * запусками. Порядок сверяется с планом, который загрузчик построил
+     * при старте сервера — то есть в другом прогоне и на другом потоке.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void buildPlanIsDeterministic(TestContext context) {
+        Schematic loaded = loadedTownHall(context);
+
+        Optional<Resource> resource = context.getWorld().getServer()
+                .getResourceManager().getResource(TOWN_HALL_SCHEMATIC_FILE);
+        if (resource.isEmpty()) {
+            context.throwGameTestException("Файл схемы не найден: " + TOWN_HALL_SCHEMATIC_FILE);
+        }
+
+        Schematic first;
+        Schematic second;
+        try (InputStream stream = resource.orElseThrow().getInputStream()) {
+            NbtCompound nbt = NbtIo.readCompressed(stream);
+            first = SchematicParser.parse(TOWN_HALL_SCHEMATIC, nbt, Registries.BLOCK.getReadOnlyWrapper());
+            second = SchematicParser.parse(TOWN_HALL_SCHEMATIC, nbt, Registries.BLOCK.getReadOnlyWrapper());
+        } catch (Exception failure) {
+            context.throwGameTestException("Схема не перечиталась: " + failure);
+            return;
+        }
+
+        if (!first.plan().equals(second.plan())) {
+            context.throwGameTestException("Два разбора одного файла дали разные планы стройки");
+        }
+        if (!first.plan().equals(loaded.plan())) {
+            context.throwGameTestException("План из файла не совпал с планом загрузчика");
+        }
+
+        // План считается один раз: приёмка требует кэширования.
+        if (loaded.plan() != loaded.plan()) {
+            context.throwGameTestException("План пересчитывается на каждое обращение");
+        }
+
+        context.complete();
+    }
+
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void buildPlanOrdersClearingThenStructureThenDecor(TestContext context) {
+        BuildPlan plan = loadedTownHall(context).plan();
+
+        // Если в схеме нет всех трёх категорий, порядок между ними не
+        // подтверждён ничем и тест был бы пустым.
+        EnumSet<BuildCategory> present = EnumSet.noneOf(BuildCategory.class);
+        for (BuildStep step : plan.steps()) {
+            present.add(step.category());
+        }
+        if (present.size() != BuildCategory.values().length) {
+            context.throwGameTestException("В плане есть только " + present
+                    + " — порядок категорий проверять нечем");
+        }
+
+        BuildCategory category = null;
+        int height = 0;
+        for (BuildStep step : plan.steps()) {
+            if (step.category() != category) {
+                if (category != null && step.category().ordinal() < category.ordinal()) {
+                    context.throwGameTestException("Категории перемешаны: " + category.id()
+                            + " встретилась перед " + step.category().id());
+                }
+                category = step.category();
+                height = step.pos().getY();
+                continue;
+            }
+            int current = step.pos().getY();
+            if (category.topDown() ? current > height : current < height) {
+                context.throwGameTestException("Высота идёт не туда в " + category.id()
+                        + ": " + height + " -> " + current);
+            }
+            height = current;
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Тег вместо предиката по блокстейту — решение задачи 1.5, и проверять
+     * его надо на том самом случае, на котором предикат бы и сломался:
+     * ступени крыши не полный куб, поэтому {@code isSolid} у них ложь,
+     * и крыша уехала бы вноситься после мебели.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void decorTagSeparatesFurnitureFromStructure(TestContext context) {
+        if (!Blocks.LECTERN.getDefaultState().isIn(ModTags.BUILD_DECOR)) {
+            context.throwGameTestException(
+                    "Тег villagepax:build_decor не загружен или не содержит пюпитр");
+        }
+        if (Blocks.DARK_OAK_PLANKS.getDefaultState().isIn(ModTags.BUILD_DECOR)) {
+            context.throwGameTestException("Планки попали в декор — стены вносились бы последними");
+        }
+
+        if (BuildPlanner.categoryOf(Blocks.LECTERN.getDefaultState()) != BuildCategory.DECOR) {
+            context.throwGameTestException("Пюпитр не признан обстановкой");
+        }
+        if (BuildPlanner.categoryOf(Blocks.COBBLESTONE.getDefaultState()) != BuildCategory.STRUCTURE) {
+            context.throwGameTestException("Булыжник не признан несущим");
+        }
+        if (BuildPlanner.categoryOf(Blocks.DARK_OAK_STAIRS.getDefaultState()) != BuildCategory.STRUCTURE) {
+            context.throwGameTestException("Ступени крыши уехали в декор");
+        }
+
+        context.complete();
+    }
+
+    private static Schematic loadedTownHall(TestContext context) {
+        Optional<Schematic> schematic = SchematicLoader.get(TOWN_HALL_SCHEMATIC);
+        if (schematic.isEmpty()) {
+            context.throwGameTestException("Схема " + TOWN_HALL_SCHEMATIC
+                    + " не загружена. Загружены: " + SchematicLoader.ids());
+        }
+        return schematic.orElseThrow();
     }
 }

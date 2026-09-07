@@ -1,8 +1,13 @@
 # Gradle
-.gradle/
-build/
-out/
-classes/
+#
+# Пути привязаны к корню косой чертой в начале намеренно. Шаблон `build/`
+# без неё совпадает с каталогом `build` на любой глубине — и скрывает
+# пакет исходников `src/main/java/com/villagepax/sim/build/` целиком,
+# молча и без единого предупреждения от git.
+/.gradle/
+/build/
+/out/
+/classes/
 
 # IDEA
 .idea/
@@ -17,8 +22,11 @@ classes/
 .vscode/
 
 # Fabric Loom
-run/
-remappedSrc/
+/run/
+/remappedSrc/
+
+# Свойства-тесты: jqwik хранит здесь проваленные сэмплы прошлого прогона
+.jqwik-database
 
 # OS
 .DS_Store

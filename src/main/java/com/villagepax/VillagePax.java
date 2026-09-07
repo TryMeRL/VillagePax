@@ -6,6 +6,7 @@ import com.villagepax.core.culture.CultureManager;
 import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.entity.ModEntities;
 import com.villagepax.item.ModItems;
+import com.villagepax.sim.build.SchematicLoader;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.resource.ResourceType;
@@ -25,9 +26,12 @@ public class VillagePax implements ModInitializer {
         ModItems.init();
         ModEntities.init();
         CitizenSpawner.register();
+        SchematicLoader.register();
 
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
                 .registerReloadListener(new CultureManager());
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+                .registerReloadListener(new SchematicLoader());
 
         LOGGER.info("Village Pax: инициализация");
     }

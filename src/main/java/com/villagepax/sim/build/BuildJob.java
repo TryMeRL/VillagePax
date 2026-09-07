@@ -155,13 +155,22 @@ public final class BuildJob {
         }
         building.setProgress(BuildProgress.BUILDING);
 
-        int done = 0;
-        while (done < maxSteps && building.nextStep() < steps.size()) {
-            if (!perform(world, settlement, building, schematic, steps.get(building.nextStep()))) {
+        // Бюджет тратят только шаги, на которых билдер что-то сделал. Пустая
+        // расчистка на ровном месте — а это первая треть плана — иначе съедала
+        // бы минуту игрового времени, и игрок смотрел бы, как ничего не
+        // происходит. По той же причине ремонт проскакивает целые стены,
+        // задерживаясь только на пробоинах.
+        int worked = 0;
+        while (worked < maxSteps && building.nextStep() < steps.size()) {
+            StepResult result = perform(world, settlement, building, schematic,
+                    steps.get(building.nextStep()));
+            if (result == StepResult.BLOCKED) {
                 return Outcome.WAITING_FOR_MATERIALS;
             }
             building.advanceStep();
-            done++;
+            if (result == StepResult.WORKED) {
+                worked++;
+            }
         }
 
         if (building.nextStep() >= steps.size()) {
@@ -171,23 +180,27 @@ public final class BuildJob {
         return Outcome.ADVANCED;
     }
 
-    /**
-     * Один шаг. Возвращает {@code false}, если не хватило материала — тогда
-     * индекс не двигается и билдер попробует снова на следующем обращении.
-     */
-    private static boolean perform(ServerWorld world, Settlement settlement, Building building,
-                                   Schematic schematic, BuildStep step) {
+    /** Чем кончился один шаг. */
+    private enum StepResult {
+        /** Билдер поработал: снёс или поставил блок. Шаг стоит тика. */
+        WORKED,
+        /** Делать было нечего: место уже пустое или нужный блок уже стоит. */
+        SKIPPED,
+        /** Не хватило материала: индекс не двигается, билдер ждёт. */
+        BLOCKED
+    }
+
+    private static StepResult perform(ServerWorld world, Settlement settlement, Building building,
+                                      Schematic schematic, BuildStep step) {
         BlockPos where = worldPos(building, schematic.size(), step.pos());
 
         if (!step.placesBlock()) {
-            // Пустое место уже пустое: лишняя запись в мир тянула бы за собой
-            // каскад уведомлений соседей на каждом шаге расчистки, а при
-            // ремонте почти вся расчистка — как раз пустая.
-            if (!world.getBlockState(where).isAir()) {
-                salvage(world, settlement.warehouse(), where);
-                world.setBlockState(where, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
+            if (world.getBlockState(where).isAir()) {
+                return StepResult.SKIPPED;
             }
-            return true;
+            salvage(world, settlement.warehouse(), where);
+            world.setBlockState(where, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
+            return StepResult.WORKED;
         }
 
         BlockState planned = schematic.blockAt(step.paletteIndex()).rotate(building.rotation());
@@ -196,12 +209,12 @@ public final class BuildJob {
         // ремонт повреждённого здания списывал бы со склада всю схему целиком,
         // хотя починить надо пару блоков.
         if (world.getBlockState(where).isOf(planned.getBlock())) {
-            return true;
+            return StepResult.SKIPPED;
         }
 
         Optional<Identifier> material = Materials.itemFor(planned);
         if (material.isPresent() && !settlement.warehouse().take(material.get(), 1)) {
-            return false;
+            return StepResult.BLOCKED;
         }
 
         salvage(world, settlement.warehouse(), where);
@@ -211,7 +224,7 @@ public final class BuildJob {
         // setBlockState, в отличие от установки блока игроком, окружение
         // не смотрит.
         world.setBlockState(where, Block.postProcessState(planned, world, where), Block.NOTIFY_ALL);
-        return true;
+        return StepResult.WORKED;
     }
 
     /**

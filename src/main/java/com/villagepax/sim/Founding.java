@@ -26,6 +26,13 @@ public final class Founding {
     /** Запасное имя, если у культуры не заполнен список названий поселений. */
     public static final String FALLBACK_NAME = "Безымянное";
 
+    /** Запасное имя строителя, если у культуры не заполнены списки имён. */
+    public static final String FALLBACK_BUILDER_NAME = "Строитель";
+
+    /** Профессия первого жителя. Данными станет в задаче 1.9. */
+    public static final Identifier PROFESSION_BUILDER =
+            new Identifier(com.villagepax.VillagePax.MOD_ID, "builder");
+
     private Founding() {
     }
 
@@ -67,5 +74,35 @@ public final class Founding {
     public static String pickName(Culture culture, Random random) {
         List<String> pool = culture.namePools().settlement();
         return pool.isEmpty() ? FALLBACK_NAME : pool.get(random.nextInt(pool.size()));
+    }
+
+    /**
+     * Первый житель колонии — строитель.
+     * <p>
+     * Решение заказчика, и оно же условие работоспособности: без строителя
+     * не встанет ни одно здание, а первое здание нельзя построить, не имея
+     * жителя. Остальные жители приходят под жильё в задаче 1.8.
+     */
+    public static Citizen firstBuilder(Identifier cultureId, Culture culture, Random random) {
+        boolean male = random.nextBoolean();
+        List<String> pool = male ? culture.namePools().male() : culture.namePools().female();
+        List<String> fallback = male ? culture.namePools().female() : culture.namePools().male();
+
+        String name = pick(pool, random);
+        if (name == null) {
+            name = pick(fallback, random);
+        }
+        if (name == null) {
+            // Недописанный датапак не должен лишать игрока строителя.
+            name = FALLBACK_BUILDER_NAME;
+        }
+
+        Citizen builder = Citizen.newborn(name, "", cultureId, male ? Gender.MALE : Gender.FEMALE);
+        builder.setProfession(PROFESSION_BUILDER);
+        return builder;
+    }
+
+    private static String pick(List<String> pool, Random random) {
+        return pool.isEmpty() ? null : pool.get(random.nextInt(pool.size()));
     }
 }

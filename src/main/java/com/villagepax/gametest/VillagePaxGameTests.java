@@ -234,7 +234,11 @@ public class VillagePaxGameTests implements FabricGameTest {
      * Полный путь основания колонии в живом мире: чертёж ставит ратушу,
      * блок связывается с поселением, поселение попадает в менеджер.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE)
+    // Своя пачка: тесты внутри одной пачки идут параллельно в общем мире, а
+    // границы поселения — два чанка. Любой сосед, зарегистрировавший своё
+    // поселение, ломал бы основание по "слишком близко", и падение зависело
+    // бы от порядка запуска.
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "founding")
     public void colonyIsFoundedOnSolidGround(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -273,6 +277,24 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Ратуша не записана как готовое здание поселения");
             }
 
+            // Первый житель — строитель, и он обязан появиться сразу с телом:
+            // иначе игрок основал колонию и никого не увидел, а без строителя
+            // не встанет ни одно здание.
+            if (colony.population() != 1) {
+                context.throwGameTestException("Ожидался один житель, получено " + colony.population());
+            }
+            Citizen firstBuilder = colony.citizens().get(0);
+            if (!firstBuilder.profession().equals(Optional.of(Founding.PROFESSION_BUILDER))) {
+                context.throwGameTestException("Первый житель не строитель: " + firstBuilder.profession());
+            }
+            if (firstBuilder.firstName().isEmpty()) {
+                context.throwGameTestException("У строителя нет имени");
+            }
+            UUID bodyId = firstBuilder.entityUuid().orElse(null);
+            if (bodyId == null || !(world.getEntity(bodyId) instanceof CitizenEntity)) {
+                context.throwGameTestException("У первого строителя нет тела в мире");
+            }
+
             // Одна колония на игрока: вторая попытка того же игрока отклоняется.
             context.setBlockState(new BlockPos(3, 1, 1), Blocks.STONE);
             BlockPos second = context.getAbsolutePos(new BlockPos(3, 2, 1));
@@ -289,6 +311,7 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Соседняя колония должна отклоняться по границам, получено: " + neighbour);
             }
         } finally {
+            discardBodies(world, colony);
             manager.remove(colony.id());
             world.setBlockState(target, Blocks.AIR.getDefaultState());
         }
@@ -1190,6 +1213,95 @@ public class VillagePaxGameTests implements FabricGameTest {
 
         context.complete();
     }
+
+    /**
+     * Тот самый путь, который проходит живой игрок, и ничего кроме него.
+     * <p>
+     * Чертёж основывает колонию, вместе с ней появляется строитель, площадка
+     * размечается, материалы завозятся — и дальше <b>никто ничего не вызывает
+     * руками</b>. Блоки ставит {@code BuildTicker}, который висит на тике мира
+     * с самой инициализации мода, ровно как в игре. Остальные тесты стройки
+     * дёргают двигатель напрямую и потому не доказывают, что он вообще
+     * подключён к игре; этот доказывает.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, tickLimit = 120, batchId = "playerPath")
+    public void playerPathRaisesBuildingByItself(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+
+        context.setBlockState(new BlockPos(1, 1, 1), Blocks.STONE);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 2, 1));
+
+        FoundingOutcome outcome = ColonyFounder.foundAt(world, UUID.randomUUID(), NORMAN, hall);
+        if (!(outcome instanceof FoundingOutcome.Founded founded)) {
+            context.throwGameTestException("Колония не основана: " + outcome);
+            return;
+        }
+
+        Settlement colony = founded.settlement();
+        if (colony.citizens().stream().noneMatch(
+                citizen -> citizen.profession().equals(Optional.of(BuildJob.BUILDER)))) {
+            context.throwGameTestException("Основание не дало строителя — стройке некому идти");
+        }
+
+        // Площадку ставим над шаблоном: след 7x7 иначе залез бы в область
+        // соседнего игрового теста, а они делят один мир.
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+        stockFor(colony, schematic);
+
+        int expected = 6;
+        long wait = BuildJob.TICKS_PER_STEP * (expected + 1L);
+
+        context.runAtTick(wait, () -> {
+            try {
+                if (site.nextStep() < expected) {
+                    context.throwGameTestException("За " + wait + " тиков сделано шагов "
+                            + site.nextStep() + ", ожидалось не меньше " + expected
+                            + ". Похоже, тикер стройки не подключён к тику мира");
+                }
+                if (site.progress() != BuildProgress.BUILDING) {
+                    context.throwGameTestException("Площадка не перешла в стройку: "
+                            + site.progress().id());
+                }
+
+                // Блоки обязаны появиться в мире, а не только в счётчике шагов.
+                int placed = 0;
+                for (int step = 0; step < site.nextStep(); step++) {
+                    BuildStep done = schematic.plan().steps().get(step);
+                    if (!done.placesBlock()) {
+                        continue;
+                    }
+                    BlockPos where = BuildJob.worldPos(site, schematic.size(), done.pos());
+                    if (!world.getBlockState(where).isOf(schematic.blockAt(done.paletteIndex()).getBlock())) {
+                        context.throwGameTestException("Шаг " + step + " засчитан, а блока в мире нет: "
+                                + where.toShortString());
+                    }
+                    placed++;
+                }
+                if (placed == 0) {
+                    context.throwGameTestException("Ни одного блока не поставлено — "
+                            + "первые шаги плана оказались только расчисткой");
+                }
+
+                context.complete();
+            } finally {
+                demolish(world, site, schematic);
+                discardBodies(world, colony);
+                manager.remove(colony.id());
+                world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            }
+        });
+    }
+
+    /** Тела не сохраняются, но живут до выгрузки: игровые тесты делят один мир. */
+    private static void discardBodies(ServerWorld world, Settlement settlement) {
+        for (Citizen citizen : settlement.citizens()) {
+            citizen.entityUuid().map(world::getEntity).ifPresent(Entity::discard);
+        }
+    }
+
     // --- помощники задачи 1.6 ---
 
     private static Settlement colonyWithBuilder(SettlementManager manager, BlockPos center) {

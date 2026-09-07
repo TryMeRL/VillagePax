@@ -4,10 +4,12 @@ import com.villagepax.block.ModBlocks;
 import com.villagepax.block.entity.TownHallBlockEntity;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
+import com.villagepax.entity.CitizenSpawner;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 
 import java.util.List;
 import java.util.Random;
@@ -40,6 +42,7 @@ public final class ColonyFounder {
 
         if (outcome instanceof FoundingOutcome.Founded founded) {
             raiseTownHall(world, target, founded.settlement(), culture, cultureId);
+            settleFirstBuilder(world, founded.settlement(), culture, cultureId);
             manager.add(founded.settlement());
         }
         return outcome;
@@ -52,6 +55,20 @@ public final class ColonyFounder {
         }
         BlockPos below = pos.down();
         return world.getBlockState(below).isSolidBlock(world, below);
+    }
+
+    /**
+     * Строитель появляется у ратуши сразу и с телом: чанк основания заведомо
+     * загружен, а ждать следующей загрузки чанка значило бы, что игрок
+     * основал колонию и никого не увидел.
+     */
+    private static void settleFirstBuilder(ServerWorld world, Settlement settlement,
+                                           Culture culture, Identifier cultureId) {
+        Citizen builder = Founding.firstBuilder(cultureId, culture, new Random(world.getRandom().nextLong()));
+        builder.setPosition(Vec3d.ofBottomCenter(settlement.center().up()));
+        settlement.addCitizen(builder);
+
+        CitizenSpawner.spawnBody(world, settlement, builder);
     }
 
     private static void raiseTownHall(ServerWorld world, BlockPos pos, Settlement settlement,

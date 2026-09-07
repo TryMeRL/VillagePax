@@ -9,6 +9,7 @@ import net.minecraft.util.math.BlockPos;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
@@ -115,6 +116,52 @@ class FoundingTest {
                 manager, UUID.randomUUID(), NORMAN, norman(), SOMEWHERE, seeded());
 
         assertTrue(outcome.isSuccess(), "ограничение одна колония — на игрока, а не на мир");
+    }
+
+    @Test
+    void firstBuilderGetsNameFromCultureAndBuilderProfession() {
+        Culture culture = norman();
+
+        for (long seed = 0; seed < 30; seed++) {
+            Citizen builder = Founding.firstBuilder(NORMAN, culture, new Random(seed));
+
+            assertEquals(Optional.of(Founding.PROFESSION_BUILDER), builder.profession(),
+                    "первый житель обязан быть строителем: без него не встанет ни одно здание");
+            assertEquals(NORMAN, builder.culture());
+
+            List<String> pool = builder.gender() == Gender.MALE
+                    ? culture.namePools().male()
+                    : culture.namePools().female();
+            assertTrue(pool.contains(builder.firstName()),
+                    "имя " + builder.firstName() + " не из списка народа, сид " + seed);
+        }
+    }
+
+    /** Недописанный датапак не должен лишать игрока строителя. */
+    @Test
+    void firstBuilderSurvivesEmptyNamePools() {
+        Culture nameless = new Culture("villagepax.culture.void", CultureKind.FANTASY,
+                new SpawnSettings("#minecraft:is_forest", 10, 48),
+                new NamePools(List.of(), List.of(), List.of()),
+                List.of(), List.of(), Map.of());
+
+        Citizen builder = Founding.firstBuilder(NORMAN, nameless, new Random(1));
+
+        assertEquals(Founding.FALLBACK_BUILDER_NAME, builder.firstName());
+        assertEquals(Optional.of(Founding.PROFESSION_BUILDER), builder.profession());
+    }
+
+    /** Один пустой список не должен мешать: имя берётся из другого. */
+    @Test
+    void firstBuilderFallsBackToTheOtherPool() {
+        Culture menOnly = new Culture("villagepax.culture.men", CultureKind.HISTORICAL,
+                new SpawnSettings("#minecraft:is_forest", 10, 48),
+                new NamePools(List.of("Rollo"), List.of(), List.of()),
+                List.of(), List.of(), Map.of());
+
+        for (long seed = 0; seed < 10; seed++) {
+            assertEquals("Rollo", Founding.firstBuilder(NORMAN, menOnly, new Random(seed)).firstName());
+        }
     }
 
     @Test

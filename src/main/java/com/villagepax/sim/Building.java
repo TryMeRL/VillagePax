@@ -30,7 +30,8 @@ public class Building {
             BlockPos.CODEC.fieldOf("anchor").forGetter(Building::anchor),
             BlockRotation.CODEC.optionalFieldOf("rotation", BlockRotation.NONE).forGetter(Building::rotation),
             BuildProgress.CODEC.optionalFieldOf("progress", BuildProgress.PLANNED).forGetter(Building::progress),
-            Uuids.STRING_CODEC.listOf().optionalFieldOf("workers", List.of()).forGetter(Building::workers)
+            Uuids.STRING_CODEC.listOf().optionalFieldOf("workers", List.of()).forGetter(Building::workers),
+            Codec.INT.optionalFieldOf("next_step", 0).forGetter(Building::nextStep)
     ).apply(instance, Building::new));
 
     private final UUID id;
@@ -41,8 +42,23 @@ public class Building {
     private BuildProgress progress;
     private final List<UUID> workers;
 
+    /**
+     * Сколько шагов плана стройки уже выполнено.
+     * <p>
+     * Лежит здесь, а не в билдере, намеренно: билдер может выгрузиться вместе
+     * с чанком, погибнуть или сменить работу, и стройка от этого не должна
+     * начинаться заново. Это то же решение, что и «житель — данные, тело —
+     * временная сущность».
+     */
+    private int nextStep;
+
     public Building(UUID id, Identifier type, int level, BlockPos anchor, BlockRotation rotation,
                     BuildProgress progress, List<UUID> workers) {
+        this(id, type, level, anchor, rotation, progress, workers, 0);
+    }
+
+    public Building(UUID id, Identifier type, int level, BlockPos anchor, BlockRotation rotation,
+                    BuildProgress progress, List<UUID> workers, int nextStep) {
         this.id = id;
         this.type = type;
         this.level = level;
@@ -50,6 +66,7 @@ public class Building {
         this.rotation = rotation;
         this.progress = progress;
         this.workers = new ArrayList<>(workers);
+        this.nextStep = Math.max(0, nextStep);
     }
 
     public static Building planned(Identifier type, BlockPos anchor, BlockRotation rotation) {
@@ -102,5 +119,23 @@ public class Building {
 
     public boolean isOperational() {
         return progress == BuildProgress.DONE;
+    }
+
+    public int nextStep() {
+        return nextStep;
+    }
+
+    public void setNextStep(int nextStep) {
+        this.nextStep = Math.max(0, nextStep);
+    }
+
+    public void advanceStep() {
+        nextStep++;
+    }
+
+    /** Стройка заново: после апгрейда и после повреждения план проходится с начала. */
+    public void restartBuilding() {
+        nextStep = 0;
+        progress = BuildProgress.BUILDING;
     }
 }

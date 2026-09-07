@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Все поселения одного измерения. Хранится вместе с миром, а не в статике,
@@ -114,6 +115,24 @@ public class SettlementManager extends PersistentState {
         mutation.accept(settlement);
         markDirty();
         return true;
+    }
+
+    /**
+     * Как {@link #update}, но возвращает результат изменения.
+     * <p>
+     * Нужен там, где вызывающему важно, чем кончилось действие — например
+     * стройке: продвинулась, ждёт материалов или уже готова. Без этого
+     * приходилось бы либо доставать результат через изменяемую обёртку,
+     * либо менять поселение в обход менеджера и забыть {@code markDirty}.
+     */
+    public <T> Optional<T> apply(UUID id, Function<Settlement, T> mutation) {
+        Settlement settlement = settlements.get(id);
+        if (settlement == null) {
+            return Optional.empty();
+        }
+        T result = mutation.apply(settlement);
+        markDirty();
+        return Optional.ofNullable(result);
     }
 
     public Optional<Settlement> byId(UUID id) {

@@ -77,6 +77,7 @@ class SettlementRoundTripProperty {
         assertEquals(before.center(), after.center(), "центр");
         assertEquals(before.level(), after.level(), "уровень");
         assertEquals(before.stats(), after.stats(), "показатели");
+        assertEquals(before.warehouse().contents(), after.warehouse().contents(), "склад");
 
         assertEquals(before.buildings().size(), after.buildings().size(), "число зданий");
         for (int i = 0; i < before.buildings().size(); i++) {
@@ -89,6 +90,7 @@ class SettlementRoundTripProperty {
             assertEquals(a.rotation(), b.rotation(), "здание " + i + ": поворот");
             assertEquals(a.progress(), b.progress(), "здание " + i + ": состояние стройки");
             assertEquals(a.workers(), b.workers(), "здание " + i + ": работники");
+            assertEquals(a.nextStep(), b.nextStep(), "здание " + i + ": шаг стройки");
         }
 
         assertEquals(before.citizens().size(), after.citizens().size(), "число жителей");
@@ -125,9 +127,10 @@ class SettlementRoundTripProperty {
                         stats(),
                         buildings().list().ofMaxSize(4))
                 .as(SettlementDraft::new)
-                .flatMap(draft -> citizens().list().ofMaxSize(6)
-                        .map(cs -> new Settlement(draft.id(), draft.culture(), draft.owner(), draft.name(),
-                                draft.center(), draft.level(), draft.stats(), draft.buildings(), cs)));
+                .flatMap(draft -> Combinators.combine(citizens().list().ofMaxSize(6), warehouses())
+                        .as((cs, warehouse) -> new Settlement(draft.id(), draft.culture(), draft.owner(),
+                                draft.name(), draft.center(), draft.level(), draft.stats(),
+                                draft.buildings(), cs, warehouse)));
     }
 
     /** Промежуточная запись: у {@code Combinators} предел в восемь значений за раз. */
@@ -152,8 +155,16 @@ class SettlementRoundTripProperty {
                         positions(),
                         Arbitraries.of(BlockRotation.values()),
                         Arbitraries.of(BuildProgress.values()),
-                        uuids().list().ofMaxSize(3))
+                        uuids().list().ofMaxSize(3),
+                        Arbitraries.integers().between(0, 4_000))
                 .as(Building::new);
+    }
+
+    /** Склад: ключи — идентификаторы предметов, значения строго положительны. */
+    private Arbitrary<Warehouse> warehouses() {
+        return Arbitraries.maps(identifiers(), Arbitraries.integers().between(1, 20_000))
+                .ofMaxSize(6)
+                .map(Warehouse::new);
     }
 
     private Arbitrary<Citizen> citizens() {

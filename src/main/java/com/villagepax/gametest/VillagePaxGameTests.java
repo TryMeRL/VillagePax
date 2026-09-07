@@ -48,6 +48,17 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.resource.Resource;
 import net.minecraft.util.math.Vec3i;
 
+import com.villagepax.sim.Warehouse;
+import com.villagepax.sim.build.BuildJob;
+import com.villagepax.sim.build.BuildSite;
+import com.villagepax.sim.build.Materials;
+import net.minecraft.state.property.Properties;
+import net.minecraft.util.math.Direction;
+import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtOps;
+
+import java.util.List;
+import java.util.Map;
 import java.io.InputStream;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -742,5 +753,470 @@ public class VillagePaxGameTests implements FabricGameTest {
                     + " не загружена. Загружены: " + SchematicLoader.ids());
         }
         return schematic.orElseThrow();
+    }
+
+    // --- задача 1.6: билдер строит ---
+
+    private static final Identifier TOWN_HALL_TYPE = new Identifier("villagepax", "norman/town_hall");
+
+    /**
+     * Приёмка задачи 1.6: дать билдеру схему и полный склад — здание построено
+     * полностью и совпадает со схемой поблочно.
+     * <p>
+     * Состояния сравниваются по блоку, а не целиком: {@code postProcessState}
+     * досчитывает у ступеней форму, а у стёкол соединения по окружению — как
+     * и при установке блока игроком. Поворот проверяется отдельно, по тем
+     * свойствам, которые он и меняет.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void builderRaisesWholeBuilding(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+
+        Settlement colony = colonyWithBuilder(manager, anchor);
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+
+        try {
+            stockFor(colony, schematic);
+
+            BuildJob.Outcome outcome = BuildJob.advance(world, manager, colony.id(), site.id(), 10_000);
+            if (outcome != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Стройка не завершилась: " + outcome
+                        + ", шаг " + site.nextStep() + " из " + schematic.plan().steps().size());
+            }
+            if (site.progress() != BuildProgress.DONE) {
+                context.throwGameTestException("Состояние здания " + site.progress().id() + ", ожидалось done");
+            }
+
+            for (BuildStep step : schematic.plan().steps()) {
+                BlockPos where = BuildJob.worldPos(site, schematic.size(), step.pos());
+                BlockState actual = world.getBlockState(where);
+
+                if (!step.placesBlock()) {
+                    if (!actual.isAir()) {
+                        context.throwGameTestException("Расчищенное место занято " + actual.getBlock()
+                                + " в " + step.pos().toShortString());
+                    }
+                    continue;
+                }
+
+                BlockState expected = schematic.blockAt(step.paletteIndex());
+                if (!actual.isOf(expected.getBlock())) {
+                    context.throwGameTestException("В " + step.pos().toShortString() + " ожидался "
+                            + expected.getBlock() + ", стоит " + actual.getBlock());
+                }
+            }
+
+            // Материалы обязаны быть израсходованы: иначе стройка бесплатна.
+            if (!colony.warehouse().isEmpty()) {
+                context.throwGameTestException("Склад не опустел, осталось штук: "
+                        + colony.warehouse().total());
+            }
+
+            // Точки интереса пересчитаны в мировые координаты и лежат внутри следа.
+            List<BlockPos> doors = BuildJob.pointsOfInterest(site, schematic, MarkerKind.DOOR);
+            if (doors.isEmpty()) {
+                context.throwGameTestException("У готового здания нет точки входа");
+            }
+            for (BlockPos door : doors) {
+                if (!BuildSite.covers(anchor, schematic.size(), BlockRotation.NONE, door)) {
+                    context.throwGameTestException("Точка входа вне следа здания: " + door.toShortString());
+                }
+            }
+        } finally {
+            demolish(world, site, schematic);
+            manager.remove(colony.id());
+        }
+
+        context.complete();
+    }
+
+    /** Второе требование приёмки: материалов нет — билдер ждёт, а не ломается. */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void builderWaitsWithoutMaterials(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+
+        Settlement colony = colonyWithBuilder(manager, anchor);
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+
+        try {
+            BuildJob.Outcome outcome = BuildJob.advance(world, manager, colony.id(), site.id(), 10_000);
+            if (outcome != BuildJob.Outcome.WAITING_FOR_MATERIALS) {
+                context.throwGameTestException("Без материалов ожидалось ожидание, получено: " + outcome);
+            }
+            if (site.progress() != BuildProgress.BUILDING) {
+                context.throwGameTestException("Здание должно остаться в стройке, а не в "
+                        + site.progress().id());
+            }
+
+            int stuckAt = site.nextStep();
+            if (stuckAt >= schematic.plan().steps().size()) {
+                context.throwGameTestException("Здание достроилось без материалов");
+            }
+            if (!schematic.plan().steps().get(stuckAt).placesBlock()) {
+                context.throwGameTestException("Билдер встал на шаге расчистки, а тот материалов не требует");
+            }
+
+            // Повторное обращение не должно ни двигать индекс, ни падать.
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 100)
+                    != BuildJob.Outcome.WAITING_FOR_MATERIALS) {
+                context.throwGameTestException("Второе обращение без материалов дало другой исход");
+            }
+            if (site.nextStep() != stuckAt) {
+                context.throwGameTestException("Индекс шага сдвинулся без материалов: "
+                        + stuckAt + " → " + site.nextStep());
+            }
+
+            // Подвезли материалы — стройка продолжилась с того же места.
+            stockFor(colony, schematic);
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("После подвоза материалов стройка не завершилась");
+            }
+        } finally {
+            demolish(world, site, schematic);
+            manager.remove(colony.id());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Прогресс живёт в данных поселения, а не в билдере: стройка обязана
+     * продолжаться с того же места после перезахода в мир.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void buildProgressSurvivesReload(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+
+        Settlement colony = colonyWithBuilder(manager, anchor);
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+
+        try {
+            stockFor(colony, schematic);
+            BuildJob.advance(world, manager, colony.id(), site.id(), 40);
+
+            int reached = site.nextStep();
+            if (reached == 0 || reached >= schematic.plan().steps().size()) {
+                context.throwGameTestException("Нужна недостроенная стройка, а шаг " + reached);
+            }
+
+            NbtElement saved = Settlement.CODEC.encodeStart(NbtOps.INSTANCE, colony).result().orElseThrow();
+            Settlement restored = Settlement.CODEC.parse(NbtOps.INSTANCE, saved).result().orElseThrow();
+            Building restoredSite = restored.building(site.id()).orElseThrow();
+
+            if (restoredSite.nextStep() != reached) {
+                context.throwGameTestException("Шаг стройки не пережил сохранение: "
+                        + reached + " → " + restoredSite.nextStep());
+            }
+            if (restoredSite.progress() != BuildProgress.BUILDING) {
+                context.throwGameTestException("Состояние стройки не пережило сохранение");
+            }
+            if (restored.warehouse().total() != colony.warehouse().total()) {
+                context.throwGameTestException("Склад не пережил сохранение");
+            }
+        } finally {
+            demolish(world, site, schematic);
+            manager.remove(colony.id());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Поворот применяется и к позициям, и к блокстейтам. Повернуть только
+     * позиции — значит получить дом с лестницами, ведущими в стену.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void rotatedBuildingTurnsItsBlocksToo(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+
+        Settlement colony = colonyWithBuilder(manager, anchor);
+        Building site = plan(colony, anchor, BlockRotation.CLOCKWISE_90);
+
+        try {
+            stockFor(colony, schematic);
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Повёрнутое здание не достроилось");
+            }
+
+            int checkedStairs = 0;
+            for (BuildStep step : schematic.plan().steps()) {
+                if (!step.placesBlock()) {
+                    continue;
+                }
+                BlockState planned = schematic.blockAt(step.paletteIndex());
+                if (!planned.contains(Properties.HORIZONTAL_FACING)) {
+                    continue;
+                }
+
+                BlockPos where = BuildJob.worldPos(site, schematic.size(), step.pos());
+                Direction expected = BlockRotation.CLOCKWISE_90
+                        .rotate(planned.get(Properties.HORIZONTAL_FACING));
+                BlockState actual = world.getBlockState(where);
+
+                if (!actual.contains(Properties.HORIZONTAL_FACING)) {
+                    context.throwGameTestException("В " + where.toShortString() + " стоит "
+                            + actual.getBlock() + " без направления");
+                    return;
+                }
+                if (actual.get(Properties.HORIZONTAL_FACING) != expected) {
+                    context.throwGameTestException("Поворот блока не применён в "
+                            + step.pos().toShortString() + ": ожидалось " + expected
+                            + ", стоит " + actual.get(Properties.HORIZONTAL_FACING));
+                }
+                checkedStairs++;
+            }
+
+            if (checkedStairs == 0) {
+                context.throwGameTestException("В схеме нет блоков с направлением — поворот нечем проверить");
+            }
+        } finally {
+            demolish(world, site, schematic);
+            manager.remove(colony.id());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Расчистка сдаёт добычу на склад — решение заказчика. Поэтому выбор
+     * места становится экономическим: стройка в лесу дороже по времени,
+     * но выгоднее по материалам.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void clearingSalvageGoesToWarehouse(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+
+        Settlement colony = colonyWithBuilder(manager, anchor);
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+
+        // Кладём брёвна ровно туда, где схема требует пустоты.
+        Identifier logItem = new Identifier("minecraft", "oak_log");
+        int obstacles = 0;
+        List<BlockPos> blocked = new java.util.ArrayList<>();
+        for (BuildStep step : schematic.plan().steps()) {
+            if (step.placesBlock() || obstacles >= 4) {
+                continue;
+            }
+            BlockPos where = BuildJob.worldPos(site, schematic.size(), step.pos());
+            world.setBlockState(where, Blocks.OAK_LOG.getDefaultState());
+            blocked.add(where);
+            obstacles++;
+        }
+
+        try {
+            if (obstacles == 0) {
+                context.throwGameTestException("В схеме нет шагов расчистки — проверять нечего");
+            }
+
+            BuildJob.advance(world, manager, colony.id(), site.id(), 10_000);
+
+            if (colony.warehouse().count(logItem) < obstacles) {
+                context.throwGameTestException("Добыча с расчистки не попала на склад: брёвен "
+                        + colony.warehouse().count(logItem) + " из " + obstacles);
+            }
+            for (BlockPos where : blocked) {
+                if (!world.getBlockState(where).isAir()) {
+                    context.throwGameTestException("Помеха не убрана: " + where.toShortString());
+                }
+            }
+        } finally {
+            demolish(world, site, schematic);
+            manager.remove(colony.id());
+        }
+
+        context.complete();
+    }
+
+    /** Без строителя стройка не идёт: это работа профессии, а не самого поселения. */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void constructionNeedsABuilder(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Безлюдье", anchor);
+        manager.add(colony);
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+
+        try {
+            stockFor(colony, schematic);
+
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 100)
+                    != BuildJob.Outcome.NO_BUILDER) {
+                context.throwGameTestException("Без строителя стройка не должна идти");
+            }
+            if (site.nextStep() != 0) {
+                context.throwGameTestException("Без строителя индекс шага сдвинулся");
+            }
+
+            // Нанимаем строителя — и та же стройка идёт.
+            Citizen builder = Citizen.newborn("Rollo", "le Macon", NORMAN, Gender.MALE);
+            builder.setProfession(BuildJob.BUILDER);
+            colony.addCitizen(builder);
+
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 10)
+                    == BuildJob.Outcome.NO_BUILDER) {
+                context.throwGameTestException("Строитель нанят, а стройка всё равно не идёт");
+            }
+        } finally {
+            demolish(world, site, schematic);
+            manager.remove(colony.id());
+        }
+
+        context.complete();
+    }
+
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void schematicNamingRoundTrips(TestContext context) {
+        Building site = new Building(UUID.randomUUID(), TOWN_HALL_TYPE, 1,
+                BlockPos.ORIGIN, BlockRotation.NONE, BuildProgress.PLANNED, List.of());
+
+        Identifier schematicId = BuildJob.schematicId(site);
+        if (!schematicId.equals(TOWN_HALL_SCHEMATIC)) {
+            context.throwGameTestException("Имя схемы собрано неверно: " + schematicId);
+        }
+        if (!BuildJob.buildingTypeOf(schematicId).equals(Optional.of(TOWN_HALL_TYPE))) {
+            context.throwGameTestException("Тип здания из имени схемы не восстановился");
+        }
+        if (!BuildJob.levelOf(schematicId).equals(Optional.of(1))) {
+            context.throwGameTestException("Уровень из имени схемы не восстановился");
+        }
+        if (BuildJob.buildingTypeOf(new Identifier("villagepax", "norman/house")).isPresent()) {
+            context.throwGameTestException("Имя без _lvl не должно разбираться");
+        }
+
+        // Заявка на материалы обязана быть непустой и не содержать воздуха.
+        Map<Identifier, Integer> required = Materials.required(loadedTownHall(context));
+        if (required.isEmpty()) {
+            context.throwGameTestException("Заявка на материалы пуста");
+        }
+        if (required.containsKey(new Identifier("minecraft", "air"))) {
+            context.throwGameTestException("В заявку попал воздух");
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * Повреждённое здание чинится по той же схеме — и платит только за то,
+     * что действительно пропало.
+     * <p>
+     * Здесь сходятся два решения. Первое: у повреждённого здания {@code nextStep}
+     * стоит в конце с прошлой стройки, поэтому ремонт обязан начать план заново,
+     * иначе он мгновенно «завершился» бы, не поставив ни блока. Второе: уже
+     * стоящий нужный блок не переставляется и не оплачивается, иначе починка
+     * трёх блоков списывала бы со склада схему целиком.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void damagedBuildingIsRepairedAndPaysOnlyForWhatIsMissing(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+
+        Settlement colony = colonyWithBuilder(manager, anchor);
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+
+        try {
+            stockFor(colony, schematic);
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Здание не построилось до начала проверки ремонта");
+            }
+
+            // Выбиваем три несущих блока и записываем, чем они были.
+            List<BlockPos> holes = new java.util.ArrayList<>();
+            Map<Identifier, Integer> missing = new java.util.LinkedHashMap<>();
+            for (BuildStep step : schematic.plan().steps()) {
+                if (holes.size() >= 3 || !step.placesBlock()) {
+                    continue;
+                }
+                BlockState planned = schematic.blockAt(step.paletteIndex());
+                Optional<Identifier> item = Materials.itemFor(planned);
+                if (item.isEmpty()) {
+                    continue;
+                }
+
+                BlockPos where = BuildJob.worldPos(site, schematic.size(), step.pos());
+                world.setBlockState(where, Blocks.AIR.getDefaultState());
+                holes.add(where);
+                missing.merge(item.get(), 1, Integer::sum);
+            }
+            if (holes.size() != 3) {
+                context.throwGameTestException("Не удалось выбить три блока для проверки ремонта");
+            }
+
+            site.setProgress(BuildProgress.DAMAGED);
+            missing.forEach((item, count) -> colony.warehouse().add(item, count));
+
+            BuildJob.Outcome outcome = BuildJob.advance(world, manager, colony.id(), site.id(), 10_000);
+            if (outcome != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Ремонт не завершился: " + outcome
+                        + ", шаг " + site.nextStep());
+            }
+
+            for (BlockPos hole : holes) {
+                if (world.getBlockState(hole).isAir()) {
+                    context.throwGameTestException("Пробоина не заделана: " + hole.toShortString());
+                }
+            }
+            if (!colony.warehouse().isEmpty()) {
+                context.throwGameTestException("Ремонт списал лишнее: на складе осталось "
+                        + colony.warehouse().total() + ", а завозили ровно на три блока");
+            }
+        } finally {
+            demolish(world, site, schematic);
+            manager.remove(colony.id());
+        }
+
+        context.complete();
+    }
+    // --- помощники задачи 1.6 ---
+
+    private static Settlement colonyWithBuilder(SettlementManager manager, BlockPos center) {
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Стройка", center);
+        Citizen builder = Citizen.newborn("Rollo", "le Macon", NORMAN, Gender.MALE);
+        builder.setProfession(BuildJob.BUILDER);
+        colony.addCitizen(builder);
+        manager.add(colony);
+        return colony;
+    }
+
+    private static Building plan(Settlement colony, BlockPos anchor, BlockRotation rotation) {
+        Building site = new Building(UUID.randomUUID(), TOWN_HALL_TYPE, 1, anchor, rotation,
+                BuildProgress.PLANNED, List.of());
+        colony.addBuilding(site);
+        return site;
+    }
+
+    private static void stockFor(Settlement colony, Schematic schematic) {
+        Materials.required(schematic).forEach((item, count) -> colony.warehouse().add(item, count));
+    }
+
+    /** Убрать за собой: игровые тесты делят один мир. */
+    private static void demolish(ServerWorld world, Building site, Schematic schematic) {
+        for (BuildStep step : schematic.plan().steps()) {
+            world.setBlockState(BuildJob.worldPos(site, schematic.size(), step.pos()),
+                    Blocks.AIR.getDefaultState(), net.minecraft.block.Block.NOTIFY_LISTENERS);
+        }
     }
 }

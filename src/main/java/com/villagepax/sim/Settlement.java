@@ -32,8 +32,7 @@ public class Settlement {
             SettlementLevel.CODEC.optionalFieldOf("level", SettlementLevel.HAMLET).forGetter(Settlement::level),
             SettlementStats.CODEC.optionalFieldOf("stats", SettlementStats.INITIAL).forGetter(Settlement::stats),
             Building.CODEC.listOf().optionalFieldOf("buildings", List.of()).forGetter(Settlement::buildings),
-            Citizen.CODEC.listOf().optionalFieldOf("citizens", List.of()).forGetter(Settlement::citizens),
-            Warehouse.CODEC.optionalFieldOf("warehouse", new Warehouse()).forGetter(Settlement::warehouse)
+            Citizen.CODEC.listOf().optionalFieldOf("citizens", List.of()).forGetter(Settlement::citizens)
     ).apply(instance, Settlement::new));
 
     private final UUID id;
@@ -45,17 +44,10 @@ public class Settlement {
     private SettlementStats stats;
     private final List<Building> buildings;
     private final List<Citizen> citizens;
-    private final Warehouse warehouse;
 
     public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
                       SettlementLevel level, SettlementStats stats,
                       List<Building> buildings, List<Citizen> citizens) {
-        this(id, culture, owner, name, center, level, stats, buildings, citizens, new Warehouse());
-    }
-
-    public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
-                      SettlementLevel level, SettlementStats stats,
-                      List<Building> buildings, List<Citizen> citizens, Warehouse warehouse) {
         this.id = id;
         this.culture = culture;
         this.owner = owner;
@@ -65,7 +57,6 @@ public class Settlement {
         this.stats = stats;
         this.buildings = new ArrayList<>(buildings);
         this.citizens = new ArrayList<>(citizens);
-        this.warehouse = warehouse;
     }
 
     public static Settlement found(Identifier culture, Owner owner, String name, BlockPos center) {
@@ -143,10 +134,6 @@ public class Settlement {
 
     public Optional<Citizen> citizen(UUID citizenId) {
         return citizens.stream().filter(citizen -> citizen.id().equals(citizenId)).findFirst();
-    }
-
-    public Warehouse warehouse() {
-        return warehouse;
     }
 
     public int population() {

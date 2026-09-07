@@ -33,14 +33,17 @@ public final class Schematic {
     private final Vec3i size;
     private final List<BlockState> palette;
     private final List<PalettedBlock> blocks;
+    private final List<PointOfInterest> markers;
 
     private volatile BuildPlan plan;
 
-    public Schematic(Identifier id, Vec3i size, List<BlockState> palette, List<PalettedBlock> blocks) {
+    public Schematic(Identifier id, Vec3i size, List<BlockState> palette, List<PalettedBlock> blocks,
+                     List<PointOfInterest> markers) {
         this.id = id;
         this.size = size;
         this.palette = List.copyOf(palette);
         this.blocks = List.copyOf(blocks);
+        this.markers = List.copyOf(markers);
     }
 
     public Identifier id() {
@@ -59,6 +62,11 @@ public final class Schematic {
         return blocks;
     }
 
+    /** Точки интереса, найденные по маркерам схемы. */
+    public List<PointOfInterest> markers() {
+        return markers;
+    }
+
     /**
      * План стройки. Первое обращение считает, дальнейшие возвращают готовый.
      * <p>
@@ -72,7 +80,7 @@ public final class Schematic {
         }
         synchronized (this) {
             if (plan == null) {
-                plan = BuildPlanner.plan(size, palette, blocks);
+                plan = BuildPlanner.plan(size, palette, blocks, markers);
             }
             return plan;
         }

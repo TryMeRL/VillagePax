@@ -3,6 +3,8 @@ package com.villagepax.sim.build;
 import com.villagepax.VillagePax;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.registry.Registries;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtHelper;
@@ -13,8 +15,11 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3i;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -45,8 +50,70 @@ public final class SchematicParser {
     }
 
     public static Schematic parse(Identifier id, NbtCompound nbt, RegistryEntryLookup<Block> blocks) {
-        List<BlockState> palette = readPalette(id, nbt, blocks);
-        return new Schematic(id, readSize(nbt), palette, readBlocks(nbt, palette.size()));
+        List<BlockState> palette = new ArrayList<>(readPalette(id, nbt, blocks));
+        List<Schematic.PalettedBlock> placed = readBlocks(nbt, palette.size());
+        List<PointOfInterest> markers = new ArrayList<>();
+
+        replaceMarkers(palette, placed, markers);
+
+        return new Schematic(id, readSize(nbt), palette, placed, markers);
+    }
+
+    /**
+     * Маркер схемы — служебный блок: он не ставится, а оставляет после себя
+     * точку интереса. Само место занимает обстановка этого рода: у сундучного
+     * маркера — сундук, у остальных пока воздух.
+     * <p>
+     * Подмена делается здесь, а не отдельной фазой «доводки» после стройки,
+     * и это важно для ремонта: сундук становится обычным шагом плана, а
+     * значит правило «нужный блок уже стоит» защищает его от переустановки.
+     * Иначе ремонт сносил бы сундук вместе с содержимым.
+     */
+    private static void replaceMarkers(List<BlockState> palette,
+                                       List<Schematic.PalettedBlock> placed,
+                                       List<PointOfInterest> markers) {
+        Map<Integer, MarkerKind> markerPalette = new HashMap<>();
+        for (int i = 0; i < palette.size(); i++) {
+            Optional<MarkerKind> kind = markerKind(palette.get(i));
+            if (kind.isPresent()) {
+                markerPalette.put(i, kind.get());
+            }
+        }
+        if (markerPalette.isEmpty()) {
+            return;
+        }
+
+        Map<MarkerKind, Integer> fixtureIndex = new HashMap<>();
+        for (int i = 0; i < placed.size(); i++) {
+            Schematic.PalettedBlock block = placed.get(i);
+            MarkerKind kind = markerPalette.get(block.paletteIndex());
+            if (kind == null) {
+                continue;
+            }
+
+            markers.add(new PointOfInterest(kind, block.pos()));
+
+            BlockState fixture = fixtureFor(kind);
+            int index = fixtureIndex.computeIfAbsent(kind, ignored -> {
+                palette.add(fixture);
+                return palette.size() - 1;
+            });
+            placed.set(i, new Schematic.PalettedBlock(block.pos(), index));
+        }
+    }
+
+    /** Что встаёт на место маркера. Данными это станет вместе с типами зданий. */
+    private static BlockState fixtureFor(MarkerKind kind) {
+        return kind == MarkerKind.STORAGE
+                ? Blocks.CHEST.getDefaultState()
+                : Blocks.AIR.getDefaultState();
+    }
+
+    private static Optional<MarkerKind> markerKind(BlockState state) {
+        Identifier id = Registries.BLOCK.getId(state.getBlock());
+        return VillagePax.MOD_ID.equals(id.getNamespace())
+                ? MarkerKind.byBlockPath(id.getPath())
+                : Optional.empty();
     }
 
     private static Vec3i readSize(NbtCompound nbt) {

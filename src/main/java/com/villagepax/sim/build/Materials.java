@@ -3,8 +3,6 @@ package com.villagepax.sim.build;
 import net.minecraft.block.BlockState;
 import net.minecraft.item.Item;
 import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -30,18 +28,14 @@ public final class Materials {
      * {@code asItem} возвращает воздух. Требовать «воздух» со склада
      * бессмысленно, а схема с настенным факелом иначе встала бы навсегда.
      */
-    public static Optional<Identifier> itemFor(BlockState state) {
+    public static Optional<Item> itemFor(BlockState state) {
         Item item = state.getBlock().asItem();
-        return item == Items.AIR ? Optional.empty() : Optional.of(Registries.ITEM.getId(item));
-    }
-
-    public static boolean isFree(BlockState state) {
-        return itemFor(state).isEmpty();
+        return item == Items.AIR ? Optional.empty() : Optional.of(item);
     }
 
     /** Полная заявка на постройку схемы с нуля. */
-    public static Map<Identifier, Integer> required(Schematic schematic) {
-        Map<Identifier, Integer> needed = new LinkedHashMap<>();
+    public static Map<Item, Integer> required(Schematic schematic) {
+        Map<Item, Integer> needed = new LinkedHashMap<>();
         for (BuildStep step : schematic.plan().steps()) {
             if (!step.placesBlock()) {
                 continue;

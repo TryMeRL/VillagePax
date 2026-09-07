@@ -22,6 +22,12 @@ import com.villagepax.sim.Owner;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementLevel;
 import com.villagepax.sim.SettlementManager;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.entity.ItemEntity;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.util.math.Box;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
 import net.minecraft.entity.Entity;
 import net.minecraft.block.Blocks;
@@ -634,27 +640,41 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
         }
 
+        // Служебный блок мода не должен оказаться в шагах установки: маркер
+        // либо расчищается, либо подменяется обстановкой своего рода.
         for (BuildStep step : plan.steps()) {
             if (!step.placesBlock()) {
                 continue;
             }
-            BlockState state = schematic.blockFor(step);
-            if (BuildPlanner.markerKind(state).isPresent()) {
+            Identifier blockId = Registries.BLOCK.getId(schematic.blockFor(step).getBlock());
+            if ("villagepax".equals(blockId.getNamespace()) && blockId.getPath().startsWith("marker_")) {
                 context.throwGameTestException("Маркер попал в шаги установки блоков: "
                         + step.pos().toShortString());
             }
         }
 
-        Set<BlockPos> cleared = new HashSet<>();
+        Set<BlockPos> handled = new HashSet<>();
         for (BuildStep step : plan.steps()) {
-            if (step.category() == BuildCategory.CLEAR) {
-                cleared.add(step.pos());
-            }
+            handled.add(step.pos());
         }
         for (PointOfInterest poi : plan.pois()) {
-            if (!cleared.contains(poi.pos())) {
+            if (!handled.contains(poi.pos())) {
                 context.throwGameTestException("Место маркера " + poi.kind().id()
-                        + " не расчищается: " + poi.pos().toShortString());
+                        + " не обрабатывается планом: " + poi.pos().toShortString());
+            }
+        }
+
+        // Складской маркер превращается в сундук, и это обычный шаг плана.
+        // Отдельной фазой «доводки» сундук ставить нельзя: ремонт сносил бы
+        // его вместе с содержимым, а правило «нужный блок уже стоит» защищает.
+        for (BlockPos storage : plan.positionsOf(MarkerKind.STORAGE)) {
+            BuildStep step = plan.steps().stream()
+                    .filter(candidate -> candidate.pos().equals(storage))
+                    .findFirst()
+                    .orElseThrow();
+            if (!step.placesBlock() || !schematic.blockFor(step).isOf(Blocks.CHEST)) {
+                context.throwGameTestException("На складском маркере не сундук: "
+                        + storage.toShortString());
             }
         }
 
@@ -796,13 +816,14 @@ public class VillagePaxGameTests implements FabricGameTest {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
         Schematic schematic = loadedTownHall(context);
-        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
 
-        Settlement colony = colonyWithBuilder(manager, anchor);
+        Settlement colony = colonyWithBuilder(world, manager, hall);
         Building site = plan(colony, anchor, BlockRotation.NONE);
 
         try {
-            stockFor(colony, schematic);
+            stockFor(world, colony, schematic);
 
             BuildJob.Outcome outcome = BuildJob.advance(world, manager, colony.id(), site.id(), 10_000);
             if (outcome != BuildJob.Outcome.FINISHED) {
@@ -833,9 +854,9 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             // Материалы обязаны быть израсходованы: иначе стройка бесплатна.
-            if (!colony.warehouse().isEmpty()) {
+            if (!Warehouse.of(world, colony).isEmpty()) {
                 context.throwGameTestException("Склад не опустел, осталось штук: "
-                        + colony.warehouse().total());
+                        + Warehouse.of(world, colony).totalItems());
             }
 
             // Точки интереса пересчитаны в мировые координаты и лежат внутри следа.
@@ -862,9 +883,10 @@ public class VillagePaxGameTests implements FabricGameTest {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
         Schematic schematic = loadedTownHall(context);
-        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
 
-        Settlement colony = colonyWithBuilder(manager, anchor);
+        Settlement colony = colonyWithBuilder(world, manager, hall);
         Building site = plan(colony, anchor, BlockRotation.NONE);
 
         try {
@@ -896,7 +918,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             // Подвезли материалы — стройка продолжилась с того же места.
-            stockFor(colony, schematic);
+            stockFor(world, colony, schematic);
             if (BuildJob.advance(world, manager, colony.id(), site.id(), 10_000)
                     != BuildJob.Outcome.FINISHED) {
                 context.throwGameTestException("После подвоза материалов стройка не завершилась");
@@ -918,13 +940,14 @@ public class VillagePaxGameTests implements FabricGameTest {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
         Schematic schematic = loadedTownHall(context);
-        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
 
-        Settlement colony = colonyWithBuilder(manager, anchor);
+        Settlement colony = colonyWithBuilder(world, manager, hall);
         Building site = plan(colony, anchor, BlockRotation.NONE);
 
         try {
-            stockFor(colony, schematic);
+            stockFor(world, colony, schematic);
             BuildJob.advance(world, manager, colony.id(), site.id(), 40);
 
             int reached = site.nextStep();
@@ -943,9 +966,6 @@ public class VillagePaxGameTests implements FabricGameTest {
             if (restoredSite.progress() != BuildProgress.BUILDING) {
                 context.throwGameTestException("Состояние стройки не пережило сохранение");
             }
-            if (restored.warehouse().total() != colony.warehouse().total()) {
-                context.throwGameTestException("Склад не пережил сохранение");
-            }
         } finally {
             demolish(world, site, schematic);
             manager.remove(colony.id());
@@ -963,13 +983,14 @@ public class VillagePaxGameTests implements FabricGameTest {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
         Schematic schematic = loadedTownHall(context);
-        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
 
-        Settlement colony = colonyWithBuilder(manager, anchor);
+        Settlement colony = colonyWithBuilder(world, manager, hall);
         Building site = plan(colony, anchor, BlockRotation.CLOCKWISE_90);
 
         try {
-            stockFor(colony, schematic);
+            stockFor(world, colony, schematic);
             if (BuildJob.advance(world, manager, colony.id(), site.id(), 10_000)
                     != BuildJob.Outcome.FINISHED) {
                 context.throwGameTestException("Повёрнутое здание не достроилось");
@@ -1024,13 +1045,13 @@ public class VillagePaxGameTests implements FabricGameTest {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
         Schematic schematic = loadedTownHall(context);
-        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
 
-        Settlement colony = colonyWithBuilder(manager, anchor);
+        Settlement colony = colonyWithBuilder(world, manager, hall);
         Building site = plan(colony, anchor, BlockRotation.NONE);
 
         // Кладём брёвна ровно туда, где схема требует пустоты.
-        Identifier logItem = new Identifier("minecraft", "oak_log");
         int obstacles = 0;
         List<BlockPos> blocked = new java.util.ArrayList<>();
         for (BuildStep step : schematic.plan().steps()) {
@@ -1050,9 +1071,9 @@ public class VillagePaxGameTests implements FabricGameTest {
 
             BuildJob.advance(world, manager, colony.id(), site.id(), 10_000);
 
-            if (colony.warehouse().count(logItem) < obstacles) {
+            if (Warehouse.of(world, colony).count(Items.OAK_LOG) < obstacles) {
                 context.throwGameTestException("Добыча с расчистки не попала на склад: брёвен "
-                        + colony.warehouse().count(logItem) + " из " + obstacles);
+                        + Warehouse.of(world, colony).count(Items.OAK_LOG) + " из " + obstacles);
             }
             for (BlockPos where : blocked) {
                 if (!world.getBlockState(where).isAir()) {
@@ -1073,14 +1094,16 @@ public class VillagePaxGameTests implements FabricGameTest {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
         Schematic schematic = loadedTownHall(context);
-        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
 
-        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Безлюдье", anchor);
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Безлюдье", hall);
+        world.setBlockState(hall, ModBlocks.TOWN_HALL.getDefaultState());
         manager.add(colony);
         Building site = plan(colony, anchor, BlockRotation.NONE);
 
         try {
-            stockFor(colony, schematic);
+            stockFor(world, colony, schematic);
 
             if (BuildJob.advance(world, manager, colony.id(), site.id(), 100)
                     != BuildJob.Outcome.NO_BUILDER) {
@@ -1127,11 +1150,11 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
 
         // Заявка на материалы обязана быть непустой и не содержать воздуха.
-        Map<Identifier, Integer> required = Materials.required(loadedTownHall(context));
+        Map<Item, Integer> required = Materials.required(loadedTownHall(context));
         if (required.isEmpty()) {
             context.throwGameTestException("Заявка на материалы пуста");
         }
-        if (required.containsKey(new Identifier("minecraft", "air"))) {
+        if (required.containsKey(Items.AIR)) {
             context.throwGameTestException("В заявку попал воздух");
         }
 
@@ -1154,13 +1177,14 @@ public class VillagePaxGameTests implements FabricGameTest {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
         Schematic schematic = loadedTownHall(context);
-        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
 
-        Settlement colony = colonyWithBuilder(manager, anchor);
+        Settlement colony = colonyWithBuilder(world, manager, hall);
         Building site = plan(colony, anchor, BlockRotation.NONE);
 
         try {
-            stockFor(colony, schematic);
+            stockFor(world, colony, schematic);
             if (BuildJob.advance(world, manager, colony.id(), site.id(), 10_000)
                     != BuildJob.Outcome.FINISHED) {
                 context.throwGameTestException("Здание не построилось до начала проверки ремонта");
@@ -1168,13 +1192,13 @@ public class VillagePaxGameTests implements FabricGameTest {
 
             // Выбиваем три несущих блока и записываем, чем они были.
             List<BlockPos> holes = new java.util.ArrayList<>();
-            Map<Identifier, Integer> missing = new java.util.LinkedHashMap<>();
+            Map<Item, Integer> missing = new java.util.LinkedHashMap<>();
             for (BuildStep step : schematic.plan().steps()) {
                 if (holes.size() >= 3 || !step.placesBlock()) {
                     continue;
                 }
                 BlockState planned = schematic.blockAt(step.paletteIndex());
-                Optional<Identifier> item = Materials.itemFor(planned);
+                Optional<Item> item = Materials.itemFor(planned);
                 if (item.isEmpty()) {
                     continue;
                 }
@@ -1189,7 +1213,8 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             site.setProgress(BuildProgress.DAMAGED);
-            missing.forEach((item, count) -> colony.warehouse().add(item, count));
+            Warehouse warehouse = Warehouse.of(world, colony);
+            missing.forEach((item, count) -> warehouse.add(new ItemStack(item, count)));
 
             BuildJob.Outcome outcome = BuildJob.advance(world, manager, colony.id(), site.id(), 10_000);
             if (outcome != BuildJob.Outcome.FINISHED) {
@@ -1202,9 +1227,9 @@ public class VillagePaxGameTests implements FabricGameTest {
                     context.throwGameTestException("Пробоина не заделана: " + hole.toShortString());
                 }
             }
-            if (!colony.warehouse().isEmpty()) {
+            if (!Warehouse.of(world, colony).isEmpty()) {
                 context.throwGameTestException("Ремонт списал лишнее: на складе осталось "
-                        + colony.warehouse().total() + ", а завозили ровно на три блока");
+                        + Warehouse.of(world, colony).totalItems() + ", а завозили ровно на три блока");
             }
         } finally {
             demolish(world, site, schematic);
@@ -1249,7 +1274,7 @@ public class VillagePaxGameTests implements FabricGameTest {
         // соседнего игрового теста, а они делят один мир.
         BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
         Building site = plan(colony, anchor, BlockRotation.NONE);
-        stockFor(colony, schematic);
+        stockFor(world, colony, schematic);
 
         int expected = 6;
         long wait = BuildJob.TICKS_PER_STEP * (expected + 1L);
@@ -1295,6 +1320,201 @@ public class VillagePaxGameTests implements FabricGameTest {
         });
     }
 
+    // --- задача 1.7а: склад поверх реальных контейнеров ---
+
+    /**
+     * Ратуша — стартовое хранилище колонии.
+     * <p>
+     * Без него получается курица и яйцо: чтобы построить склад, нужен склад.
+     * Поэтому ратуша входит в склад всегда, а игрок кладёт материалы рукой.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void townHallIsTheColonyStartingStorage(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            Warehouse warehouse = Warehouse.of(world, colony);
+            if (warehouse.containerCount() != 1) {
+                context.throwGameTestException("Хранилищ у новой колонии " + warehouse.containerCount()
+                        + ", ожидалась одна ратуша");
+            }
+            if (!warehouse.isEmpty() || warehouse.totalItems() != 0) {
+                context.throwGameTestException("Новая ратуша не пуста");
+            }
+
+            // Положили и забрали: склад — вид поверх настоящего контейнера.
+            warehouse.add(new ItemStack(Items.OAK_LOG, 40));
+            if (Warehouse.of(world, colony).count(Items.OAK_LOG) != 40) {
+                context.throwGameTestException("Склад не увидел то, что в него положили");
+            }
+            if (!(world.getBlockEntity(hall) instanceof TownHallBlockEntity chest) || chest.isEmpty()) {
+                context.throwGameTestException("Предметы легли не в ратушу");
+            }
+
+            if (Warehouse.of(world, colony).take(Items.OAK_LOG, 41)) {
+                context.throwGameTestException("Склад выдал больше, чем в нём есть");
+            }
+            if (Warehouse.of(world, colony).count(Items.OAK_LOG) != 40) {
+                context.throwGameTestException("Отказ в выдаче не должен трогать склад");
+            }
+            if (!Warehouse.of(world, colony).take(Items.OAK_LOG, 40)
+                    || Warehouse.of(world, colony).count(Items.OAK_LOG) != 0) {
+                context.throwGameTestException("Выдача целиком не сработала");
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Выдача идёт «всё или ничего» даже когда нужное размазано по контейнерам. */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void warehouseTakesAcrossSeveralContainers(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, schematic);
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Здание не достроилось, второго хранилища не появится");
+            }
+
+            // Достроенное здание принесло колонии сундук на складском маркере.
+            Warehouse warehouse = Warehouse.of(world, colony);
+            if (warehouse.containerCount() < 2) {
+                context.throwGameTestException("Сундук здания не вошёл в склад: хранилищ "
+                        + warehouse.containerCount());
+            }
+            List<BlockPos> storage = BuildJob.pointsOfInterest(site, schematic, MarkerKind.STORAGE);
+            if (storage.isEmpty()) {
+                context.throwGameTestException("У здания нет складской точки");
+            }
+            for (BlockPos spot : storage) {
+                if (!world.getBlockState(spot).isOf(Blocks.CHEST)) {
+                    context.throwGameTestException("На складской точке не сундук: "
+                            + world.getBlockState(spot).getBlock());
+                }
+            }
+
+            // Раскладываем по десятку в каждое хранилище и просим всё сразу.
+            warehouse.add(new ItemStack(Items.COBBLESTONE, 10));
+            if (world.getBlockEntity(storage.get(0)) instanceof Inventory chest) {
+                chest.setStack(0, new ItemStack(Items.COBBLESTONE, 10));
+            }
+
+            Warehouse merged = Warehouse.of(world, colony);
+            if (merged.count(Items.COBBLESTONE) != 20) {
+                context.throwGameTestException("Склад не сложил содержимое контейнеров: "
+                        + merged.count(Items.COBBLESTONE));
+            }
+            if (!merged.take(Items.COBBLESTONE, 15)) {
+                context.throwGameTestException("Выдача через два контейнера не прошла");
+            }
+            if (Warehouse.of(world, colony).count(Items.COBBLESTONE) != 5) {
+                context.throwGameTestException("После выдачи осталось не то количество");
+            }
+        } finally {
+            demolish(world, site, schematic);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Излишки падают на землю, а не исчезают.
+     * <p>
+     * Контейнеры конечны, и потерять брёвна с расчистки молча хуже, чем
+     * оставить игроку уборку: пропажу он заметит только по нехватке
+     * материалов через полчаса.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void fullWarehouseScattersInsteadOfLosing(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            if (!(world.getBlockEntity(hall) instanceof TownHallBlockEntity storage)) {
+                context.throwGameTestException("У ратуши нет хранилища");
+                return;
+            }
+            for (int slot = 0; slot < storage.size(); slot++) {
+                storage.setStack(slot, new ItemStack(Items.STONE, 64));
+            }
+
+            Warehouse warehouse = Warehouse.of(world, colony);
+            ItemStack leftover = warehouse.add(new ItemStack(Items.OAK_LOG, 7));
+            if (leftover.getCount() != 7) {
+                context.throwGameTestException("Полный склад что-то принял: осталось "
+                        + leftover.getCount() + " из 7");
+            }
+
+            warehouse.addOrScatter(world, hall.up(), new ItemStack(Items.OAK_LOG, 7));
+            Box around = new Box(hall).expand(4.0);
+            int dropped = world.getEntitiesByClass(ItemEntity.class, around,
+                    entity -> entity.getStack().isOf(Items.OAK_LOG)).size();
+            if (dropped == 0) {
+                context.throwGameTestException("Излишки исчезли вместо того, чтобы упасть на землю");
+            }
+
+            world.getEntitiesByClass(ItemEntity.class, around, entity -> true).forEach(Entity::discard);
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Склад без контейнеров ничего не выдаёт и не принимает — но и не падает. */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void colonyWithoutContainersHasNoStorage(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos nowhere = context.getAbsolutePos(new BlockPos(3, 5, 3));
+
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Без ратуши", nowhere);
+        manager.add(colony);
+
+        try {
+            Warehouse warehouse = Warehouse.of(world, colony);
+
+            if (warehouse.containerCount() != 0 || !warehouse.isEmpty()) {
+                context.throwGameTestException("Склад без контейнеров не пуст");
+            }
+            if (warehouse.take(Items.OAK_LOG, 1)) {
+                context.throwGameTestException("Пустой склад что-то выдал");
+            }
+            if (warehouse.add(new ItemStack(Items.OAK_LOG, 3)).getCount() != 3) {
+                context.throwGameTestException("Складу без контейнеров удалось что-то принять");
+            }
+            if (!warehouse.has(Items.OAK_LOG, 0)) {
+                context.throwGameTestException("Нулевого количества хватает всегда");
+            }
+        } finally {
+            manager.remove(colony.id());
+        }
+
+        context.complete();
+    }
+
     /** Тела не сохраняются, но живут до выгрузки: игровые тесты делят один мир. */
     private static void discardBodies(ServerWorld world, Settlement settlement) {
         for (Citizen citizen : settlement.citizens()) {
@@ -1304,7 +1524,9 @@ public class VillagePaxGameTests implements FabricGameTest {
 
     // --- помощники задачи 1.6 ---
 
-    private static Settlement colonyWithBuilder(SettlementManager manager, BlockPos center) {
+    /** Ратуша ставится настоящим блоком: без неё у колонии нет ни одного хранилища. */
+    private static Settlement colonyWithBuilder(ServerWorld world, SettlementManager manager, BlockPos center) {
+        world.setBlockState(center, ModBlocks.TOWN_HALL.getDefaultState());
         Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Стройка", center);
         Citizen builder = Citizen.newborn("Rollo", "le Macon", NORMAN, Gender.MALE);
         builder.setProfession(BuildJob.BUILDER);
@@ -1320,8 +1542,16 @@ public class VillagePaxGameTests implements FabricGameTest {
         return site;
     }
 
-    private static void stockFor(Settlement colony, Schematic schematic) {
-        Materials.required(schematic).forEach((item, count) -> colony.warehouse().add(item, count));
+    private static void stockFor(ServerWorld world, Settlement colony, Schematic schematic) {
+        Warehouse warehouse = Warehouse.of(world, colony);
+        Materials.required(schematic).forEach((item, count) -> {
+            int left = count;
+            while (left > 0) {
+                int chunk = Math.min(left, item.getMaxCount());
+                warehouse.add(new ItemStack(item, chunk));
+                left -= chunk;
+            }
+        });
     }
 
     /** Убрать за собой: игровые тесты делят один мир. */

@@ -1,101 +1,198 @@
 package com.villagepax.sim;
 
-import com.mojang.serialization.Codec;
-import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.util.Identifier;
+import com.villagepax.block.entity.TownHallBlockEntity;
+import com.villagepax.sim.build.BuildJob;
+import com.villagepax.sim.build.MarkerKind;
+import com.villagepax.sim.build.Schematic;
+import com.villagepax.sim.build.SchematicLoader;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.ItemScatterer;
+import net.minecraft.util.math.BlockPos;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Склад поселения: сколько чего есть.
+ * Склад колонии: <b>вид</b> поверх реальных контейнеров, а не счётчик.
  * <p>
- * Предметы хранятся идентификаторами, а не объектами {@code Item}, поэтому
- * склад остаётся проверяемым без запущенной игры и переживает удаление мода,
- * добавлявшего предмет: запись просто станет неизвестной, а не уронит загрузку.
+ * Своего состояния у склада нет. Предметы хранят сами контейнеры — ратуша
+ * и сундуки зданий, — и это единственный источник правды. Гибрид «счётчик
+ * плюс сундуки» отвергнут сразу: две записи об одном и том же расходятся
+ * при первом рассинхроне, и игрок видит на складе то, чего в сундуках нет.
  * <p>
- * Задача 1.7 надстроит над этим счётчиком реальные сундуки и курьера. Билдер
- * при этом ничего не заметит: он спрашивает склад, а не сундук.
+ * Ратуша входит в склад всегда: иначе получается курица и яйцо — чтобы
+ * построить склад, нужен склад.
  */
-public class Warehouse {
+public final class Warehouse {
 
-    public static final Codec<Warehouse> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-            Codec.unboundedMap(Identifier.CODEC, Codec.INT).optionalFieldOf("items", Map.of())
-                    .forGetter(Warehouse::contents)
-    ).apply(instance, Warehouse::new));
+    private final List<Inventory> containers;
 
-    private final Map<Identifier, Integer> items;
-
-    public Warehouse() {
-        this(Map.of());
-    }
-
-    public Warehouse(Map<Identifier, Integer> items) {
-        this.items = new LinkedHashMap<>();
-        items.forEach((item, count) -> {
-            if (count > 0) {
-                this.items.put(item, count);
-            }
-        });
-    }
-
-    public Map<Identifier, Integer> contents() {
-        return Collections.unmodifiableMap(items);
-    }
-
-    public int count(Identifier item) {
-        return items.getOrDefault(item, 0);
-    }
-
-    public boolean has(Identifier item, int amount) {
-        return count(item) >= amount;
-    }
-
-    public void add(Identifier item, int amount) {
-        if (amount < 0) {
-            throw new IllegalArgumentException("на склад нельзя добавить " + amount + " штук " + item);
-        }
-        if (amount == 0) {
-            return;
-        }
-        items.merge(item, amount, Integer::sum);
+    private Warehouse(List<Inventory> containers) {
+        this.containers = containers;
     }
 
     /**
-     * Выдача «всё или ничего».
+     * Собрать склад поселения из мира.
      * <p>
-     * Частичная выдача была бы хуже отказа: билдер получил бы половину нужного,
-     * записать это некуда, и материалы просто исчезли бы со склада.
-     *
-     * @return {@code false}, если на складе меньше требуемого; склад не тронут
+     * Вид собирается заново на каждое обращение и не кэшируется: сундук можно
+     * сломать, а здание разрушить, и устаревший список контейнеров привёл бы
+     * к работе с выгруженными блок-энтити.
      */
-    public boolean take(Identifier item, int amount) {
-        if (amount < 0) {
-            throw new IllegalArgumentException("со склада нельзя выдать " + amount + " штук " + item);
+    public static Warehouse of(ServerWorld world, Settlement settlement) {
+        List<Inventory> found = new ArrayList<>();
+
+        // Ратуша стоит в центре поселения — там её поставил чертёж.
+        if (world.getBlockEntity(settlement.center()) instanceof TownHallBlockEntity hall) {
+            found.add(hall);
         }
-        if (amount == 0) {
+
+        for (Building building : settlement.buildings()) {
+            if (!building.isOperational()) {
+                continue;
+            }
+            Schematic schematic = SchematicLoader.get(BuildJob.schematicId(building)).orElse(null);
+            if (schematic == null) {
+                continue;
+            }
+            for (BlockPos spot : BuildJob.pointsOfInterest(building, schematic, MarkerKind.STORAGE)) {
+                if (world.getBlockEntity(spot) instanceof Inventory chest && !found.contains(chest)) {
+                    found.add(chest);
+                }
+            }
+        }
+
+        return new Warehouse(found);
+    }
+
+    /** Пустой склад для мест, где мир недоступен. */
+    public static Warehouse empty() {
+        return new Warehouse(List.of());
+    }
+
+    public int containerCount() {
+        return containers.size();
+    }
+
+    public int count(Item item) {
+        int total = 0;
+        for (Inventory container : containers) {
+            total += container.count(item);
+        }
+        return total;
+    }
+
+    public boolean has(Item item, int amount) {
+        return amount <= 0 || count(item) >= amount;
+    }
+
+    /**
+     * Выдача «всё или ничего»: сначала считаем, потом забираем.
+     * <p>
+     * Частичная выдача была бы хуже отказа — билдер получил бы половину
+     * нужного, записать это некуда, и материалы просто исчезли бы.
+     */
+    public boolean take(Item item, int amount) {
+        if (amount <= 0) {
             return true;
         }
-        int available = count(item);
-        if (available < amount) {
+        if (count(item) < amount) {
             return false;
         }
-        if (available == amount) {
-            // Пустые записи не храним: иначе склад раздувается в NBT списком
-            // всего, что через него когда-либо прошло.
-            items.remove(item);
-        } else {
-            items.put(item, available - amount);
+
+        int left = amount;
+        for (Inventory container : containers) {
+            for (int slot = 0; slot < container.size() && left > 0; slot++) {
+                ItemStack stack = container.getStack(slot);
+                if (!stack.isOf(item)) {
+                    continue;
+                }
+                left -= container.removeStack(slot, Math.min(left, stack.getCount())).getCount();
+            }
+            if (left == 0) {
+                break;
+            }
+        }
+        return left == 0;
+    }
+
+    /**
+     * Положить на склад. Возвращает то, что не влезло.
+     * <p>
+     * Контейнеры конечны, и остаток нельзя терять молча: потерянные брёвна
+     * хуже, чем уборка на площадке. {@link #addOrScatter} рассыпает остаток.
+     */
+    public ItemStack add(ItemStack stack) {
+        ItemStack left = stack.copy();
+
+        // Сначала доливаем начатые стопки, потом занимаем пустые слоты:
+        // иначе склад забивается огрызками по одному предмету в слоте.
+        for (Inventory container : containers) {
+            left = topUpExisting(container, left);
+        }
+        for (Inventory container : containers) {
+            left = fillEmptySlots(container, left);
+        }
+        return left;
+    }
+
+    /** Что не влезло — на землю: молча терять добычу нельзя. */
+    public void addOrScatter(ServerWorld world, BlockPos where, ItemStack stack) {
+        ItemStack left = add(stack);
+        if (!left.isEmpty()) {
+            ItemScatterer.spawn(world, where.getX(), where.getY(), where.getZ(), left);
+        }
+    }
+
+    private static ItemStack topUpExisting(Inventory container, ItemStack stack) {
+        for (int slot = 0; slot < container.size() && !stack.isEmpty(); slot++) {
+            ItemStack existing = container.getStack(slot);
+            if (existing.isEmpty() || !ItemStack.canCombine(existing, stack)) {
+                continue;
+            }
+            int room = Math.min(existing.getMaxCount(), container.getMaxCountPerStack()) - existing.getCount();
+            if (room <= 0) {
+                continue;
+            }
+            int moved = Math.min(room, stack.getCount());
+            existing.increment(moved);
+            stack.decrement(moved);
+            container.markDirty();
+        }
+        return stack;
+    }
+
+    private static ItemStack fillEmptySlots(Inventory container, ItemStack stack) {
+        for (int slot = 0; slot < container.size() && !stack.isEmpty(); slot++) {
+            if (!container.getStack(slot).isEmpty()) {
+                continue;
+            }
+            int moved = Math.min(stack.getCount(),
+                    Math.min(stack.getMaxCount(), container.getMaxCountPerStack()));
+            container.setStack(slot, stack.split(moved));
+            container.markDirty();
+        }
+        return stack;
+    }
+
+    public boolean isEmpty() {
+        for (Inventory container : containers) {
+            if (!container.isEmpty()) {
+                return false;
+            }
         }
         return true;
     }
 
-    public boolean isEmpty() {
-        return items.isEmpty();
-    }
-
-    public int total() {
-        return items.values().stream().mapToInt(Integer::intValue).sum();
+    public int totalItems() {
+        int total = 0;
+        for (Inventory container : containers) {
+            for (int slot = 0; slot < container.size(); slot++) {
+                total += container.getStack(slot).getCount();
+            }
+        }
+        return total;
     }
 }

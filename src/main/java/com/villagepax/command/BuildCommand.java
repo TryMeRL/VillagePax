@@ -8,6 +8,7 @@ import com.villagepax.sim.Building;
 import com.villagepax.sim.Founding;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Materials;
@@ -16,6 +17,8 @@ import com.villagepax.sim.build.SchematicLoader;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.argument.IdentifierArgumentType;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
@@ -136,13 +139,38 @@ public final class BuildCommand {
             return 0;
         }
 
-        Map<Identifier, Integer> needed = Materials.required(schematic);
-        manager.update(colony.id(), settlement ->
-                needed.forEach((item, count) -> settlement.warehouse().add(item, count)));
+        Warehouse warehouse = Warehouse.of(context.getSource().getWorld(), colony);
+        if (warehouse.containerCount() == 0) {
+            tell(context, "Складывать некуда: у колонии нет ни одного хранилища. "
+                    + "Ратуша — стартовое, поставь её чертежом.");
+            return 0;
+        }
 
-        tell(context, "На склад добавлено видов предметов: " + needed.size()
-                + ", всего штук: " + needed.values().stream().mapToInt(Integer::intValue).sum());
+        Map<Item, Integer> needed = Materials.required(schematic);
+        int asked = 0;
+        int delivered = 0;
+        for (Map.Entry<Item, Integer> entry : needed.entrySet()) {
+            asked += entry.getValue();
+            delivered += deliver(warehouse, entry.getKey(), entry.getValue());
+        }
+
+        tell(context, "Завезено " + delivered + " из " + asked + " штук по " + needed.size()
+                + " видам предметов" + (delivered < asked ? " — дальше некуда класть" : ""));
         return 1;
+    }
+
+    /** Возвращает, сколько штук удалось положить: контейнеры конечны. */
+    private static int deliver(Warehouse warehouse, Item item, int count) {
+        int delivered = 0;
+        while (delivered < count) {
+            int chunk = Math.min(count - delivered, item.getMaxCount());
+            ItemStack leftover = warehouse.add(new ItemStack(item, chunk));
+            delivered += chunk - leftover.getCount();
+            if (!leftover.isEmpty()) {
+                break;
+            }
+        }
+        return delivered;
     }
 
     private static int status(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
@@ -154,9 +182,11 @@ public final class BuildCommand {
             return 0;
         }
 
+        Warehouse warehouse = Warehouse.of(context.getSource().getWorld(), colony);
         tell(context, "Колония «" + colony.name() + "»: жителей " + colony.population()
                 + ", зданий " + colony.buildings().size()
-                + ", на складе штук " + colony.warehouse().total());
+                + ", хранилищ " + warehouse.containerCount()
+                + ", на складе штук " + warehouse.totalItems());
 
         for (Building building : colony.buildings()) {
             Optional<Schematic> schematic = SchematicLoader.get(BuildJob.schematicId(building));

@@ -11,9 +11,9 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
@@ -145,6 +145,7 @@ public final class BuildJob {
             return Outcome.NOT_LOADED;
         }
 
+        Warehouse warehouse = Warehouse.of(world, settlement);
         List<BuildStep> steps = schematic.plan().steps();
 
         // Повреждённое здание чинится по той же схеме, и план обязан пройтись
@@ -162,7 +163,7 @@ public final class BuildJob {
         // задерживаясь только на пробоинах.
         int worked = 0;
         while (worked < maxSteps && building.nextStep() < steps.size()) {
-            StepResult result = perform(world, settlement, building, schematic,
+            StepResult result = perform(world, warehouse, building, schematic,
                     steps.get(building.nextStep()));
             if (result == StepResult.BLOCKED) {
                 return Outcome.WAITING_FOR_MATERIALS;
@@ -190,7 +191,7 @@ public final class BuildJob {
         BLOCKED
     }
 
-    private static StepResult perform(ServerWorld world, Settlement settlement, Building building,
+    private static StepResult perform(ServerWorld world, Warehouse warehouse, Building building,
                                       Schematic schematic, BuildStep step) {
         BlockPos where = worldPos(building, schematic.size(), step.pos());
 
@@ -198,7 +199,7 @@ public final class BuildJob {
             if (world.getBlockState(where).isAir()) {
                 return StepResult.SKIPPED;
             }
-            salvage(world, settlement.warehouse(), where);
+            salvage(world, warehouse, where);
             world.setBlockState(where, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
             return StepResult.WORKED;
         }
@@ -212,12 +213,12 @@ public final class BuildJob {
             return StepResult.SKIPPED;
         }
 
-        Optional<Identifier> material = Materials.itemFor(planned);
-        if (material.isPresent() && !settlement.warehouse().take(material.get(), 1)) {
+        Optional<Item> material = Materials.itemFor(planned);
+        if (material.isPresent() && !warehouse.take(material.get(), 1)) {
             return StepResult.BLOCKED;
         }
 
-        salvage(world, settlement.warehouse(), where);
+        salvage(world, warehouse, where);
 
         // Состояние досчитывается по окружению до установки, а соседей
         // уведомляем после: иначе стёкла и заборы встают несоединёнными —
@@ -243,7 +244,7 @@ public final class BuildJob {
         BlockEntity blockEntity = existing.hasBlockEntity() ? world.getBlockEntity(pos) : null;
         for (ItemStack drop : Block.getDroppedStacks(existing, world, pos, blockEntity, null, tool())) {
             if (!drop.isEmpty()) {
-                warehouse.add(Registries.ITEM.getId(drop.getItem()), drop.getCount());
+                warehouse.addOrScatter(world, pos, drop);
             }
         }
     }

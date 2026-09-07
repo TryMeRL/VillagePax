@@ -75,12 +75,28 @@ public class Citizen {
         this.gender = gender;
         this.ageTicks = ageTicks;
         this.profession = profession;
-        this.happiness = happiness;
-        this.saturation = saturation;
+        // Через конструктор идёт декодирование из NBT, поэтому ограничения
+        // стоят здесь, а не только в сеттерах: житель с happiness = 250 из
+        // правленого руками сохранения иначе навсегда остался бы вне диапазона,
+        // и isUnhappy у него всегда возвращал бы ложь.
+        this.happiness = clampHappiness(happiness);
+        this.saturation = clampSaturation(saturation);
         this.home = home;
         this.workplace = workplace;
         this.position = position;
-        this.health = health;
+        this.health = clampHealth(health);
+    }
+
+    private static int clampHappiness(int value) {
+        return Math.max(0, Math.min(SettlementStats.MAX_HAPPINESS, value));
+    }
+
+    private static int clampSaturation(int value) {
+        return Math.max(0, value);
+    }
+
+    private static float clampHealth(float value) {
+        return Math.max(0.0f, Math.min(MAX_HEALTH, value));
     }
 
     public static Citizen newborn(String firstName, String lastName, Identifier culture, Gender gender) {
@@ -138,7 +154,7 @@ public class Citizen {
     }
 
     public void setHappiness(int value) {
-        this.happiness = Math.max(0, Math.min(SettlementStats.MAX_HAPPINESS, value));
+        this.happiness = clampHappiness(value);
     }
 
     public boolean isUnhappy() {
@@ -150,7 +166,7 @@ public class Citizen {
     }
 
     public void setSaturation(int value) {
-        this.saturation = Math.max(0, value);
+        this.saturation = clampSaturation(value);
     }
 
     public Optional<UUID> home() {
@@ -187,7 +203,7 @@ public class Citizen {
     }
 
     public void setHealth(float health) {
-        this.health = Math.max(0.0f, Math.min(MAX_HEALTH, health));
+        this.health = clampHealth(health);
     }
 
     public Optional<UUID> entityUuid() {

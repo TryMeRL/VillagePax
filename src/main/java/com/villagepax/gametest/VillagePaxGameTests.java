@@ -2827,6 +2827,19 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Предложено " + view.offers().size()
                         + " схем из " + SchematicLoader.ids().size() + " загруженных");
             }
+
+            // Профессии едут в снимке вместе с ключами названий: на клиенте,
+            // подключённом к выделенному серверу, файлов датапака нет вовсе.
+            if (view.professions().size() != ProfessionManager.ids().size()) {
+                context.throwGameTestException("Профессий в снимке " + view.professions().size()
+                        + ", загружено " + ProfessionManager.ids().size());
+            }
+            for (TownHallView.ProfessionLine line : view.professions()) {
+                if (line.displayName().isBlank()) {
+                    context.throwGameTestException("У профессии " + line.id()
+                            + " в снимке нет ключа названия");
+                }
+            }
         } finally {
             demolish(world, house, housePlan);
             discardBodies(world, colony);

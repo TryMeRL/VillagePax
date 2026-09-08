@@ -5,6 +5,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.villagepax.core.ModTags;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
+import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
@@ -67,7 +68,8 @@ public record TownHallView(
         List<BuildingLine> buildings,
         List<CitizenLine> citizens,
         ItemTally stock,
-        List<Identifier> offers) {
+        List<Identifier> offers,
+        List<ProfessionLine> professions) {
 
     /** Здание, которое строится прямо сейчас, и чего ему не хватает. */
     public record Construction(Identifier type, int level, int step, int steps, ItemTally missing) {
@@ -79,6 +81,22 @@ public record TownHallView(
                 Codec.INT.fieldOf("steps").forGetter(Construction::steps),
                 ItemTally.CODEC.fieldOf("missing").forGetter(Construction::missing)
         ).apply(instance, Construction::new));
+    }
+
+    /**
+     * Профессия, которую игрок может дать жителю, и ключ её названия.
+     * <p>
+     * Ключ едет вместе с именем, потому что профессии — данные датапака:
+     * на клиенте, подключённом к выделенному серверу, их файлов нет вовсе,
+     * и вывести название по соглашению значило бы завести второе описание
+     * там, где уже есть первое.
+     */
+    public record ProfessionLine(Identifier id, String displayName) {
+
+        public static final Codec<ProfessionLine> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Identifier.CODEC.fieldOf("id").forGetter(ProfessionLine::id),
+                Codec.STRING.fieldOf("display_name").forGetter(ProfessionLine::displayName)
+        ).apply(instance, ProfessionLine::new));
     }
 
     public record BuildingLine(UUID id, Identifier type, int level, BuildProgress progress,
@@ -128,7 +146,8 @@ public record TownHallView(
             BuildingLine.CODEC.listOf().fieldOf("buildings").forGetter(TownHallView::buildings),
             CitizenLine.CODEC.listOf().fieldOf("citizens").forGetter(TownHallView::citizens),
             ItemTally.CODEC.fieldOf("stock").forGetter(TownHallView::stock),
-            Identifier.CODEC.listOf().fieldOf("offers").forGetter(TownHallView::offers)
+            Identifier.CODEC.listOf().fieldOf("offers").forGetter(TownHallView::offers),
+            ProfessionLine.CODEC.listOf().fieldOf("professions").forGetter(TownHallView::professions)
     ).apply(instance, TownHallView::new));
 
     /** Списки копируются: снимок обязан быть неизменяемым, его сравнивают. */
@@ -136,6 +155,7 @@ public record TownHallView(
         buildings = List.copyOf(buildings);
         citizens = List.copyOf(citizens);
         offers = List.copyOf(offers);
+        professions = List.copyOf(professions);
     }
 
     /**
@@ -163,7 +183,24 @@ public record TownHallView(
                 buildings(settlement),
                 citizens(settlement),
                 stock,
-                offers(settlement));
+                offers(settlement),
+                knownProfessions());
+    }
+
+    /**
+     * Кем можно сделать жителя — в порядке нужности из данных, том же,
+     * в котором профессии достаются пришедшим сами.
+     * <p>
+     * Имя не {@code professions()}: у записи с таким полем это уже занятое
+     * имя метода доступа, и компилятор отказывается прямо на этом.
+     */
+    private static List<ProfessionLine> knownProfessions() {
+        List<ProfessionLine> lines = new ArrayList<>();
+        for (Identifier id : ProfessionManager.byHiringPriority()) {
+            ProfessionManager.get(id)
+                    .ifPresent(known -> lines.add(new ProfessionLine(id, known.displayName())));
+        }
+        return lines;
     }
 
     private static List<BuildingLine> buildings(Settlement settlement) {

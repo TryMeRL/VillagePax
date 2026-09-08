@@ -4,9 +4,15 @@ import com.villagepax.block.ModBlocks;
 import com.villagepax.entity.ModEntities;
 import com.villagepax.item.ModItems;
 import com.villagepax.item.TownHallBlueprintItem;
+import com.villagepax.client.screen.TownHallScreen;
+import com.villagepax.screen.TownHallNet;
+import com.villagepax.screen.TownHallScreens;
+import com.villagepax.screen.TownHallView;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
+import net.minecraft.client.gui.screen.ingame.HandledScreens;
 import net.minecraft.block.Block;
 import net.minecraft.item.BlockItem;
 import net.minecraft.text.Text;
@@ -18,7 +24,24 @@ public class VillagePaxClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         EntityRendererRegistry.register(ModEntities.CITIZEN, CitizenEntityRenderer::new);
+        HandledScreens.register(TownHallScreens.TOWN_HALL, TownHallScreen::new);
+        registerViewUpdates();
         registerTooltips();
+    }
+
+    /**
+     * Новый снимок колонии: экран обновляется, если он открыт.
+     * <p>
+     * Читать буфер надо в сетевом потоке, а показывать — в клиентском:
+     * между ними {@code client.execute}, и буфера к тому времени уже нет.
+     */
+    private static void registerViewUpdates() {
+        ClientPlayNetworking.registerGlobalReceiver(TownHallNet.VIEW,
+                (client, handler, buf, sender) -> {
+                    TownHallView fresh = TownHallNet.readView(buf);
+                    client.execute(() -> TownHallScreen.open(client)
+                            .ifPresent(screen -> screen.refresh(fresh)));
+                });
     }
 
     /**

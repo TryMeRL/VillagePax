@@ -44,7 +44,9 @@ class TownHallViewCodecTest {
                         Optional.of(new Identifier("villagepax", "norman/town_hall")),
                         Mood.CONTENT, false)),
                 new ItemTally(Map.of(new Identifier("minecraft", "bread"), 4)),
-                List.of(new Identifier("villagepax", "norman/house_lvl1")));
+                List.of(new Identifier("villagepax", "norman/house_lvl1")),
+                List.of(new TownHallView.ProfessionLine(new Identifier("villagepax", "builder"),
+                        "villagepax.profession.builder")));
     }
 
     @Test
@@ -93,7 +95,7 @@ class TownHallViewCodecTest {
     void emptyColonyRoundTrips() {
         TownHallView empty = new TownHallView("", new Identifier("villagepax", "norman"), "hamlet",
                 0, 4, 0, 0, 0, 0, 0, Optional.empty(), List.of(), List.of(), new ItemTally(),
-                List.of());
+                List.of(), List.of());
 
         NbtElement encoded = TownHallView.CODEC.encodeStart(NbtOps.INSTANCE, empty).result().orElseThrow();
         assertEquals(empty, TownHallView.CODEC.parse(NbtOps.INSTANCE, encoded).result().orElseThrow());
@@ -109,16 +111,19 @@ class TownHallViewCodecTest {
 
         TownHallView one = new TownHallView("Бовуар", new Identifier("villagepax", "norman"),
                 "hamlet", 1, 4, 1, 0, 2, 1, 1, Optional.empty(), List.of(), List.of(),
-                new ItemTally(Map.of(new Identifier("minecraft", "bread"), 2)), List.of());
+                new ItemTally(Map.of(new Identifier("minecraft", "bread"), 2)), List.of(),
+                List.of());
         TownHallView same = new TownHallView("Бовуар", new Identifier("villagepax", "norman"),
                 "hamlet", 1, 4, 1, 0, 2, 1, 1, Optional.empty(), List.of(), List.of(),
-                new ItemTally(Map.of(new Identifier("minecraft", "bread"), 2)), List.of());
+                new ItemTally(Map.of(new Identifier("minecraft", "bread"), 2)), List.of(),
+                List.of());
 
         assertEquals(one, same, "снимки с одинаковым содержимым обязаны быть равны");
 
         TownHallView other = new TownHallView("Бовуар", new Identifier("villagepax", "norman"),
                 "hamlet", 1, 4, 1, 0, 2, 1, 1, Optional.empty(), List.of(), List.of(),
-                new ItemTally(Map.of(new Identifier("minecraft", "bread"), 3)), List.of());
+                new ItemTally(Map.of(new Identifier("minecraft", "bread"), 3)), List.of(),
+                List.of());
 
         assertTrue(!one.equals(other), "разный склад — разные снимки, иначе экран замрёт");
     }

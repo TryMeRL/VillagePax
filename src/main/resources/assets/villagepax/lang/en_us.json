@@ -70,5 +70,20 @@
   "villagepax.building.norman.warehouse": "Norman warehouse",
   "villagepax.building.norman.builder_hut": "Builder's workshop",
   "villagepax.building.norman.lumberjack": "Lumberjack hut",
-  "villagepax.building.norman.farm": "Farm"
+  "villagepax.building.norman.farm": "Farm",
+  "villagepax.key.category": "Village Pax",
+  "villagepax.key.rotate": "Rotate building",
+  "villagepax.key.confirm": "Place building",
+  "villagepax.key.cancel": "Cancel placement",
+  "villagepax.hologram.placing": "Placing: %s",
+  "villagepax.hologram.keys": "%s to rotate, %s to place, %s to cancel",
+  "villagepax.hologram.checking": "Checking the spot…",
+  "villagepax.hologram.ok": "You can build here",
+  "villagepax.hologram.outside": "Outside the colony borders",
+  "villagepax.hologram.overlaps": "A building is already marked here",
+  "villagepax.hologram.no_schematic": "No such schematic",
+  "villagepax.hologram.bad_name": "Schematic is named wrong",
+  "villagepax.hologram.too_far": "Too far from you",
+  "villagepax.hologram.rotated": "Rotation: %s",
+  "villagepax.hologram.cancelled": "Placement cancelled"
 }

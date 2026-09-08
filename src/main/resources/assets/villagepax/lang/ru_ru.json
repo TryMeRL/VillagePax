@@ -70,5 +70,20 @@
   "villagepax.building.norman.warehouse": "Склад норманнов",
   "villagepax.building.norman.builder_hut": "Мастерская строителя",
   "villagepax.building.norman.lumberjack": "Домик лесоруба",
-  "villagepax.building.norman.farm": "Ферма"
+  "villagepax.building.norman.farm": "Ферма",
+  "villagepax.key.category": "Village Pax",
+  "villagepax.key.rotate": "Повернуть здание",
+  "villagepax.key.confirm": "Поставить здание",
+  "villagepax.key.cancel": "Отменить установку",
+  "villagepax.hologram.placing": "Ставим: %s",
+  "villagepax.hologram.keys": "%s — повернуть, %s — поставить, %s — отмена",
+  "villagepax.hologram.checking": "Проверяем место…",
+  "villagepax.hologram.ok": "Здесь можно строить",
+  "villagepax.hologram.outside": "Вне границ колонии",
+  "villagepax.hologram.overlaps": "Здесь уже размечено здание",
+  "villagepax.hologram.no_schematic": "Схемы нет",
+  "villagepax.hologram.bad_name": "Схема названа неверно",
+  "villagepax.hologram.too_far": "Слишком далеко от тебя",
+  "villagepax.hologram.rotated": "Поворот: %s",
+  "villagepax.hologram.cancelled": "Установка отменена"
 }

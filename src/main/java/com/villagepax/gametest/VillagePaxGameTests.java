@@ -33,6 +33,8 @@ import net.minecraft.block.LeavesBlock;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.util.math.Box;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.minecraft.network.PacketByteBuf;
 import net.minecraft.entity.Entity;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.CropBlock;
@@ -63,6 +65,7 @@ import com.villagepax.sim.work.GatherJob;
 import com.villagepax.sim.work.Housing;
 import com.villagepax.sim.work.Jobs;
 import com.villagepax.screen.BuildOrders;
+import com.villagepax.screen.GhostPlan;
 import com.villagepax.screen.Mood;
 import com.villagepax.screen.TownHallView;
 import com.villagepax.sim.work.Assignments;
@@ -3121,6 +3124,156 @@ public class VillagePaxGameTests implements FabricGameTest {
             discardBodies(world, colony);
             manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- задача 1.11: голограмма ---
+
+    /**
+     * Примерка места ничего не меняет в колонии.
+     * <p>
+     * Голограмма спрашивает сервер при каждом сдвиге на блок — то есть
+     * несколько раз в секунду. Если бы проверка что-то откладывала
+     * в колонию, водя призраком по земле игрок засеивал бы её стройками.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "hologram")
+    public void probingASpotChangesNothing(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            for (int step = 0; step < 20; step++) {
+                BuildOrders.Result verdict = BuildOrders.check(colony, HOUSE_SCHEMATIC,
+                        anchor.add(step, 0, 0), BlockRotation.NONE);
+                if (!(verdict instanceof BuildOrders.Result.Placed)) {
+                    context.throwGameTestException("Примерка на своей земле отвергнута: " + verdict);
+                }
+            }
+
+            if (!colony.buildings().isEmpty()) {
+                context.throwGameTestException("Примерка разметила " + colony.buildings().size()
+                        + " стройек, а не должна ни одной");
+            }
+
+            // А заказ — меняет, и ровно одну.
+            BuildOrders.place(manager, colony, HOUSE_SCHEMATIC, anchor, BlockRotation.NONE);
+            if (colony.buildings().size() != 1) {
+                context.throwGameTestException("Заказ не разметил стройку");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Приёмка задачи 1.11 со стороны данных: стройка встаёт ровно там
+     * и ровно так, как показывал призрак.
+     * <p>
+     * Голограмма отправляет место и поворот, которые игрок видел; если
+     * заказ поставит здание иначе, вся задача бессмысленна.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "hologram")
+    public void orderLandsExactlyWhereTheGhostStood(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos ghost = context.getAbsolutePos(new BlockPos(3, 8, 5));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            BuildOrders.Result result = BuildOrders.place(manager, colony, HOUSE_SCHEMATIC,
+                    ghost, BlockRotation.CLOCKWISE_90);
+
+            if (!(result instanceof BuildOrders.Result.Placed placed)) {
+                context.throwGameTestException("Заказ по месту голограммы отвергнут: " + result);
+                return;
+            }
+            if (!placed.site().anchor().equals(ghost)) {
+                context.throwGameTestException("Стройка встала не там: "
+                        + placed.site().anchor().toShortString() + " вместо "
+                        + ghost.toShortString());
+            }
+            if (placed.site().rotation() != BlockRotation.CLOCKWISE_90) {
+                context.throwGameTestException("Поворот потерялся: " + placed.site().rotation());
+            }
+
+            Building inColony = colony.buildings().get(0);
+            if (!inColony.anchor().equals(ghost)
+                    || inColony.rotation() != BlockRotation.CLOCKWISE_90) {
+                context.throwGameTestException("В колонии здание лежит иначе, чем вернул заказ");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * План призрака переживает дорогу по сети.
+     * <p>
+     * Клиент схем не видит — они в датапаке сервера, — поэтому план едет
+     * пакетом. Потерянный при этом блок означает дырку в призраке, а
+     * потерянное состояние — дверь, повёрнутую не туда.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "hologram")
+    public void ghostPlanSurvivesTheWire(TestContext context) {
+        Schematic townHall = schematic(context, TOWN_HALL_SCHEMATIC);
+
+        List<GhostPlan.Ghost> blocks = new ArrayList<>();
+        for (BuildStep step : townHall.plan().steps()) {
+            if (step.placesBlock()) {
+                blocks.add(new GhostPlan.Ghost(step.pos(), townHall.blockAt(step.paletteIndex())));
+            }
+        }
+
+        GhostPlan sent = new GhostPlan(TOWN_HALL_SCHEMATIC, townHall.size(), blocks);
+        PacketByteBuf buf = PacketByteBufs.create();
+        sent.write(buf);
+        GhostPlan back = GhostPlan.read(buf);
+
+        if (!back.schematic().equals(sent.schematic()) || !back.size().equals(sent.size())) {
+            context.throwGameTestException("Схема или размер потерялись: " + back.schematic()
+                    + " " + back.size());
+        }
+        if (back.blocks().size() != sent.blocks().size()) {
+            context.throwGameTestException("Блоков доехало " + back.blocks().size()
+                    + " из " + sent.blocks().size());
+        }
+        for (int index = 0; index < sent.blocks().size(); index++) {
+            GhostPlan.Ghost before = sent.blocks().get(index);
+            GhostPlan.Ghost after = back.blocks().get(index);
+
+            if (!before.pos().equals(after.pos()) || before.state() != after.state()) {
+                context.throwGameTestException("Блок " + index + " доехал искажённым: "
+                        + before.state() + " в " + before.pos().toShortString() + " стало "
+                        + after.state() + " в " + after.pos().toShortString());
+            }
+        }
+        if (buf.readableBytes() != 0) {
+            context.throwGameTestException("В пакете осталось " + buf.readableBytes()
+                    + " непрочитанных байт");
+        }
+
+        // Расчистка в призрак не входит: игрок выбирает, как встанет здание,
+        // а не что будет снесено.
+        if (sent.blocks().size() >= townHall.plan().steps().size()) {
+            context.throwGameTestException("В призрак попали шаги расчистки");
         }
 
         context.complete();

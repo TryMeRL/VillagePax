@@ -4,12 +4,21 @@ import com.villagepax.block.ModBlocks;
 import com.villagepax.entity.ModEntities;
 import com.villagepax.item.ModItems;
 import com.villagepax.item.TownHallBlueprintItem;
+import com.villagepax.client.hologram.HologramHud;
+import com.villagepax.client.hologram.HologramKeys;
+import com.villagepax.client.hologram.HologramRenderer;
+import com.villagepax.client.hologram.Placement;
 import com.villagepax.client.screen.TownHallScreen;
+import com.villagepax.screen.GhostPlan;
 import com.villagepax.screen.TownHallNet;
 import com.villagepax.screen.TownHallScreens;
 import com.villagepax.screen.TownHallView;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.minecraft.client.gui.screen.ingame.HandledScreens;
@@ -26,7 +35,36 @@ public class VillagePaxClient implements ClientModInitializer {
         EntityRendererRegistry.register(ModEntities.CITIZEN, CitizenEntityRenderer::new);
         HandledScreens.register(TownHallScreens.TOWN_HALL, TownHallScreen::new);
         registerViewUpdates();
+        registerHologram();
         registerTooltips();
+    }
+
+    /**
+     * Голограмма: план и приговор с сервера, клавиши, отрисовка, подсказка.
+     * <p>
+     * Режим установки сбрасывается при выходе из мира: призрак, оставшийся
+     * от прошлой колонии, показывал бы место, которого больше нет.
+     */
+    private static void registerHologram() {
+        HologramKeys.register();
+
+        ClientPlayNetworking.registerGlobalReceiver(TownHallNet.PLAN,
+                (client, handler, buf, sender) -> {
+                    GhostPlan plan = GhostPlan.read(buf);
+                    client.execute(() -> Placement.acceptPlan(plan));
+                });
+
+        ClientPlayNetworking.registerGlobalReceiver(TownHallNet.VERDICT,
+                (client, handler, buf, sender) -> {
+                    boolean allowed = buf.readBoolean();
+                    String reason = buf.readString(128);
+                    client.execute(() -> Placement.acceptVerdict(allowed, reason));
+                });
+
+        ClientTickEvents.END_CLIENT_TICK.register(HologramKeys::tick);
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> Placement.cancel());
+        WorldRenderEvents.AFTER_TRANSLUCENT.register(HologramRenderer::render);
+        HudRenderCallback.EVENT.register(HologramHud::render);
     }
 
     /**

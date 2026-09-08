@@ -67,6 +67,15 @@ public final class BuildOrders {
     }
 
     /**
+     * Докуда игрок вправе отодвинуть голограмму от себя.
+     * <p>
+     * Место приходит от клиента, поэтому проверяется: «разметить здание
+     * на другом конце мира» не должно быть возможно, даже если клиент
+     * попросит.
+     */
+    public static final int PLACEMENT_RANGE = 48;
+
+    /**
      * Разметить стройку. При отказе колония не меняется.
      * <p>
      * Культура здесь не проверяется намеренно: список зданий культуры решает,
@@ -76,6 +85,29 @@ public final class BuildOrders {
      */
     public static Result place(SettlementManager manager, Settlement colony, Identifier schematicId,
                                BlockPos anchor, BlockRotation rotation) {
+        Result verdict = check(colony, schematicId, anchor, rotation);
+        if (!(verdict instanceof Result.Placed allowed)) {
+            return verdict;
+        }
+
+        Building site = allowed.site();
+        manager.update(colony.id(), settlement -> settlement.addBuilding(site));
+        return verdict;
+    }
+
+    /**
+     * Можно ли разметить здесь — <b>ничего не меняя</b>.
+     * <p>
+     * Нужно голограмме: призрак обязан быть красным там, где строить нельзя,
+     * иначе игрок узнаёт об отказе только после подтверждения. Проверка та
+     * же самая, что и у заказа, — иначе правила «где можно строить» оказались
+     * бы описаны дважды и разошлись бы в первый же день.
+     * <p>
+     * При успехе возвращается уже собранное здание, но <b>не добавленное
+     * в колонию</b>: {@link #place} только кладёт его на место.
+     */
+    public static Result check(Settlement colony, Identifier schematicId, BlockPos anchor,
+                               BlockRotation rotation) {
         Schematic schematic = SchematicLoader.get(schematicId).orElse(null);
         if (schematic == null) {
             return new Result.NoSchematic(schematicId);
@@ -98,10 +130,31 @@ public final class BuildOrders {
 
         Building site = new Building(UUID.randomUUID(), type, level, anchor, rotation,
                 BuildProgress.PLANNED, List.of());
-        manager.update(colony.id(), settlement -> settlement.addBuilding(site));
-
         return new Result.Placed(site, BuildSite.rotatedSize(schematic.size(), rotation),
                 schematic.plan().blockCount());
+    }
+
+    /**
+     * Короткий ключ причины — для подсказки голограммы.
+     * <p>
+     * Отдельно от сообщений в чат, и намеренно: те несут подстановки
+     * (какая схема, какое место, чей след), а подсказка над полосой
+     * предметов должна читаться в два слова и без аргументов.
+     */
+    public static String hologramKey(Result result) {
+        if (result instanceof Result.Placed) {
+            return "villagepax.hologram.ok";
+        }
+        if (result instanceof Result.NoSchematic) {
+            return "villagepax.hologram.no_schematic";
+        }
+        if (result instanceof Result.BadName) {
+            return "villagepax.hologram.bad_name";
+        }
+        if (result instanceof Result.OutsideClaim) {
+            return "villagepax.hologram.outside";
+        }
+        return "villagepax.hologram.overlaps";
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.villagepax.client.screen;
 
+import com.villagepax.client.hologram.Placement;
 import com.villagepax.screen.Mood;
 import com.villagepax.screen.TownHallNet;
 import com.villagepax.screen.TownHallScreenHandler;
@@ -274,14 +275,11 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
     // --- намерения ---
 
     /**
-     * Заказ уходит на сервер, и экран закрывается: смотреть надо на место,
-     * а не в меню. Пакет отправлен до закрытия, и порядок в одном соединении
-     * сохраняется — иначе сервер отверг бы намерение от закрытого пульта.
+     * Выбор здания включает режим установки, а экран закрывается: место
+     * игрок выбирает в мире голограммой, а не в меню.
      */
     private void order(Identifier schematic) {
-        PacketByteBuf buf = PacketByteBufs.create();
-        buf.writeIdentifier(schematic);
-        ClientPlayNetworking.send(TownHallNet.ORDER, buf);
+        Placement.begin(schematic);
         close();
     }
 

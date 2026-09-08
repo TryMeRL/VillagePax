@@ -8,6 +8,9 @@ import com.villagepax.sim.Founding;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.build.BuildStep;
+import com.villagepax.sim.build.Schematic;
+import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.work.Assignments;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -19,9 +22,10 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3i;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -51,6 +55,12 @@ public final class TownHallNet {
     public static final Identifier ORDER = new Identifier(VillagePax.MOD_ID, "town_hall_order");
     public static final Identifier ASSIGN = new Identifier(VillagePax.MOD_ID, "town_hall_assign");
 
+    /** Голограмма: клиент просит план схемы, потом примеряет место. */
+    public static final Identifier PLAN_REQUEST = new Identifier(VillagePax.MOD_ID, "plan_request");
+    public static final Identifier PLAN = new Identifier(VillagePax.MOD_ID, "plan");
+    public static final Identifier PROBE = new Identifier(VillagePax.MOD_ID, "probe");
+    public static final Identifier VERDICT = new Identifier(VillagePax.MOD_ID, "verdict");
+
     /** Снимок, который ничего не утверждает: показывать нечего, но экран жив. */
     public static final TownHallView EMPTY = new TownHallView("", UNKNOWN, "hamlet",
             0, 0, 0, 0, 0, 0, 0, Optional.empty(), List.of(), List.of(), new ItemTally(),
@@ -63,7 +73,21 @@ public final class TownHallNet {
         ServerPlayNetworking.registerGlobalReceiver(ORDER, (server, player, handler, buf, sender) -> {
             // Читать надо здесь: за пределами обработчика буфер уже освобождён.
             Identifier schematic = buf.readIdentifier();
-            server.execute(() -> order(player, schematic));
+            BlockPos anchor = buf.readBlockPos();
+            BlockRotation rotation = BuildOrders.rotation(buf.readString(16));
+            server.execute(() -> order(player, schematic, anchor, rotation));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(PLAN_REQUEST, (server, player, handler, buf, sender) -> {
+            Identifier schematic = buf.readIdentifier();
+            server.execute(() -> sendPlan(player, schematic));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(PROBE, (server, player, handler, buf, sender) -> {
+            Identifier schematic = buf.readIdentifier();
+            BlockPos anchor = buf.readBlockPos();
+            BlockRotation rotation = BuildOrders.rotation(buf.readString(16));
+            server.execute(() -> probe(player, schematic, anchor, rotation));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(ASSIGN, (server, player, handler, buf, sender) -> {
@@ -106,22 +130,24 @@ public final class TownHallNet {
     // --- намерения ---
 
     /**
-     * Разметить здание там, где стоит игрок.
+     * Разметить здание там, где игрок поставил голограмму.
      * <p>
-     * Место и поворот в задаче 1.10 берутся от игрока: голограмма из 1.11
-     * заменит это выбором глазами, и тогда пакет понесёт позицию с поворотом.
-     * Пока «здесь и как я стою» — уже играбельно и стоит одного пакета.
+     * Проверка открытого пульта здесь не годится: экран закрывается, как
+     * только игрок выбрал здание, — дальше он выбирает место в мире.
+     * Вместо неё владение колонией и <b>расстояние</b>: место приходит
+     * от клиента, и «разметить на другом конце мира» не должно быть
+     * возможно, даже если клиент попросит.
      */
-    private static void order(ServerPlayerEntity player, Identifier schematic) {
-        Settlement colony = consoleColony(player);
-        if (colony == null) {
+    private static void order(ServerPlayerEntity player, Identifier schematic, BlockPos anchor,
+                              BlockRotation rotation) {
+        Settlement colony = ownedColony(player);
+        if (colony == null || tooFarToPlace(player, anchor)) {
             return;
         }
 
         ServerWorld world = player.getServerWorld();
         SettlementManager manager = SettlementManager.get(world);
-        BuildOrders.Result result = BuildOrders.place(manager, colony, schematic,
-                player.getBlockPos(), facingViewer(player));
+        BuildOrders.Result result = BuildOrders.place(manager, colony, schematic, anchor, rotation);
 
         // Разбор образцами, а не switch: switch по типам в Java 17 —
         // предпросмотр, а цель мода 17.
@@ -145,6 +171,70 @@ public final class TownHallNet {
                     Text.translatable(buildingKey(clash.clash().type())),
                     Text.literal(clash.clash().anchor().toShortString()));
         }
+    }
+
+    /**
+     * Отправить клиенту план схемы для голограммы.
+     * <p>
+     * Один раз на выбранное здание: план не меняется, а игрок водит
+     * призраком по земле сколько захочет.
+     */
+    private static void sendPlan(ServerPlayerEntity player, Identifier schematicId) {
+        if (ownedColony(player) == null) {
+            return;
+        }
+
+        Schematic schematic = SchematicLoader.get(schematicId).orElse(null);
+        if (schematic == null) {
+            return;
+        }
+
+        List<GhostPlan.Ghost> blocks = new ArrayList<>();
+        for (BuildStep step : schematic.plan().steps()) {
+            if (step.placesBlock() && blocks.size() < GhostPlan.MAX_BLOCKS) {
+                blocks.add(new GhostPlan.Ghost(step.pos(), schematic.blockAt(step.paletteIndex())));
+            }
+        }
+
+        PacketByteBuf buf = PacketByteBufs.create();
+        new GhostPlan(schematicId, schematic.size(), blocks).write(buf);
+        ServerPlayNetworking.send(player, PLAN, buf);
+    }
+
+    /**
+     * Примерка: можно ли строить вот здесь. Колония не меняется.
+     * <p>
+     * Проверяет тот же {@link BuildOrders}, что и сам заказ. Иначе правила
+     * «где можно строить» оказались бы описаны дважды — в проверке и
+     * в подсказке, — и разошлись бы в первый же день.
+     */
+    private static void probe(ServerPlayerEntity player, Identifier schematic, BlockPos anchor,
+                              BlockRotation rotation) {
+        Settlement colony = ownedColony(player);
+        if (colony == null) {
+            return;
+        }
+
+        PacketByteBuf buf = PacketByteBufs.create();
+        if (tooFarToPlace(player, anchor)) {
+            buf.writeBoolean(false);
+            buf.writeString("villagepax.hologram.too_far");
+        } else {
+            BuildOrders.Result verdict = BuildOrders.check(colony, schematic, anchor, rotation);
+            buf.writeBoolean(verdict instanceof BuildOrders.Result.Placed);
+            buf.writeString(BuildOrders.hologramKey(verdict));
+        }
+        ServerPlayNetworking.send(player, VERDICT, buf);
+    }
+
+    private static boolean tooFarToPlace(ServerPlayerEntity player, BlockPos anchor) {
+        return !player.getBlockPos().isWithinDistance(anchor, BuildOrders.PLACEMENT_RANGE);
+    }
+
+    /** Колония игрока — без требования открытого пульта. */
+    private static Settlement ownedColony(ServerPlayerEntity player) {
+        SettlementManager manager = SettlementManager.get(player.getServerWorld());
+        return Founding.colonyOf(manager, player.getUuid()).orElse(null);
     }
 
     /**
@@ -200,22 +290,6 @@ public final class TownHallNet {
             return null;
         }
         return colony;
-    }
-
-    /**
-     * Поворот так, чтобы «лицо» схемы смотрело на игрока.
-     * <p>
-     * Схемы норманнов нарисованы фасадом на юг, поэтому нужный поворот —
-     * тот, который переводит юг в направление, откуда игрок смотрит.
-     */
-    private static BlockRotation facingViewer(ServerPlayerEntity player) {
-        Direction front = player.getHorizontalFacing().getOpposite();
-        return switch (front) {
-            case WEST -> BlockRotation.CLOCKWISE_90;
-            case NORTH -> BlockRotation.CLOCKWISE_180;
-            case EAST -> BlockRotation.COUNTERCLOCKWISE_90;
-            default -> BlockRotation.NONE;
-        };
     }
 
     /**

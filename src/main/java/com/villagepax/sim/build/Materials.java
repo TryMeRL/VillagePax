@@ -1,10 +1,13 @@
 package com.villagepax.sim.build;
 
+import com.villagepax.sim.Building;
 import net.minecraft.block.BlockState;
 import net.minecraft.item.Item;
 import net.minecraft.item.Items;
+import net.minecraft.registry.Registries;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -31,6 +34,42 @@ public final class Materials {
     public static Optional<Item> itemFor(BlockState state) {
         Item item = state.getBlock().asItem();
         return item == Items.AIR ? Optional.empty() : Optional.of(item);
+    }
+
+    /**
+     * Чего площадке не хватает на следующие {@code lookahead} шагов плана.
+     * <p>
+     * Окно, а не весь план, намеренно: считать нужду до конца схемы — это
+     * обход трёхсот шагов на каждое решение курьера. Он принесёт то, что
+     * понадобится скоро, и вернётся снова.
+     * <p>
+     * Порядок обхода — порядок плана, поэтому выбор устойчив: иначе курьер
+     * метался бы между двумя видами блоков от решения к решению.
+     */
+    public static Map<Item, Integer> shortfall(Schematic schematic, Building site, int lookahead) {
+        List<BuildStep> steps = schematic.plan().steps();
+        Map<Item, Integer> needed = new LinkedHashMap<>();
+
+        int last = Math.min(steps.size(), site.nextStep() + lookahead);
+        for (int index = Math.max(0, site.nextStep()); index < last; index++) {
+            BuildStep step = steps.get(index);
+            if (!step.placesBlock()) {
+                continue;
+            }
+            itemFor(schematic.blockAt(step.paletteIndex()))
+                    .ifPresent(item -> needed.merge(item, 1, Integer::sum));
+        }
+
+        // Вычитаем то, что курьер уже принёс, иначе он будет носить
+        // одно и то же, пока площадка не утонет в брёвнах.
+        Map<Item, Integer> missing = new LinkedHashMap<>();
+        needed.forEach((item, count) -> {
+            int have = site.stock().count(Registries.ITEM.getId(item));
+            if (count > have) {
+                missing.put(item, count - have);
+            }
+        });
+        return missing;
     }
 
     /** Полная заявка на постройку схемы с нуля. */

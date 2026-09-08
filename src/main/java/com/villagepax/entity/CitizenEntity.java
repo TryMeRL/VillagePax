@@ -17,6 +17,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 import java.util.Optional;
@@ -42,6 +43,15 @@ public class CitizenEntity extends PathAwareEntity {
     private UUID settlementId;
     private UUID citizenId;
 
+    /**
+     * Куда житель идёт по работе. Кладёт сюда стратегия, читает цель
+     * навигации — так цель не пересчитывает точку каждый тик.
+     * <p>
+     * Не сохраняется, и не должно: тело не пишется в чанк, а стратегия
+     * назовёт точку заново на первом же своём шаге.
+     */
+    private BlockPos workTarget;
+
     public CitizenEntity(EntityType<? extends PathAwareEntity> type, World world) {
         super(type, world);
     }
@@ -55,13 +65,23 @@ public class CitizenEntity extends PathAwareEntity {
 
     @Override
     protected void initGoals() {
-        // Заглушка на время: настоящее расписание и работа появятся вместе
-        // с профессиями. Пока житель просто ходит и смотрит по сторонам,
-        // чтобы поселение не выглядело мёртвым.
+        // Порядок значим: работа и прогулка обе просят управление движением,
+        // и работа обязана быть выше — иначе житель уходил бы бродить
+        // посреди дела.
         goalSelector.add(0, new SwimGoal(this));
-        goalSelector.add(1, new WanderAroundFarGoal(this, 0.5));
-        goalSelector.add(2, new LookAtEntityGoal(this, PlayerEntity.class, 6.0f));
-        goalSelector.add(3, new LookAroundGoal(this));
+        goalSelector.add(1, new CitizenWorkGoal(this));
+        goalSelector.add(2, new WanderAroundFarGoal(this, 0.5));
+        goalSelector.add(3, new LookAtEntityGoal(this, PlayerEntity.class, 6.0f));
+        goalSelector.add(4, new LookAroundGoal(this));
+    }
+
+    /** Точка, к которой житель идёт по работе, или {@code null}. */
+    public BlockPos workTarget() {
+        return workTarget;
+    }
+
+    public void setWorkTarget(BlockPos workTarget) {
+        this.workTarget = workTarget == null ? null : workTarget.toImmutable();
     }
 
     public void link(UUID settlementId, UUID citizenId) {

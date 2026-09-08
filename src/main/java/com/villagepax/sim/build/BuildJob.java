@@ -4,6 +4,7 @@ import com.villagepax.VillagePax;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
+import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Warehouse;
@@ -16,10 +17,13 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
+import net.minecraft.registry.Registries;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.Vec3i;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,6 +44,24 @@ public final class BuildJob {
 
     /** Один блок за полсекунды: стройка должна быть видна как процесс. */
     public static final int TICKS_PER_STEP = 10;
+
+    /**
+     * Насколько близко должно быть хранилище, чтобы билдер брал материалы сам.
+     * <p>
+     * Решение заказчика: стройка под боком у склада идёт без курьера, а
+     * вынесенная за околицу требует людей. Так выбор места становится
+     * решением игрока, а не декорацией.
+     */
+    public static final int NEARBY_STORAGE = 12;
+
+    /**
+     * Насколько далеко билдер тянется от того места, куда пришёл.
+     * <p>
+     * Он шагает к участку, а не к каждому блоку: путей считается в десятки
+     * раз меньше, а поиск пути идёт в главном потоке сервера и потому
+     * дороже всего остального вместе.
+     */
+    public static final double WORK_REACH = 4.5;
 
     /** Профессия, без которой стройка не идёт. Данными станет в задаче 1.9. */
     public static final Identifier BUILDER = new Identifier(VillagePax.MOD_ID, "builder");
@@ -72,7 +94,9 @@ public final class BuildJob {
         /** Здание достроено на этом обращении. */
         FINISHED,
         /** Здание уже готово, делать нечего. */
-        ALREADY_DONE
+        ALREADY_DONE,
+        /** Следующий блок дальше вытянутой руки: билдеру надо перейти. */
+        OUT_OF_REACH
     }
 
     private BuildJob() {
@@ -118,13 +142,24 @@ public final class BuildJob {
      */
     public static Outcome advance(ServerWorld world, SettlementManager manager,
                                   UUID settlementId, UUID buildingId, int maxSteps) {
+        return advance(world, manager, settlementId, buildingId, maxSteps, null);
+    }
+
+    /**
+     * То же, но с ограничением по вытянутой руке: билдер работает только там,
+     * куда дотянулся с того места, где стоит. {@code workFrom} равный
+     * {@code null} снимает ограничение — так стройку гоняют тесты и отладка.
+     */
+    public static Outcome advance(ServerWorld world, SettlementManager manager,
+                                  UUID settlementId, UUID buildingId, int maxSteps, Vec3d workFrom) {
         return manager.apply(settlementId, settlement -> settlement.building(buildingId)
-                        .map(building -> run(world, settlement, building, maxSteps))
+                        .map(building -> run(world, settlement, building, maxSteps, workFrom))
                         .orElse(Outcome.NOT_FOUND))
                 .orElse(Outcome.NOT_FOUND);
     }
 
-    private static Outcome run(ServerWorld world, Settlement settlement, Building building, int maxSteps) {
+    private static Outcome run(ServerWorld world, Settlement settlement, Building building,
+                               int maxSteps, Vec3d workFrom) {
         if (!isUnderConstruction(building)) {
             return Outcome.ALREADY_DONE;
         }
@@ -163,11 +198,18 @@ public final class BuildJob {
         // задерживаясь только на пробоинах.
         int worked = 0;
         while (worked < maxSteps && building.nextStep() < steps.size()) {
-            StepResult result = perform(world, warehouse, building, schematic,
-                    steps.get(building.nextStep()));
+            StepResult result = perform(world, settlement, warehouse, building, schematic,
+                    steps.get(building.nextStep()), workFrom);
+
             if (result == StepResult.BLOCKED) {
                 return Outcome.WAITING_FOR_MATERIALS;
             }
+            if (result == StepResult.TOO_FAR) {
+                // Пусть билдер перейдёт. Если он уже успел поработать —
+                // это обычное продвижение, а не простой.
+                return worked > 0 ? Outcome.ADVANCED : Outcome.OUT_OF_REACH;
+            }
+
             building.advanceStep();
             if (result == StepResult.WORKED) {
                 worked++;
@@ -176,6 +218,7 @@ public final class BuildJob {
 
         if (building.nextStep() >= steps.size()) {
             building.setProgress(BuildProgress.DONE);
+            returnLeftovers(world, warehouse, building);
             return Outcome.FINISHED;
         }
         return Outcome.ADVANCED;
@@ -188,18 +231,30 @@ public final class BuildJob {
         /** Делать было нечего: место уже пустое или нужный блок уже стоит. */
         SKIPPED,
         /** Не хватило материала: индекс не двигается, билдер ждёт. */
-        BLOCKED
+        BLOCKED,
+
+        /**
+         * До места не дотянуться. Проверяется <b>после</b> отсечения пустых
+         * шагов намеренно: иначе билдер шёл бы к каждой из ста одиннадцати
+         * пустых позиций расчистки, и вся выгода от «шагать к участку»
+         * пропала бы.
+         */
+        TOO_FAR
     }
 
-    private static StepResult perform(ServerWorld world, Warehouse warehouse, Building building,
-                                      Schematic schematic, BuildStep step) {
+    private static StepResult perform(ServerWorld world, Settlement settlement, Warehouse warehouse,
+                                      Building building, Schematic schematic, BuildStep step,
+                                      Vec3d workFrom) {
         BlockPos where = worldPos(building, schematic.size(), step.pos());
 
         if (!step.placesBlock()) {
             if (world.getBlockState(where).isAir()) {
                 return StepResult.SKIPPED;
             }
-            salvage(world, warehouse, where);
+            if (isTooFar(workFrom, where)) {
+                return StepResult.TOO_FAR;
+            }
+            salvage(world, warehouse, building, where, storageIsNearby(warehouse, building));
             world.setBlockState(where, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
             return StepResult.WORKED;
         }
@@ -212,13 +267,17 @@ public final class BuildJob {
         if (world.getBlockState(where).isOf(planned.getBlock())) {
             return StepResult.SKIPPED;
         }
+        if (isTooFar(workFrom, where)) {
+            return StepResult.TOO_FAR;
+        }
 
+        boolean nearStorage = storageIsNearby(warehouse, building);
         Optional<Item> material = Materials.itemFor(planned);
-        if (material.isPresent() && !warehouse.take(material.get(), 1)) {
+        if (material.isPresent() && !takeMaterial(warehouse, building, material.get(), nearStorage)) {
             return StepResult.BLOCKED;
         }
 
-        salvage(world, warehouse, where);
+        salvage(world, warehouse, building, where, nearStorage);
 
         // Состояние досчитывается по окружению до установки, а соседей
         // уведомляем после: иначе стёкла и заборы встают несоединёнными —
@@ -229,13 +288,66 @@ public final class BuildJob {
     }
 
     /**
+     * Остатки со стройплощадки возвращаются на склад, когда здание сдано.
+     * <p>
+     * Без этого они исчезают из экономики колонии. Запас площадки — счётчик,
+     * физически предметы нигде не лежат: курьер приносит по полстопки, зданию
+     * нужно четыре блока, и двадцать восемь просто перестают существовать.
+     * Игрок этого даже не заметит — просто однажды кончатся материалы.
+     * <p>
+     * Сюда же попадает и добыча с расчистки, сложенная у стройки, когда склад
+     * был далеко.
+     */
+    private static void returnLeftovers(ServerWorld world, Warehouse warehouse, Building building) {
+        ItemTally stock = building.stock();
+        if (stock.isEmpty()) {
+            return;
+        }
+
+        for (Map.Entry<Identifier, Integer> entry : Map.copyOf(stock.contents()).entrySet()) {
+            Item item = Registries.ITEM.get(entry.getKey());
+            int count = entry.getValue();
+            stock.take(entry.getKey(), count);
+
+            while (count > 0) {
+                int chunk = Math.min(count, item.getMaxCount());
+                warehouse.addOrScatter(world, building.anchor(), new ItemStack(item, chunk));
+                count -= chunk;
+            }
+        }
+    }
+
+    /**
+     * Откуда билдер берёт материал: сначала из того, что курьер сложил
+     * у стройки, и только потом со склада — если тот под боком.
+     */
+    private static boolean takeMaterial(Warehouse warehouse, Building building, Item item,
+                                        boolean nearStorage) {
+        if (building.stock().take(Registries.ITEM.getId(item), 1)) {
+            return true;
+        }
+        return nearStorage && warehouse.take(item, 1);
+    }
+
+    public static boolean storageIsNearby(Warehouse warehouse, Building building) {
+        return warehouse.hasContainerWithin(building.anchor(), NEARBY_STORAGE);
+    }
+
+    /** {@code null} снимает ограничение — так стройку гоняют тесты и отладка. */
+    private static boolean isTooFar(Vec3d workFrom, BlockPos target) {
+        return workFrom != null
+                && workFrom.squaredDistanceTo(Vec3d.ofCenter(target)) > WORK_REACH * WORK_REACH;
+    }
+
+    /**
      * Снести то, что мешает, и сдать добычу на склад.
      * <p>
      * Решение заказчика: расчистка приносит материалы. Поэтому выбор места —
      * экономическое решение, а не только эстетическое: стройка в лесу дороже
      * по времени, но выгоднее по брёвнам.
      */
-    private static void salvage(ServerWorld world, Warehouse warehouse, BlockPos pos) {
+    private static void salvage(ServerWorld world, Warehouse warehouse, Building building,
+                                BlockPos pos, boolean nearStorage) {
         BlockState existing = world.getBlockState(pos);
         if (existing.isAir()) {
             return;
@@ -243,8 +355,16 @@ public final class BuildJob {
 
         BlockEntity blockEntity = existing.hasBlockEntity() ? world.getBlockEntity(pos) : null;
         for (ItemStack drop : Block.getDroppedStacks(existing, world, pos, blockEntity, null, tool())) {
-            if (!drop.isEmpty()) {
+            if (drop.isEmpty()) {
+                continue;
+            }
+            if (nearStorage) {
                 warehouse.addOrScatter(world, pos, drop);
+            } else {
+                // Склад далеко: снесённое остаётся у стройки и пойдёт в стены.
+                // Тащить брёвна через полкарты, чтобы принести обратно, —
+                // работа ради работы.
+                building.stock().add(Registries.ITEM.getId(drop.getItem()), drop.getCount());
             }
         }
     }

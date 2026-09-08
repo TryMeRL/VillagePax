@@ -31,7 +31,8 @@ public class Building {
             BlockRotation.CODEC.optionalFieldOf("rotation", BlockRotation.NONE).forGetter(Building::rotation),
             BuildProgress.CODEC.optionalFieldOf("progress", BuildProgress.PLANNED).forGetter(Building::progress),
             Uuids.STRING_CODEC.listOf().optionalFieldOf("workers", List.of()).forGetter(Building::workers),
-            Codec.INT.optionalFieldOf("next_step", 0).forGetter(Building::nextStep)
+            Codec.INT.optionalFieldOf("next_step", 0).forGetter(Building::nextStep),
+            ItemTally.CODEC.optionalFieldOf("stock", new ItemTally()).forGetter(Building::stock)
     ).apply(instance, Building::new));
 
     private final UUID id;
@@ -52,6 +53,15 @@ public class Building {
      */
     private int nextStep;
 
+    /**
+     * Материалы, сложенные на стройплощадке.
+     * <p>
+     * Это <b>не</b> дубль контейнера: физически они нигде не лежат, их принёс
+     * курьер и сложил у стройки. Поэтому расхождения, из-за которого склад
+     * колонии стал видом поверх сундуков, здесь нет и быть не может.
+     */
+    private final ItemTally stock;
+
     public Building(UUID id, Identifier type, int level, BlockPos anchor, BlockRotation rotation,
                     BuildProgress progress, List<UUID> workers) {
         this(id, type, level, anchor, rotation, progress, workers, 0);
@@ -59,6 +69,11 @@ public class Building {
 
     public Building(UUID id, Identifier type, int level, BlockPos anchor, BlockRotation rotation,
                     BuildProgress progress, List<UUID> workers, int nextStep) {
+        this(id, type, level, anchor, rotation, progress, workers, nextStep, new ItemTally());
+    }
+
+    public Building(UUID id, Identifier type, int level, BlockPos anchor, BlockRotation rotation,
+                    BuildProgress progress, List<UUID> workers, int nextStep, ItemTally stock) {
         this.id = id;
         this.type = type;
         this.level = level;
@@ -67,6 +82,7 @@ public class Building {
         this.progress = progress;
         this.workers = new ArrayList<>(workers);
         this.nextStep = Math.max(0, nextStep);
+        this.stock = stock;
     }
 
     public static Building planned(Identifier type, BlockPos anchor, BlockRotation rotation) {
@@ -119,6 +135,10 @@ public class Building {
 
     public boolean isOperational() {
         return progress == BuildProgress.DONE;
+    }
+
+    public ItemTally stock() {
+        return stock;
     }
 
     public int nextStep() {

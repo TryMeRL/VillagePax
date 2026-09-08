@@ -3,9 +3,15 @@ package com.villagepax.command;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.villagepax.core.culture.Culture;
+import com.villagepax.core.culture.CultureManager;
+import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.Building;
+import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Founding;
+import com.villagepax.sim.Gender;
+import com.villagepax.sim.work.Jobs;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Warehouse;
@@ -20,6 +26,7 @@ import net.minecraft.command.argument.IdentifierArgumentType;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.BlockRotation;
@@ -30,6 +37,7 @@ import net.minecraft.util.math.Vec3i;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.UUID;
 
 import static net.minecraft.server.command.CommandManager.argument;
@@ -70,6 +78,11 @@ public final class BuildCommand {
                                         .suggests((context, builder) -> CommandSource
                                                 .suggestIdentifiers(SchematicLoader.ids(), builder))
                                         .executes(BuildCommand::supply)))
+                        .then(literal("hire")
+                                .then(argument("profession", IdentifierArgumentType.identifier())
+                                        .suggests((context, builder) -> CommandSource
+                                                .suggestIdentifiers(Jobs.professions(), builder))
+                                        .executes(BuildCommand::hire)))
                         .then(literal("status").executes(BuildCommand::status))));
     }
 
@@ -173,6 +186,49 @@ public final class BuildCommand {
         return delivered;
     }
 
+    /**
+     * Нанять жителя нужной профессии.
+     * <p>
+     * Настоящий путь — жители приходят под жильё в задаче 1.8. Пока их
+     * взять негде, и без этой команды курьера нельзя было бы увидеть
+     * в игре вовсе: та же ловушка, что была с первым строителем.
+     */
+    private static int hire(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        ServerWorld world = context.getSource().getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        Settlement colony = colonyOrTell(context, manager, player.getUuid());
+        if (colony == null) {
+            return 0;
+        }
+
+        Identifier profession = IdentifierArgumentType.getIdentifier(context, "profession");
+        if (Jobs.forProfession(Optional.of(profession)).isEmpty()) {
+            tell(context, "Профессии " + profession + " нет. Есть: " + Jobs.professions());
+            return 0;
+        }
+        if (!colony.hasRoomForCitizen()) {
+            tell(context, "Некуда селить: уровень «" + colony.level().id() + "» держит "
+                    + colony.level().maxCitizens() + " жителей, а их уже " + colony.population());
+            return 0;
+        }
+
+        Culture culture = CultureManager.get(colony.culture());
+        Citizen hired = culture == null
+                ? Citizen.newborn("Безымянный", "", colony.culture(), Gender.MALE)
+                : Founding.newCitizen(colony.culture(), culture, new Random(world.getRandom().nextLong()));
+        hired.setProfession(profession);
+        hired.setPosition(player.getPos());
+
+        manager.update(colony.id(), settlement -> settlement.addCitizen(hired));
+        CitizenSpawner.spawnBody(world, colony, hired);
+
+        tell(context, "Нанят " + hired.fullName() + " — " + profession.getPath()
+                + ". Жителей в колонии: " + colony.population());
+        return 1;
+    }
+
     private static int status(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
         SettlementManager manager = SettlementManager.get(context.getSource().getWorld());
@@ -183,6 +239,15 @@ public final class BuildCommand {
         }
 
         Warehouse warehouse = Warehouse.of(context.getSource().getWorld(), colony);
+        for (Citizen citizen : colony.citizens()) {
+            tell(context, "  " + citizen.fullName()
+                    + " — " + citizen.profession().map(Identifier::getPath).orElse("без профессии")
+                    + ", " + citizen.jobState().phase().id()
+                    + citizen.jobState().carried()
+                            .map(load -> ", несёт " + load.count() + " x " + load.item())
+                            .orElse(""));
+        }
+
         tell(context, "Колония «" + colony.name() + "»: жителей " + colony.population()
                 + ", зданий " + colony.buildings().size()
                 + ", хранилищ " + warehouse.containerCount()
@@ -194,7 +259,8 @@ public final class BuildCommand {
                     .map(s -> building.nextStep() + "/" + s.plan().steps().size())
                     .orElse("схемы нет");
             tell(context, "  " + building.type() + " ур. " + building.level()
-                    + " — " + building.progress().id() + ", шагов " + progress);
+                    + " — " + building.progress().id() + ", шагов " + progress
+                    + ", в запасе площадки " + building.stock().total());
         }
         return 1;
     }

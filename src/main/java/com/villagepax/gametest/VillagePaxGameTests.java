@@ -49,6 +49,9 @@ import com.villagepax.sim.build.PointOfInterest;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.build.SchematicParser;
+import com.villagepax.sim.work.HaulJob;
+import com.villagepax.sim.work.JobState;
+import com.villagepax.sim.work.WorkTicker;
 import net.minecraft.block.BlockState;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.resource.Resource;
@@ -1249,15 +1252,21 @@ public class VillagePaxGameTests implements FabricGameTest {
      * дёргают двигатель напрямую и потому не доказывают, что он вообще
      * подключён к игре; этот доказывает.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, tickLimit = 120, batchId = "playerPath")
+    @GameTest(templateName = EMPTY_STRUCTURE, tickLimit = 220, batchId = "playerPath")
     public void playerPathRaisesBuildingByItself(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
         Schematic schematic = loadedTownHall(context);
 
-        context.setBlockState(new BlockPos(1, 1, 1), Blocks.STONE);
-        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 2, 1));
+        // Пол: билдер теперь ходит, и ему надо по чему-то идти. Без этого
+        // площадка висела бы в воздухе и путь до неё не проложился бы вовсе.
+        for (int x = 0; x <= 6; x++) {
+            for (int z = 0; z <= 11; z++) {
+                context.setBlockState(new BlockPos(x, 0, z), Blocks.STONE);
+            }
+        }
 
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
         FoundingOutcome outcome = ColonyFounder.foundAt(world, UUID.randomUUID(), NORMAN, hall);
         if (!(outcome instanceof FoundingOutcome.Founded founded)) {
             context.throwGameTestException("Колония не основана: " + outcome);
@@ -1265,33 +1274,28 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
 
         Settlement colony = founded.settlement();
-        if (colony.citizens().stream().noneMatch(
-                citizen -> citizen.profession().equals(Optional.of(BuildJob.BUILDER)))) {
+        Citizen builder = colony.citizens().stream()
+                .filter(citizen -> citizen.profession().equals(Optional.of(BuildJob.BUILDER)))
+                .findFirst()
+                .orElse(null);
+        if (builder == null) {
             context.throwGameTestException("Основание не дало строителя — стройке некому идти");
+            return;
         }
 
-        // Площадку ставим над шаблоном: след 7x7 иначе залез бы в область
-        // соседнего игрового теста, а они делят один мир.
-        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+        // Площадка рядом с ратушей, но не поверх неё: склад в двух шагах,
+        // поэтому курьер не нужен и билдер берёт материалы сам.
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 4));
         Building site = plan(colony, anchor, BlockRotation.NONE);
         stockFor(world, colony, schematic);
 
-        int expected = 6;
-        long wait = BuildJob.TICKS_PER_STEP * (expected + 1L);
-
-        context.runAtTick(wait, () -> {
+        context.runAtTick(200, () -> {
             try {
-                if (site.nextStep() < expected) {
-                    context.throwGameTestException("За " + wait + " тиков сделано шагов "
-                            + site.nextStep() + ", ожидалось не меньше " + expected
-                            + ". Похоже, тикер стройки не подключён к тику мира");
-                }
-                if (site.progress() != BuildProgress.BUILDING) {
-                    context.throwGameTestException("Площадка не перешла в стройку: "
-                            + site.progress().id());
+                if (site.nextStep() == 0) {
+                    context.throwGameTestException("За 200 тиков билдер не сделал ни шага. "
+                            + "Похоже, тикер работ не подключён к тику мира");
                 }
 
-                // Блоки обязаны появиться в мире, а не только в счётчике шагов.
                 int placed = 0;
                 for (int step = 0; step < site.nextStep(); step++) {
                     BuildStep done = schematic.plan().steps().get(step);
@@ -1306,8 +1310,16 @@ public class VillagePaxGameTests implements FabricGameTest {
                     placed++;
                 }
                 if (placed == 0) {
-                    context.throwGameTestException("Ни одного блока не поставлено — "
-                            + "первые шаги плана оказались только расчисткой");
+                    context.throwGameTestException("Билдер дошёл, но ни одного блока не поставил");
+                }
+
+                // Он обязан быть у стройки, а не бродить: иначе работа шла бы
+                // сама, а житель был бы декорацией.
+                CitizenEntity body = (CitizenEntity) world.getEntity(builder.entityUuid().orElseThrow());
+                double distance = Math.sqrt(body.getPos().squaredDistanceTo(Vec3d.ofCenter(anchor)));
+                if (distance > 16.0) {
+                    context.throwGameTestException("Билдер работает, стоя в " + Math.round(distance)
+                            + " блоках от площадки");
                 }
 
                 context.complete();
@@ -1513,6 +1525,263 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
 
         context.complete();
+    }
+
+    // --- задача 1.7б: курьер ---
+
+    /**
+     * Приёмка задачи 1.7: курьер носит материалы со склада на стройку.
+     * <p>
+     * Здесь же проверяется и решение заказчика «рядом сам, далеко — курьер»:
+     * та же площадка без курьера встаёт на первом же блоке, хотя склад полон.
+     * <p>
+     * Ходьба заменена телепортом: тест проверяет решения стратегии, а не поиск
+     * пути. Что жители действительно ходят, доказывает отдельный тест на
+     * настоящих тиках мира.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "courier")
+    public void courierCarriesMaterialsWhenStorageIsFar(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        // Далеко по высоте, а не по горизонтали: те же чанки заведомо загружены.
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 20, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, schematic);
+
+            if (BuildJob.storageIsNearby(Warehouse.of(world, colony), site)) {
+                context.throwGameTestException("Площадка оказалась рядом со складом — "
+                        + "курьера проверять нечем");
+            }
+
+            // Без курьера стройка встаёт, хотя склад полон: до него не дотянуться.
+            BuildJob.Outcome alone = BuildJob.advance(world, manager, colony.id(), site.id(), 10_000);
+            if (alone != BuildJob.Outcome.WAITING_FOR_MATERIALS) {
+                context.throwGameTestException("Без курьера при далёком складе ожидалось ожидание, "
+                        + "получено: " + alone);
+            }
+            int stalledAt = site.nextStep();
+
+            Citizen courier = hireWithBody(world, colony, HaulJob.COURIER, hall.up());
+            runWork(world, manager, colony, courier, 12);
+
+            if (site.stock().total() == 0) {
+                context.throwGameTestException("Курьер ничего не принёс на площадку");
+            }
+            if (courier.jobState().isCarrying()) {
+                context.throwGameTestException("Курьер остался с грузом в руках: "
+                        + courier.jobState().phase().id());
+            }
+
+            // Теперь билдеру есть из чего строить — из запаса площадки.
+            BuildJob.Outcome withCourier = BuildJob.advance(world, manager, colony.id(), site.id(), 10_000);
+            if (site.nextStep() <= stalledAt) {
+                context.throwGameTestException("Стройка не двинулась после подвоза: шаг "
+                        + site.nextStep() + ", было " + stalledAt + ", исход " + withCourier);
+            }
+        } finally {
+            demolish(world, site, schematic);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Груз, который нести уже некуда, возвращается на склад.
+     * <p>
+     * Самое коварное место всей задачи: задание отменилось, а тридцать брёвен
+     * остались в руках. Обнулить состояние целиком — значит удалить их из мира,
+     * и игрок никогда не поймёт, куда они девались.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "courier")
+    public void strandedLoadGoesBackToStorage(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            Citizen courier = hireWithBody(world, colony, HaulJob.COURIER, hall.up());
+
+            // Нёс на стройку, которой больше нет.
+            courier.setJobState(JobState.startAt(UUID.randomUUID(), JobState.Phase.TO_SITE)
+                    .carrying(Registries.ITEM.getId(Items.OAK_LOG), 7)
+                    .withPhase(JobState.Phase.IDLE));
+            if (!courier.jobState().hasStrandedLoad()) {
+                context.throwGameTestException("Состояние не считается брошенным грузом");
+            }
+
+            runWork(world, manager, colony, courier, 4);
+
+            if (Warehouse.of(world, colony).count(Items.OAK_LOG) != 7) {
+                context.throwGameTestException("Брошенный груз не вернулся на склад: брёвен "
+                        + Warehouse.of(world, colony).count(Items.OAK_LOG));
+            }
+            if (courier.jobState().isCarrying()) {
+                context.throwGameTestException("Груз остался в руках после сдачи");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Билдер работает только в пределах вытянутой руки — но пустые шаги
+     * расчистки проскакивает не сходя с места.
+     * <p>
+     * Второе важнее первого: проверка досягаемости стоит после отсечения
+     * пустых шагов, иначе билдер шёл бы к каждой из ста одиннадцати пустых
+     * позиций расчистки, и вся выгода от «шагать к участку» пропала бы.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "courier")
+    public void builderReachesOnlyAsFarAsHisArm(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, schematic);
+
+            Vec3d faraway = Vec3d.ofCenter(anchor).add(0, 40, 0);
+            BuildJob.Outcome tooFar = BuildJob.advance(world, manager, colony.id(), site.id(), 10, faraway);
+
+            if (tooFar != BuildJob.Outcome.OUT_OF_REACH) {
+                context.throwGameTestException("Издалека ожидался переход, получено: " + tooFar);
+            }
+            if (site.nextStep() == 0) {
+                context.throwGameTestException("Пустые шаги расчистки должны проскакивать "
+                        + "не сходя с места, иначе билдер обойдёт всю площадку пешком");
+            }
+
+            BuildStep next = schematic.plan().steps().get(site.nextStep());
+            if (!next.placesBlock()) {
+                context.throwGameTestException("Билдер встал не на установке блока");
+            }
+
+            // Подошли — и работа пошла.
+            Vec3d atWork = Vec3d.ofCenter(BuildJob.worldPos(site, schematic.size(), next.pos()));
+            int before = site.nextStep();
+            BuildJob.Outcome close = BuildJob.advance(world, manager, colony.id(), site.id(), 3, atWork);
+
+            if (site.nextStep() <= before) {
+                context.throwGameTestException("Вплотную к блоку работа не пошла: " + close);
+            }
+        } finally {
+            demolish(world, site, schematic);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * Остатки со стройплощадки возвращаются на склад, когда здание сдано.
+     * <p>
+     * Запас площадки — счётчик: физически предметов нигде нет. Не вернуть
+     * их — значит удалить из экономики колонии молча. Курьер приносит по
+     * полстопки, зданию нужно четыре блока, и двадцать восемь перестают
+     * существовать; игрок заметит это однажды, когда материалы кончатся
+     * без причины. Сюда же попадает добыча с расчистки, сложенная у стройки,
+     * когда склад был далеко.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "courier")
+    public void leftoverSiteStockReturnsToStorageWhenDone(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, schematic);
+
+            // Заведомо ненужный схеме предмет: если он вернётся, значит
+            // возвращается вообще всё, а не только угаданные виды.
+            Identifier surplus = Registries.ITEM.getId(Items.DIAMOND);
+            site.stock().add(surplus, 5);
+
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Здание не достроилось");
+            }
+
+            if (!site.stock().isEmpty()) {
+                context.throwGameTestException("Запас площадки не опустел после сдачи: "
+                        + site.stock().total() + " штук осталось висеть в счётчике");
+            }
+            if (Warehouse.of(world, colony).count(Items.DIAMOND) != 5) {
+                context.throwGameTestException("Остатки не вернулись на склад: алмазов "
+                        + Warehouse.of(world, colony).count(Items.DIAMOND) + " из 5");
+            }
+        } finally {
+            demolish(world, site, schematic);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+    // --- помощники задачи 1.7б ---
+
+    /**
+     * Прогон стратегии с телепортом вместо ходьбы.
+     * <p>
+     * Тесты стратегии не должны зависеть от поиска пути: он медленный,
+     * зависит от рельефа и способен сорвать тест по причинам, к решениям
+     * жителя не относящимся. Что жители действительно ходят, доказывает
+     * {@code playerPathRaisesBuildingByItself} на настоящих тиках мира.
+     */
+    private static void runWork(ServerWorld world, SettlementManager manager, Settlement colony,
+                                Citizen worker, int rounds) {
+        CitizenEntity body = (CitizenEntity) world.getEntity(worker.entityUuid().orElseThrow());
+
+        for (int round = 0; round < rounds; round++) {
+            WorkTicker.decide(world, manager, colony, worker);
+
+            BlockPos target = body.workTarget();
+            if (target != null) {
+                body.refreshPositionAndAngles(target.getX() + 0.5, target.getY(), target.getZ() + 0.5,
+                        0f, 0f);
+            }
+        }
+    }
+
+    private static Citizen hireWithBody(ServerWorld world, Settlement colony, Identifier profession,
+                                        BlockPos at) {
+        Citizen citizen = Citizen.newborn("Работник", "", NORMAN, Gender.FEMALE);
+        citizen.setProfession(profession);
+        citizen.setPosition(Vec3d.ofBottomCenter(at));
+        colony.addCitizen(citizen);
+        CitizenSpawner.spawnBody(world, colony, citizen);
+        return citizen;
     }
 
     /** Тела не сохраняются, но живут до выгрузки: игровые тесты делят один мир. */

@@ -9,6 +9,7 @@ import net.jqwik.api.Property;
 import net.jqwik.api.Provide;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtOps;
+import com.villagepax.sim.work.JobState;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
@@ -90,6 +91,7 @@ class SettlementRoundTripProperty {
             assertEquals(a.progress(), b.progress(), "здание " + i + ": состояние стройки");
             assertEquals(a.workers(), b.workers(), "здание " + i + ": работники");
             assertEquals(a.nextStep(), b.nextStep(), "здание " + i + ": шаг стройки");
+            assertEquals(a.stock().contents(), b.stock().contents(), "здание " + i + ": запас площадки");
         }
 
         assertEquals(before.citizens().size(), after.citizens().size(), "число жителей");
@@ -109,6 +111,7 @@ class SettlementRoundTripProperty {
             assertEquals(a.workplace(), b.workplace(), "житель " + i + ": работа");
             assertEquals(a.position(), b.position(), "житель " + i + ": позиция");
             assertEquals(a.health(), b.health(), 0.0f, "житель " + i + ": здоровье");
+            assertEquals(a.jobState(), b.jobState(), "житель " + i + ": состояние работы");
         }
     }
 
@@ -155,7 +158,44 @@ class SettlementRoundTripProperty {
                         Arbitraries.of(BuildProgress.values()),
                         uuids().list().ofMaxSize(3),
                         Arbitraries.integers().between(0, 4_000))
-                .as(Building::new);
+                .as(BuildingDraft::new)
+                .flatMap(draft -> tallies().map(stock -> new Building(draft.id(), draft.type(),
+                        draft.level(), draft.anchor(), draft.rotation(), draft.progress(),
+                        draft.workers(), draft.nextStep(), stock)));
+    }
+
+    /** Ещё одна промежуточная запись: предел {@code Combinators} — восемь значений. */
+    private record BuildingDraft(UUID id, Identifier type, int level, BlockPos anchor,
+                                 BlockRotation rotation, BuildProgress progress, List<UUID> workers,
+                                 int nextStep) {
+    }
+
+    /** Запас площадки: значения строго положительны, нули на загрузке отбрасываются. */
+    private Arbitrary<ItemTally> tallies() {
+        return Arbitraries.maps(identifiers(), Arbitraries.integers().between(1, 20_000))
+                .ofMaxSize(5)
+                .map(ItemTally::new);
+    }
+
+    /**
+     * Состояние работы во всех своих видах, включая самый коварный —
+     * груз в руках без здания, который надо вернуть на склад.
+     */
+    private Arbitrary<JobState> jobStates() {
+        return Arbitraries.oneOf(
+                Arbitraries.just(JobState.IDLE),
+                Combinators.combine(uuids(), Arbitraries.of(
+                                JobState.Phase.TO_STORAGE, JobState.Phase.TO_SITE, JobState.Phase.WORKING))
+                        .as(JobState::startAt),
+                Combinators.combine(uuids(), identifiers(), Arbitraries.integers().between(1, 64))
+                        .as((building, item, count) -> JobState
+                                .startAt(building, JobState.Phase.TO_SITE)
+                                .carrying(item, count)),
+                Combinators.combine(uuids(), identifiers(), Arbitraries.integers().between(1, 64))
+                        .as((building, item, count) -> JobState
+                                .startAt(building, JobState.Phase.TO_SITE)
+                                .carrying(item, count)
+                                .withPhase(JobState.Phase.IDLE)));
     }
 
     private Arbitrary<Citizen> citizens() {
@@ -174,11 +214,12 @@ class SettlementRoundTripProperty {
                                 uuids().optional(),
                                 uuids().optional(),
                                 precisePositions().optional(),
-                                Arbitraries.floats().between(0.0f, Citizen.MAX_HEALTH))
-                        .as((saturation, home, work, pos, health) -> new Citizen(
+                                Arbitraries.floats().between(0.0f, Citizen.MAX_HEALTH),
+                                jobStates())
+                        .as((saturation, home, work, pos, health, job) -> new Citizen(
                                 draft.id(), draft.first(), draft.last(), draft.culture(), draft.gender(),
                                 draft.age(), draft.profession(), draft.happiness(), saturation,
-                                home, work, pos, health)));
+                                home, work, pos, health, job)));
     }
 
     private record CitizenDraft(UUID id, String first, String last, Identifier culture, Gender gender,

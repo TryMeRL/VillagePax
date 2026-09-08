@@ -2,6 +2,7 @@ package com.villagepax.sim;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.villagepax.sim.work.JobState;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Uuids;
 import net.minecraft.util.math.Vec3d;
@@ -39,7 +40,8 @@ public class Citizen {
             Uuids.STRING_CODEC.optionalFieldOf("home").forGetter(Citizen::home),
             Uuids.STRING_CODEC.optionalFieldOf("workplace").forGetter(Citizen::workplace),
             Vec3d.CODEC.optionalFieldOf("position").forGetter(Citizen::position),
-            Codec.FLOAT.optionalFieldOf("health", MAX_HEALTH).forGetter(Citizen::health)
+            Codec.FLOAT.optionalFieldOf("health", MAX_HEALTH).forGetter(Citizen::health),
+            JobState.CODEC.optionalFieldOf("job", JobState.IDLE).forGetter(Citizen::jobState)
     ).apply(instance, Citizen::new));
 
     private final UUID id;
@@ -57,6 +59,12 @@ public class Citizen {
     private float health;
 
     /**
+     * Чем житель занят. Живёт здесь, а не в теле: курьер с полными руками
+     * обязан после перезахода в мир донести груз, а не начать путь заново.
+     */
+    private JobState jobState;
+
+    /**
      * Живое тело жителя, если оно сейчас есть в мире.
      * <p>
      * Намеренно не сохраняется: сущности жителей не пишутся в чанк, поэтому
@@ -68,6 +76,14 @@ public class Citizen {
                    long ageTicks, Optional<Identifier> profession, int happiness, int saturation,
                    Optional<UUID> home, Optional<UUID> workplace, Optional<Vec3d> position,
                    float health) {
+        this(id, firstName, lastName, culture, gender, ageTicks, profession, happiness, saturation,
+                home, workplace, position, health, JobState.IDLE);
+    }
+
+    public Citizen(UUID id, String firstName, String lastName, Identifier culture, Gender gender,
+                   long ageTicks, Optional<Identifier> profession, int happiness, int saturation,
+                   Optional<UUID> home, Optional<UUID> workplace, Optional<Vec3d> position,
+                   float health, JobState jobState) {
         this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;
@@ -85,6 +101,7 @@ public class Citizen {
         this.workplace = workplace;
         this.position = position;
         this.health = clampHealth(health);
+        this.jobState = jobState;
     }
 
     private static int clampHappiness(int value) {
@@ -204,6 +221,14 @@ public class Citizen {
 
     public void setHealth(float health) {
         this.health = clampHealth(health);
+    }
+
+    public JobState jobState() {
+        return jobState;
+    }
+
+    public void setJobState(JobState jobState) {
+        this.jobState = jobState;
     }
 
     public Optional<UUID> entityUuid() {

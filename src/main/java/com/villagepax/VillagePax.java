@@ -7,8 +7,8 @@ import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.entity.ModEntities;
 import com.villagepax.command.BuildCommand;
 import com.villagepax.item.ModItems;
-import com.villagepax.sim.build.BuildTicker;
 import com.villagepax.sim.build.SchematicLoader;
+import com.villagepax.sim.work.WorkTicker;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.resource.ResourceType;
@@ -29,7 +29,7 @@ public class VillagePax implements ModInitializer {
         ModEntities.init();
         CitizenSpawner.register();
         SchematicLoader.register();
-        BuildTicker.register();
+        WorkTicker.register();
         BuildCommand.register();
 
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)

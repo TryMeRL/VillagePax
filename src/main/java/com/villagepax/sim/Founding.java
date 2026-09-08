@@ -84,6 +84,13 @@ public final class Founding {
      * жителя. Остальные жители приходят под жильё в задаче 1.8.
      */
     public static Citizen firstBuilder(Identifier cultureId, Culture culture, Random random) {
+        Citizen builder = newCitizen(cultureId, culture, random);
+        builder.setProfession(PROFESSION_BUILDER);
+        return builder;
+    }
+
+    /** Житель с именем из списков народа и без профессии. */
+    public static Citizen newCitizen(Identifier cultureId, Culture culture, Random random) {
         boolean male = random.nextBoolean();
         List<String> pool = male ? culture.namePools().male() : culture.namePools().female();
         List<String> fallback = male ? culture.namePools().female() : culture.namePools().male();
@@ -97,9 +104,7 @@ public final class Founding {
             name = FALLBACK_BUILDER_NAME;
         }
 
-        Citizen builder = Citizen.newborn(name, "", cultureId, male ? Gender.MALE : Gender.FEMALE);
-        builder.setProfession(PROFESSION_BUILDER);
-        return builder;
+        return Citizen.newborn(name, "", cultureId, male ? Gender.MALE : Gender.FEMALE);
     }
 
     private static String pick(List<String> pool, Random random) {

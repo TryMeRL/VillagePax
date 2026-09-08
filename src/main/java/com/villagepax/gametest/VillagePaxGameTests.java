@@ -26,7 +26,9 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.entity.ItemEntity;
+import net.minecraft.entity.ai.pathing.Path;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.block.FenceGateBlock;
 import net.minecraft.block.LeavesBlock;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.util.math.Box;
@@ -82,6 +84,7 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtOps;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.io.InputStream;
@@ -3025,6 +3028,218 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
         } finally {
             demolish(world, farm, farmPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Дерево валится целиком: с ветками и кроной, без висящих остатков.
+     * <p>
+     * Прежний обход шёл одной колонной над подножием и снимал крону
+     * коробкой в три блока. У дуба ветки отходят в сторону, у тёмного дуба
+     * ствол вообще толщиной в четыре бревна, а крона шире трёх блоков —
+     * и игрок видел обрубок с висящей листвой вместо сваленного дерева.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "wholetree")
+    public void wholeTreeComesDownWithBranchesAndCanopy(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic hutPlan = schematic(context, LUMBERJACK_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building hut = plan(colony, anchor, LUMBERJACK_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, hutPlan);
+            BuildJob.advance(world, manager, colony.id(), hut.id(), 10_000);
+
+            BlockPos tile = GatherJob.groveTiles(hut).get(0);
+
+            // Ствол в шесть брёвен, ветка углом и крона шире прежней коробки.
+            for (int dy = 0; dy < 6; dy++) {
+                world.setBlockState(tile.up(dy), Blocks.OAK_LOG.getDefaultState());
+            }
+            BlockPos elbow = tile.add(1, 4, 1);
+            BlockPos tip = elbow.add(1, 0, 0);
+            world.setBlockState(elbow, Blocks.OAK_LOG.getDefaultState());
+            world.setBlockState(tip, Blocks.OAK_LOG.getDefaultState());
+
+            List<BlockPos> canopy = new ArrayList<>();
+            for (int dx = -2; dx <= 3; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    for (int dy = 5; dy <= 6; dy++) {
+                        BlockPos at = tile.add(dx, dy, dz);
+                        if (world.getBlockState(at).isAir()) {
+                            world.setBlockState(at, Blocks.OAK_LEAVES.getDefaultState());
+                            canopy.add(at);
+                        }
+                    }
+                }
+            }
+            if (canopy.size() < 40) {
+                context.throwGameTestException("Крона не поставилась: листьев "
+                        + canopy.size());
+            }
+
+            Warehouse.of(world, colony).add(new ItemStack(Items.OAK_SAPLING, 4));
+            int logsBefore = Warehouse.of(world, colony).count(Items.OAK_LOG);
+
+            Citizen woodsman = hireWithBody(world, colony, GatherJob.LUMBERJACK, tile.up(8));
+            Workplaces.assign(world, colony);
+            runWork(world, manager, colony, woodsman, 60, Schedule.MORNING_WORK);
+
+            // Восемь брёвен: шесть ствола и два ветки.
+            if (Warehouse.of(world, colony).count(Items.OAK_LOG) < logsBefore + 8) {
+                context.throwGameTestException("Ветку не срубили: брёвен на складе "
+                        + (Warehouse.of(world, colony).count(Items.OAK_LOG) - logsBefore)
+                        + " из восьми");
+            }
+            if (!world.getBlockState(elbow).isAir() || !world.getBlockState(tip).isAir()) {
+                context.throwGameTestException("Ветка осталась висеть");
+            }
+            for (BlockPos leaf : canopy) {
+                if (!world.getBlockState(leaf).isAir()) {
+                    context.throwGameTestException("Крона осталась висеть: "
+                            + world.getBlockState(leaf).getBlock() + " в " + leaf.toShortString());
+                }
+            }
+
+            // Стены мастерской из тёмного дуба остались на месте: они тоже брёвна.
+            BlockPos post = anchor.add(0, 1, 0);
+            if (!world.getBlockState(post).isIn(BlockTags.LOGS)) {
+                context.throwGameTestException("Связный обход дошёл до стены мастерской");
+            }
+        } finally {
+            demolish(world, hut, hutPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- калитки в ограде ---
+
+    /**
+     * На огороженное поле можно войти: в ограде есть открытая калитка.
+     * <p>
+     * Ванильный поиск пути считает закрытую калитку непроходимой
+     * ({@code PathNodeType.FENCE}), а открывать их умеют только двери
+     * у деревенских жителей. С глухой оградой фермер стоял бы снаружи
+     * своего поля и не делал ничего — и это было ровно так.
+     * <p>
+     * Проверяется настоящим поиском пути, а не наличием блока: калитку
+     * можно поставить и оставить закрытой.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "gates")
+    public void fencedFarmCanBeEntered(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = plan(colony, anchor, FARM_TYPE, BlockRotation.NONE);
+        BlockPos landing = BuildJob.worldPos(farm, farmPlan.size(), new BlockPos(-1, 1, 3));
+
+        try {
+            stockFor(world, colony, farmPlan);
+            BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000);
+
+            BlockPos gate = BuildJob.worldPos(farm, farmPlan.size(), new BlockPos(0, 2, 3));
+            BlockPos plot = BuildJob.worldPos(farm, farmPlan.size(), new BlockPos(1, 2, 3));
+
+            if (!(world.getBlockState(gate).getBlock() instanceof FenceGateBlock)) {
+                context.throwGameTestException("В ограде поля нет калитки, стоит "
+                        + world.getBlockState(gate).getBlock());
+            }
+
+            // Площадка снаружи: поле стоит в пустоте, идти жителю неоткуда.
+            world.setBlockState(landing, Blocks.DIRT.getDefaultState());
+
+            Citizen farmer = hireWithBody(world, colony, FarmJob.FARMER, landing.up());
+            CitizenEntity body = (CitizenEntity) world.getEntity(farmer.entityUuid().orElseThrow());
+
+            // Только что созданное тело ещё не коснулось земли, а поиск пути
+            // из воздуха ванилью запрещён. В игре это происходит само
+            // на первом же тике.
+            body.setOnGround(true);
+
+            Path through = body.getNavigation().findPathTo(plot, 0);
+            if (through == null || !through.reachesTarget()) {
+                context.throwGameTestException("Фермер не может войти на своё поле: "
+                        + (through == null ? "пути нет вовсе" : "путь не доходит"));
+            }
+
+            // Заменим калитку забором — и пути внутрь больше нет. Проверка
+            // держится на этом: иначе тест прошёл бы и с глухой оградой.
+            world.setBlockState(gate, Blocks.OAK_FENCE.getDefaultState());
+            Path blocked = body.getNavigation().findPathTo(plot, 0);
+            if (blocked != null && blocked.reachesTarget()) {
+                context.throwGameTestException("Путь нашёлся сквозь глухую ограду — "
+                        + "значит проверка ничего не проверяет");
+            }
+        } finally {
+            world.setBlockState(landing, Blocks.AIR.getDefaultState());
+            demolish(world, farm, farmPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** В рощу лесоруба тоже есть вход — по той же причине. */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "gates")
+    public void fencedGroveCanBeEntered(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic hutPlan = schematic(context, LUMBERJACK_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building hut = plan(colony, anchor, LUMBERJACK_TYPE, BlockRotation.NONE);
+        BlockPos landing = BuildJob.worldPos(hut, hutPlan.size(), new BlockPos(10, 0, 2));
+
+        try {
+            stockFor(world, colony, hutPlan);
+            BuildJob.advance(world, manager, colony.id(), hut.id(), 10_000);
+
+            BlockPos gate = BuildJob.worldPos(hut, hutPlan.size(), new BlockPos(9, 1, 2));
+            BlockPos inside = BuildJob.worldPos(hut, hutPlan.size(), new BlockPos(8, 1, 2));
+
+            if (!(world.getBlockState(gate).getBlock() instanceof FenceGateBlock)) {
+                context.throwGameTestException("В ограде рощи нет калитки, стоит "
+                        + world.getBlockState(gate).getBlock());
+            }
+
+            world.setBlockState(landing, Blocks.DIRT.getDefaultState());
+
+            Citizen woodsman = hireWithBody(world, colony, GatherJob.LUMBERJACK, landing.up());
+            CitizenEntity body = (CitizenEntity) world.getEntity(woodsman.entityUuid().orElseThrow());
+            body.setOnGround(true);
+
+            Path through = body.getNavigation().findPathTo(inside, 0);
+            if (through == null || !through.reachesTarget()) {
+                context.throwGameTestException("Лесоруб не может войти в свою рощу: "
+                        + (through == null ? "пути нет вовсе" : "путь не доходит"));
+            }
+        } finally {
+            world.setBlockState(landing, Blocks.AIR.getDefaultState());
+            demolish(world, hut, hutPlan);
             discardBodies(world, colony);
             manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());

@@ -122,6 +122,13 @@ LEGEND = {
     "*": ("minecraft:carrots", {"age": "0"}),
     "q": ("minecraft:oak_fence", {"north": "false", "east": "false", "south": "false",
                                   "west": "false", "waterlogged": "false"}),
+    # Калитка ставится СРАЗУ ОТКРЫТОЙ, и это не небрежность. Ванильный
+    # поиск пути считает закрытую калитку непроходимой (PathNodeType.FENCE),
+    # а открывать калитки умеют только двери у деревенских жителей. С глухой
+    # оградой фермер не может войти на своё поле, а лесоруб — в свою рощу:
+    # оба стоят снаружи и не делают ничего.
+    "g": ("minecraft:oak_fence_gate", {"facing": "east", "open": "true",
+                                       "in_wall": "false", "powered": "false"}),
     "y": ("minecraft:oak_sapling", {"stage": "0"}),
     "B": ("minecraft:dark_oak_log", {"axis": "y"}),
     "H": ("minecraft:dark_oak_log", {"axis": "x"}),
@@ -285,7 +292,7 @@ NORMAN_LUMBERJACK = [
     # y=1 — стены с рабочим местом и сундуком, забор и четыре саженца
     ["BWDWBqqqqq",
      "WK.SWqy.yq",
-     "W...Wq...q",
+     "W...Wq...g",
      "W.O.Wqy.yq",
      "BWWWBqqqqq"],
     # y=2 — второй ряд стен, над рощей пусто
@@ -338,7 +345,7 @@ NORMAN_FARM = [
     ["qqqqqqq",
      "q*****q",
      "q*****q",
-     "q**.**q",
+     "g**.**q",
      "q*****q",
      "q*****q",
      "qqqqqqq"],

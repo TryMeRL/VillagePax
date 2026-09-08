@@ -1,0 +1,6 @@
+{
+  "display_name": "villagepax.profession.farmer",
+  "job": "villagepax:farm",
+  "needs_workplace": true,
+  "hiring_priority": 70
+}

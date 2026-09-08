@@ -19,5 +19,9 @@
   "villagepax.blueprint.hint": "Поставь на свободной земле, чтобы основать колонию",
   "villagepax.citizen.hungry": "%s голодает: на складе нет еды. Ещё день — и уйдёт.",
   "villagepax.citizen.left": "%s ушёл из колонии: жить впроголодь никто не станет.",
-  "villagepax.citizen.arrived": "В колонию пришёл новый житель: %s"
+  "villagepax.citizen.arrived": "В колонию пришёл новый житель: %s",
+  "villagepax.profession.builder": "Строитель",
+  "villagepax.profession.courier": "Курьер",
+  "villagepax.profession.lumberjack": "Лесоруб",
+  "villagepax.profession.farmer": "Фермер"
 }

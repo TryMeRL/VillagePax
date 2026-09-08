@@ -127,6 +127,7 @@ public final class Needs {
         }
 
         Housing.assignBeds(world, settlement);
+        Workplaces.assign(world, settlement);
         Housing.welcomeNewcomer(world, settlement, new java.util.Random(world.getRandom().nextLong()))
                 .ifPresent(newcomer -> tell(world, settlement,
                         "villagepax.citizen.arrived", newcomer.fullName()));

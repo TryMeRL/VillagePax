@@ -1,0 +1,6 @@
+{
+  "display_name": "villagepax.profession.builder",
+  "job": "villagepax:build",
+  "needs_workplace": false,
+  "hiring_priority": 100
+}

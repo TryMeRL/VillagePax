@@ -1,5 +1,6 @@
 package com.villagepax.sim.work;
 
+import com.villagepax.VillagePax;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.BuildStep;
@@ -24,9 +25,12 @@ import java.util.Optional;
  */
 public final class BuilderJob implements Job {
 
+    /** Логика стройки. Профессию, которая её выбирает, называет датапак. */
+    public static final Identifier LOGIC = new Identifier(VillagePax.MOD_ID, "build");
+
     @Override
-    public Identifier profession() {
-        return BuildJob.BUILDER;
+    public Identifier logic() {
+        return LOGIC;
     }
 
     /**
@@ -38,26 +42,18 @@ public final class BuilderJob implements Job {
      * задана, он уже рядом с ней и просто стоит.
      */
     @Override
-    public Optional<BlockPos> destination(WorkContext context) {
-        if (context.state().isIdle()) {
-            return Optional.empty();
-        }
-        return context.site().flatMap(BuilderJob::nextStepPosition);
-    }
-
-    @Override
-    public void tick(WorkContext context) {
+    public Optional<BlockPos> tick(WorkContext context) {
         JobState state = context.state();
 
         if (state.isIdle()) {
             findWork(context);
-            return;
+            return whereToStand(context);
         }
 
         Building site = context.site().orElse(null);
         if (site == null || !BuildJob.isUnderConstruction(site)) {
             context.goIdle();
-            return;
+            return Optional.empty();
         }
 
         BuildJob.Outcome outcome = BuildJob.advance(context.world(), context.manager(),
@@ -75,6 +71,15 @@ public final class BuilderJob implements Job {
             case FINISHED, ALREADY_DONE, NO_SCHEMATIC, NOT_LOADED, NOT_FOUND, NO_BUILDER ->
                     context.goIdle();
         }
+
+        return whereToStand(context);
+    }
+
+    private static Optional<BlockPos> whereToStand(WorkContext context) {
+        if (context.state().isIdle()) {
+            return Optional.empty();
+        }
+        return context.site().flatMap(BuilderJob::nextStepPosition);
     }
 
     private void findWork(WorkContext context) {

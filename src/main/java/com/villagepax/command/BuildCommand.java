@@ -11,6 +11,7 @@ import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Founding;
 import com.villagepax.sim.Gender;
+import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.sim.work.Jobs;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
@@ -81,7 +82,7 @@ public final class BuildCommand {
                         .then(literal("hire")
                                 .then(argument("profession", IdentifierArgumentType.identifier())
                                         .suggests((context, builder) -> CommandSource
-                                                .suggestIdentifiers(Jobs.professions(), builder))
+                                                .suggestIdentifiers(ProfessionManager.ids(), builder))
                                         .executes(BuildCommand::hire)))
                         .then(literal("status").executes(BuildCommand::status))));
     }
@@ -205,7 +206,7 @@ public final class BuildCommand {
 
         Identifier profession = IdentifierArgumentType.getIdentifier(context, "profession");
         if (Jobs.forProfession(Optional.of(profession)).isEmpty()) {
-            tell(context, "Профессии " + profession + " нет. Есть: " + Jobs.professions());
+            tell(context, "Профессии " + profession + " нет. Есть: " + ProfessionManager.ids());
             return 0;
         }
         if (!colony.hasRoomForCitizen()) {

@@ -81,6 +81,7 @@ public final class WorkTicker {
                 // В первый же тик кровати надо раздать, иначе только что
                 // основанная колония ночует под открытым небом целые сутки.
                 Housing.assignBeds(world, state);
+                Workplaces.assign(world, state);
             } else {
                 Needs.newDay(world, manager, state);
             }
@@ -152,8 +153,13 @@ public final class WorkTicker {
             return;
         }
 
-        context.manager().update(context.settlement().id(), ignored -> job.tick(context));
-        context.body().setWorkTarget(job.destination(context).orElse(null));
+        // Цель приходит из того же вызова, что и работа: отдельный запрос
+        // считал бы то же самое второй раз, а у лесоруба это второй обход
+        // леса вокруг мастерской.
+        BlockPos[] destination = new BlockPos[1];
+        context.manager().update(context.settlement().id(),
+                ignored -> destination[0] = job.tick(context).orElse(null));
+        context.body().setWorkTarget(destination[0]);
     }
 
     private static boolean isSlacking(WorkContext context) {

@@ -3,6 +3,7 @@ package com.villagepax.sim.work;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.core.ModTags;
+import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
@@ -171,29 +172,29 @@ public final class Housing {
         settlement.addCitizen(newcomer);
 
         assignBeds(world, settlement);
+        Workplaces.assign(world, settlement);
         CitizenSpawner.spawnBody(world, settlement, newcomer);
         return Optional.of(newcomer);
     }
 
     /**
-     * Кем станет пришедший. Заглушка до задачи 1.9, где профессии станут
-     * данными: сперва строитель, потом курьер, дальше без профессии.
+     * Кем станет пришедший: самая нужная незанятая профессия по приоритету
+     * из датапака.
+     * <p>
+     * В задаче 1.8 это была лестница в коде — «сперва строитель, потом
+     * курьер», — и она упиралась в третьего жителя. Теперь порядок задают
+     * данные, и новая профессия встраивается в него одним файлом.
      */
     private static Optional<Identifier> neededProfession(Settlement settlement) {
-        boolean hasBuilder = false;
-        boolean hasCourier = false;
-
+        Set<Identifier> filled = new HashSet<>();
         for (Citizen citizen : settlement.citizens()) {
-            Identifier profession = citizen.profession().orElse(null);
-            hasBuilder |= BuildJob.BUILDER.equals(profession);
-            hasCourier |= HaulJob.COURIER.equals(profession);
+            citizen.profession().ifPresent(filled::add);
         }
 
-        if (!hasBuilder) {
-            return Optional.of(BuildJob.BUILDER);
-        }
-        if (!hasCourier) {
-            return Optional.of(HaulJob.COURIER);
+        for (Identifier profession : ProfessionManager.byHiringPriority()) {
+            if (!filled.contains(profession)) {
+                return Optional.of(profession);
+            }
         }
         return Optional.empty();
     }

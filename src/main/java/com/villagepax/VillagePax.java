@@ -3,6 +3,7 @@ package com.villagepax;
 import com.villagepax.block.ModBlocks;
 import com.villagepax.block.entity.ModBlockEntities;
 import com.villagepax.core.culture.CultureManager;
+import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.entity.ModEntities;
 import com.villagepax.command.BuildCommand;
@@ -34,6 +35,8 @@ public class VillagePax implements ModInitializer {
 
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
                 .registerReloadListener(new CultureManager());
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+                .registerReloadListener(new ProfessionManager());
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
                 .registerReloadListener(new SchematicLoader());
 

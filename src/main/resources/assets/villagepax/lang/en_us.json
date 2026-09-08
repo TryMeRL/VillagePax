@@ -19,5 +19,9 @@
   "villagepax.blueprint.hint": "Place on free land to found a colony",
   "villagepax.citizen.hungry": "%s is starving: no food in storage. One more day and they leave.",
   "villagepax.citizen.left": "%s has left the colony: nobody stays to starve.",
-  "villagepax.citizen.arrived": "A new citizen has arrived: %s"
+  "villagepax.citizen.arrived": "A new citizen has arrived: %s",
+  "villagepax.profession.builder": "Builder",
+  "villagepax.profession.courier": "Courier",
+  "villagepax.profession.lumberjack": "Lumberjack",
+  "villagepax.profession.farmer": "Farmer"
 }

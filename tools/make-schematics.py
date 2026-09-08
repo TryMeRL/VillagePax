@@ -111,6 +111,10 @@ LEGEND = {
     # от ног, поэтому "f" ставится перед "h" по оси Z.
     "f": ("minecraft:red_bed", {"facing": "south", "part": "foot", "occupied": "false"}),
     "h": ("minecraft:red_bed", {"facing": "south", "part": "head", "occupied": "false"}),
+    "d": ("minecraft:dirt", {}),
+    "q": ("minecraft:oak_fence", {"north": "false", "east": "false", "south": "false",
+                                  "west": "false", "waterlogged": "false"}),
+    "y": ("minecraft:oak_sapling", {"stage": "0"}),
     "B": ("minecraft:dark_oak_log", {"axis": "y"}),
     "H": ("minecraft:dark_oak_log", {"axis": "x"}),
     "Z": ("minecraft:dark_oak_log", {"axis": "z"}),
@@ -256,9 +260,50 @@ NORMAN_HOUSE = [
      "sssss"],
 ]
 
+# Домик лесоруба, 10x5x5: жильё слева, огороженная роща справа.
+#
+# Решение заказчика: роща у домика — постоянное хозяйство лесоруба, там он
+# валит и сажает обратно. Дикий лес он просто счищает, без посадки.
+#
+# Саженцы стоят с промежутком: вплотную дубы не вырастут, им нужно место
+# под кроной. Над рощей в схеме воздух — деревьям надо куда расти.
+NORMAN_LUMBERJACK = [
+    # y=0 — булыжный цоколь дома и земля под рощей
+    ["CCCCCddddd",
+     "CCCCCddddd",
+     "CCCCCddddd",
+     "CCCCCddddd",
+     "CCCCCddddd"],
+    # y=1 — стены с рабочим местом и сундуком, забор и четыре саженца
+    ["BWDWBqqqqq",
+     "WK.SWqy.yq",
+     "W...Wq...q",
+     "W.O.Wqy.yq",
+     "BWWWBqqqqq"],
+    # y=2 — второй ряд стен, над рощей пусто
+    ["BW.WB.....",
+     "W...W.....",
+     "G...G.....",
+     "W...W.....",
+     "BWGWB....."],
+    # y=3 — верхняя обвязка
+    ["HHHHH.....",
+     "Z...Z.....",
+     "Z...Z.....",
+     "Z...Z.....",
+     "HHHHH....."],
+    # y=4 — крыша
+    ["nnnnn.....",
+     "wPPPe.....",
+     "wPPPe.....",
+     "wPPPe.....",
+     "sssss....."],
+]
+
 SCHEMATICS = {
     "norman/town_hall_lvl1": NORMAN_TOWN_HALL,
     "norman/house_lvl1": NORMAN_HOUSE,
+    "norman/lumberjack_lvl1": NORMAN_LUMBERJACK,
 }
 
 

@@ -1,0 +1,6 @@
+{
+  "display_name": "villagepax.profession.lumberjack",
+  "job": "villagepax:gather",
+  "needs_workplace": true,
+  "hiring_priority": 60
+}

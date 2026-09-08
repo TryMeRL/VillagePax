@@ -27,6 +27,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.block.LeavesBlock;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.util.math.Box;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
@@ -52,7 +53,12 @@ import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.build.SchematicParser;
 import com.villagepax.sim.work.HaulJob;
 import com.villagepax.sim.work.JobState;
+import com.villagepax.core.profession.Profession;
+import com.villagepax.core.profession.ProfessionManager;
+import com.villagepax.sim.work.GatherJob;
 import com.villagepax.sim.work.Housing;
+import com.villagepax.sim.work.Jobs;
+import com.villagepax.sim.work.Workplaces;
 import com.villagepax.sim.work.Needs;
 import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.work.WorkTicker;
@@ -2032,6 +2038,247 @@ public class VillagePaxGameTests implements FabricGameTest {
         context.complete();
     }
 
+
+    // --- задача 1.9а: профессии как данные и лесоруб ---
+
+    private static final Identifier LUMBERJACK_SCHEMATIC =
+            new Identifier("villagepax", "norman/lumberjack_lvl1");
+    private static final Identifier LUMBERJACK_TYPE = new Identifier("villagepax", "norman/lumberjack");
+
+    /** Профессии приходят из датапака, а логика работы — из кода. */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "lumberjack")
+    public void professionsComeFromTheDatapack(TestContext context) {
+        Profession lumberjack = ProfessionManager.get(GatherJob.LUMBERJACK).orElse(null);
+        if (lumberjack == null) {
+            context.throwGameTestException("Профессия лесоруба не загружена. Загружены: "
+                    + ProfessionManager.ids());
+            return;
+        }
+        if (!lumberjack.job().equals(GatherJob.LOGIC)) {
+            context.throwGameTestException("Лесоруб выбрал не ту логику: " + lumberjack.job());
+        }
+        if (!lumberjack.needsWorkplace()) {
+            context.throwGameTestException("Лесорубу нужна мастерская: там его роща");
+        }
+
+        // Логика находится по профессии — через данные, а не по таблице в коде.
+        if (Jobs.forProfession(Optional.of(GatherJob.LUMBERJACK)).isEmpty()) {
+            context.throwGameTestException("По профессии лесоруба не нашлось логики");
+        }
+        // А билдер и курьер мастерской не требуют: их зданий ещё нет,
+        // и жёсткое требование остановило бы уже идущую работу.
+        if (ProfessionManager.get(BuildJob.BUILDER).orElseThrow().needsWorkplace()
+                || ProfessionManager.get(HaulJob.COURIER).orElseThrow().needsWorkplace()) {
+            context.throwGameTestException("Билдеру или курьеру навязали мастерскую");
+        }
+
+        // Опечатка в датапаке не должна ронять сервер: житель просто без дела.
+        if (Jobs.forProfession(Optional.of(new Identifier("villagepax", "no_such_profession"))).isPresent()) {
+            context.throwGameTestException("Неизвестная профессия получила логику");
+        }
+
+        // Порядок найма задан данными и устойчив.
+        List<Identifier> order = ProfessionManager.byHiringPriority();
+        if (!order.get(0).equals(BuildJob.BUILDER)) {
+            context.throwGameTestException("Первым нанимают не строителя, а " + order.get(0));
+        }
+        if (!order.equals(ProfessionManager.byHiringPriority())) {
+            context.throwGameTestException("Порядок найма меняется от вызова к вызову");
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Домик лесоруба приносит огороженную рощу и рабочее место.
+     * <p>
+     * Роща — не новое состояние, а часть схемы: грядки для деревьев есть
+     * позиции, где в схеме стоят саженцы.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "lumberjack")
+    public void lumberjackHutGivesAGroveAndAWorkplace(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic hutPlan = schematic(context, LUMBERJACK_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building hut = plan(colony, anchor, LUMBERJACK_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, hutPlan);
+            if (BuildJob.advance(world, manager, colony.id(), hut.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Домик лесоруба не достроился");
+            }
+
+            List<BlockPos> grove = GatherJob.groveTiles(hut);
+            if (grove.size() != 4) {
+                context.throwGameTestException("Грядок в роще " + grove.size() + ", в схеме четыре");
+            }
+            for (BlockPos tile : grove) {
+                if (!world.getBlockState(tile).isIn(BlockTags.SAPLINGS)) {
+                    context.throwGameTestException("На грядке не саженец: "
+                            + world.getBlockState(tile).getBlock());
+                }
+                if (!world.getBlockState(tile.down()).isIn(BlockTags.DIRT)) {
+                    context.throwGameTestException("Под саженцем не земля");
+                }
+            }
+
+            if (Workplaces.stations(hut).isEmpty()) {
+                context.throwGameTestException("У домика нет рабочего места");
+            }
+
+            Citizen woodsman = hireWithBody(world, colony, GatherJob.LUMBERJACK, hall.up());
+            Workplaces.assign(world, colony);
+
+            if (Workplaces.of(colony, woodsman).isEmpty()) {
+                context.throwGameTestException("Лесорубу не досталась мастерская");
+            }
+            if (!Workplaces.of(colony, woodsman).orElseThrow().id().equals(hut.id())) {
+                context.throwGameTestException("Лесоруб приписан к чужому зданию");
+            }
+        } finally {
+            demolish(world, hut, hutPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Приёмка задачи 1.9а: лесоруб валит дерево, сдаёт брёвна на склад
+     * и сажает саженец обратно.
+     * <p>
+     * Посадка — решение заказчика: в роще лес не кончается, а окрестности
+     * не превращаются в пустырь. Дикий лес он, наоборот, просто счищает.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "lumberjack")
+    public void lumberjackFellsGroveTreeAndReplantsIt(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic hutPlan = schematic(context, LUMBERJACK_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building hut = plan(colony, anchor, LUMBERJACK_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, hutPlan);
+            BuildJob.advance(world, manager, colony.id(), hut.id(), 10_000);
+
+            // Одна грядка «выросла»: ствол и немного кроны.
+            BlockPos tile = GatherJob.groveTiles(hut).get(0);
+            for (int dy = 0; dy < 4; dy++) {
+                world.setBlockState(tile.up(dy), Blocks.OAK_LOG.getDefaultState());
+            }
+            world.setBlockState(tile.up(4),
+                    Blocks.OAK_LEAVES.getDefaultState().with(LeavesBlock.PERSISTENT, true));
+
+            // Саженцы на складе: колония живёт своим кругооборотом.
+            Warehouse.of(world, colony).add(new ItemStack(Items.OAK_SAPLING, 4));
+            int logsBefore = Warehouse.of(world, colony).count(Items.OAK_LOG);
+
+            Citizen woodsman = hireWithBody(world, colony, GatherJob.LUMBERJACK, tile.up(6));
+            Workplaces.assign(world, colony);
+
+            runWork(world, manager, colony, woodsman, 40, Schedule.MORNING_WORK);
+
+            if (!world.getBlockState(tile.up(1)).isAir()) {
+                context.throwGameTestException("Ствол не свален: на высоте один стоит "
+                        + world.getBlockState(tile.up(1)).getBlock());
+            }
+            if (Warehouse.of(world, colony).count(Items.OAK_LOG) < logsBefore + 4) {
+                context.throwGameTestException("Брёвна не легли на склад: было " + logsBefore
+                        + ", стало " + Warehouse.of(world, colony).count(Items.OAK_LOG));
+            }
+            if (!world.getBlockState(tile).isIn(BlockTags.SAPLINGS)) {
+                context.throwGameTestException("На месте срубленного дерева не посажен саженец: "
+                        + world.getBlockState(tile).getBlock());
+            }
+        } finally {
+            demolish(world, hut, hutPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Лесоруб счищает дикий лес, но не разбирает зданий.
+     * <p>
+     * Это не мелочь: фахверк норманнских домов сложен из тёмного дуба, то есть
+     * из брёвен. Без проверки «внутри здания» лесоруб унёс бы на склад стены
+     * той самой мастерской, в которой работает.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "lumberjack")
+    public void lumberjackClearsWildForestButSparesBuildings(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic hutPlan = schematic(context, LUMBERJACK_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building hut = plan(colony, anchor, LUMBERJACK_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, hutPlan);
+            BuildJob.advance(world, manager, colony.id(), hut.id(), 10_000);
+
+            // Угловой столб мастерской — тоже бревно.
+            BlockPos post = anchor.add(0, 1, 0);
+            if (!world.getBlockState(post).isIn(BlockTags.LOGS)) {
+                context.throwGameTestException("Ожидался бревенчатый столб мастерской, стоит "
+                        + world.getBlockState(post).getBlock());
+            }
+
+            // Дикое дерево за пределами следа здания, но в границах колонии.
+            BlockPos wild = anchor.add(13, 1, 2);
+            for (int dy = 0; dy < 3; dy++) {
+                world.setBlockState(wild.up(dy), Blocks.OAK_LOG.getDefaultState());
+            }
+
+            // Роща занята саженцами, так что лесоруб пойдёт в дикий лес.
+            Citizen woodsman = hireWithBody(world, colony, GatherJob.LUMBERJACK, wild.up(4));
+            Workplaces.assign(world, colony);
+
+            runWork(world, manager, colony, woodsman, 30, Schedule.MORNING_WORK);
+
+            if (!world.getBlockState(wild).isAir()) {
+                context.throwGameTestException("Дикое дерево не счищено: стоит "
+                        + world.getBlockState(wild).getBlock());
+            }
+            if (!world.getBlockState(post).isIn(BlockTags.LOGS)) {
+                context.throwGameTestException("Лесоруб разобрал столб собственной мастерской");
+            }
+            for (BlockPos tile : GatherJob.groveTiles(hut)) {
+                if (!world.getBlockState(tile).isIn(BlockTags.SAPLINGS)) {
+                    context.throwGameTestException("Лесоруб выдрал саженцы из своей рощи");
+                }
+            }
+        } finally {
+            for (int dy = 0; dy < 3; dy++) {
+                world.setBlockState(anchor.add(13, 1 + dy, 2), Blocks.AIR.getDefaultState());
+            }
+            demolish(world, hut, hutPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
     // --- помощники задачи 1.8 ---
 
     private static Schematic schematic(TestContext context, Identifier id) {

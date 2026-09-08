@@ -1,0 +1,6 @@
+{
+  "display_name": "villagepax.profession.courier",
+  "job": "villagepax:haul",
+  "needs_workplace": false,
+  "hiring_priority": 80
+}

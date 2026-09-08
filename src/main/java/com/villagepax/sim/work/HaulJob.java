@@ -43,13 +43,47 @@ public final class HaulJob implements Job {
      */
     public static final int LOOKAHEAD = 64;
 
+    /** Логика переноски. Профессию, которая её выбирает, называет датапак. */
+    public static final Identifier LOGIC = new Identifier(VillagePax.MOD_ID, "haul");
+
     @Override
-    public Identifier profession() {
-        return COURIER;
+    public Identifier logic() {
+        return LOGIC;
     }
 
     @Override
-    public Optional<BlockPos> destination(WorkContext context) {
+    public Optional<BlockPos> tick(WorkContext context) {
+        JobState state = context.state();
+
+        // Груз, который нести уже некуда, возвращается на склад. Иначе
+        // материалы навсегда остаются в руках жителя, и игрок не поймёт,
+        // куда девались тридцать брёвен.
+        if (state.hasStrandedLoad()) {
+            returnLoad(context);
+            return whereToGo(context);
+        }
+
+        if (state.isIdle()) {
+            findWork(context);
+            return whereToGo(context);
+        }
+
+        Building site = context.site().orElse(null);
+        if (site == null || !BuildJob.isUnderConstruction(site)) {
+            context.goIdle();
+            return whereToGo(context);
+        }
+
+        switch (state.phase()) {
+            case TO_STORAGE -> pickUp(context, site);
+            case TO_SITE -> deliver(context, site);
+            case IDLE, WORKING -> context.goIdle();
+        }
+
+        return whereToGo(context);
+    }
+
+    private Optional<BlockPos> whereToGo(WorkContext context) {
         JobState state = context.state();
 
         if (state.hasStrandedLoad()) {
@@ -70,36 +104,6 @@ public final class HaulJob implements Job {
             case TO_SITE -> Optional.of(site.anchor());
             case IDLE, WORKING -> Optional.empty();
         };
-    }
-
-    @Override
-    public void tick(WorkContext context) {
-        JobState state = context.state();
-
-        // Груз, который нести уже некуда, возвращается на склад. Иначе
-        // материалы навсегда остаются в руках жителя, и игрок не поймёт,
-        // куда девались тридцать брёвен.
-        if (state.hasStrandedLoad()) {
-            returnLoad(context);
-            return;
-        }
-
-        if (state.isIdle()) {
-            findWork(context);
-            return;
-        }
-
-        Building site = context.site().orElse(null);
-        if (site == null || !BuildJob.isUnderConstruction(site)) {
-            context.goIdle();
-            return;
-        }
-
-        switch (state.phase()) {
-            case TO_STORAGE -> pickUp(context, site);
-            case TO_SITE -> deliver(context, site);
-            case IDLE, WORKING -> context.goIdle();
-        }
     }
 
     private void findWork(WorkContext context) {

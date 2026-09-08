@@ -83,7 +83,11 @@ public final class FarmJob implements Job {
             context.setState(JobState.startAt(farm.id(), JobState.Phase.TO_SITE));
         }
 
+        // Мотыга в руке: по ней и видно, что житель идёт работать в поле.
+        context.hold(hoe());
+
         if (context.position().squaredDistanceTo(Vec3d.ofCenter(plot)) <= REACH * REACH) {
+            context.swing();
             work(context, schematic, plot);
         }
         return Optional.of(plot);

@@ -5,6 +5,7 @@ import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.ai.goal.LookAroundGoal;
 import net.minecraft.entity.ai.goal.LookAtEntityGoal;
 import net.minecraft.entity.ai.goal.SwimGoal;
@@ -55,6 +56,7 @@ public class CitizenEntity extends PathAwareEntity {
 
     public CitizenEntity(EntityType<? extends PathAwareEntity> type, World world) {
         super(type, world);
+        keepTools();
     }
 
     public static DefaultAttributeContainer.Builder createAttributes() {
@@ -73,6 +75,19 @@ public class CitizenEntity extends PathAwareEntity {
     @Override
     protected EntityNavigation createNavigation(World world) {
         return new CitizenNavigation(this, world);
+    }
+
+    /**
+     * Инструмент в руке — часть облика, а не добыча.
+     * <p>
+     * Ванильный моб роняет снаряжение при смерти, и топор лесоруба
+     * превратился бы в бесконечный источник железа: житель погиб, топор
+     * упал, наняли нового — и снова топор.
+     */
+    private void keepTools() {
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            setEquipmentDropChance(slot, 0.0f);
+        }
     }
 
     @Override

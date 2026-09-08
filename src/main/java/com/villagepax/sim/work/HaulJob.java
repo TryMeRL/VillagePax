@@ -80,7 +80,21 @@ public final class HaulJob implements Job {
             case IDLE, WORKING -> context.goIdle();
         }
 
+        showLoad(context);
         return whereToGo(context);
+    }
+
+    /**
+     * Курьер держит в руках то, что несёт.
+     * <p>
+     * Самый честный показ работы в моде: игрок видит не «житель идёт»,
+     * а «житель несёт двадцать брёвен вон туда». Пустые руки — значит
+     * идёт за грузом.
+     */
+    private static void showLoad(WorkContext context) {
+        context.hold(context.state().carried()
+                .map(load -> new ItemStack(Registries.ITEM.get(load.item()), load.count()))
+                .orElse(ItemStack.EMPTY));
     }
 
     private Optional<BlockPos> whereToGo(WorkContext context) {

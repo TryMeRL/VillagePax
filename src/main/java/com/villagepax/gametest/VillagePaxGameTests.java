@@ -36,6 +36,7 @@ import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.CropBlock;
 import net.minecraft.nbt.NbtCompound;
@@ -82,6 +83,7 @@ import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Materials;
+import com.villagepax.sim.work.BuilderJob;
 import net.minecraft.state.property.Properties;
 import net.minecraft.util.math.Direction;
 import net.minecraft.nbt.NbtElement;
@@ -3121,6 +3123,199 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
         } finally {
             demolish(world, hut, hutPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- работа в руках ---
+
+    /**
+     * Строитель держит тот блок, который ставит.
+     * <p>
+     * Просьба заказчика, и не косметическая: без предмета в руке понять,
+     * что происходит, можно только по растущей стене. Проверяется на сервере,
+     * потому что снаряжение — серверное состояние: клиент его лишь рисует.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "hands")
+    public void builderHoldsTheBlockHeIsPlacing(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, housePlan);
+
+            Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+            CitizenEntity body = (CitizenEntity) world.getEntity(mason.entityUuid().orElseThrow());
+
+            if (!body.getMainHandStack().isEmpty()) {
+                context.throwGameTestException("Житель родился с предметом в руке");
+            }
+
+            runWork(world, manager, colony, mason, 40, Schedule.MORNING_WORK);
+
+            // В руке должен быть ровно тот блок, который стоит следующим
+            // в плане, — а не просто «что-нибудь».
+            Item expected = expectedBlockInHand(housePlan, site);
+            if (expected == null) {
+                context.throwGameTestException("План кончился раньше, чем тест успел проверить руку");
+            }
+            if (!body.getMainHandStack().isOf(expected)) {
+                context.throwGameTestException("В руке " + body.getMainHandStack()
+                        + ", а ставит он " + expected);
+            }
+
+            // Отпустил работу — руки пусты.
+            mason.setJobState(JobState.IDLE);
+            mason.setProfession(null);
+            runWork(world, manager, colony, mason, 1, Schedule.MORNING_WORK);
+            if (!body.getMainHandStack().isEmpty()) {
+                context.throwGameTestException("Житель без дела остался с инструментом: "
+                        + body.getMainHandStack());
+            }
+        } finally {
+            demolish(world, site, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Какой блок стоит следующим в плане — тот и должен быть в руке. */
+    private static Item expectedBlockInHand(Schematic schematic, Building site) {
+        List<BuildStep> steps = schematic.plan().steps();
+        if (site.nextStep() >= steps.size()) {
+            return null;
+        }
+
+        BuildStep step = steps.get(site.nextStep());
+        return step.placesBlock()
+                ? Materials.itemFor(schematic.blockAt(step.paletteIndex())).orElse(null)
+                : Items.IRON_PICKAXE;
+    }
+
+    /**
+     * Лесоруб держит топор, курьер — свой груз.
+     * <p>
+     * У курьера это самый честный показ работы в моде: игрок видит не
+     * «житель идёт», а «житель несёт двадцать брёвен вон туда».
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "hands")
+    public void workersCarryTheirToolsAndLoads(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic hutPlan = schematic(context, LUMBERJACK_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building hut = plan(colony, anchor, LUMBERJACK_TYPE, BlockRotation.NONE);
+        // Далеко по высоте, а не по горизонтали: те же чанки заведомо загружены.
+        Building far = plan(colony, anchor.add(0, 22, 0), HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, hutPlan);
+            BuildJob.advance(world, manager, colony.id(), hut.id(), 10_000);
+
+            // Лесоруб: на грядке выросло дерево, значит есть работа.
+            BlockPos tile = GatherJob.groveTiles(hut).get(0);
+            for (int dy = 0; dy < 3; dy++) {
+                world.setBlockState(tile.up(dy), Blocks.OAK_LOG.getDefaultState());
+            }
+            Citizen woodsman = hireWithBody(world, colony, GatherJob.LUMBERJACK, tile.up(5));
+            Workplaces.assign(world, colony);
+            runWork(world, manager, colony, woodsman, 1, Schedule.MORNING_WORK);
+
+            CitizenEntity axeman = (CitizenEntity) world.getEntity(woodsman.entityUuid().orElseThrow());
+            if (!axeman.getMainHandStack().isOf(Items.IRON_AXE)) {
+                context.throwGameTestException("Лесоруб без топора: "
+                        + axeman.getMainHandStack());
+            }
+
+            // Курьер: далёкая стройка и материалы на складе — он их понесёт.
+            // Завозится ровно то, что нужно дому: иначе курьеру нечего нести
+            // и тест проверял бы не руки, а собственную догадку.
+            stockFor(world, colony, schematic(context, HOUSE_SCHEMATIC));
+            Citizen porter = hireWithBody(world, colony, HaulJob.COURIER, hall.up());
+
+            CitizenEntity carrier = (CitizenEntity) world.getEntity(porter.entityUuid().orElseThrow());
+
+            // Груз живёт недолго: взял, донёс, сдал. Поэтому руки проверяются
+            // в тот шаг, когда груз действительно в них, а не после.
+            boolean seenCarrying = false;
+            for (int round = 0; round < 24 && !seenCarrying; round++) {
+                runWork(world, manager, colony, porter, 1, Schedule.MORNING_WORK);
+
+                Identifier load = porter.jobState().carried()
+                        .map(JobState.Load::item)
+                        .orElse(null);
+                if (load == null) {
+                    continue;
+                }
+                seenCarrying = true;
+
+                if (!carrier.getMainHandStack().isOf(Registries.ITEM.get(load))) {
+                    context.throwGameTestException("Курьер несёт " + load
+                            + ", а в руках у него " + carrier.getMainHandStack());
+                }
+            }
+            if (!seenCarrying) {
+                context.throwGameTestException("Курьер так и не взял груз — тест проверяет не то");
+            }
+        } finally {
+            demolish(world, hut, hutPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Инструмент не выпадает из погибшего жителя.
+     * <p>
+     * Иначе топор лесоруба — бесконечный источник железа: житель погиб,
+     * топор упал, наняли нового — и снова топор. Проверяется смертью,
+     * а не полем «шанс выпадения»: ваниль его наружу не отдаёт, а важно
+     * тут поведение.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "hands")
+    public void toolsDoNotDropFromTheBody(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            Citizen worker = hireWithBody(world, colony, GatherJob.LUMBERJACK, hall.up());
+            CitizenEntity body = (CitizenEntity) world.getEntity(worker.entityUuid().orElseThrow());
+            body.equipStack(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_AXE));
+
+            body.kill();
+
+            Box around = new Box(hall).expand(6.0);
+            for (ItemEntity dropped : world.getEntitiesByClass(ItemEntity.class, around, entity -> true)) {
+                if (dropped.getStack().isOf(Items.IRON_AXE)) {
+                    context.throwGameTestException("Из погибшего жителя выпал топор");
+                }
+                dropped.discard();
+            }
+        } finally {
             discardBodies(world, colony);
             manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());

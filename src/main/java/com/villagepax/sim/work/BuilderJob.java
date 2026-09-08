@@ -7,6 +7,9 @@ import com.villagepax.sim.build.BuildStep;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.entity.CitizenWorkGoal;
 import com.villagepax.sim.build.BuildSite;
+import com.villagepax.sim.build.Materials;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import com.villagepax.sim.build.SchematicLoader;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
@@ -71,6 +74,14 @@ public final class BuilderJob implements Job {
         BuildJob.Outcome outcome = BuildJob.advance(context.world(), context.manager(),
                 context.settlement().id(), site.id(), 1, context.position());
 
+        // В руке — тот блок, который он сейчас ставит. Работа должна быть
+        // видна: без этого билдер машет пустыми руками, и понять, что
+        // происходит, можно только по растущей стене.
+        context.hold(nextBlockInHand(site));
+        if (outcome == BuildJob.Outcome.ADVANCED) {
+            context.swing();
+        }
+
         switch (outcome) {
             // Дошли до блока за пределами вытянутой руки: перейти к нему.
             case OUT_OF_REACH -> context.setState(state.withPhase(JobState.Phase.TO_SITE));
@@ -86,12 +97,15 @@ public final class BuilderJob implements Job {
             case FINISHED -> {
                 Housing.assignBeds(context.world(), context.settlement());
                 Workplaces.assign(context.world(), context.settlement());
+                context.holdNothing();
                 context.goIdle();
             }
 
             // Стройки больше нет по другой причине.
-            case ALREADY_DONE, NO_SCHEMATIC, NOT_LOADED, NOT_FOUND, NO_BUILDER ->
-                    context.goIdle();
+            case ALREADY_DONE, NO_SCHEMATIC, NOT_LOADED, NOT_FOUND, NO_BUILDER -> {
+                context.holdNothing();
+                context.goIdle();
+            }
         }
 
         return whereToStand(context);
@@ -216,6 +230,36 @@ public final class BuilderJob implements Job {
             }
         }
         return columns;
+    }
+
+    /**
+     * Блок, который билдер держит: следующий по плану.
+     * <p>
+     * У расчистки предмета нет — там он машет кайлом, а не кладёт блок,
+     * — и в руке тогда пусто. Пусто и у блоков без предмета: настенный
+     * факел из воздуха не выложишь, но и показать «воздух» нельзя.
+     */
+    private static ItemStack nextBlockInHand(Building site) {
+        Schematic schematic = SchematicLoader.get(BuildJob.schematicId(site)).orElse(null);
+        if (schematic == null) {
+            return ItemStack.EMPTY;
+        }
+
+        List<BuildStep> steps = schematic.plan().steps();
+        if (site.nextStep() >= steps.size()) {
+            return ItemStack.EMPTY;
+        }
+
+        BuildStep step = steps.get(site.nextStep());
+        if (!step.placesBlock()) {
+            // Расчистка: в руке кайло. Не то, которым считается добыча —
+            // там алмазное, чтобы руда падала, — а обычное железное:
+            // алмазный инструмент у крестьянина смотрелся бы странно.
+            return new ItemStack(Items.IRON_PICKAXE);
+        }
+        return Materials.itemFor(schematic.blockAt(step.paletteIndex()))
+                .map(ItemStack::new)
+                .orElse(ItemStack.EMPTY);
     }
 
     /** Мировая позиция следующего шага плана — туда билдер и идёт. */

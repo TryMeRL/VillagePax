@@ -96,11 +96,16 @@ public final class GatherJob implements Job {
             context.setState(JobState.startAt(hut.id(), JobState.Phase.TO_SITE));
         }
 
+        // Топор в руке всё время работы: и по дороге к дереву тоже —
+        // лесоруб идёт рубить, а не гулять.
+        context.hold(axe());
+
         if (context.position().squaredDistanceTo(Vec3d.ofCenter(base)) <= CHOP_REACH * CHOP_REACH) {
             ServerWorld world = context.world();
             BlockPos next = nextLog(world, context.settlement(), grove, base).orElse(null);
 
             if (next != null) {
+                context.swing();
                 chop(world, context.warehouse(), next);
 
                 // Последнее бревно уносит крону с собой. Иначе над пустым

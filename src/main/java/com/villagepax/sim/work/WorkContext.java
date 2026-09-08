@@ -6,6 +6,9 @@ import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Warehouse;
+import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.Hand;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -98,6 +101,29 @@ public final class WorkContext {
 
     public boolean hasArrivedAt(BlockPos target) {
         return position().squaredDistanceTo(Vec3d.ofCenter(target)) <= ARRIVAL_REACH * ARRIVAL_REACH;
+    }
+
+    /**
+     * Что житель держит в руке.
+     * <p>
+     * Работа должна быть видна: строитель с блоком, который ставит,
+     * лесоруб с топором, курьер с брёвнами. Одинаковый предмет заново
+     * не выдаётся — смена снаряжения уходит в сеть всем, кто видит
+     * жителя, и делать это каждое решение незачем.
+     */
+    public void hold(ItemStack tool) {
+        if (!ItemStack.areEqual(body.getMainHandStack(), tool)) {
+            body.equipStack(EquipmentSlot.MAINHAND, tool);
+        }
+    }
+
+    public void holdNothing() {
+        hold(ItemStack.EMPTY);
+    }
+
+    /** Замахнуться: удар кайлом, взмах топором, движение при посадке. */
+    public void swing() {
+        body.swingHand(Hand.MAIN_HAND);
     }
 
     /** Отпустить работу. Груз в руках при этом сохраняется — его вернут на склад. */

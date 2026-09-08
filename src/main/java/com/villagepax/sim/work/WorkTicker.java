@@ -109,8 +109,16 @@ public final class WorkTicker {
         }
 
         switch (part) {
-            case SLEEP -> goToBed(context);
-            case LEISURE -> context.body().setWorkTarget(null);
+            case SLEEP -> {
+                // Спать с топором в руке житель не должен: инструмент —
+                // это показ работы, а не часть одежды.
+                context.holdNothing();
+                goToBed(context);
+            }
+            case LEISURE -> {
+                context.holdNothing();
+                context.body().setWorkTarget(null);
+            }
             case MEAL -> {
                 if (Needs.isHungry(citizen)) {
                     manager.update(settlement.id(), ignored -> Needs.goEat(context));
@@ -142,6 +150,7 @@ public final class WorkTicker {
     private static void work(WorkContext context) {
         Job job = Jobs.forProfession(context.citizen().profession()).orElse(null);
         if (job == null) {
+            context.holdNothing();
             context.body().setWorkTarget(null);
             return;
         }

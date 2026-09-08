@@ -112,6 +112,14 @@ LEGEND = {
     "f": ("minecraft:red_bed", {"facing": "south", "part": "foot", "occupied": "false"}),
     "h": ("minecraft:red_bed", {"facing": "south", "part": "head", "occupied": "false"}),
     "d": ("minecraft:dirt", {}),
+    "F": ("minecraft:farmland", {"moisture": "7"}),
+    # Вода лежит в теге build_decor, то есть ставится последней. Иначе она
+    # растечётся сквозь недостроенную стену и зальёт окрестности.
+    "~": ("minecraft:water", {"level": "0"}),
+    # Морковь, а не пшеница: житель ест её прямо с грядки, и колония
+    # начинает кормить себя сама. Пшенице нужны мельница и пекарь —
+    # их ещё нет, и поле пшеницы кормило бы только склад.
+    "*": ("minecraft:carrots", {"age": "0"}),
     "q": ("minecraft:oak_fence", {"north": "false", "east": "false", "south": "false",
                                   "west": "false", "waterlogged": "false"}),
     "y": ("minecraft:oak_sapling", {"stage": "0"}),
@@ -300,10 +308,55 @@ NORMAN_LUMBERJACK = [
      "sssss....."],
 ]
 
+# Ферма норманнов, 7x4x7: земляное основание, грядки с колодцем в середине,
+# ограда и место для пугала.
+#
+# Решение заказчика: фермер работает только на построенной ферме. Грядки,
+# вода и ограда приходят из схемы, а не вскапываются жителем где попало.
+#
+# Основание из земли под всем полем нужно не для красоты: без него вода
+# из колодца просто утекла бы вниз. Что сеять, тоже сказано схемой —
+# посаженная пшеница и есть указание.
+NORMAN_FARM = [
+    # y=0 — земляное основание, чтобы вода не ушла вниз
+    ["ddddddd",
+     "ddddddd",
+     "ddddddd",
+     "ddddddd",
+     "ddddddd",
+     "ddddddd",
+     "ddddddd"],
+    # y=1 — грядки и колодец в середине: он поливает всё поле
+    ["ddddddd",
+     "dFFFFFd",
+     "dFFFFFd",
+     "dFF~FFd",
+     "dFFFFFd",
+     "dFFFFFd",
+     "ddddddd"],
+    # y=2 — ограда и морковные грядки
+    ["qqqqqqq",
+     "q*****q",
+     "q*****q",
+     "q**.**q",
+     "q*****q",
+     "q*****q",
+     "qqqqqqq"],
+    # y=3 — место пугала: рабочее место фермера
+    [".......",
+     ".......",
+     ".......",
+     "...K...",
+     ".......",
+     ".......",
+     "......."],
+]
+
 SCHEMATICS = {
     "norman/town_hall_lvl1": NORMAN_TOWN_HALL,
     "norman/house_lvl1": NORMAN_HOUSE,
     "norman/lumberjack_lvl1": NORMAN_LUMBERJACK,
+    "norman/farm_lvl1": NORMAN_FARM,
 }
 
 

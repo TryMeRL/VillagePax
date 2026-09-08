@@ -118,14 +118,26 @@ public final class Workplaces {
         return settlement.building(place).filter(building -> serves(building, citizen)).isPresent();
     }
 
-    /** Обслуживает ли здание эту профессию — по соглашению об именовании. */
+    /**
+     * Обслуживает ли здание эту профессию.
+     * <p>
+     * Имя места берётся из данных профессии, а не выводится из её имени:
+     * фермер работает на <b>ферме</b>, а не на «фермере». Совпадающие
+     * имена в датапаке писать не нужно.
+     * <p>
+     * Сопоставление по имени — заглушка до типов зданий из датапака: когда
+     * появится {@code BuildingType}, здание объявит это само.
+     */
     private static boolean serves(Building building, Citizen citizen) {
         Identifier profession = citizen.profession().orElse(null);
         if (profession == null) {
             return false;
         }
+        String place = ProfessionManager.get(profession)
+                .map(known -> known.workplaceOf(profession))
+                .orElse(profession.getPath());
+
         String type = building.type().getPath();
-        String trade = profession.getPath();
-        return type.equals(trade) || type.endsWith("/" + trade);
+        return type.equals(place) || type.endsWith("/" + place);
     }
 }

@@ -19,7 +19,7 @@ import java.util.Set;
 public final class Jobs {
 
     private static final Map<Identifier, Job> BY_LOGIC =
-            register(new BuilderJob(), new HaulJob(), new GatherJob());
+            register(new BuilderJob(), new HaulJob(), new GatherJob(), new FarmJob());
 
     private Jobs() {
     }

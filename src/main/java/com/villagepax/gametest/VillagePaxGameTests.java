@@ -33,6 +33,7 @@ import net.minecraft.util.math.Box;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
 import net.minecraft.entity.Entity;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.CropBlock;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.registry.Registries;
 import net.minecraft.test.GameTest;
@@ -55,6 +56,7 @@ import com.villagepax.sim.work.HaulJob;
 import com.villagepax.sim.work.JobState;
 import com.villagepax.core.profession.Profession;
 import com.villagepax.core.profession.ProfessionManager;
+import com.villagepax.sim.work.FarmJob;
 import com.villagepax.sim.work.GatherJob;
 import com.villagepax.sim.work.Housing;
 import com.villagepax.sim.work.Jobs;
@@ -2279,6 +2281,401 @@ public class VillagePaxGameTests implements FabricGameTest {
 
         context.complete();
     }
+
+    // --- задача 1.9б: фермер ---
+
+    private static final Identifier FARM_SCHEMATIC = new Identifier("villagepax", "norman/farm_lvl1");
+    private static final Identifier FARM_TYPE = new Identifier("villagepax", "norman/farm");
+
+    /**
+     * Построенная ферма даёт засеянное поле, воду и рабочее место — а фермер
+     * к ней приписывается, хотя имена профессии и здания не совпадают.
+     * <p>
+     * «Фермер» работает на «ферме», и это ровно тот случай, ради которого
+     * профессия называет своё рабочее место в данных, а не выводит его
+     * из собственного имени.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "farmer")
+    public void builtFarmGivesASownFieldAndAWorkplace(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = plan(colony, anchor, FARM_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, farmPlan);
+            if (BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Ферма не достроилась");
+            }
+
+            List<BlockPos> plots = FarmJob.plots(farm);
+            if (plots.size() != 24) {
+                context.throwGameTestException("Грядок на ферме " + plots.size()
+                        + ", в схеме двадцать четыре");
+            }
+            for (BlockPos plot : plots) {
+                if (!world.getBlockState(plot).isIn(BlockTags.CROPS)) {
+                    context.throwGameTestException("Грядка не засеяна: "
+                            + world.getBlockState(plot).getBlock());
+                }
+                if (!world.getBlockState(plot.down()).isOf(Blocks.FARMLAND)) {
+                    context.throwGameTestException("Под посевом не грядка");
+                }
+            }
+
+            // То, что растёт на поле, житель должен уметь съесть: иначе фермер
+            // кормит склад, а не колонию, и голод из задачи 1.8 остаётся на игроке.
+            Item food = FarmJob.seedOf(world, farmPlan).orElse(Items.AIR);
+            if (!food.getDefaultStack().isIn(ModTags.CITIZEN_FOOD)) {
+                context.throwGameTestException("Урожай фермы жителям не еда: " + food);
+            }
+
+            // Источник воды в середине поля. Он и есть причина, по которой
+            // вода попала в тег декора: иначе она растекается сквозь
+            // недостроенную ограду с первого же слоя.
+            BlockPos well = BuildJob.worldPos(farm, farmPlan.size(), new BlockPos(3, 1, 3));
+            if (!world.getBlockState(well).isOf(Blocks.WATER)) {
+                context.throwGameTestException("В середине поля нет воды, стоит "
+                        + world.getBlockState(well).getBlock());
+            }
+
+            if (Workplaces.stations(farm).isEmpty()) {
+                context.throwGameTestException("У фермы нет рабочего места");
+            }
+
+            Citizen farmer = hireWithBody(world, colony, FarmJob.FARMER, hall.up());
+            Workplaces.assign(world, colony);
+
+            Building assigned = Workplaces.of(colony, farmer).orElse(null);
+            if (assigned == null) {
+                context.throwGameTestException("Фермеру не досталось рабочее место: имя здания "
+                        + "задано в данных профессии, а не выведено из её имени");
+            }
+            if (!assigned.id().equals(farm.id())) {
+                context.throwGameTestException("Фермер приписан к чужому зданию");
+            }
+        } finally {
+            demolish(world, farm, farmPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Приёмка задачи 1.9б: фермер жнёт поспевшее, сдаёт урожай на склад
+     * и засевает грядку заново — за одну морковь из того же склада.
+     * <p>
+     * Проверяется в два приёма, потому что урожай и посевное — один и тот же
+     * предмет: сначала один шаг стратегии на жатву, потом остальные на посев.
+     * Иначе тест зависел бы от случайного числа морковок в добыче.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "farmer")
+    public void farmerHarvestsRipeCropAndSowsItAgain(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = plan(colony, anchor, FARM_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, farmPlan);
+            BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000);
+
+            Item crop = FarmJob.seedOf(world, farmPlan).orElseThrow();
+            BlockPos plot = FarmJob.plots(farm).get(0);
+            world.setBlockState(plot, ((CropBlock) Blocks.CARROTS).withAge(CropBlock.MAX_AGE));
+
+            // Склад пуст по этой культуре: всё, что появится, пришло с грядки.
+            Warehouse before = Warehouse.of(world, colony);
+            before.take(crop, before.count(crop));
+
+            Citizen farmer = hireWithBody(world, colony, FarmJob.FARMER, plot.up(2));
+            Workplaces.assign(world, colony);
+
+            // Один шаг — жатва.
+            runWork(world, manager, colony, farmer, 1, Schedule.MORNING_WORK);
+
+            int harvested = Warehouse.of(world, colony).count(crop);
+            if (harvested < 1) {
+                context.throwGameTestException("Урожай не попал на склад");
+            }
+            if (!world.getBlockState(plot).isAir()) {
+                context.throwGameTestException("Поспевшая грядка не сжата: стоит "
+                        + world.getBlockState(plot).getBlock());
+            }
+
+            // Остальные шаги — посев за одну морковь со склада.
+            runWork(world, manager, colony, farmer, 4, Schedule.MORNING_WORK);
+
+            BlockState sown = world.getBlockState(plot);
+            if (!sown.isIn(BlockTags.CROPS)) {
+                context.throwGameTestException("Сжатая грядка не засеяна заново: "
+                        + sown.getBlock());
+            }
+            if (sown.getBlock() instanceof CropBlock ripe && ripe.isMature(sown)) {
+                context.throwGameTestException("На грядке снова поспевший колос — "
+                        + "значит его не сжали, а посчитали");
+            }
+            int left = Warehouse.of(world, colony).count(crop);
+            if (left != harvested - 1) {
+                context.throwGameTestException("На посев ушло не одно семя: было " + harvested
+                        + ", осталось " + left);
+            }
+        } finally {
+            demolish(world, farm, farmPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Без запаса на складе грядка остаётся пустой.
+     * <p>
+     * Это и есть замкнутый круг: посевное берётся оттуда, куда сам же фермер
+     * сдал урожай. Иначе поле заполнялось бы из ничего, и колония кормилась
+     * бы воздухом.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "farmer")
+    public void farmerSowsOnlyWhatTheStorageHas(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = plan(colony, anchor, FARM_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, farmPlan);
+            BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000);
+
+            Item crop = FarmJob.seedOf(world, farmPlan).orElseThrow();
+            BlockPos bare = FarmJob.plots(farm).get(0);
+            world.setBlockState(bare, Blocks.AIR.getDefaultState());
+
+            Citizen farmer = hireWithBody(world, colony, FarmJob.FARMER, bare.up(2));
+            Workplaces.assign(world, colony);
+
+            // Посевного на складе нет — грядка остаётся пустой.
+            Warehouse empty = Warehouse.of(world, colony);
+            empty.take(crop, empty.count(crop));
+            runWork(world, manager, colony, farmer, 6, Schedule.MORNING_WORK);
+
+            if (!world.getBlockState(bare).isAir()) {
+                context.throwGameTestException("Грядка засеяна без запаса на складе: "
+                        + world.getBlockState(bare).getBlock());
+            }
+
+            // Завезли — и поле снова полное, ровно на одну морковь дешевле.
+            Warehouse.of(world, colony).add(new ItemStack(crop, 4));
+            runWork(world, manager, colony, farmer, 6, Schedule.MORNING_WORK);
+
+            if (!world.getBlockState(bare).isIn(BlockTags.CROPS)) {
+                context.throwGameTestException("С запасом на складе грядка так и не засеяна");
+            }
+            int left = Warehouse.of(world, colony).count(crop);
+            if (left != 3) {
+                context.throwGameTestException("Со склада ушло не одно семя, а " + (4 - left));
+            }
+        } finally {
+            demolish(world, farm, farmPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Приёмка задачи 1.9б целиком: колония кормит себя сама.
+     * <p>
+     * До этой профессии еду в ратушу носил игрок, и голод из задачи 1.8
+     * упирался в него. Здесь на складе нет ни крошки — а через один шаг
+     * работы фермера голодный житель ест то, что снято с грядки.
+     * <p>
+     * Ровно поэтому норманнское поле растит морковь: пшеницу житель съесть
+     * не может, и поле пшеницы кормило бы только склад.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "farmer")
+    public void colonyFeedsItselfFromItsOwnFarm(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = plan(colony, anchor, FARM_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, farmPlan);
+            BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000);
+
+            if (Warehouse.of(world, colony).hasAny(ModTags.CITIZEN_FOOD)) {
+                context.throwGameTestException("На складе есть еда до работы фермера — "
+                        + "тогда тест ничего не доказывает");
+            }
+
+            Item crop = FarmJob.seedOf(world, farmPlan).orElseThrow();
+            BlockPos plot = FarmJob.plots(farm).get(0);
+            world.setBlockState(plot, ((CropBlock) Blocks.CARROTS).withAge(CropBlock.MAX_AGE));
+
+            Citizen farmer = hireWithBody(world, colony, FarmJob.FARMER, plot.up(2));
+            Workplaces.assign(world, colony);
+            runWork(world, manager, colony, farmer, 1, Schedule.MORNING_WORK);
+
+            int grown = Warehouse.of(world, colony).count(crop);
+            if (grown < 1) {
+                context.throwGameTestException("После работы фермера склад пуст");
+            }
+
+            Citizen eater = hireWithBody(world, colony, HaulJob.COURIER, hall.up());
+            eater.setSaturation(0);
+
+            // Первое решение отправляет к еде, второе — кормит.
+            runWork(world, manager, colony, eater, 3, Schedule.MEAL);
+
+            if (eater.saturation() < Needs.nourishment(crop)) {
+                context.throwGameTestException("Житель не поел урожаем: сытость "
+                        + eater.saturation());
+            }
+            if (Warehouse.of(world, colony).count(crop) >= grown) {
+                context.throwGameTestException("Житель поел, а со склада ничего не ушло");
+            }
+        } finally {
+            demolish(world, farm, farmPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Вытоптанная грядка вскапывается заново, а не выпадает из поля навсегда.
+     * <p>
+     * Любой прыгнувший на грядку — житель, корова, сам игрок — сбивает её
+     * до земли. Без починки ферма год за годом превращается в пустырь,
+     * и игрок видит здание, которое перестало работать без причины.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "farmer")
+    public void trampledPlotIsTilledAndSownAgain(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = plan(colony, anchor, FARM_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, farmPlan);
+            BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000);
+
+            Item crop = FarmJob.seedOf(world, farmPlan).orElseThrow();
+            BlockPos plot = FarmJob.plots(farm).get(0);
+
+            // Кто-то прыгнул на грядку: земля сбита, посев слетел.
+            world.setBlockState(plot, Blocks.AIR.getDefaultState());
+            world.setBlockState(plot.down(), Blocks.DIRT.getDefaultState());
+
+            Warehouse.of(world, colony).add(new ItemStack(crop, 4));
+
+            Citizen farmer = hireWithBody(world, colony, FarmJob.FARMER, plot.up(2));
+            Workplaces.assign(world, colony);
+            runWork(world, manager, colony, farmer, 6, Schedule.MORNING_WORK);
+
+            if (!world.getBlockState(plot.down()).isOf(Blocks.FARMLAND)) {
+                context.throwGameTestException("Грядку не вскопали заново: под посевом "
+                        + world.getBlockState(plot.down()).getBlock());
+            }
+            if (!world.getBlockState(plot).isIn(BlockTags.CROPS)) {
+                context.throwGameTestException("Вскопанную грядку не засеяли: "
+                        + world.getBlockState(plot).getBlock());
+            }
+        } finally {
+            demolish(world, farm, farmPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Чужое на грядке фермер не трогает.
+     * <p>
+     * Игрок вправе поставить на своём поле что угодно; выкапывать землю
+     * из-под его сундука — не работа фермера, а порча имущества.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "farmer")
+    public void farmerLeavesPlayerBlocksOnTheFieldAlone(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = plan(colony, anchor, FARM_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, farmPlan);
+            BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000);
+
+            Item crop = FarmJob.seedOf(world, farmPlan).orElseThrow();
+            BlockPos plot = FarmJob.plots(farm).get(0);
+
+            world.setBlockState(plot, Blocks.STONE.getDefaultState());
+            world.setBlockState(plot.down(), Blocks.DIRT.getDefaultState());
+
+            Warehouse.of(world, colony).add(new ItemStack(crop, 4));
+
+            Citizen farmer = hireWithBody(world, colony, FarmJob.FARMER, plot.up(2));
+            Workplaces.assign(world, colony);
+            runWork(world, manager, colony, farmer, 6, Schedule.MORNING_WORK);
+
+            if (!world.getBlockState(plot).isOf(Blocks.STONE)) {
+                context.throwGameTestException("Фермер убрал чужой блок с грядки");
+            }
+            if (!world.getBlockState(plot.down()).isOf(Blocks.DIRT)) {
+                context.throwGameTestException("Фермер вскопал землю под чужим блоком");
+            }
+        } finally {
+            demolish(world, farm, farmPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
     // --- помощники задачи 1.8 ---
 
     private static Schematic schematic(TestContext context, Identifier id) {

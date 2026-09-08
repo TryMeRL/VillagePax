@@ -39,6 +39,7 @@
     "minecraft:composter",
     "minecraft:lectern",
     "minecraft:bookshelf",
-    "minecraft:lever"
+    "minecraft:lever",
+    "minecraft:water"
   ]
 }

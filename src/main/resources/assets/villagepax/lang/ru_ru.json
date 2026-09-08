@@ -16,5 +16,8 @@
   "villagepax.found.unknown_culture": "Неизвестный народ: %s",
   "villagepax.town_hall.destroyed": "Ратуша разрушена. Колония «%s» уцелела, но ратушу надо отстроить.",
   "villagepax.blueprint.culture": "Народ: %s",
-  "villagepax.blueprint.hint": "Поставь на свободной земле, чтобы основать колонию"
+  "villagepax.blueprint.hint": "Поставь на свободной земле, чтобы основать колонию",
+  "villagepax.citizen.hungry": "%s голодает: на складе нет еды. Ещё день — и уйдёт.",
+  "villagepax.citizen.left": "%s ушёл из колонии: жить впроголодь никто не станет.",
+  "villagepax.citizen.arrived": "В колонию пришёл новый житель: %s"
 }

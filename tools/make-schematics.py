@@ -107,6 +107,10 @@ LEGEND = {
     "L": ("minecraft:lectern", {"facing": "north", "has_book": "false", "powered": "false"}),
     "r": ("minecraft:red_carpet", {}),
     "b": ("minecraft:bookshelf", {}),
+    # Кровать занимает две позиции. У facing=south голова лежит на +Z
+    # от ног, поэтому "f" ставится перед "h" по оси Z.
+    "f": ("minecraft:red_bed", {"facing": "south", "part": "foot", "occupied": "false"}),
+    "h": ("minecraft:red_bed", {"facing": "south", "part": "head", "occupied": "false"}),
     "B": ("minecraft:dark_oak_log", {"axis": "y"}),
     "H": ("minecraft:dark_oak_log", {"axis": "x"}),
     "Z": ("minecraft:dark_oak_log", {"axis": "z"}),
@@ -214,8 +218,47 @@ NORMAN_TOWN_HALL = [
      "......."],
 ]
 
+# Норманнский дом, 5x5x5: две настоящие кровати, вход и слот декора.
+#
+# Кровати стоят блоками, а не маркерами: кровать занимает две позиции,
+# а маркер — одну. Маркер кровати при этом остался в словаре и означает
+# место без настоящей кровати — походную подстилку.
+NORMAN_HOUSE = [
+    # y=0 — цоколь
+    ["CCCCC",
+     "CCCCC",
+     "CCCCC",
+     "CCCCC",
+     "CCCCC"],
+    # y=1 — стены, вход и две кровати
+    ["BWDWB",
+     "Wf.fW",
+     "Wh.hW",
+     "W.O.W",
+     "BWWWB"],
+    # y=2 — второй ряд стен с окнами, проём входа продолжается
+    ["BW.WB",
+     "W...W",
+     "G...G",
+     "W...W",
+     "BWGWB"],
+    # y=3 — верхняя обвязка
+    ["HHHHH",
+     "Z...Z",
+     "Z...Z",
+     "Z...Z",
+     "HHHHH"],
+    # y=4 — крыша
+    ["nnnnn",
+     "wPPPe",
+     "wPPPe",
+     "wPPPe",
+     "sssss"],
+]
+
 SCHEMATICS = {
     "norman/town_hall_lvl1": NORMAN_TOWN_HALL,
+    "norman/house_lvl1": NORMAN_HOUSE,
 }
 
 

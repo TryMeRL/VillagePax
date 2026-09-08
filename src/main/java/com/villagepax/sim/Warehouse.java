@@ -8,6 +8,7 @@ import com.villagepax.sim.build.SchematicLoader;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.registry.tag.TagKey;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.ItemScatterer;
 import net.minecraft.util.math.BlockPos;
@@ -134,6 +135,51 @@ public final class Warehouse {
             }
         }
         return false;
+    }
+
+    /** Ближайший контейнер, в котором есть хоть что-то из тега: еда, топливо. */
+    public Optional<Container> nearestWithTag(BlockPos from, TagKey<Item> tag) {
+        return nearest(from, container -> hasTagged(container.inventory(), tag));
+    }
+
+    public boolean hasAny(TagKey<Item> tag) {
+        for (Container container : containers) {
+            if (hasTagged(container.inventory(), tag)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasTagged(Inventory inventory, TagKey<Item> tag) {
+        for (int slot = 0; slot < inventory.size(); slot++) {
+            if (inventory.getStack(slot).isIn(tag)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Взять одну единицу из тега — например один хлеб на обед.
+     * <p>
+     * Возвращает именно предмет, а не стопку: съеденное надо чем-то
+     * пересчитать в сытость, а стопка из одного предмета для этого лишняя.
+     */
+    public static Optional<Item> takeTagged(Container container, TagKey<Item> tag) {
+        Inventory inventory = container.inventory();
+
+        for (int slot = 0; slot < inventory.size(); slot++) {
+            ItemStack stack = inventory.getStack(slot);
+            if (!stack.isIn(tag)) {
+                continue;
+            }
+            Item item = stack.getItem();
+            inventory.removeStack(slot, 1);
+            inventory.markDirty();
+            return Optional.of(item);
+        }
+        return Optional.empty();
     }
 
     public int count(Item item) {

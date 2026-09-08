@@ -23,6 +23,9 @@ import java.util.UUID;
  */
 public class Settlement {
 
+    /** «Суточные нужды ещё ни разу не считались». */
+    public static final long UNSEEN_DAY = Long.MIN_VALUE;
+
     public static final Codec<Settlement> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Uuids.STRING_CODEC.fieldOf("id").forGetter(Settlement::id),
             Identifier.CODEC.fieldOf("culture").forGetter(Settlement::culture),
@@ -32,7 +35,8 @@ public class Settlement {
             SettlementLevel.CODEC.optionalFieldOf("level", SettlementLevel.HAMLET).forGetter(Settlement::level),
             SettlementStats.CODEC.optionalFieldOf("stats", SettlementStats.INITIAL).forGetter(Settlement::stats),
             Building.CODEC.listOf().optionalFieldOf("buildings", List.of()).forGetter(Settlement::buildings),
-            Citizen.CODEC.listOf().optionalFieldOf("citizens", List.of()).forGetter(Settlement::citizens)
+            Citizen.CODEC.listOf().optionalFieldOf("citizens", List.of()).forGetter(Settlement::citizens),
+            Codec.LONG.optionalFieldOf("last_day", UNSEEN_DAY).forGetter(Settlement::lastDay)
     ).apply(instance, Settlement::new));
 
     private final UUID id;
@@ -45,9 +49,23 @@ public class Settlement {
     private final List<Building> buildings;
     private final List<Citizen> citizens;
 
+    /**
+     * Последний игровой день, за который посчитаны суточные нужды.
+     * <p>
+     * {@link #UNSEEN_DAY} значит «ещё не видели»: только что основанная
+     * колония не должна проголодаться в тот же тик.
+     */
+    private long lastDay;
+
     public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
                       SettlementLevel level, SettlementStats stats,
                       List<Building> buildings, List<Citizen> citizens) {
+        this(id, culture, owner, name, center, level, stats, buildings, citizens, UNSEEN_DAY);
+    }
+
+    public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
+                      SettlementLevel level, SettlementStats stats,
+                      List<Building> buildings, List<Citizen> citizens, long lastDay) {
         this.id = id;
         this.culture = culture;
         this.owner = owner;
@@ -57,6 +75,7 @@ public class Settlement {
         this.stats = stats;
         this.buildings = new ArrayList<>(buildings);
         this.citizens = new ArrayList<>(citizens);
+        this.lastDay = lastDay;
     }
 
     public static Settlement found(Identifier culture, Owner owner, String name, BlockPos center) {
@@ -134,6 +153,18 @@ public class Settlement {
 
     public Optional<Citizen> citizen(UUID citizenId) {
         return citizens.stream().filter(citizen -> citizen.id().equals(citizenId)).findFirst();
+    }
+
+    public long lastDay() {
+        return lastDay;
+    }
+
+    public void setLastDay(long lastDay) {
+        this.lastDay = lastDay;
+    }
+
+    public boolean hasSeenADay() {
+        return lastDay != UNSEEN_DAY;
     }
 
     public int population() {

@@ -5,6 +5,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.villagepax.sim.work.JobState;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Uuids;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.Optional;
@@ -41,7 +42,9 @@ public class Citizen {
             Uuids.STRING_CODEC.optionalFieldOf("workplace").forGetter(Citizen::workplace),
             Vec3d.CODEC.optionalFieldOf("position").forGetter(Citizen::position),
             Codec.FLOAT.optionalFieldOf("health", MAX_HEALTH).forGetter(Citizen::health),
-            JobState.CODEC.optionalFieldOf("job", JobState.IDLE).forGetter(Citizen::jobState)
+            JobState.CODEC.optionalFieldOf("job", JobState.IDLE).forGetter(Citizen::jobState),
+            BlockPos.CODEC.optionalFieldOf("bed").forGetter(Citizen::bed),
+            Codec.INT.optionalFieldOf("discontent", 0).forGetter(Citizen::discontent)
     ).apply(instance, Citizen::new));
 
     private final UUID id;
@@ -65,6 +68,21 @@ public class Citizen {
     private JobState jobState;
 
     /**
+     * Место, где житель спит: настоящая кровать или отмеченная маркером
+     * подстилка. Хранится позицией, а не ссылкой на здание, потому что идти
+     * жителю надо именно туда.
+     */
+    private Optional<BlockPos> bed;
+
+    /**
+     * Сколько игровых дней подряд житель голоден или несчастен.
+     * <p>
+     * В днях, а не в тиках, намеренно: игрок мыслит днями. «Не кормил две
+     * ночи» — понятная причина ухода, «12400 тиков неудовлетворённости» — нет.
+     */
+    private int discontent;
+
+    /**
      * Живое тело жителя, если оно сейчас есть в мире.
      * <p>
      * Намеренно не сохраняется: сущности жителей не пишутся в чанк, поэтому
@@ -77,13 +95,21 @@ public class Citizen {
                    Optional<UUID> home, Optional<UUID> workplace, Optional<Vec3d> position,
                    float health) {
         this(id, firstName, lastName, culture, gender, ageTicks, profession, happiness, saturation,
-                home, workplace, position, health, JobState.IDLE);
+                home, workplace, position, health, JobState.IDLE, Optional.empty(), 0);
     }
 
     public Citizen(UUID id, String firstName, String lastName, Identifier culture, Gender gender,
                    long ageTicks, Optional<Identifier> profession, int happiness, int saturation,
                    Optional<UUID> home, Optional<UUID> workplace, Optional<Vec3d> position,
                    float health, JobState jobState) {
+        this(id, firstName, lastName, culture, gender, ageTicks, profession, happiness, saturation,
+                home, workplace, position, health, jobState, Optional.empty(), 0);
+    }
+
+    public Citizen(UUID id, String firstName, String lastName, Identifier culture, Gender gender,
+                   long ageTicks, Optional<Identifier> profession, int happiness, int saturation,
+                   Optional<UUID> home, Optional<UUID> workplace, Optional<Vec3d> position,
+                   float health, JobState jobState, Optional<BlockPos> bed, int discontent) {
         this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;
@@ -102,6 +128,8 @@ public class Citizen {
         this.position = position;
         this.health = clampHealth(health);
         this.jobState = jobState;
+        this.bed = bed;
+        this.discontent = Math.max(0, discontent);
     }
 
     private static int clampHappiness(int value) {
@@ -231,16 +259,37 @@ public class Citizen {
         this.jobState = jobState;
     }
 
+    public Optional<BlockPos> bed() {
+        return bed;
+    }
+
+    public void setBed(BlockPos bed) {
+        this.bed = Optional.ofNullable(bed);
+    }
+
+    public boolean isHomeless() {
+        return bed.isEmpty();
+    }
+
+    public int discontent() {
+        return discontent;
+    }
+
+    /** Ещё один день без еды или в тоске. */
+    public void addDiscontent() {
+        discontent++;
+    }
+
+    public void contented() {
+        discontent = 0;
+    }
+
     public Optional<UUID> entityUuid() {
         return Optional.ofNullable(entityUuid);
     }
 
     public void setEntityUuid(UUID entityUuid) {
         this.entityUuid = entityUuid;
-    }
-
-    public boolean isHomeless() {
-        return home.isEmpty();
     }
 
     public boolean isUnemployed() {

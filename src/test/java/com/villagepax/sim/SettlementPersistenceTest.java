@@ -158,6 +158,44 @@ class SettlementPersistenceTest {
         assertEquals(0, after.population());
     }
 
+    /**
+     * Нужды жителя и суточный счётчик обязаны переживать перезаход в мир.
+     * Иначе игрок выходит из игры, возвращается — и голодный житель бодр,
+     * а колония заново проживает вчерашний день.
+     */
+    @Test
+    void needsAndDayCounterSurviveRoundTrip() {
+        Settlement colony = new Settlement(UUID.randomUUID(), NORMAN, Owner.of(UUID.randomUUID()),
+                "Рокмон", new BlockPos(10, 64, 10), SettlementLevel.HAMLET,
+                SettlementStats.INITIAL, List.of(), List.of(), 42L);
+
+        Citizen hungry = Citizen.newborn("Aubert", "", NORMAN, Gender.MALE);
+        hungry.setSaturation(3);
+        hungry.setBed(new BlockPos(12, 65, 14));
+        hungry.addDiscontent();
+        hungry.addDiscontent();
+        colony.addCitizen(hungry);
+
+        Settlement restored = roundTrip(colony);
+        Citizen back = restored.citizens().get(0);
+
+        assertEquals(42L, restored.lastDay(), "последний посчитанный день");
+        assertTrue(restored.hasSeenADay());
+        assertEquals(3, back.saturation(), "сытость");
+        assertEquals(2, back.discontent(), "дни недовольства");
+        assertEquals(Optional.of(new BlockPos(12, 65, 14)), back.bed(), "место для сна");
+        assertFalse(back.isHomeless());
+    }
+
+    /** У новой колонии суточные нужды ещё ни разу не считались. */
+    @Test
+    void freshSettlementHasNotSeenADay() {
+        Settlement colony = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Новь", BlockPos.ORIGIN);
+
+        assertFalse(colony.hasSeenADay());
+        assertFalse(roundTrip(colony).hasSeenADay(), "и это должно пережить сохранение");
+    }
+
     @Test
     void claimFollowsLevel() {
         Settlement hamlet = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Хутор", new BlockPos(0, 64, 0));

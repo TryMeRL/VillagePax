@@ -9,11 +9,9 @@ import net.minecraft.entity.Entity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 
-import java.util.Optional;
-
 /**
  * Стратегический слой ИИ: раз в {@link #TICKS_PER_DECISION} тиков каждый
- * работающий житель решает, что делать дальше.
+ * житель решает, что делать дальше — по времени суток и по своим нуждам.
  * <p>
  * Три вещи, на которых держится производительность, и все три взяты из того,
  * как это ломается у существующих модов:
@@ -46,23 +44,58 @@ public final class WorkTicker {
         }
 
         long time = world.getTime();
+        long timeOfDay = world.getTimeOfDay();
+        Schedule part = Schedule.at(timeOfDay);
+        long today = Schedule.dayOf(timeOfDay);
+
         for (Settlement settlement : manager.all()) {
+            rollOverDay(world, manager, settlement, today);
+
             for (Citizen citizen : settlement.citizens()) {
                 if (isItsTurn(time, citizen)) {
-                    decide(world, manager, settlement, citizen);
+                    decide(world, manager, settlement, citizen, part);
                 }
             }
         }
     }
 
-    /** Один шаг стратегии одного жителя. Открыт, чтобы игровые тесты не ждали тиков. */
-    public static void decide(ServerWorld world, SettlementManager manager,
-                              Settlement settlement, Citizen citizen) {
-        Job job = Jobs.forProfession(citizen.profession()).orElse(null);
-        if (job == null) {
+    /**
+     * Суточные нужды считаются на смене дня.
+     * <p>
+     * Ровно один день за раз, даже если игрок промотал сотню командой
+     * {@code /time add}: голодная смерть всей колонии за одну команду была бы
+     * наказанием без предупреждения. И ни одного дня в тот тик, когда
+     * поселение увидено впервые — только что основанная колония не должна
+     * проголодаться сразу.
+     */
+    private static void rollOverDay(ServerWorld world, SettlementManager manager,
+                                    Settlement settlement, long today) {
+        if (settlement.lastDay() == today) {
             return;
         }
 
+        boolean firstSight = !settlement.hasSeenADay();
+        manager.update(settlement.id(), state -> {
+            state.setLastDay(today);
+            if (firstSight) {
+                // В первый же тик кровати надо раздать, иначе только что
+                // основанная колония ночует под открытым небом целые сутки.
+                Housing.assignBeds(world, state);
+            } else {
+                Needs.newDay(world, manager, state);
+            }
+        });
+    }
+
+    /**
+     * Один шаг стратегии в заданной части суток.
+     * <p>
+     * Распорядок <b>подменяет цель, но не стирает состояние работы</b>: ночью
+     * курьер идёт спать, не бросая груз, и утром доносит его к той же стройке.
+     * Иначе каждый закат обнулял бы задания, и наутро всё начиналось заново.
+     */
+    public static void decide(ServerWorld world, SettlementManager manager,
+                              Settlement settlement, Citizen citizen, Schedule part) {
         CitizenEntity body = liveBody(world, citizen);
         if (body == null) {
             return;
@@ -70,15 +103,62 @@ public final class WorkTicker {
 
         WorkContext context = new WorkContext(world, manager, settlement, citizen, body);
 
-        // Изменения идут через менеджер, чтобы состояние пометилось грязным
-        // и пережило перезаход в мир. Забытый markDirty здесь — самый
-        // коварный баг: всё работает до выхода из игры.
-        manager.update(settlement.id(), ignored -> job.tick(context));
+        if (part != Schedule.SLEEP && body.isSleeping()) {
+            body.wakeUp();
+        }
 
-        // Куда идти, решает стратегия и складывает в тело: цель навигации
-        // не должна пересчитывать это каждый тик.
-        Optional<BlockPos> destination = job.destination(context);
-        body.setWorkTarget(destination.orElse(null));
+        switch (part) {
+            case SLEEP -> goToBed(context);
+            case LEISURE -> context.body().setWorkTarget(null);
+            case MEAL -> {
+                if (Needs.isHungry(citizen)) {
+                    manager.update(settlement.id(), ignored -> Needs.goEat(context));
+                } else {
+                    work(context);
+                }
+            }
+            case MORNING_WORK, DAY_WORK -> work(context);
+        }
+    }
+
+    /**
+     * Житель идёт к своему месту и ложится. Бездомный остаётся бродить —
+     * и суточный подсчёт это заметит через недовольство.
+     */
+    private static void goToBed(WorkContext context) {
+        BlockPos bed = context.citizen().bed().orElse(null);
+        if (bed == null) {
+            context.body().setWorkTarget(null);
+            return;
+        }
+
+        context.body().setWorkTarget(bed);
+        if (context.hasArrivedAt(bed) && !context.body().isSleeping()) {
+            context.body().sleep(bed);
+        }
+    }
+
+    private static void work(WorkContext context) {
+        Job job = Jobs.forProfession(context.citizen().profession()).orElse(null);
+        if (job == null) {
+            context.body().setWorkTarget(null);
+            return;
+        }
+
+        // Недовольный тянет вполсилы: работает через решение. Цель при этом
+        // не сбрасывается, поэтому он не замирает на месте, а просто медленнее
+        // делает дело — так игрок видит последствия, а не поломку.
+        if (!Needs.worksAtFullStrength(context.citizen()) && isSlacking(context)) {
+            return;
+        }
+
+        context.manager().update(context.settlement().id(), ignored -> job.tick(context));
+        context.body().setWorkTarget(job.destination(context).orElse(null));
+    }
+
+    private static boolean isSlacking(WorkContext context) {
+        long decision = context.world().getTime() / TICKS_PER_DECISION;
+        return Math.floorMod(decision + context.citizen().id().hashCode(), 2) == 0;
     }
 
     private static CitizenEntity liveBody(ServerWorld world, Citizen citizen) {

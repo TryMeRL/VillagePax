@@ -27,6 +27,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.util.math.Box;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
 import net.minecraft.entity.Entity;
@@ -51,6 +52,9 @@ import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.build.SchematicParser;
 import com.villagepax.sim.work.HaulJob;
 import com.villagepax.sim.work.JobState;
+import com.villagepax.sim.work.Housing;
+import com.villagepax.sim.work.Needs;
+import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.work.WorkTicker;
 import net.minecraft.block.BlockState;
 import net.minecraft.nbt.NbtIo;
@@ -1569,7 +1573,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             int stalledAt = site.nextStep();
 
             Citizen courier = hireWithBody(world, colony, HaulJob.COURIER, hall.up());
-            runWork(world, manager, colony, courier, 12);
+            runWork(world, manager, colony, courier, 12, Schedule.MORNING_WORK);
 
             if (site.stock().total() == 0) {
                 context.throwGameTestException("Курьер ничего не принёс на площадку");
@@ -1621,7 +1625,7 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Состояние не считается брошенным грузом");
             }
 
-            runWork(world, manager, colony, courier, 4);
+            runWork(world, manager, colony, courier, 4, Schedule.MORNING_WORK);
 
             if (Warehouse.of(world, colony).count(Items.OAK_LOG) != 7) {
                 context.throwGameTestException("Брошенный груз не вернулся на склад: брёвен "
@@ -1749,6 +1753,318 @@ public class VillagePaxGameTests implements FabricGameTest {
 
         context.complete();
     }
+
+    // --- задача 1.8: дом, распорядок, еда, счастье ---
+
+    private static final Identifier HOUSE_SCHEMATIC = new Identifier("villagepax", "norman/house_lvl1");
+    private static final Identifier HOUSE_TYPE = new Identifier("villagepax", "norman/house");
+
+    /**
+     * Достроенный дом даёт настоящие кровати, и жители их получают.
+     * <p>
+     * Кровати стоят в схеме блоками, а не маркерами: кровать занимает две
+     * позиции, а маркер одну. Заодно проверяется, что обе половины выжили —
+     * досчёт состояния по окружению уничтожил бы первую, пока нет второй.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "home")
+    public void builtHouseGivesRealBedsToCitizens(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic house = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, house);
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Дом не достроился");
+            }
+
+            List<BlockPos> spots = Housing.sleepingSpots(world, colony);
+            if (spots.size() != 2) {
+                context.throwGameTestException("Мест для сна " + spots.size() + ", в схеме дома две кровати");
+            }
+            for (BlockPos spot : spots) {
+                if (!world.getBlockState(spot).isIn(BlockTags.BEDS)) {
+                    context.throwGameTestException("Место для сна не кровать: "
+                            + world.getBlockState(spot).getBlock());
+                }
+            }
+
+            Housing.assignBeds(world, colony);
+            Citizen builder = colony.citizens().get(0);
+            if (builder.isHomeless()) {
+                context.throwGameTestException("Строитель остался без кровати при двух свободных");
+            }
+            if (!spots.contains(builder.bed().orElseThrow())) {
+                context.throwGameTestException("Строителю досталось место вне дома");
+            }
+            if (Housing.freeSpots(world, colony) != 1) {
+                context.throwGameTestException("Свободных мест " + Housing.freeSpots(world, colony)
+                        + ", ожидалось одно");
+            }
+
+            // Сломали кровать — место обязано отобраться, иначе житель будет
+            // ходить спать в воздух и числиться устроенным.
+            world.setBlockState(builder.bed().orElseThrow(), Blocks.AIR.getDefaultState());
+            Housing.assignBeds(world, colony);
+            if (builder.bed().map(spot -> world.getBlockState(spot).isIn(BlockTags.BEDS)).orElse(false)
+                    == Boolean.FALSE && !builder.isHomeless()) {
+                context.throwGameTestException("После сноса кровати житель остался при ней");
+            }
+        } finally {
+            demolish(world, site, house);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Голодный житель идёт к еде и ест — со склада, а не из воздуха. */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "home")
+    public void hungryCitizenEatsFromStorage(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            Citizen eater = hireWithBody(world, colony, HaulJob.COURIER, hall.up());
+            eater.setSaturation(0);
+            eater.addDiscontent();
+
+            Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 4));
+
+            // Первое решение отправляет к еде, второе — кормит.
+            runWork(world, manager, colony, eater, 1, Schedule.MEAL);
+            CitizenEntity body = (CitizenEntity) world.getEntity(eater.entityUuid().orElseThrow());
+            if (body.workTarget() == null) {
+                context.throwGameTestException("Голодный житель не пошёл к еде");
+            }
+            runWork(world, manager, colony, eater, 2, Schedule.MEAL);
+
+            if (eater.saturation() <= 0) {
+                context.throwGameTestException("Житель не поел: сытость " + eater.saturation());
+            }
+            if (eater.discontent() != 0) {
+                context.throwGameTestException("Поевший житель остался недовольным");
+            }
+            // Ест, пока не насытится: один хлеб порога голода не закрывает,
+            // поэтому важно, что еда именно уходит со склада, а не берётся
+            // из воздуха.
+            int left = Warehouse.of(world, colony).count(Items.BREAD);
+            if (left >= 4) {
+                context.throwGameTestException("Житель поел, а со склада ничего не ушло");
+            }
+            if (eater.saturation() < Needs.nourishment(Items.BREAD)) {
+                context.throwGameTestException("Сытость меньше одного хлеба: " + eater.saturation());
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Приёмка задачи 1.8: без еды счастье падает, а при долгом голоде житель
+     * уходит из колонии — решение заказчика: предупреждение, полсилы, уход.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "home")
+    public void starvingCitizenLeavesAfterAWarning(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            Citizen victim = hireWithBody(world, colony, HaulJob.COURIER, hall.up());
+            int startingHappiness = victim.happiness();
+            boolean sawWarning = false;
+
+            for (int day = 0; day < 10 && colony.population() > 0; day++) {
+                Needs.newDay(world, manager, colony);
+                if (colony.population() > 0 && victim.discontent() == Needs.WARN_AFTER_DAYS) {
+                    sawWarning = true;
+                }
+            }
+
+            if (colony.population() != 0) {
+                context.throwGameTestException("Житель не ушёл за десять голодных дней: "
+                        + "недовольство " + victim.discontent());
+            }
+            if (!sawWarning) {
+                context.throwGameTestException("Ухода не предупредили: день предупреждения не наступал");
+            }
+            if (victim.happiness() >= startingHappiness) {
+                context.throwGameTestException("Счастье не упало от голода: было " + startingHappiness
+                        + ", стало " + victim.happiness());
+            }
+            if (victim.entityUuid().map(world::getEntity).isPresent()) {
+                context.throwGameTestException("Тело ушедшего жителя осталось в мире");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Ночью житель идёт к своей кровати и ложится. */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "home")
+    public void citizenSleepsInHisBedAtNight(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos bed = context.getAbsolutePos(new BlockPos(4, 1, 4));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            context.setBlockState(new BlockPos(4, 0, 4), Blocks.STONE);
+            world.setBlockState(bed, Blocks.RED_BED.getDefaultState());
+
+            Citizen sleeper = hireWithBody(world, colony, HaulJob.COURIER, hall.up());
+            sleeper.setBed(bed);
+
+            CitizenEntity body = (CitizenEntity) world.getEntity(sleeper.entityUuid().orElseThrow());
+
+            WorkTicker.decide(world, manager, colony, sleeper, Schedule.SLEEP);
+            if (!bed.equals(body.workTarget())) {
+                context.throwGameTestException("Ночью житель идёт не к кровати: " + body.workTarget());
+            }
+
+            body.refreshPositionAndAngles(bed.getX() + 0.5, bed.getY(), bed.getZ() + 0.5, 0f, 0f);
+            WorkTicker.decide(world, manager, colony, sleeper, Schedule.SLEEP);
+            if (!body.isSleeping()) {
+                context.throwGameTestException("Житель дошёл до кровати и не лёг");
+            }
+
+            // Утро: обязан встать, иначе проспит всю игру.
+            WorkTicker.decide(world, manager, colony, sleeper, Schedule.MORNING_WORK);
+            if (body.isSleeping()) {
+                context.throwGameTestException("Житель не встал с рассветом");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(bed, Blocks.AIR.getDefaultState());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Приток жителей: один за игровой день, если есть свободная кровать и еда.
+     * <p>
+     * Еда в условии не для строгости: без неё пришедший сразу начал бы
+     * голодать и уходить, и игрок видел бы вереницу людей, приходящих умирать.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "home")
+    public void newcomerArrivesWhenThereIsABedAndFood(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic house = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, house);
+            BuildJob.advance(world, manager, colony.id(), site.id(), 10_000);
+            Housing.assignBeds(world, colony);
+
+            int before = colony.population();
+
+            // Кровать есть, а еды нет — никто не придёт.
+            if (Housing.welcomeNewcomer(world, colony, new java.util.Random(1)).isPresent()) {
+                context.throwGameTestException("Житель пришёл в колонию без еды");
+            }
+
+            Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 8));
+            Citizen newcomer = Housing.welcomeNewcomer(world, colony, new java.util.Random(2))
+                    .orElse(null);
+
+            if (newcomer == null) {
+                context.throwGameTestException("Никто не пришёл при свободной кровати и еде");
+                return;
+            }
+            if (colony.population() != before + 1) {
+                context.throwGameTestException("Население не выросло");
+            }
+            if (newcomer.firstName().isEmpty()) {
+                context.throwGameTestException("У пришедшего нет имени");
+            }
+            if (newcomer.isHomeless()) {
+                context.throwGameTestException("Пришедшему не досталось кровати");
+            }
+            if (!newcomer.profession().equals(Optional.of(HaulJob.COURIER))) {
+                context.throwGameTestException("Второму жителю положена профессия курьера, а не "
+                        + newcomer.profession());
+            }
+            if (newcomer.entityUuid().map(world::getEntity).isEmpty()) {
+                context.throwGameTestException("У пришедшего нет тела в мире");
+            }
+        } finally {
+            demolish(world, site, house);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- помощники задачи 1.8 ---
+
+    private static Schematic schematic(TestContext context, Identifier id) {
+        Optional<Schematic> found = SchematicLoader.get(id);
+        if (found.isEmpty()) {
+            context.throwGameTestException("Схема " + id + " не загружена. Загружены: "
+                    + SchematicLoader.ids());
+        }
+        return found.orElseThrow();
+    }
+
+    private static Building plan(Settlement colony, BlockPos anchor, Identifier type,
+                                 BlockRotation rotation) {
+        Building site = new Building(UUID.randomUUID(), type, 1, anchor, rotation,
+                BuildProgress.PLANNED, List.of());
+        colony.addBuilding(site);
+        return site;
+    }
+
+    private static void runWork(ServerWorld world, SettlementManager manager, Settlement colony,
+                                Citizen worker, int rounds, Schedule part) {
+        CitizenEntity body = (CitizenEntity) world.getEntity(worker.entityUuid().orElseThrow());
+
+        for (int round = 0; round < rounds; round++) {
+            WorkTicker.decide(world, manager, colony, worker, part);
+
+            BlockPos target = body.workTarget();
+            if (target != null) {
+                body.refreshPositionAndAngles(target.getX() + 0.5, target.getY(), target.getZ() + 0.5,
+                        0f, 0f);
+            }
+        }
+    }
     // --- помощники задачи 1.7б ---
 
     /**
@@ -1759,21 +2075,6 @@ public class VillagePaxGameTests implements FabricGameTest {
      * жителя не относящимся. Что жители действительно ходят, доказывает
      * {@code playerPathRaisesBuildingByItself} на настоящих тиках мира.
      */
-    private static void runWork(ServerWorld world, SettlementManager manager, Settlement colony,
-                                Citizen worker, int rounds) {
-        CitizenEntity body = (CitizenEntity) world.getEntity(worker.entityUuid().orElseThrow());
-
-        for (int round = 0; round < rounds; round++) {
-            WorkTicker.decide(world, manager, colony, worker);
-
-            BlockPos target = body.workTarget();
-            if (target != null) {
-                body.refreshPositionAndAngles(target.getX() + 0.5, target.getY(), target.getZ() + 0.5,
-                        0f, 0f);
-            }
-        }
-    }
-
     private static Citizen hireWithBody(ServerWorld world, Settlement colony, Identifier profession,
                                         BlockPos at) {
         Citizen citizen = Citizen.newborn("Работник", "", NORMAN, Gender.FEMALE);

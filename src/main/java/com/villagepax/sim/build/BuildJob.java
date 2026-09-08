@@ -283,7 +283,14 @@ public final class BuildJob {
         // уведомляем после: иначе стёкла и заборы встают несоединёнными —
         // setBlockState, в отличие от установки блока игроком, окружение
         // не смотрит.
-        world.setBlockState(where, Block.postProcessState(planned, world, where), Block.NOTIFY_ALL);
+        //
+        // Пустой ответ означает «так стоять нельзя»: у кровати нет второй
+        // половины, потому что она ещё не поставлена. Ставим как задумано —
+        // следующий шаг плана сделает блок законным. Без этой оговорки
+        // ни одна кровать в схеме не выжила бы: первая же половина
+        // уничтожила бы себя досчётом.
+        BlockState settled = Block.postProcessState(planned, world, where);
+        world.setBlockState(where, settled.isAir() ? planned : settled, Block.NOTIFY_ALL);
         return StepResult.WORKED;
     }
 

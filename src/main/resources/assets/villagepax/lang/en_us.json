@@ -16,5 +16,8 @@
   "villagepax.found.unknown_culture": "Unknown culture: %s",
   "villagepax.town_hall.destroyed": "Town hall destroyed. The colony \"%s\" survives, but rebuild it.",
   "villagepax.blueprint.culture": "Culture: %s",
-  "villagepax.blueprint.hint": "Place on free land to found a colony"
+  "villagepax.blueprint.hint": "Place on free land to found a colony",
+  "villagepax.citizen.hungry": "%s is starving: no food in storage. One more day and they leave.",
+  "villagepax.citizen.left": "%s has left the colony: nobody stays to starve.",
+  "villagepax.citizen.arrived": "A new citizen has arrived: %s"
 }

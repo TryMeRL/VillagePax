@@ -72,7 +72,7 @@ public final class FarmJob implements Job {
             return Optional.empty();
         }
 
-        BlockPos plot = plotNeedingWork(context.world(), farm, schematic).orElse(null);
+        BlockPos plot = plotNeedingWork(context, farm, schematic).orElse(null);
         if (plot == null) {
             // Всё посеяно и ничего не поспело: подождём до следующего решения.
             context.goIdle();
@@ -120,11 +120,18 @@ public final class FarmJob implements Job {
      * Растущие пропускаются: торопить рост фермер не умеет, а стоять над
      * зелёным ростком ему незачем.
      */
-    private static Optional<BlockPos> plotNeedingWork(ServerWorld world, Building farm,
+    private static Optional<BlockPos> plotNeedingWork(WorkContext context, Building farm,
                                                       Schematic schematic) {
-        for (BlockPos plot : plots(farm, schematic)) {
-            BlockState state = world.getBlockState(plot);
+        ServerWorld world = context.world();
 
+        for (BlockPos plot : plots(farm, schematic)) {
+            if (context.body().isUnreachable(plot)) {
+                // От этой грядки фермер уже отступился: не дойти. Через
+                // полминуты попробует снова — мир мог измениться.
+                continue;
+            }
+
+            BlockState state = world.getBlockState(plot);
             if (isRipe(state) || isTrampled(world, plot, state) || isBareBed(world, plot, state)) {
                 return Optional.of(plot);
             }

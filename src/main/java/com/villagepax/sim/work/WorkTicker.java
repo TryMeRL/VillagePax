@@ -169,6 +169,11 @@ public final class WorkTicker {
         context.manager().update(context.settlement().id(),
                 ignored -> destination[0] = job.tick(context).orElse(null));
         context.body().setWorkTarget(destination[0]);
+
+        // Если житель решение за решением метит в одну и ту же точку и не
+        // приближается — он от неё отступится, и следующее решение выберет
+        // другое дело. Без этого недостижимая цель держала его навсегда.
+        context.body().noteReachAttempt(destination[0]);
     }
 
     private static boolean isSlacking(WorkContext context) {

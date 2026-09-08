@@ -1,5 +1,6 @@
 package com.villagepax.client.hologram;
 
+import com.villagepax.VillagePax;
 import com.villagepax.screen.GhostPlan;
 import com.villagepax.sim.build.BuildSite;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
@@ -30,6 +31,14 @@ import net.minecraft.util.math.Vec3i;
  * Цвет — от приговора сервера: зелёный можно, красный нельзя. Проверку
  * делает сервер, потому что правила «где можно строить» должны быть описаны
  * один раз.
+ * <p>
+ * <b>Событие выбрано не любое.</b> Приёмники вершин мира существуют только
+ * между {@code BEFORE_ENTITIES} и {@code BEFORE_DEBUG_RENDER} — так сказано
+ * в документации Fabric API, — а после этого {@code consumers()} равен
+ * {@code null}. Первая версия рисовала на {@code AFTER_TRANSLUCENT}, то есть
+ * <b>позже</b> этого окна: проверка на {@code null} молча выходила, и
+ * призрака не было видно вовсе. Отсюда и предупреждение в логе ниже:
+ * если событие снова выберут неверно, это должно быть слышно, а не тихо.
  */
 public final class HologramRenderer {
 
@@ -38,6 +47,9 @@ public final class HologramRenderer {
 
     /** Сколько блоков рисовать за кадр. Схема ратуши — двести девяносто четыре. */
     private static final int MAX_DRAWN = 4096;
+
+    /** Об отсутствии приёмников вершин говорится один раз, а не каждый кадр. */
+    private static boolean warnedAboutConsumers;
 
     private HologramRenderer() {
     }
@@ -48,6 +60,12 @@ public final class HologramRenderer {
             return;
         }
         if (context.consumers() == null) {
+            if (!warnedAboutConsumers) {
+                warnedAboutConsumers = true;
+                VillagePax.LOGGER.warn("Голограмма не рисуется: приёмники вершин недоступны "
+                        + "в этом событии отрисовки мира. Нужно событие между BEFORE_ENTITIES "
+                        + "и BEFORE_DEBUG_RENDER.");
+            }
             return;
         }
 

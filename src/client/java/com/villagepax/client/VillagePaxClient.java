@@ -69,7 +69,10 @@ public class VillagePaxClient implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(HologramKeys::tick);
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> Placement.cancel());
-        WorldRenderEvents.AFTER_TRANSLUCENT.register(HologramRenderer::render);
+        // AFTER_ENTITIES, а не AFTER_TRANSLUCENT: приёмники вершин мира
+        // существуют только до BEFORE_DEBUG_RENDER, и на AFTER_TRANSLUCENT
+        // их уже нет — призрак не рисовался вообще.
+        WorldRenderEvents.AFTER_ENTITIES.register(HologramRenderer::render);
         HudRenderCallback.EVENT.register(HologramHud::render);
     }
 

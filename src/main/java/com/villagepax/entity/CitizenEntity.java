@@ -19,6 +19,9 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
+import java.util.HashMap;
+import java.util.Map;
 import net.minecraft.world.World;
 
 import java.util.Optional;
@@ -75,6 +78,79 @@ public class CitizenEntity extends PathAwareEntity {
     @Override
     protected EntityNavigation createNavigation(World world) {
         return new CitizenNavigation(this, world);
+    }
+
+    /**
+     * Сколько решений подряд житель топчется у одной точки, прежде чем
+     * признать её недостижимой.
+     * <p>
+     * Восемь решений — это около четырёх секунд: столько нужно, чтобы обойти
+     * дом, и заметно меньше, чем терпение игрока, который смотрит на
+     * замершего работника.
+     */
+    private static final int GIVE_UP_AFTER = 8;
+
+    /**
+     * И насколько забывается отказ. Мир меняется: курьер подвёз материалы,
+     * билдер достроил ступени, игрок сломал забор — точка, недостижимая
+     * полминуты назад, может стать достижимой.
+     */
+    private static final int FORGET_AFTER = 600;
+
+    /** Столько отказов помнится; дальше список чистится целиком. */
+    private static final int REMEMBER_AT_MOST = 64;
+
+    /** Ближе этого считается «дошёл»: точность тут не нужна. */
+    private static final double CLOSE_ENOUGH = 3.0;
+
+    private final Map<BlockPos, Long> unreachable = new HashMap<>();
+    private BlockPos stuckOn;
+    private int stuckFor;
+
+    /**
+     * Отметить попытку дойти. Зовётся раз в решение стратегии.
+     * <p>
+     * Это и есть лечение зависания, о котором сообщал игрок: работа
+     * выбирается как первая подходящая, и если до неё нельзя дойти —
+     * житель выбирал её снова и снова, а всё остальное дело стояло.
+     * Теперь он отступается и берётся за следующее.
+     */
+    public void noteReachAttempt(BlockPos target) {
+        if (target == null || squaredDistanceTo(Vec3d.ofCenter(target))
+                <= CLOSE_ENOUGH * CLOSE_ENOUGH) {
+            stuckOn = null;
+            stuckFor = 0;
+            return;
+        }
+
+        if (!target.equals(stuckOn)) {
+            stuckOn = target.toImmutable();
+            stuckFor = 1;
+            return;
+        }
+        if (++stuckFor < GIVE_UP_AFTER) {
+            return;
+        }
+
+        if (unreachable.size() >= REMEMBER_AT_MOST) {
+            unreachable.clear();
+        }
+        unreachable.put(stuckOn, getWorld().getTime() + FORGET_AFTER);
+        stuckOn = null;
+        stuckFor = 0;
+    }
+
+    /** Отступился ли житель от этой точки — и не пора ли забыть отказ. */
+    public boolean isUnreachable(BlockPos pos) {
+        Long until = unreachable.get(pos);
+        if (until == null) {
+            return false;
+        }
+        if (getWorld().getTime() > until) {
+            unreachable.remove(pos);
+            return false;
+        }
+        return true;
     }
 
     /**

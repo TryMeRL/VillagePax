@@ -50,6 +50,9 @@ public final class Placement {
      */
     public static final int MAX_LIFT = 16;
 
+    /** Раз в секунду место переспрашивается даже без движения. */
+    private static final int REPROBE_TICKS = 20;
+
     private static Placement active;
 
     private final Identifier schematic;
@@ -67,6 +70,7 @@ public final class Placement {
     private String reason = "villagepax.hologram.checking";
     private BlockPos probed;
     private BlockRotation probedRotation;
+    private int sinceProbe;
 
     private Placement(Identifier schematic) {
         this.schematic = schematic;
@@ -218,10 +222,18 @@ public final class Placement {
         }
         anchor = centre(aimed).up(lift);
 
-        if (!anchor.equals(probed) || rotation != probedRotation) {
+        // Переспрашивать надо и без движения: закреплённый призрак стоит
+        // на месте, а игрок от него отходит — и «слишком далеко» иначе
+        // никогда не появится. Заодно так виден чужой дом, размеченный
+        // тем же местом секунду назад.
+        boolean moved = !anchor.equals(probed) || rotation != probedRotation;
+        if (moved || ++sinceProbe >= REPROBE_TICKS) {
             probed = anchor;
             probedRotation = rotation;
-            reason = "villagepax.hologram.checking";
+            sinceProbe = 0;
+            if (moved) {
+                reason = "villagepax.hologram.checking";
+            }
 
             PacketByteBuf buf = PacketByteBufs.create();
             buf.writeIdentifier(schematic);

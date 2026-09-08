@@ -3131,6 +3131,139 @@ public class VillagePaxGameTests implements FabricGameTest {
         context.complete();
     }
 
+    // --- кто чем занят и когда отступается ---
+
+    /**
+     * Курьер и билдер делят одну стройку: подвоз материалов не запрещает
+     * стройку.
+     * <p>
+     * Занятость считается по делу, а не по зданию, и это не тонкость.
+     * Курьер, несущий материалы, держит в состоянии работы ту же стройку,
+     * что и билдер, — общий счёт означал бы, что стоит курьеру взяться
+     * за подвоз, и здание перестаёт строиться вообще. Ровно это и было
+     * после починки толкотни.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "claims")
+    public void courierAndBuilderShareOneSite(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        // Далеко по высоте: те же чанки заведомо загружены, а склад «не рядом».
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 24, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, housePlan);
+            if (BuildJob.storageIsNearby(Warehouse.of(world, colony), site)) {
+                context.throwGameTestException("Склад оказался рядом — курьеру нечего делать");
+            }
+
+            Citizen porter = hireWithBody(world, colony, HaulJob.COURIER, hall.up());
+            Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+
+            runWork(world, manager, colony, porter, 1, Schedule.MORNING_WORK);
+            if (porter.jobState().building().filter(site.id()::equals).isEmpty()) {
+                context.throwGameTestException("Курьер не взялся за заявку — проверять нечего");
+            }
+
+            runWork(world, manager, colony, mason, 1, Schedule.MORNING_WORK);
+            if (mason.jobState().building().filter(site.id()::equals).isEmpty()) {
+                context.throwGameTestException("Билдер не взялся за стройку, к которой едет "
+                        + "курьер: подвоз материалов запретил стройку");
+            }
+
+            // А вот второй билдер по-прежнему за неё не берётся.
+            Citizen second = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+            runWork(world, manager, colony, second, 1, Schedule.MORNING_WORK);
+            if (!second.jobState().isIdle()) {
+                context.throwGameTestException("Двое билдеров на одной стройке снова толкаются");
+            }
+        } finally {
+            demolish(world, site, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Житель отступается от точки, до которой не может дойти, и берётся
+     * за следующее дело.
+     * <p>
+     * Работа выбирается как первая подходящая. Без отступления недостижимая
+     * грядка держала фермера навсегда: он выбирал её решение за решением,
+     * а всё остальное поле стояло. Игрок видит это как зависшего работника.
+     * <p>
+     * Проверяется <b>без телепорта</b>: обычный прогон работы подносит
+     * жителя к цели, и недостижимости в нём не бывает по определению.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "claims")
+    public void workerGivesUpOnAnUnreachableTarget(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = plan(colony, anchor, FARM_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, farmPlan);
+            BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000);
+
+            // Две грядки поспели: отступившись от первой, фермер должен
+            // взяться за вторую.
+            List<BlockPos> plots = FarmJob.plots(farm);
+            BlockState mature = ((CropBlock) Blocks.CARROTS).withAge(CropBlock.MAX_AGE);
+            world.setBlockState(plots.get(0), mature);
+            world.setBlockState(plots.get(5), mature);
+
+            // Фермер далеко и с места не двигается: тест не телепортирует его.
+            Citizen farmer = hireWithBody(world, colony, FarmJob.FARMER, hall.up(40));
+            Workplaces.assign(world, colony);
+            CitizenEntity body = (CitizenEntity) world.getEntity(farmer.entityUuid().orElseThrow());
+
+            WorkTicker.decide(world, manager, colony, farmer, Schedule.MORNING_WORK);
+            BlockPos first = body.workTarget();
+            if (first == null) {
+                context.throwGameTestException("Фермер не выбрал грядку");
+            }
+
+            BlockPos later = first;
+            for (int decision = 0; decision < 12 && first.equals(later); decision++) {
+                WorkTicker.decide(world, manager, colony, farmer, Schedule.MORNING_WORK);
+                later = body.workTarget();
+            }
+
+            if (first.equals(later)) {
+                context.throwGameTestException("Фермер двенадцать решений метит в одну "
+                        + "недостижимую грядку " + first.toShortString());
+            }
+            if (!body.isUnreachable(first)) {
+                context.throwGameTestException("Грядка не отмечена недостижимой");
+            }
+            if (later == null || !plots.contains(later)) {
+                context.throwGameTestException("Отступившись, фермер взялся не за грядку: "
+                        + later);
+            }
+        } finally {
+            demolish(world, farm, farmPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
     // --- работа в руках ---
 
     /**

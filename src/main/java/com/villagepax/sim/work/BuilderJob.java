@@ -133,6 +133,12 @@ public final class BuilderJob implements Job {
             if (Claims.takenByAnother(context.settlement(), context.citizen(), site.id())) {
                 continue;
             }
+            if (standingSpot(context.world(), site)
+                    .filter(spot -> context.body().isUnreachable(spot)).isPresent()) {
+                // К этому блоку билдер уже не смог подойти. Стройка при этом
+                // остаётся свободной: другой билдер может стоять удачнее.
+                continue;
+            }
             context.setState(JobState.startAt(site.id(), JobState.Phase.TO_SITE));
             return;
         }

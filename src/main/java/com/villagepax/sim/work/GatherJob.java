@@ -126,8 +126,12 @@ public final class GatherJob implements Job {
 
     /** Какое дерево валить: сперва своя роща, потом дикий лес. */
     private Optional<BlockPos> tree(WorkContext context, Building hut, List<BlockPos> grove) {
-        Optional<BlockPos> inGrove = groveTree(context.world(), grove);
-        return inGrove.isPresent() ? inGrove : wildTree(context, hut);
+        Optional<BlockPos> inGrove = groveTree(context.world(), grove)
+                .filter(base -> !context.body().isUnreachable(base));
+
+        return inGrove.isPresent()
+                ? inGrove
+                : wildTree(context, hut).filter(base -> !context.body().isUnreachable(base));
     }
 
     /**

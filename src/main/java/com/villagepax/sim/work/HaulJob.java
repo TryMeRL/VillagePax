@@ -133,6 +133,11 @@ public final class HaulJob implements Job {
             if (Claims.takenByAnother(context.settlement(), context.citizen(), site.id())) {
                 continue;
             }
+            if (context.body().isUnreachable(site.anchor())) {
+                // До этой стройки курьер уже не смог дойти: пусть несёт
+                // другой заявке, а к этой вернётся через полминуты.
+                continue;
+            }
             if (shortfallCoveredByStorage(context, site, warehouse).isPresent()) {
                 context.setState(JobState.startAt(site.id(), JobState.Phase.TO_STORAGE));
                 return;

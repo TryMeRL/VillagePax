@@ -134,6 +134,10 @@ LEGEND = {
     "H": ("minecraft:dark_oak_log", {"axis": "x"}),
     "Z": ("minecraft:dark_oak_log", {"axis": "z"}),
     "W": ("minecraft:white_terracotta", {}),
+    # Камень и колокол — приметы второго уровня: издалека видно, что
+    # колония поднялась, а не просто обзавелась ещё одним сараем.
+    "M": ("minecraft:stone_bricks", {}),
+    "J": ("minecraft:bell", {"attachment": "floor", "facing": "north", "powered": "false"}),
     "P": ("minecraft:dark_oak_planks", {}),
     "G": pane(),
     "n": stairs("north"),
@@ -146,6 +150,41 @@ LEGEND = {
     "E": ("villagepax:marker_bed", {}),
     "O": ("villagepax:marker_decor", {}),
 }
+
+
+def hip_roof(size, levels):
+    """Шатровая крыша: кольцо ступеней с настилом внутри, каждый слой уже на блок.
+
+    Руками эти слои набирать незачем: они отличаются только отступом от края,
+    и любая опечатка даёт дырку в крыше, которую видно только в игре. Скат
+    смотрит наружу — ступени северного ряда на север, южного на юг, — тем же
+    порядком, что и рукописная крыша домика лесоруба.
+    """
+    layers = []
+
+    for inset in range(levels):
+        low, high = inset, size - 1 - inset
+        rows = []
+
+        for z in range(size):
+            row = []
+            for x in range(size):
+                if x < low or x > high or z < low or z > high:
+                    row.append(".")
+                elif z == low:
+                    row.append("n")
+                elif z == high:
+                    row.append("s")
+                elif x == low:
+                    row.append("w")
+                elif x == high:
+                    row.append("e")
+                else:
+                    row.append("P")
+            rows.append("".join(row))
+        layers.append(rows)
+
+    return layers
 
 
 def compile_layers(layers):
@@ -315,6 +354,52 @@ NORMAN_LUMBERJACK = [
      "sssss....."],
 ]
 
+# Ратуша норманнов второго уровня, 9x8x9: камень вместо глины, шатровая
+# крыша в четыре ската, колокол в зале, две кровати и два сундука.
+#
+# Решение заказчика: уровень колонии равен уровню ратуши, а второй уровень
+# должен быть «больше и красивее». Поэтому и то и другое: след вырос с 7x7
+# до 9x9 и вместимость вдвое, а материал сменился с крашеной глины на камень —
+# издалека видно, что колония поднялась.
+#
+# Растёт от того же угла, что и первый уровень: улучшение не переносит
+# здание, а надстраивает его на месте, и игроку не приходится выбирать
+# место заново.
+NORMAN_TOWN_HALL_2 = [
+    # y=0 — каменный фундамент
+    ["MMMMMMMMM"] * 9,
+    # y=1 — зал: вход, колокол, кровати, сундуки, рабочее место
+    ["BMMMDMMMB",
+     "MtE...EtM",
+     "M.......M",
+     "M...r...M",
+     "Mb..L..bM",
+     "M...r...M",
+     "MJ.....KM",
+     "MSO...OSM",
+     "BMMMMMMMB"],
+    # y=2 — второй ряд стен с окнами
+    ["BMGMMMGMB",
+     "M.......M",
+     "G.......G",
+     "M.......M",
+     "G.......G",
+     "M.......M",
+     "G.......G",
+     "M.......M",
+     "BMGMMMGMB"],
+    # y=3 — обвязка и настил под крышей
+    ["HHHHHHHHH",
+     "ZPPPPPPPZ",
+     "ZPPPPPPPZ",
+     "ZPPPPPPPZ",
+     "ZPPPPPPPZ",
+     "ZPPPPPPPZ",
+     "ZPPPPPPPZ",
+     "ZPPPPPPPZ",
+     "HHHHHHHHH"],
+] + hip_roof(9, 4)
+
 # Ферма норманнов, 7x4x7: земляное основание, грядки с колодцем в середине,
 # ограда и место для пугала.
 #
@@ -361,6 +446,7 @@ NORMAN_FARM = [
 
 SCHEMATICS = {
     "norman/town_hall_lvl1": NORMAN_TOWN_HALL,
+    "norman/town_hall_lvl2": NORMAN_TOWN_HALL_2,
     "norman/house_lvl1": NORMAN_HOUSE,
     "norman/lumberjack_lvl1": NORMAN_LUMBERJACK,
     "norman/farm_lvl1": NORMAN_FARM,

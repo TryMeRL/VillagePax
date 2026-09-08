@@ -197,9 +197,18 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
             body.child(Components.label(Text.translatable("villagepax.screen.buildings.none")));
         }
         for (TownHallView.BuildingLine line : view.buildings()) {
-            body.child(Components.label(Text.translatable("villagepax.screen.buildings.line",
+            FlowLayout built = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+            built.verticalAlignment(VerticalAlignment.CENTER);
+            built.gap(4);
+
+            if (line.canUpgrade()) {
+                built.child(Components.button(Text.translatable("villagepax.screen.buildings.upgrade"),
+                        button -> upgrade(line.id())).horizontalSizing(Sizing.fixed(70)));
+            }
+            built.child(Components.label(Text.translatable("villagepax.screen.buildings.line",
                     building(line.type()), number(line.level()),
                     Text.literal(line.progress().id()))));
+            body.child(built);
         }
 
         body.child(Components.label(Text.translatable("villagepax.screen.buildings.offers"))
@@ -281,6 +290,17 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
     private void order(Identifier schematic) {
         Placement.begin(schematic);
         close();
+    }
+
+    /**
+     * Улучшение заказывается кнопкой, а не голограммой: место уже выбрано,
+     * здание растёт от своего угла. Экран остаётся открытым — по нему сразу
+     * видно, что стройка началась.
+     */
+    private void upgrade(UUID building) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeUuid(building);
+        ClientPlayNetworking.send(TownHallNet.UPGRADE, buf);
     }
 
     private void assign(UUID citizen, Optional<Identifier> profession) {

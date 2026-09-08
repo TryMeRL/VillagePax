@@ -64,6 +64,18 @@ public final class BuildOrders {
         /** След пересекается с уже размеченным зданием. */
         record Overlaps(Building clash) implements Result {
         }
+
+        /** Здания с таким опознавателем в колонии нет. */
+        record NotFound(java.util.UUID building) implements Result {
+        }
+
+        /** Улучшать некуда: схемы следующего уровня не существует. */
+        record TopLevel(Building building) implements Result {
+        }
+
+        /** Здание ещё строится или чинится: улучшать нечего. */
+        record Busy(Building building) implements Result {
+        }
     }
 
     /**
@@ -134,6 +146,23 @@ public final class BuildOrders {
                 schematic.plan().blockCount());
     }
 
+    /** Ключ сообщения об улучшении — для чата. */
+    public static String upgradeKey(Result result) {
+        if (result instanceof Result.Placed) {
+            return "villagepax.screen.upgrade.started";
+        }
+        if (result instanceof Result.TopLevel) {
+            return "villagepax.screen.upgrade.top_level";
+        }
+        if (result instanceof Result.Busy) {
+            return "villagepax.screen.upgrade.busy";
+        }
+        if (result instanceof Result.Overlaps) {
+            return "villagepax.screen.upgrade.no_room";
+        }
+        return "villagepax.screen.upgrade.gone";
+    }
+
     /**
      * Короткий ключ причины — для подсказки голограммы.
      * <p>
@@ -158,14 +187,76 @@ public final class BuildOrders {
     }
 
     /**
+     * Улучшить здание до следующего уровня.
+     * <p>
+     * Улучшение <b>не переносит</b> здание: тот же угол, тот же поворот,
+     * план проходится заново по схеме нового уровня. Игроку не приходится
+     * выбирать место второй раз, а жители сохраняют привязки — опознаватель
+     * здания тот же, и кровати с мастерскими просто раздаются заново, когда
+     * стройка кончится.
+     * <p>
+     * Растёт здание от своего угла, поэтому места ему нужно больше: если
+     * рядом уже стоит другое, улучшение отвергается — иначе два здания
+     * перетирали бы блоки друг друга бесконечно.
+     */
+    public static Result upgrade(SettlementManager manager, Settlement colony, UUID buildingId) {
+        Building building = colony.building(buildingId).orElse(null);
+        if (building == null) {
+            return new Result.NotFound(buildingId);
+        }
+        if (BuildJob.isUnderConstruction(building)) {
+            return new Result.Busy(building);
+        }
+
+        int next = building.level() + 1;
+        Identifier schematicId = new Identifier(building.type().getNamespace(),
+                building.type().getPath() + "_lvl" + next);
+        Schematic schematic = SchematicLoader.get(schematicId).orElse(null);
+        if (schematic == null) {
+            return new Result.TopLevel(building);
+        }
+
+        Building clash = overlapping(colony, building.anchor(), building.rotation(), schematic,
+                buildingId);
+        if (clash != null) {
+            return new Result.Overlaps(clash);
+        }
+
+        manager.update(colony.id(), settlement -> settlement.building(buildingId)
+                .ifPresent(target -> {
+                    target.setLevel(next);
+                    target.restartBuilding();
+                }));
+
+        return new Result.Placed(building, BuildSite.rotatedSize(schematic.size(),
+                building.rotation()), schematic.plan().blockCount());
+    }
+
+    /** Есть ли у этого здания следующий уровень — для кнопки в пульте. */
+    public static boolean canUpgrade(Building building) {
+        Identifier next = new Identifier(building.type().getNamespace(),
+                building.type().getPath() + "_lvl" + (building.level() + 1));
+        return SchematicLoader.get(next).isPresent();
+    }
+
+    /**
      * Наложение следов. Два здания на одном месте перетирали бы блоки друг
      * друга бесконечно, каждое считая, что чинит повреждение.
      */
     private static Building overlapping(Settlement colony, BlockPos anchor, BlockRotation rotation,
                                         Schematic schematic) {
+        return overlapping(colony, anchor, rotation, schematic, null);
+    }
+
+    private static Building overlapping(Settlement colony, BlockPos anchor, BlockRotation rotation,
+                                        Schematic schematic, UUID ignore) {
         Vec3i footprint = BuildSite.rotatedSize(schematic.size(), rotation);
 
         for (Building existing : colony.buildings()) {
+            if (ignore != null && existing.id().equals(ignore)) {
+                // Само себя здание не заслоняет: улучшение растёт на месте.
+                continue;
+            }
             Schematic other = SchematicLoader.get(BuildJob.schematicId(existing)).orElse(null);
             if (other == null) {
                 continue;

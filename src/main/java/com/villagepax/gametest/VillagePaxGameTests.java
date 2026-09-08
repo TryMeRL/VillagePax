@@ -18,6 +18,7 @@ import net.minecraft.util.math.Vec3d;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Gender;
+import com.villagepax.sim.Levels;
 import com.villagepax.sim.Owner;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementLevel;
@@ -3131,6 +3132,175 @@ public class VillagePaxGameTests implements FabricGameTest {
         context.complete();
     }
 
+    // --- рост колонии по уровню ратуши ---
+
+    private static final Identifier TOWN_HALL_LVL2 =
+            new Identifier("villagepax", "norman/town_hall_lvl2");
+
+    /**
+     * Приёмка решения заказчика: колония растёт вместе с ратушей.
+     * <p>
+     * До этого уровень не повышал никто, и колония навсегда оставалась
+     * хутором — шесть жителей и радиус два чанка. Игрок упирался в стену
+     * без объяснения.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "levels")
+    public void upgradedTownHallRaisesTheColony(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic bigger = schematic(context, TOWN_HALL_LVL2);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building townHall = raisedTownHall(colony, hall);
+
+        try {
+            if (!townHall.type().equals(TOWN_HALL_TYPE) || townHall.level() != 1) {
+                context.throwGameTestException("Колония начинается не с ратуши первого уровня: "
+                        + townHall.type() + " ур. " + townHall.level());
+            }
+            if (colony.level() != SettlementLevel.HAMLET) {
+                context.throwGameTestException("Новая колония не хутор: " + colony.level().id());
+            }
+
+            BuildOrders.Result ordered = BuildOrders.upgrade(manager, colony, townHall.id());
+            if (!(ordered instanceof BuildOrders.Result.Placed)) {
+                context.throwGameTestException("Улучшение ратуши отвергнуто: " + ordered);
+            }
+            if (townHall.level() != 2 || townHall.nextStep() != 0) {
+                context.throwGameTestException("Улучшение не перезапустило стройку: уровень "
+                        + townHall.level() + ", шаг " + townHall.nextStep());
+            }
+            if (colony.level() != SettlementLevel.HAMLET) {
+                context.throwGameTestException("Уровень колонии вырос до постройки — "
+                        + "он обязан ждать готового здания");
+            }
+
+            stockFor(world, colony, bigger);
+            if (BuildJob.advance(world, manager, colony.id(), townHall.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Ратуша второго уровня не достроилась");
+            }
+            Levels.refresh(colony);
+
+            if (colony.level() != SettlementLevel.VILLAGE) {
+                context.throwGameTestException("Ратуша второго уровня, а колония всё ещё "
+                        + colony.level().id());
+            }
+            if (colony.level().maxCitizens() <= SettlementLevel.HAMLET.maxCitizens()) {
+                context.throwGameTestException("Предел населения не вырос");
+            }
+
+            // Второй раз улучшать некуда: схемы третьего уровня нет.
+            BuildOrders.Result again = BuildOrders.upgrade(manager, colony, townHall.id());
+            if (!(again instanceof BuildOrders.Result.TopLevel)) {
+                context.throwGameTestException("Улучшение сверх наивысшего уровня принято: "
+                        + again);
+            }
+            if (townHall.level() != 2) {
+                context.throwGameTestException("Отказ всё-таки поднял уровень");
+            }
+        } finally {
+            demolish(world, townHall, bigger);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Улучшать некуда, если рядом уже стоит здание: растёт-то оно от своего
+     * угла, и места ему нужно больше.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "levels")
+    public void upgradeRefusesWhenThereIsNoRoom(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building townHall = raisedTownHall(colony, hall);
+
+        try {
+            // Дом вплотную: след ратуши второго уровня 9x9 в него упрётся.
+            Building neighbour = plan(colony, hall.add(5, 0, 5), HOUSE_TYPE, BlockRotation.NONE);
+
+            BuildOrders.Result refused = BuildOrders.upgrade(manager, colony, townHall.id());
+            if (!(refused instanceof BuildOrders.Result.Overlaps clash)) {
+                context.throwGameTestException("Улучшение в тесноте принято: " + refused);
+                return;
+            }
+            if (!clash.clash().id().equals(neighbour.id())) {
+                context.throwGameTestException("Помехой назван не тот сосед");
+            }
+            if (townHall.level() != 1 || townHall.progress() != BuildProgress.DONE) {
+                context.throwGameTestException("Отказ всё-таки тронул ратушу: уровень "
+                        + townHall.level() + ", " + townHall.progress().id());
+            }
+
+            // Строящееся здание улучшать нельзя.
+            BuildOrders.Result busy = BuildOrders.upgrade(manager, colony, neighbour.id());
+            if (!(busy instanceof BuildOrders.Result.Busy)) {
+                context.throwGameTestException("Строящееся здание приняли к улучшению: " + busy);
+            }
+
+            // И чужого опознавателя тоже нет.
+            BuildOrders.Result missing = BuildOrders.upgrade(manager, colony, UUID.randomUUID());
+            if (!(missing instanceof BuildOrders.Result.NotFound)) {
+                context.throwGameTestException("Улучшение несуществующего здания принято: "
+                        + missing);
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Центр поселения не перестраивается ничем.
+     * <p>
+     * Там ратуша со складом колонии: схема, накрывшая это место, снесла бы
+     * её вместе с материалами, пульт перестал бы открываться, а стройка
+     * встала бы, потому что брать со склада стало нечего.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "levels")
+    public void nothingBuildsOverTheTownHallBlock(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        // Дом размечен прямо поверх ратуши.
+        Building site = plan(colony, hall, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, housePlan);
+            BuildJob.advance(world, manager, colony.id(), site.id(), 10_000);
+
+            if (!world.getBlockState(hall).isOf(ModBlocks.TOWN_HALL)) {
+                context.throwGameTestException("Ратушу перестроили: на её месте "
+                        + world.getBlockState(hall).getBlock());
+            }
+            if (Warehouse.of(world, colony).containerCount() == 0) {
+                context.throwGameTestException("Колония лишилась хранилища");
+            }
+        } finally {
+            demolish(world, site, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
     // --- кто чем занят и когда отступается ---
 
     /**
@@ -3968,6 +4138,19 @@ public class VillagePaxGameTests implements FabricGameTest {
                 BuildProgress.PLANNED, List.of());
         colony.addBuilding(site);
         return site;
+    }
+
+    /**
+     * Готовая ратуша как здание колонии — то же, что делает основание.
+     * <p>
+     * Помощник {@code colonyWithBuilder} ставит только блок, а рост уровня
+     * считается по <b>зданию</b>: без него колонии нечего улучшать.
+     */
+    private static Building raisedTownHall(Settlement colony, BlockPos at) {
+        Building hall = new Building(UUID.randomUUID(), TOWN_HALL_TYPE, 1, at,
+                BlockRotation.NONE, BuildProgress.DONE, List.of());
+        colony.addBuilding(hall);
+        return hall;
     }
 
     private static void runWork(ServerWorld world, SettlementManager manager, Settlement colony,

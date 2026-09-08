@@ -3,6 +3,7 @@ package com.villagepax.screen;
 import com.mojang.serialization.DataResult;
 import com.villagepax.VillagePax;
 import com.villagepax.core.profession.ProfessionManager;
+import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Founding;
 import com.villagepax.sim.ItemTally;
@@ -54,6 +55,7 @@ public final class TownHallNet {
     public static final Identifier VIEW = new Identifier(VillagePax.MOD_ID, "town_hall_view");
     public static final Identifier ORDER = new Identifier(VillagePax.MOD_ID, "town_hall_order");
     public static final Identifier ASSIGN = new Identifier(VillagePax.MOD_ID, "town_hall_assign");
+    public static final Identifier UPGRADE = new Identifier(VillagePax.MOD_ID, "town_hall_upgrade");
 
     /** Голограмма: клиент просит план схемы, потом примеряет место. */
     public static final Identifier PLAN_REQUEST = new Identifier(VillagePax.MOD_ID, "plan_request");
@@ -88,6 +90,11 @@ public final class TownHallNet {
             BlockPos anchor = buf.readBlockPos();
             BlockRotation rotation = BuildOrders.rotation(buf.readString(16));
             server.execute(() -> probe(player, schematic, anchor, rotation));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(UPGRADE, (server, player, handler, buf, sender) -> {
+            UUID building = buf.readUuid();
+            server.execute(() -> upgrade(player, building));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(ASSIGN, (server, player, handler, buf, sender) -> {
@@ -171,6 +178,29 @@ public final class TownHallNet {
                     Text.translatable(buildingKey(clash.clash().type())),
                     Text.literal(clash.clash().anchor().toShortString()));
         }
+    }
+
+    /**
+     * Улучшить здание до следующего уровня.
+     * <p>
+     * Требует открытого пульта: улучшение заказывается кнопкой в экране,
+     * а не голограммой — место уже выбрано, здание растёт от своего угла.
+     */
+    private static void upgrade(ServerPlayerEntity player, UUID building) {
+        Settlement colony = consoleColony(player);
+        if (colony == null) {
+            return;
+        }
+
+        SettlementManager manager = SettlementManager.get(player.getServerWorld());
+        BuildOrders.Result result = BuildOrders.upgrade(manager, colony, building);
+
+        Text name = colony.building(building)
+                .map(known -> (Text) Text.translatable(buildingKey(known.type())))
+                .orElse(Text.literal("?"));
+        int level = colony.building(building).map(Building::level).orElse(0);
+
+        tell(player, BuildOrders.upgradeKey(result), name, Text.literal(String.valueOf(level)));
     }
 
     /**

@@ -94,5 +94,12 @@
   "villagepax.hologram.state": "Height %s, range %s — %s",
   "villagepax.hologram.pinned": "pinned",
   "villagepax.hologram.following": "follows your view",
-  "villagepax.hologram.keys_more": "%s to pin, %s to place, %s to cancel"
+  "villagepax.hologram.keys_more": "%s to pin, %s to place, %s to cancel",
+  "villagepax.screen.buildings.upgrade": "Upgrade",
+  "villagepax.screen.upgrade.started": "%s: rebuilding to level %s has begun",
+  "villagepax.screen.upgrade.top_level": "%s is already at the top level",
+  "villagepax.screen.upgrade.busy": "%s is still under construction",
+  "villagepax.screen.upgrade.no_room": "%s has no room to grow: a neighbouring building is in the way",
+  "villagepax.screen.upgrade.gone": "The building is gone",
+  "villagepax.building.norman.town_hall.2": "Norman town hall, second level"
 }

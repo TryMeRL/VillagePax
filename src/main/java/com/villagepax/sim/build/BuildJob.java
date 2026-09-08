@@ -253,6 +253,18 @@ public final class BuildJob {
                                       Vec3d workFrom) {
         BlockPos where = worldPos(building, schematic.size(), step.pos());
 
+        // Центр поселения не перестраивается никогда.
+        //
+        // Там стоит ратуша, и в ней — стартовое хранилище колонии. Схема,
+        // накрывшая это место, снесла бы ратушу вместе со складом: материалы
+        // высыпались бы на землю, пульт перестал бы открываться, а стройка
+        // встала бы, потому что брать со склада стало нечего. Ровно это
+        // и случилось при первой же попытке улучшить ратушу до второго
+        // уровня — её собственная схема ложится поверх её же блока.
+        if (where.equals(settlement.center())) {
+            return StepResult.SKIPPED;
+        }
+
         if (!step.placesBlock()) {
             if (world.getBlockState(where).isAir()) {
                 return StepResult.SKIPPED;

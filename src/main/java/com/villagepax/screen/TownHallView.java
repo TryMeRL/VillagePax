@@ -100,14 +100,15 @@ public record TownHallView(
     }
 
     public record BuildingLine(UUID id, Identifier type, int level, BuildProgress progress,
-                               BlockPos anchor) {
+                               BlockPos anchor, boolean canUpgrade) {
 
         public static final Codec<BuildingLine> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Uuids.CODEC.fieldOf("id").forGetter(BuildingLine::id),
                 Identifier.CODEC.fieldOf("type").forGetter(BuildingLine::type),
                 Codec.INT.fieldOf("level").forGetter(BuildingLine::level),
                 BuildProgress.CODEC.fieldOf("progress").forGetter(BuildingLine::progress),
-                BlockPos.CODEC.fieldOf("anchor").forGetter(BuildingLine::anchor)
+                BlockPos.CODEC.fieldOf("anchor").forGetter(BuildingLine::anchor),
+                Codec.BOOL.fieldOf("can_upgrade").forGetter(BuildingLine::canUpgrade)
         ).apply(instance, BuildingLine::new));
     }
 
@@ -207,7 +208,8 @@ public record TownHallView(
         List<BuildingLine> lines = new ArrayList<>();
         for (Building building : settlement.buildings()) {
             lines.add(new BuildingLine(building.id(), building.type(), building.level(),
-                    building.progress(), building.anchor()));
+                    building.progress(), building.anchor(),
+                    building.isOperational() && BuildOrders.canUpgrade(building)));
         }
         return lines;
     }

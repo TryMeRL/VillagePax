@@ -94,5 +94,12 @@
   "villagepax.hologram.state": "Высота %s, дальность %s — %s",
   "villagepax.hologram.pinned": "закреплено",
   "villagepax.hologram.following": "идёт за взглядом",
-  "villagepax.hologram.keys_more": "%s — закрепить, %s — поставить, %s — отмена"
+  "villagepax.hologram.keys_more": "%s — закрепить, %s — поставить, %s — отмена",
+  "villagepax.screen.buildings.upgrade": "Улучшить",
+  "villagepax.screen.upgrade.started": "%s: начата перестройка до уровня %s",
+  "villagepax.screen.upgrade.top_level": "%s уже наивысшего уровня",
+  "villagepax.screen.upgrade.busy": "%s ещё строится",
+  "villagepax.screen.upgrade.no_room": "%s некуда расти: мешает соседнее здание",
+  "villagepax.screen.upgrade.gone": "Здания больше нет",
+  "villagepax.building.norman.town_hall.2": "Ратуша норманнов, второй уровень"
 }

@@ -2,6 +2,7 @@ package com.villagepax.sim.work;
 
 import com.villagepax.VillagePax;
 import com.villagepax.sim.Building;
+import com.villagepax.sim.Levels;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.BuildStep;
 import com.villagepax.sim.build.Schematic;
@@ -95,6 +96,10 @@ public final class BuilderJob implements Job {
             // стоит пустым ровно ту ночь, в которую он готов, — а игрок
             // видит мод, который не работает.
             case FINISHED -> {
+                // Уровень колонии равен уровню ратуши, и пересчитать его надо
+                // здесь: достроили ратушу второго уровня — колония стала
+                // деревней, и предел населения вырос тут же.
+                Levels.refresh(context.settlement());
                 Housing.assignBeds(context.world(), context.settlement());
                 Workplaces.assign(context.world(), context.settlement());
                 context.holdNothing();

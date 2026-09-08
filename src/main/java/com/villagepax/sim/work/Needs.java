@@ -34,8 +34,17 @@ public final class Needs {
     public static final int MAX_SATURATION = 40;
 
     /** На второй день недовольства житель жалуется, на третий уходит. */
-    public static final int WARN_AFTER_DAYS = 2;
-    public static final int LEAVE_AFTER_DAYS = 3;
+    /**
+     * Сроки удвоены после первой игры (решение заказчика): четыре дня
+     * до предупреждения, шесть до уходa.
+     * <p>
+     * Прежние два и три выглядели разумно на бумаге, но игрок в это время
+     * занят стройкой и не смотрит в чат: житель успевал уйти прежде, чем
+     * причину заметили. Последствия те же — предупреждение, работа
+     * вполсилы, уход навсегда, — но заметить и исправить теперь успеваешь.
+     */
+    public static final int WARN_AFTER_DAYS = 4;
+    public static final int LEAVE_AFTER_DAYS = 6;
 
     private static final int HAPPINESS_STARVING = 20;
     private static final int HAPPINESS_HUNGRY = 8;

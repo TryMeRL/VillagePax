@@ -3,6 +3,7 @@ package com.villagepax.sim.work;
 import com.villagepax.VillagePax;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Settlement;
+import com.villagepax.sim.Sounds;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.BuildSite;
@@ -510,6 +511,7 @@ public final class GatherJob implements Job {
                 warehouse.addOrScatter(world, pos, drop);
             }
         }
+        Sounds.broke(world, pos, state);
         world.setBlockState(pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
     }
 
@@ -528,6 +530,7 @@ public final class GatherJob implements Job {
             return;
         }
         world.setBlockState(tile, sapling, Block.NOTIFY_ALL);
+        Sounds.placed(world, tile, sapling);
     }
 
     /** Какой саженец растёт в этой роще — из схемы, а не из догадки. */

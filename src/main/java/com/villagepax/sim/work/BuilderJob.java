@@ -3,6 +3,7 @@ package com.villagepax.sim.work;
 import com.villagepax.VillagePax;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Levels;
+import com.villagepax.sim.Sounds;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.BuildStep;
 import com.villagepax.sim.build.Schematic;
@@ -111,6 +112,11 @@ public final class BuilderJob implements Job {
                 // здесь: достроили ратушу второго уровня — колония стала
                 // деревней, и предел населения вырос тут же.
                 Levels.refresh(context.settlement());
+
+                // Колокол на всю колонию: здание сдано. Игрок мог смотреть
+                // в другую сторону — объявление обязано его догнать.
+                Sounds.buildingDone(context.world(), context.settlement().center());
+
                 Housing.assignBeds(context.world(), context.settlement());
                 Workplaces.assign(context.world(), context.settlement());
                 context.holdNothing();

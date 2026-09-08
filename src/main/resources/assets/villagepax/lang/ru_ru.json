@@ -101,5 +101,6 @@
   "villagepax.screen.upgrade.busy": "%s ещё строится",
   "villagepax.screen.upgrade.no_room": "%s некуда расти: мешает соседнее здание",
   "villagepax.screen.upgrade.gone": "Здания больше нет",
-  "villagepax.building.norman.town_hall.2": "Ратуша норманнов, второй уровень"
+  "villagepax.building.norman.town_hall.2": "Ратуша норманнов, второй уровень",
+  "villagepax.citizen.label": "%s — %s"
 }

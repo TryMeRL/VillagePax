@@ -6,6 +6,7 @@ import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
+import com.villagepax.sim.Sounds;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Warehouse;
 import net.minecraft.block.Block;
@@ -273,6 +274,7 @@ public final class BuildJob {
                 return StepResult.TOO_FAR;
             }
             salvage(world, warehouse, building, where, storageIsNearby(warehouse, building));
+            Sounds.broke(world, where, world.getBlockState(where));
             world.setBlockState(where, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
             return StepResult.WORKED;
         }
@@ -308,7 +310,9 @@ public final class BuildJob {
         // ни одна кровать в схеме не выжила бы: первая же половина
         // уничтожила бы себя досчётом.
         BlockState settled = Block.postProcessState(planned, world, where);
-        world.setBlockState(where, settled.isAir() ? planned : settled, Block.NOTIFY_ALL);
+        BlockState laid = settled.isAir() ? planned : settled;
+        world.setBlockState(where, laid, Block.NOTIFY_ALL);
+        Sounds.placed(world, where, laid);
         return StepResult.WORKED;
     }
 

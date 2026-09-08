@@ -1,6 +1,7 @@
 package com.villagepax.entity;
 
 import com.villagepax.VillagePax;
+import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
@@ -12,6 +13,9 @@ import net.minecraft.entity.ai.goal.SwimGoal;
 import net.minecraft.entity.ai.goal.WanderAroundFarGoal;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
 import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.sound.SoundEvent;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -209,9 +213,67 @@ public class CitizenEntity extends PathAwareEntity {
     }
 
     public void applyFrom(Citizen citizen) {
-        setCustomName(Text.literal(citizen.fullName()));
-        setCustomNameVisible(true);
+        label(citizen);
         setHealth(citizen.health());
+    }
+
+    /**
+     * Подпись над жителем: имя и ремесло.
+     * <p>
+     * Ремесло рядом с именем не украшение: игрок раздаёт работу и хочет
+     * видеть, кто перед ним, не открывая пульта. Имя без ремесла остаётся
+     * у того, кому его ещё не дали.
+     * <p>
+     * Обновляется каждое решение стратегии, а не по событию смены
+     * профессии: событий этих три — основание, автораздача и приказ
+     * игрока, — и забыть одно значило бы показывать устаревшую подпись.
+     * Повторная установка того же текста ничего не стоит: отслеживаемые
+     * данные сравнивают значения, и в сеть уходят только изменения.
+     */
+    public void label(Citizen citizen) {
+        Text name = citizen.profession()
+                .flatMap(ProfessionManager::get)
+                .map(profession -> (Text) Text.translatable("villagepax.citizen.label",
+                        citizen.fullName(), Text.translatable(profession.displayName())))
+                .orElse(Text.literal(citizen.fullName()));
+
+        setCustomName(name);
+        setCustomNameVisible(true);
+    }
+
+    /**
+     * Голос жителя.
+     * <p>
+     * Взят у деревенского намеренно: узнаваемое «хм» — уже язык, которому
+     * игрока учить не надо, и он ровно про то, что перед ним мирный
+     * житель. Своих записей у мода нет, и заводить их незачем.
+     */
+    @Override
+    protected SoundEvent getAmbientSound() {
+        // Спящий молчит: бормотание из дома ночью — это не жизнь, а помеха.
+        return isSleeping() ? null : SoundEvents.ENTITY_VILLAGER_AMBIENT;
+    }
+
+    /**
+     * Голоса реже, чем у ванильных мобов.
+     * <p>
+     * В колонии их десяток, и они стоят кучей у стройки: ванильные четыре
+     * секунды превратили бы деревню в непрерывный гул. Двадцать — это
+     * голоса на площади, а не гудение.
+     */
+    @Override
+    public int getMinAmbientSoundDelay() {
+        return 400;
+    }
+
+    @Override
+    protected SoundEvent getHurtSound(DamageSource source) {
+        return SoundEvents.ENTITY_VILLAGER_HURT;
+    }
+
+    @Override
+    protected SoundEvent getDeathSound() {
+        return SoundEvents.ENTITY_VILLAGER_DEATH;
     }
 
     /**

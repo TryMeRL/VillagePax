@@ -5,6 +5,7 @@ import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Settlement;
+import com.villagepax.sim.Sounds;
 import com.villagepax.sim.Warehouse;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
@@ -149,7 +150,9 @@ public final class Roads {
             salvage(world, warehouse, ground);
         }
 
-        world.setBlockState(ground, paving.getDefaultState(), Block.NOTIFY_ALL);
+        BlockState laid = paving.getDefaultState();
+        world.setBlockState(ground, laid, Block.NOTIFY_ALL);
+        Sounds.placed(world, ground, laid);
         return true;
     }
 

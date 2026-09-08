@@ -49,6 +49,8 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
 import com.villagepax.core.ModTags;
+import net.minecraft.text.Text;
+import net.minecraft.text.TranslatableTextContent;
 import com.villagepax.sim.build.BuildCategory;
 import com.villagepax.sim.build.BuildPlan;
 import com.villagepax.sim.build.BuildPlanner;
@@ -4114,6 +4116,60 @@ public class VillagePaxGameTests implements FabricGameTest {
         } finally {
             world.setBlockState(landing, Blocks.AIR.getDefaultState());
             demolish(world, hut, hutPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- подпись над жителем ---
+
+    /**
+     * Над жителем видно имя и ремесло.
+     * <p>
+     * Просьба заказчика. Ремесло рядом с именем не украшение: игрок раздаёт
+     * работу и хочет видеть, кто перед ним, не открывая пульта.
+     * <p>
+     * Проверяется ключ перевода, а не готовая строка: на сервере словаря
+     * мода нет, и {@code getString} вернул бы сам ключ. Игрок увидит
+     * подпись собранной у себя на клиенте — а собирать её не из чего,
+     * если ключ не тот.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "labels")
+    public void citizenWearsNameAndCraft(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+            CitizenEntity body = (CitizenEntity) world.getEntity(mason.entityUuid().orElseThrow());
+
+            WorkTicker.decide(world, manager, colony, mason, Schedule.MORNING_WORK);
+
+            if (!body.isCustomNameVisible()) {
+                context.throwGameTestException("Подпись жителя не показывается");
+            }
+            Text label = body.getCustomName();
+            if (label == null || !(label.getContent() instanceof TranslatableTextContent craft)
+                    || !craft.getKey().equals("villagepax.citizen.label")) {
+                context.throwGameTestException("В подписи нет ремесла: " + label);
+            }
+
+            // Ремесло отобрали — осталось одно имя, и оно настоящее.
+            mason.setProfession(null);
+            WorkTicker.decide(world, manager, colony, mason, Schedule.MORNING_WORK);
+
+            Text plain = body.getCustomName();
+            if (plain == null || !plain.getString().equals(mason.fullName())) {
+                context.throwGameTestException("Житель без ремесла подписан не своим именем: "
+                        + plain);
+            }
+        } finally {
             discardBodies(world, colony);
             manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());

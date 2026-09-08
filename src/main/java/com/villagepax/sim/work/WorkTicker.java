@@ -104,6 +104,11 @@ public final class WorkTicker {
 
         WorkContext context = new WorkContext(world, manager, settlement, citizen, body);
 
+        // Подпись над головой — здесь: это единственное место, куда житель
+        // с телом заходит регулярно, и потому единственное, где она не
+        // может отстать от смены ремесла.
+        body.label(citizen);
+
         if (part != Schedule.SLEEP && body.isSleeping()) {
             body.wakeUp();
         }

@@ -2,6 +2,7 @@ package com.villagepax.sim.work;
 
 import com.villagepax.VillagePax;
 import com.villagepax.sim.Building;
+import com.villagepax.sim.Sounds;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.BuildStep;
@@ -190,6 +191,7 @@ public final class FarmJob implements Job {
                 warehouse.addOrScatter(world, plot, drop);
             }
         }
+        Sounds.broke(world, plot, ripe);
         world.setBlockState(plot, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
     }
 
@@ -202,6 +204,7 @@ public final class FarmJob implements Job {
      */
     private static void till(ServerWorld world, BlockPos plot) {
         world.setBlockState(plot.down(), Blocks.FARMLAND.getDefaultState(), Block.NOTIFY_ALL);
+        Sounds.tilled(world, plot.down());
     }
 
     /**
@@ -230,6 +233,7 @@ public final class FarmJob implements Job {
             return;
         }
         world.setBlockState(plot, crop, Block.NOTIFY_ALL);
+        Sounds.sown(world, plot);
     }
 
     /** Какая культура растёт на этой ферме — из схемы, а не из догадки. */

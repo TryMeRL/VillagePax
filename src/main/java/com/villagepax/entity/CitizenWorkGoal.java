@@ -26,7 +26,24 @@ public class CitizenWorkGoal extends Goal {
     /** Медленнее прогулочного шага: житель идёт по делу, а не бежит. */
     private static final double SPEED = 0.5;
 
+    /**
+     * Насколько житель подходит к цели не в упор, а со своей стороны.
+     * <p>
+     * Без этого двое курьеров, идущих к одному сундуку, метят в один и тот же
+     * блок, толкаются на нём и сбивают друг другу путь — игрок видит, как
+     * они спотыкаются. Смещение постоянно для каждого жителя (берётся из его
+     * опознавателя), поэтому оно не дрожит от тика к тику: у каждого просто
+     * своя сторона подхода.
+     * <p>
+     * Величина согласована с запасом досягаемости билдера
+     * ({@code BuildJob.withinReach} с этим же запасом): иначе он вставал бы
+     * чуть дальше вытянутой руки и не мог работать вовсе.
+     */
+    public static final double SPREAD = 0.8;
+
     private final CitizenEntity body;
+    private final double spreadX;
+    private final double spreadZ;
 
     private BlockPos target;
     private int cooldown;
@@ -34,6 +51,10 @@ public class CitizenWorkGoal extends Goal {
     public CitizenWorkGoal(CitizenEntity body) {
         this.body = body;
         setControls(EnumSet.of(Control.MOVE, Control.LOOK));
+
+        double angle = (body.getUuid().hashCode() & 0xFFFF) / 65536.0 * Math.PI * 2;
+        this.spreadX = Math.cos(angle) * SPREAD;
+        this.spreadZ = Math.sin(angle) * SPREAD;
     }
 
     @Override
@@ -81,7 +102,8 @@ public class CitizenWorkGoal extends Goal {
         // прошлый путь кончился, а житель так и не дошёл — застрял на углу.
         if (changed || body.getNavigation().isIdle()) {
             target = next;
-            body.getNavigation().startMovingTo(next.getX() + 0.5, next.getY(), next.getZ() + 0.5, SPEED);
+            body.getNavigation().startMovingTo(next.getX() + 0.5 + spreadX, next.getY(),
+                    next.getZ() + 0.5 + spreadZ, SPEED);
         }
         cooldown = REPATH_INTERVAL;
     }

@@ -22,6 +22,7 @@ import net.minecraft.world.World;
 
 import java.util.Optional;
 import java.util.UUID;
+import net.minecraft.entity.ai.pathing.EntityNavigation;
 
 /**
  * Тело жителя.
@@ -61,6 +62,17 @@ public class CitizenEntity extends PathAwareEntity {
                 .add(EntityAttributes.GENERIC_MAX_HEALTH, 20.0)
                 .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.5)
                 .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 32.0);
+    }
+
+    /**
+     * Своя навигация: житель предпочитает идти по дороге.
+     * <p>
+     * Разница видна не сразу, а когда деревня замощена: без неё все
+     * работники ходят одной линией напрямик через газон и толкаются на ней.
+     */
+    @Override
+    protected EntityNavigation createNavigation(World world) {
+        return new CitizenNavigation(this, world);
     }
 
     @Override

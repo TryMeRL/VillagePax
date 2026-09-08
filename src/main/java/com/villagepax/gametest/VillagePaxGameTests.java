@@ -3126,6 +3126,228 @@ public class VillagePaxGameTests implements FabricGameTest {
         context.complete();
     }
 
+    // --- где стоит билдер и кто занял стройку ---
+
+    /**
+     * Билдер стоит на земле рядом со стройкой, а не лезет на неё.
+     * <p>
+     * Стоя на недоделанной стене, он ломает себе путь: навигация ведёт вниз,
+     * решение гонит наверх, и он топчется. Именно это игрок видит как
+     * «путь сбивается».
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "stand")
+    public void builderStandsOnTheGroundBesideTheSite(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+        Vec3i size = housePlan.size();
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+        List<BlockPos> platform = new ArrayList<>();
+
+        try {
+            // Земля вокруг стройки: в пустоте стоять негде, и билдеру
+            // пришлось бы залезть на саму стройку.
+            for (int dx = -4; dx < size.getX() + 4; dx++) {
+                for (int dz = -4; dz < size.getZ() + 4; dz++) {
+                    BlockPos ground = anchor.add(dx, -1, dz);
+                    if (world.getBlockState(ground).isAir()) {
+                        world.setBlockState(ground, Blocks.DIRT.getDefaultState());
+                        platform.add(ground);
+                    }
+                }
+            }
+
+            stockFor(world, colony, housePlan);
+            // Часть стен уже стоит: раньше билдер лез именно на них.
+            BuildJob.advance(world, manager, colony.id(), site.id(), 60);
+
+            Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, anchor.add(-3, 0, -3));
+            runWork(world, manager, colony, mason, 1, Schedule.MORNING_WORK);
+
+            CitizenEntity body = (CitizenEntity) world.getEntity(mason.entityUuid().orElseThrow());
+            BlockPos stand = body.workTarget();
+
+            if (stand == null) {
+                context.throwGameTestException("Билдер не выбрал, где встать");
+            }
+            if (!world.getBlockState(stand.down()).isSolidBlock(world, stand.down())) {
+                context.throwGameTestException("Под ногами билдера не твёрдый блок: "
+                        + world.getBlockState(stand.down()).getBlock());
+            }
+            if (stand.getY() > anchor.getY() + 2) {
+                context.throwGameTestException("Билдер полез наверх: стоит на "
+                        + (stand.getY() - anchor.getY()) + " блока выше земли стройки");
+            }
+
+            boolean insideFootprint = stand.getX() >= anchor.getX()
+                    && stand.getX() < anchor.getX() + size.getX()
+                    && stand.getZ() >= anchor.getZ()
+                    && stand.getZ() < anchor.getZ() + size.getZ();
+            if (insideFootprint) {
+                context.throwGameTestException("Билдер встал внутрь следа здания "
+                        + stand.toShortString() + ", хотя снаружи есть земля");
+            }
+        } finally {
+            demolish(world, site, housePlan);
+            for (BlockPos ground : platform) {
+                world.setBlockState(ground, Blocks.AIR.getDefaultState());
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Одна стройка — один билдер. Второй за неё не берётся.
+     * <p>
+     * Иначе оба идут к одному блоку и толкаются на нём: путь у каждого
+     * сбивается о соседа, никто не доходит, стройка встаёт. Игрок сообщает
+     * об этом как «работники повисли».
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "stand")
+    public void secondBuilderLeavesAClaimedSiteAlone(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, housePlan);
+
+            Citizen first = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+            Citizen second = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+
+            runWork(world, manager, colony, first, 1, Schedule.MORNING_WORK);
+            if (first.jobState().building().filter(site.id()::equals).isEmpty()) {
+                context.throwGameTestException("Первый билдер не взялся за стройку");
+            }
+
+            runWork(world, manager, colony, second, 1, Schedule.MORNING_WORK);
+            if (!second.jobState().isIdle()) {
+                context.throwGameTestException("Второй билдер взялся за занятую стройку: "
+                        + second.jobState().phase().id());
+            }
+
+            CitizenEntity idle = (CitizenEntity) world.getEntity(second.entityUuid().orElseThrow());
+            if (idle.workTarget() != null) {
+                context.throwGameTestException("Праздный билдер всё равно идёт на стройку");
+            }
+
+            // Первый отпустил работу — стройка снова свободна.
+            first.setJobState(JobState.IDLE);
+            runWork(world, manager, colony, second, 1, Schedule.MORNING_WORK);
+            if (second.jobState().building().filter(site.id()::equals).isEmpty()) {
+                context.throwGameTestException("Освободившуюся стройку никто не взял");
+            }
+        } finally {
+            demolish(world, site, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- дорога под ногами ---
+
+    /**
+     * Житель предпочитает идти по дороге, а не напрямик через газон.
+     * <p>
+     * Проверяется сравнением: одна и та же местность с мостовой и без неё.
+     * Без сравнения тест ничего не значил бы — путь и так мог бы случайно
+     * лежать на нужном ряду.
+     * <p>
+     * Что считать дорогой, решает тег {@code villagepax:preferred_path}:
+     * этот тест заодно проверяет, что тег вообще доехал до датапака.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "road")
+    public void citizenPrefersThePavedRoute(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos corner = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        List<BlockPos> ground = new ArrayList<>();
+
+        try {
+            // Луг три блока в ширину и тринадцать в длину.
+            for (int x = 0; x < 13; x++) {
+                for (int z = 0; z < 3; z++) {
+                    BlockPos at = corner.add(x, 0, z);
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    ground.add(at);
+                }
+            }
+
+            BlockPos from = corner.add(0, 1, 0);
+            BlockPos to = corner.add(12, 1, 0);
+
+            Citizen walker = hireWithBody(world, colony, HaulJob.COURIER, from);
+            CitizenEntity body = (CitizenEntity) world.getEntity(walker.entityUuid().orElseThrow());
+            body.setOnGround(true);
+
+            int overGrass = pavedSteps(world, body, to, corner);
+
+            // Замостим средний ряд — и путь обязан на него перейти.
+            for (int x = 0; x < 13; x++) {
+                world.setBlockState(corner.add(x, 0, 1), Blocks.DIRT_PATH.getDefaultState());
+            }
+            int overRoad = pavedSteps(world, body, to, corner);
+
+            if (overRoad <= overGrass) {
+                context.throwGameTestException("Дорога ничего не изменила: шагов по среднему ряду "
+                        + overRoad + " с мостовой и " + overGrass + " без неё");
+            }
+            if (overRoad < 6) {
+                context.throwGameTestException("По мостовой прошли всего " + overRoad
+                        + " шагов из тринадцати — надбавка за бездорожье не работает");
+            }
+        } finally {
+            for (BlockPos at : ground) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Сколько шагов пути легло на средний ряд — тот, который мостят. */
+    private static int pavedSteps(ServerWorld world, CitizenEntity body, BlockPos to,
+                                  BlockPos corner) {
+        body.getNavigation().stop();
+        Path path = body.getNavigation().findPathTo(to, 0);
+        if (path == null) {
+            return 0;
+        }
+
+        int steps = 0;
+        for (int index = 0; index < path.getLength(); index++) {
+            if (path.getNode(index).getBlockPos().getZ() == corner.getZ() + 1) {
+                steps++;
+            }
+        }
+        return steps;
+    }
+
     // --- калитки в ограде ---
 
     /**

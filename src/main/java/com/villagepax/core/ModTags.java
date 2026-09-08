@@ -33,6 +33,17 @@ public final class ModTags {
     public static final TagKey<Item> CITIZEN_FOOD = TagKey.of(
             RegistryKeys.ITEM, new Identifier(VillagePax.MOD_ID, "citizen_food"));
 
+    /**
+     * По чему жителю приятнее идти.
+     * <p>
+     * Ванильный поиск пути не различает траву и мостовую, поэтому все
+     * работники колонии идут одной линией напрямик и толкаются. С этим тегом
+     * шаг вне дороги стоит чуть дороже, и путь сам ложится на мощёную улицу —
+     * а какие блоки считать улицей, решает датапак.
+     */
+    public static final TagKey<Block> PREFERRED_PATH = TagKey.of(
+            RegistryKeys.BLOCK, new Identifier(VillagePax.MOD_ID, "preferred_path"));
+
     private ModTags() {
     }
 }

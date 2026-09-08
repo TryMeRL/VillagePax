@@ -63,6 +63,12 @@ public final class BuildJob {
      */
     public static final double WORK_REACH = 4.5;
 
+    /**
+     * И насколько выше или ниже себя. Больше горизонтальной руки намеренно:
+     * иначе билдеру пришлось бы залезать на собственную стройку.
+     */
+    public static final double WORK_HEIGHT = 6.0;
+
     /** Профессия, без которой стройка не идёт. Данными станет в задаче 1.9. */
     public static final Identifier BUILDER = new Identifier(VillagePax.MOD_ID, "builder");
 
@@ -342,8 +348,46 @@ public final class BuildJob {
 
     /** {@code null} снимает ограничение — так стройку гоняют тесты и отладка. */
     private static boolean isTooFar(Vec3d workFrom, BlockPos target) {
-        return workFrom != null
-                && workFrom.squaredDistanceTo(Vec3d.ofCenter(target)) > WORK_REACH * WORK_REACH;
+        return workFrom != null && !withinReach(workFrom, target);
+    }
+
+    /**
+     * Дотягивается ли работник до блока, стоя вот здесь.
+     * <p>
+     * По горизонтали — длина руки, по вертикали — заметно больше. Разделение
+     * не косметическое: с общим шаровым радиусом билдер обязан <b>залезть
+     * на стройку</b>, чтобы доложить второй ряд стены, а стоя на недоделанной
+     * стене он ломает себе путь — навигация ведёт его вниз, решение гонит
+     * наверх, и он топчется на месте. Стоя на земле у стены, он выкладывает
+     * её всю, и это ещё и выглядит как работа, а не как лазание.
+     */
+    public static boolean withinReach(Vec3d workFrom, BlockPos target) {
+        Vec3d centre = Vec3d.ofCenter(target);
+        double dx = workFrom.x - centre.x;
+        double dz = workFrom.z - centre.z;
+
+        return dx * dx + dz * dz <= WORK_REACH * WORK_REACH
+                && Math.abs(workFrom.y - centre.y) <= WORK_HEIGHT;
+    }
+
+    public static boolean withinReach(BlockPos standing, BlockPos target) {
+        return withinReach(Vec3d.ofBottomCenter(standing), target);
+    }
+
+    /**
+     * То же, но с запасом: место для работы выбирается так, чтобы житель
+     * дотянулся, даже подойдя к нему не в упор. К цели он подходит со своей
+     * стороны — иначе работники толкаются на одном блоке.
+     */
+    public static boolean withinReach(BlockPos standing, BlockPos target, double margin) {
+        Vec3d centre = Vec3d.ofCenter(target);
+        Vec3d from = Vec3d.ofBottomCenter(standing);
+        double dx = from.x - centre.x;
+        double dz = from.z - centre.z;
+        double reach = Math.max(0.0, WORK_REACH - margin);
+
+        return dx * dx + dz * dz <= reach * reach
+                && Math.abs(from.y - centre.y) <= WORK_HEIGHT;
     }
 
     /**

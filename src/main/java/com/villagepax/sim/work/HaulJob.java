@@ -113,6 +113,12 @@ public final class HaulJob implements Job {
             if (!BuildJob.isUnderConstruction(site) || BuildJob.storageIsNearby(warehouse, site)) {
                 continue;
             }
+            // Одна заявка — один курьер. Иначе двое несут одно и то же,
+            // второй приходит с грузом, который уже не нужен, и уносит его
+            // назад; а по дороге они толкаются на одной тропе.
+            if (Claims.takenByAnother(context.settlement(), context.citizen(), site.id())) {
+                continue;
+            }
             if (shortfallCoveredByStorage(context, site, warehouse).isPresent()) {
                 context.setState(JobState.startAt(site.id(), JobState.Phase.TO_STORAGE));
                 return;

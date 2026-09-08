@@ -9,6 +9,8 @@ import com.villagepax.client.hologram.HologramKeys;
 import com.villagepax.client.hologram.HologramRenderer;
 import com.villagepax.client.hologram.Placement;
 import com.villagepax.client.screen.TownHallScreen;
+import com.villagepax.screen.ColonyMap;
+import com.villagepax.screen.ColonyNet;
 import com.villagepax.screen.GhostPlan;
 import com.villagepax.screen.TownHallNet;
 import com.villagepax.screen.TownHallScreens;
@@ -32,6 +34,8 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 
+import java.util.Optional;
+
 public class VillagePaxClient implements ClientModInitializer {
 
     @Override
@@ -41,8 +45,27 @@ public class VillagePaxClient implements ClientModInitializer {
         EntityRendererRegistry.register(ModEntities.CITIZEN, CitizenEntityRenderer::new);
         HandledScreens.register(TownHallScreens.TOWN_HALL, TownHallScreen::new);
         registerViewUpdates();
+        registerColonyMap();
         registerHologram();
         registerTooltips();
+    }
+
+    /**
+     * Карта колонии: подписи над зданиями и граница владений.
+     * <p>
+     * Своё событие отрисовки, а не общее с голограммой: одно из двух может
+     * понадобиться выключить настройкой, и разделять их тогда будет негде.
+     */
+    private static void registerColonyMap() {
+        ClientPlayNetworking.registerGlobalReceiver(ColonyNet.MAP,
+                (client, handler, buf, sender) -> {
+                    Optional<ColonyMap> map = ColonyNet.read(buf);
+                    client.execute(() -> map.ifPresent(fresh -> ColonyRenderer.accept(fresh,
+                            client.world == null ? 0L : client.world.getTime())));
+                });
+
+        WorldRenderEvents.AFTER_ENTITIES.register(ColonyRenderer::render);
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ColonyRenderer.forget());
     }
 
     /**

@@ -8,6 +8,7 @@ import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.entity.ModEntities;
 import com.villagepax.command.BuildCommand;
 import com.villagepax.item.ModItems;
+import com.villagepax.screen.ColonyNet;
 import com.villagepax.screen.TownHallNet;
 import com.villagepax.screen.TownHallScreens;
 import com.villagepax.sim.build.SchematicLoader;
@@ -36,6 +37,7 @@ public class VillagePax implements ModInitializer {
         BuildCommand.register();
         TownHallScreens.init();
         TownHallNet.registerServer();
+        ColonyNet.register();
 
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
                 .registerReloadListener(new CultureManager());

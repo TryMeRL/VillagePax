@@ -49,6 +49,8 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
 import com.villagepax.core.ModTags;
+import com.villagepax.screen.ColonyMap;
+import com.villagepax.screen.ColonyNet;
 import net.minecraft.text.Text;
 import net.minecraft.text.TranslatableTextContent;
 import com.villagepax.sim.build.BuildCategory;
@@ -4170,6 +4172,75 @@ public class VillagePaxGameTests implements FabricGameTest {
                         + plain);
             }
         } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- карта колонии ---
+
+    /**
+     * Подпись здания висит над его крышей, а не внутри дома.
+     * <p>
+     * Место подписи считает сервер, потому что размер здания знает схема,
+     * а схем у клиента нет. Ошибись здесь — и надпись окажется в стене,
+     * где её не видно, или в небе, где непонятно, чья она.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "labels")
+    public void colonySignsHangOverTheRoofs(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building house = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            ColonyMap map = ColonyNet.mapOf(colony);
+
+            if (!map.id().equals(colony.id()) || !map.name().equals(colony.name())) {
+                context.throwGameTestException("Карта не про эту колонию: " + map.name());
+            }
+            if (map.radius() != colony.level().claimRadiusChunks()) {
+                context.throwGameTestException("Радиус владений на карте " + map.radius()
+                        + ", а у колонии " + colony.level().claimRadiusChunks());
+            }
+            if (map.signs().size() != 1) {
+                context.throwGameTestException("Подписей " + map.signs().size()
+                        + ", а здание одно");
+            }
+
+            ColonyMap.Sign sign = map.signs().get(0);
+            if (sign.done()) {
+                context.throwGameTestException("Размеченный дом объявлен готовым");
+            }
+
+            // Ровно на высоту схемы над якорем и по её середине.
+            BlockPos expected = anchor.add(housePlan.size().getX() / 2, housePlan.size().getY(),
+                    housePlan.size().getZ() / 2);
+            if (!sign.at().equals(expected)) {
+                context.throwGameTestException("Подпись висит на " + sign.at().toShortString()
+                        + ", а крыша кончается на " + expected.toShortString());
+            }
+            if (sign.at().getY() <= anchor.getY()) {
+                context.throwGameTestException("Подпись оказалась не выше основания дома");
+            }
+
+            // Достроили — подпись перестаёт говорить «строится».
+            stockFor(world, colony, housePlan);
+            BuildJob.advance(world, manager, colony.id(), house.id(), 10_000);
+
+            if (!ColonyNet.mapOf(colony).signs().get(0).done()) {
+                context.throwGameTestException("Дом готов, а подпись всё ещё про стройку");
+            }
+        } finally {
+            demolish(world, house, housePlan);
             discardBodies(world, colony);
             manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());

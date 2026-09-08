@@ -8,13 +8,17 @@ import com.villagepax.sim.build.SchematicLoader;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.registry.Registries;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.ItemScatterer;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -180,6 +184,28 @@ public final class Warehouse {
             return Optional.of(item);
         }
         return Optional.empty();
+    }
+
+    /**
+     * Что лежит на складе, поимённо.
+     * <p>
+     * Нужно экрану ратуши: показать содержимое всех сундуков колонии одним
+     * списком. Счётчик здесь — снимок для показа, а не второй источник
+     * правды: правда по-прежнему в сундуках, и снимок живёт один кадр.
+     */
+    public ItemTally tally() {
+        Map<Identifier, Integer> counted = new LinkedHashMap<>();
+
+        for (Container container : containers) {
+            Inventory inventory = container.inventory();
+            for (int slot = 0; slot < inventory.size(); slot++) {
+                ItemStack stack = inventory.getStack(slot);
+                if (!stack.isEmpty()) {
+                    counted.merge(Registries.ITEM.getId(stack.getItem()), stack.getCount(), Integer::sum);
+                }
+            }
+        }
+        return new ItemTally(counted);
     }
 
     public int count(Item item) {

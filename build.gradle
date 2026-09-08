@@ -36,6 +36,10 @@ repositories {
         name = 'Fabric'
         url = 'https://maven.fabricmc.net/'
     }
+    maven {
+        name = 'Wisp Forest'
+        url = 'https://maven.wispforest.io/releases/'
+    }
     mavenCentral()
 }
 
@@ -44,6 +48,15 @@ dependencies {
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    // owo-lib — зависимость времени исполнения, а не jar-in-jar: так советует
+    // сама библиотека, и две её копии в одной сборке стоят дороже одного
+    // пункта в списке установки.
+    //
+    // owo-sentinel (окно «поставь библиотеку» вместо стека вызовов) не
+    // вкладывается: под 1.20.1 у него нет выпуска, только предрелизы, а
+    // загрузчик Fabric и без него показывает внятный экран по depends.
+    modImplementation "io.wispforest:owo-lib:${project.owo_version}"
 
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'

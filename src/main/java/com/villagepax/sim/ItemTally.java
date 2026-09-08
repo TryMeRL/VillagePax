@@ -101,4 +101,33 @@ public class ItemTally {
     public int total() {
         return items.values().stream().mapToInt(Integer::intValue).sum();
     }
+
+    /**
+     * Равенство по содержимому, а не по ссылке.
+     * <p>
+     * Нужно снимку колонии для экрана ратуши: тот сравнивается целиком,
+     * чтобы не гнать по сети то, что не менялось. Со сравнением по ссылке
+     * «изменилось» было бы всегда, и вся экономия исчезла бы молча —
+     * именно на этом и попался первый вариант.
+     * <p>
+     * Пустые записи в счётчике не хранятся, поэтому равенство карт —
+     * это в точности равенство запасов.
+     */
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        return other instanceof ItemTally tally && items.equals(tally.items);
+    }
+
+    @Override
+    public int hashCode() {
+        return items.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return "ItemTally" + items;
+    }
 }

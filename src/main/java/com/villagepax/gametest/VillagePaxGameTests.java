@@ -60,6 +60,10 @@ import com.villagepax.sim.work.FarmJob;
 import com.villagepax.sim.work.GatherJob;
 import com.villagepax.sim.work.Housing;
 import com.villagepax.sim.work.Jobs;
+import com.villagepax.screen.BuildOrders;
+import com.villagepax.screen.Mood;
+import com.villagepax.screen.TownHallView;
+import com.villagepax.sim.work.Assignments;
 import com.villagepax.sim.work.Workplaces;
 import com.villagepax.sim.work.Needs;
 import com.villagepax.sim.work.Schedule;
@@ -2716,6 +2720,295 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
             if (!world.getBlockState(plot.down()).isOf(Blocks.DIRT)) {
                 context.throwGameTestException("Фермер вскопал землю под чужим блоком");
+            }
+        } finally {
+            demolish(world, farm, farmPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- задача 1.10: пульт колонии ---
+
+    /**
+     * Снимок показывает колонию такой, какая она есть.
+     * <p>
+     * Экран не считает ничего сам: свободные кровати, порции еды и запас
+     * дней приходят с сервера готовыми. Поэтому проверять надо именно
+     * снимок — вёрстку owo-ui игровой тест увидеть не может, у него нет
+     * клиента.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "townhall")
+    public void viewShowsTheColonyAsItIs(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building house = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, housePlan);
+            if (BuildJob.advance(world, manager, colony.id(), house.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Дом не достроился");
+            }
+
+            Citizen starving = hireWithBody(world, colony, HaulJob.COURIER, hall.up());
+            starving.setSaturation(0);
+            Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 4));
+            Housing.assignBeds(world, colony);
+
+            TownHallView view = TownHallView.of(world, colony);
+
+            if (!view.name().equals(colony.name()) || !view.culture().equals(NORMAN)) {
+                context.throwGameTestException("Снимок не о той колонии: " + view.name());
+            }
+            if (view.population() != 2 || view.maxCitizens() != colony.level().maxCitizens()) {
+                context.throwGameTestException("Жителей в снимке " + view.population()
+                        + ", в колонии " + colony.population());
+            }
+            if (view.beds() != 2 || view.freeBeds() != 0) {
+                context.throwGameTestException("Кроватей " + view.beds() + ", свободно "
+                        + view.freeBeds() + "; в схеме дома две, и обе заняты");
+            }
+            if (view.containers() != 1) {
+                context.throwGameTestException("Хранилищ " + view.containers()
+                        + ", а стоит одна ратуша");
+            }
+            if (view.meals() != 4) {
+                context.throwGameTestException("Порций еды " + view.meals() + ", завезено четыре");
+            }
+
+            // Четыре хлеба по десять сытости на двоих при суточной трате
+            // восемь — это ровно два дня, и это то число, по которому
+            // игрок решает, ехать ли за едой.
+            int expectedDays = Needs.nourishment(Items.BREAD) * 4 / (Needs.DAILY_COST * 2);
+            if (view.daysOfFood() != expectedDays) {
+                context.throwGameTestException("Запас дней " + view.daysOfFood()
+                        + ", ожидалось " + expectedDays);
+            }
+            if (view.stock().count(Registries.ITEM.getId(Items.BREAD)) != 4) {
+                context.throwGameTestException("Хлеб в снимке склада не найден");
+            }
+
+            if (view.buildings().size() != 1
+                    || view.buildings().get(0).progress() != BuildProgress.DONE) {
+                context.throwGameTestException("Зданий в снимке " + view.buildings().size()
+                        + ", ожидался один готовый дом");
+            }
+            if (view.construction().isPresent()) {
+                context.throwGameTestException("Снимок говорит о стройке, а строить нечего");
+            }
+
+            if (view.citizens().size() != 2) {
+                context.throwGameTestException("Жителей в списке " + view.citizens().size());
+            }
+            TownHallView.CitizenLine hungry = view.citizens().stream()
+                    .filter(line -> line.id().equals(starving.id()))
+                    .findFirst().orElse(null);
+            if (hungry == null || hungry.mood() != Mood.STARVING) {
+                context.throwGameTestException("Голодающий житель показан как "
+                        + (hungry == null ? "никак" : hungry.mood()));
+            }
+            if (!hungry.housed()) {
+                context.throwGameTestException("Житель с кроватью показан бездомным");
+            }
+
+            // Предлагаются только здания своего народа, и все загруженные
+            // схемы норманнов в его списке есть.
+            if (view.offers().size() != SchematicLoader.ids().size()) {
+                context.throwGameTestException("Предложено " + view.offers().size()
+                        + " схем из " + SchematicLoader.ids().size() + " загруженных");
+            }
+        } finally {
+            demolish(world, house, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Снимок называет то, чего не хватает стройке, — с учётом склада.
+     * <p>
+     * Игрок действует по этому списку, и «не хватает» для него значит
+     * «нет ни у стройки, ни в сундуках». Список, считающий только запас
+     * площадки, гнал бы его за материалами, которые уже лежат в ратуше.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "townhall")
+    public void viewNamesWhatTheConstructionLacks(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = plan(colony, anchor, FARM_TYPE, BlockRotation.NONE);
+
+        try {
+            TownHallView empty = TownHallView.of(world, colony);
+            TownHallView.Construction lacking = empty.construction().orElse(null);
+
+            if (lacking == null) {
+                context.throwGameTestException("Размеченная стройка не попала в снимок");
+            }
+            if (!lacking.type().equals(FARM_TYPE) || lacking.step() != 0) {
+                context.throwGameTestException("В снимке не та стройка: " + lacking.type());
+            }
+            if (lacking.steps() != farmPlan.plan().steps().size()) {
+                context.throwGameTestException("Шагов в снимке " + lacking.steps()
+                        + ", в плане " + farmPlan.plan().steps().size());
+            }
+            if (lacking.missing().total() <= 0) {
+                context.throwGameTestException("Пустой склад, а стройке всего хватает");
+            }
+
+            stockFor(world, colony, farmPlan);
+            TownHallView supplied = TownHallView.of(world, colony);
+            TownHallView.Construction enough = supplied.construction().orElseThrow();
+
+            if (enough.missing().total() != 0) {
+                context.throwGameTestException("Материалы на складе, а снимок просит ещё "
+                        + enough.missing().total() + " штук");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Заказ здания отвергает то, что испортило бы мир, и при отказе ничего
+     * не меняет.
+     * <p>
+     * Проверки живут в одном месте на команду и на кнопку экрана: кнопка,
+     * проверяющая меньше команды, была бы дыркой в обход неё.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "townhall")
+    public void orderRefusesWhatWouldBreakTheWorld(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            BuildOrders.Result unknown = BuildOrders.place(manager, colony,
+                    new Identifier("villagepax", "norman/no_such_lvl1"), anchor, BlockRotation.NONE);
+            if (!(unknown instanceof BuildOrders.Result.NoSchematic)) {
+                context.throwGameTestException("Незнакомая схема принята: " + unknown);
+            }
+
+            BlockPos faraway = hall.add(200, 0, 200);
+            BuildOrders.Result outside = BuildOrders.place(manager, colony, HOUSE_SCHEMATIC,
+                    faraway, BlockRotation.NONE);
+            if (!(outside instanceof BuildOrders.Result.OutsideClaim)) {
+                context.throwGameTestException("Стройка за границами колонии принята: " + outside);
+            }
+            if (!colony.buildings().isEmpty()) {
+                context.throwGameTestException("Отказ всё-таки разметил стройку");
+            }
+
+            BuildOrders.Result placed = BuildOrders.place(manager, colony, HOUSE_SCHEMATIC,
+                    anchor, BlockRotation.NONE);
+            if (!(placed instanceof BuildOrders.Result.Placed done)) {
+                context.throwGameTestException("Законный заказ отвергнут: " + placed);
+                return;
+            }
+            if (!done.site().type().equals(HOUSE_TYPE) || done.site().level() != 1) {
+                context.throwGameTestException("Размечено не то: " + done.site().type()
+                        + " ур. " + done.site().level());
+            }
+            if (colony.buildings().size() != 1) {
+                context.throwGameTestException("Зданий в колонии " + colony.buildings().size());
+            }
+
+            BuildOrders.Result clash = BuildOrders.place(manager, colony, HOUSE_SCHEMATIC,
+                    anchor.add(1, 0, 1), BlockRotation.NONE);
+            if (!(clash instanceof BuildOrders.Result.Overlaps)) {
+                context.throwGameTestException("Наложение следов принято: " + clash);
+            }
+            if (colony.buildings().size() != 1) {
+                context.throwGameTestException("Отказ по наложению всё-таки добавил здание");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Смена дела вступает в силу сразу: фермер получает ферму, не дожидаясь
+     * рассвета.
+     * <p>
+     * Решение заказчика — профессии назначаются сами, но игрок вправе
+     * переназначить. Кнопка, действующая только со следующего дня,
+     * выглядела бы сломанной.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "townhall")
+    public void assignmentGivesTheFarmerHisFarmAtOnce(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = plan(colony, anchor, FARM_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, farmPlan);
+            BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000);
+
+            Citizen worker = hireWithBody(world, colony, HaulJob.COURIER, hall.up());
+
+            Assignments.Result done = Assignments.set(world, manager, colony, worker.id(),
+                    Optional.of(FarmJob.FARMER));
+            if (done != Assignments.Result.DONE) {
+                context.throwGameTestException("Смена дела отвергнута: " + done);
+            }
+            if (!worker.profession().orElseThrow().equals(FarmJob.FARMER)) {
+                context.throwGameTestException("Профессия не сменилась: "
+                        + worker.profession().orElse(null));
+            }
+            if (Workplaces.of(colony, worker).map(Building::id).filter(farm.id()::equals).isEmpty()) {
+                context.throwGameTestException("Новому фермеру не досталась ферма — "
+                        + "мастерские раздаются только на смене суток");
+            }
+
+            Assignments.Result unknown = Assignments.set(world, manager, colony, worker.id(),
+                    Optional.of(new Identifier("villagepax", "no_such_profession")));
+            if (unknown != Assignments.Result.NO_SUCH_PROFESSION) {
+                context.throwGameTestException("Несуществующая профессия принята: " + unknown);
+            }
+            if (!worker.profession().orElseThrow().equals(FarmJob.FARMER)) {
+                context.throwGameTestException("Отказ всё-таки сменил профессию");
+            }
+
+            Assignments.Result stranger = Assignments.set(world, manager, colony,
+                    UUID.randomUUID(), Optional.of(FarmJob.FARMER));
+            if (stranger != Assignments.Result.NO_SUCH_CITIZEN) {
+                context.throwGameTestException("Чужой житель принят: " + stranger);
             }
         } finally {
             demolish(world, farm, farmPlan);

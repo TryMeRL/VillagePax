@@ -1,6 +1,8 @@
 package com.villagepax.block;
 
 import com.villagepax.block.entity.TownHallBlockEntity;
+import com.villagepax.screen.TownHallConsole;
+import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
@@ -38,10 +40,14 @@ public class TownHallBlock extends BlockWithEntity {
     }
 
     /**
-     * Правый щелчок открывает хранилище колонии.
+     * Обычный щелчок открывает пульт колонии, Shift — сундук ратуши.
      * <p>
-     * До задачи 1.10 это единственное, что игрок может делать с ратушей, —
-     * и этого достаточно, чтобы билдеру было из чего строить.
+     * Пульт важнее: это единственное окно во всё, что происходит в колонии.
+     * Сундук остаётся начальным хранилищем и тем местом, куда игрок кладёт
+     * материалы, — вкладка склада прямо об этом и говорит.
+     * <p>
+     * Без колонии пульту показывать нечего, и тогда щелчок открывает сундук:
+     * ратуша, поставленная не чертежом, — просто ящик.
      */
     @Override
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player,
@@ -49,11 +55,22 @@ public class TownHallBlock extends BlockWithEntity {
         if (world.isClient) {
             return ActionResult.SUCCESS;
         }
-        if (world.getBlockEntity(pos) instanceof TownHallBlockEntity hall) {
-            player.openHandledScreen(hall);
-            return ActionResult.CONSUME;
+        if (!(world.getBlockEntity(pos) instanceof TownHallBlockEntity hall)) {
+            return ActionResult.PASS;
         }
-        return ActionResult.PASS;
+
+        if (!player.isSneaking() && world instanceof ServerWorld serverWorld) {
+            Settlement colony = hall.settlementId()
+                    .flatMap(id -> SettlementManager.get(serverWorld).byId(id))
+                    .orElse(null);
+            if (colony != null) {
+                player.openHandledScreen(new TownHallConsole(serverWorld, colony, pos));
+                return ActionResult.CONSUME;
+            }
+        }
+
+        player.openHandledScreen(hall);
+        return ActionResult.CONSUME;
     }
 
     /**

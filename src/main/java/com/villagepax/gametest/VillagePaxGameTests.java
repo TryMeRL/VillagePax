@@ -29,6 +29,7 @@ import net.minecraft.item.Items;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.ai.pathing.Path;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.block.CampfireBlock;
 import net.minecraft.block.FenceGateBlock;
 import net.minecraft.block.LeavesBlock;
 import net.minecraft.registry.tag.BlockTags;
@@ -4174,6 +4175,257 @@ public class VillagePaxGameTests implements FabricGameTest {
         } finally {
             discardBodies(world, colony);
             manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- вторые уровни дома и фермы ---
+
+    private static final Identifier HOUSE_LVL2 = new Identifier("villagepax", "norman/house_lvl2");
+    private static final Identifier FARM_LVL2 = new Identifier("villagepax", "norman/farm_lvl2");
+
+    /** Сколько грядок на поле второго уровня: 7x7 минус тюк пугала и колодец. */
+    private static final int BIGGER_FIELD = 47;
+
+    /**
+     * Дом второго уровня: четыре кровати и открытый дымоход.
+     * <p>
+     * Решение заказчика — «больше и красивее». Кровати это «больше»,
+     * а очаг с трубой — то самое «красивее»: дым виден с улицы, и деревня
+     * перестаёт выглядеть макетом.
+     * <p>
+     * Дымоход проверяется <b>по всей высоте</b>, и не зря: колонна проходит
+     * через потолок и три слоя крыши, пробивается кодом, и одна пропущенная
+     * дырка означает дом, который дымит внутрь. Увидеть такое можно было бы
+     * только в игре, стоя рядом.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "levels")
+    public void upgradedHouseSleepsFourAndVentsItsHearth(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic bigger = schematic(context, HOUSE_LVL2);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building house = new Building(UUID.randomUUID(), HOUSE_TYPE, 2, anchor,
+                BlockRotation.NONE, BuildProgress.PLANNED, List.of());
+        colony.addBuilding(house);
+
+        try {
+            stockFor(world, colony, bigger);
+            if (BuildJob.advance(world, manager, colony.id(), house.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Дом второго уровня не достроился");
+            }
+
+            BlockPos hearth = BuildJob.worldPos(house, bigger.size(), new BlockPos(3, 1, 3));
+            BlockState fire = world.getBlockState(hearth);
+            if (!fire.isOf(Blocks.CAMPFIRE) || !fire.get(CampfireBlock.LIT)) {
+                context.throwGameTestException("Очага в доме нет или он потушен: "
+                        + fire.getBlock());
+            }
+
+            for (int y = 2; y < bigger.size().getY(); y++) {
+                BlockPos flue = BuildJob.worldPos(house, bigger.size(), new BlockPos(3, y, 3));
+                if (!world.getBlockState(flue).isAir()) {
+                    context.throwGameTestException("Дымоход закрыт на высоте " + y + ": там "
+                            + world.getBlockState(flue).getBlock());
+                }
+            }
+
+            // Четверо под одной крышей — вдвое против первого уровня.
+            for (int extra = 0; extra < 3; extra++) {
+                Citizen lodger = Citizen.newborn("Жилец", String.valueOf(extra), NORMAN,
+                        Gender.FEMALE);
+                colony.addCitizen(lodger);
+            }
+            Housing.assignBeds(world, colony);
+
+            long housed = colony.citizens().stream().filter(citizen -> !citizen.isHomeless())
+                    .count();
+            if (housed != 4) {
+                context.throwGameTestException("Под крышей устроилось " + housed
+                        + " жителей, а кроватей четыре");
+            }
+
+            // Пятому места нет: кроватей ровно столько, сколько построено.
+            colony.addCitizen(Citizen.newborn("Лишний", "", NORMAN, Gender.MALE));
+            Housing.assignBeds(world, colony);
+            if (colony.citizens().stream().filter(citizen -> !citizen.isHomeless()).count() != 4) {
+                context.throwGameTestException("Кроватей оказалось больше, чем построено");
+            }
+        } finally {
+            demolish(world, house, bigger);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Ферма второго уровня: поле вдвое больше и по-прежнему с калиткой.
+     * <p>
+     * Калитка проверяется настоящим поиском пути, а не наличием блока:
+     * поле без входа — это фермер, который стоит снаружи и не делает
+     * ничего, и ровно так это однажды и было.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "levels")
+    public void biggerFarmIsPlantedAndStillEnterable(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic bigger = schematic(context, FARM_LVL2);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = new Building(UUID.randomUUID(), FARM_TYPE, 2, anchor,
+                BlockRotation.NONE, BuildProgress.PLANNED, List.of());
+        colony.addBuilding(farm);
+
+        BlockPos landing = BuildJob.worldPos(farm, bigger.size(), new BlockPos(-1, 1, 4));
+
+        try {
+            stockFor(world, colony, bigger);
+            if (BuildJob.advance(world, manager, colony.id(), farm.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Ферма второго уровня не достроилась");
+            }
+
+            int planted = 0;
+            for (int x = 1; x <= 7; x++) {
+                for (int z = 1; z <= 7; z++) {
+                    BlockPos plot = BuildJob.worldPos(farm, bigger.size(), new BlockPos(x, 2, z));
+                    if (world.getBlockState(plot).getBlock() instanceof CropBlock) {
+                        planted++;
+                    }
+                }
+            }
+            if (planted != BIGGER_FIELD) {
+                context.throwGameTestException("Засеяно грядок " + planted + ", а ждали "
+                        + BIGGER_FIELD);
+            }
+
+            // Пугало: тюк и тыква на нём.
+            BlockPos straw = BuildJob.worldPos(farm, bigger.size(), new BlockPos(2, 2, 2));
+            BlockPos head = BuildJob.worldPos(farm, bigger.size(), new BlockPos(2, 3, 2));
+            if (!world.getBlockState(straw).isOf(Blocks.HAY_BLOCK)
+                    || !world.getBlockState(head).isOf(Blocks.CARVED_PUMPKIN)) {
+                context.throwGameTestException("Пугала на поле нет: "
+                        + world.getBlockState(straw).getBlock() + " и "
+                        + world.getBlockState(head).getBlock());
+            }
+
+            BlockPos gate = BuildJob.worldPos(farm, bigger.size(), new BlockPos(0, 2, 4));
+            if (!(world.getBlockState(gate).getBlock() instanceof FenceGateBlock)) {
+                context.throwGameTestException("В ограде большого поля нет калитки, стоит "
+                        + world.getBlockState(gate).getBlock());
+            }
+
+            world.setBlockState(landing, Blocks.DIRT.getDefaultState());
+            Citizen farmer = hireWithBody(world, colony, FarmJob.FARMER, landing.up());
+            CitizenEntity body = (CitizenEntity) world.getEntity(farmer.entityUuid().orElseThrow());
+            body.setOnGround(true);
+
+            BlockPos plot = BuildJob.worldPos(farm, bigger.size(), new BlockPos(1, 2, 4));
+            Path through = body.getNavigation().findPathTo(plot, 0);
+            if (through == null || !through.reachesTarget()) {
+                context.throwGameTestException("Фермер не может войти на большое поле: "
+                        + (through == null ? "пути нет вовсе" : "путь не доходит"));
+            }
+        } finally {
+            demolish(world, farm, bigger);
+            world.setBlockState(landing, Blocks.AIR.getDefaultState());
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- вечерний сбор ---
+
+    /**
+     * Вечером житель идёт на площадь, а дойдя — расходится.
+     * <p>
+     * Просьба заказчика про «мелкую жизнь». Досуг был пустым: цель
+     * снималась, работника забирала прогулка, и деревня пустела как раз
+     * в те часы, когда игрок чаще всего дома и смотрит на неё.
+     * <p>
+     * Проверяются три обещания: место у ратуши и на твёрдом; одно и то же
+     * от решения к решению (иначе житель метался бы); отпущенное, когда
+     * дошёл (иначе он стоял бы в строю кругом).
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "evening")
+    public void eveningBringsCitizensToTheSquare(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(8, 9, 8));
+        List<BlockPos> square = new ArrayList<>();
+
+        try {
+            // Площадь: без твёрдой земли стоять негде.
+            for (int x = 0; x <= 16; x++) {
+                for (int z = 0; z <= 16; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    square.add(at);
+                }
+            }
+
+            Settlement colony = colonyWithBuilder(world, manager, hall);
+            Citizen idler = hireWithBody(world, colony, FarmJob.FARMER, hall.up(12));
+            CitizenEntity body = (CitizenEntity) world.getEntity(idler.entityUuid().orElseThrow());
+
+            try {
+                WorkTicker.decide(world, manager, colony, idler, Schedule.LEISURE);
+                BlockPos spot = body.workTarget();
+
+                if (spot == null) {
+                    context.throwGameTestException("Вечером житель никуда не идёт");
+                }
+                double away = Math.max(Math.abs(spot.getX() - hall.getX()),
+                        Math.abs(spot.getZ() - hall.getZ()));
+                if (away > 10) {
+                    context.throwGameTestException("Собрался не у ратуши, а в " + away
+                            + " блоках от неё");
+                }
+                if (!world.getBlockState(spot.down()).isSolidBlock(world, spot.down())) {
+                    context.throwGameTestException("Место сбора висит в воздухе: "
+                            + spot.toShortString());
+                }
+
+                // То же место и на следующем решении: иначе он будет метаться.
+                WorkTicker.decide(world, manager, colony, idler, Schedule.LEISURE);
+                if (!spot.equals(body.workTarget())) {
+                    context.throwGameTestException("Место сбора сменилось за одно решение: было "
+                            + spot.toShortString() + ", стало " + body.workTarget());
+                }
+
+                // Дошёл — цель отпущена, дальше он топчется сам.
+                body.refreshPositionAndAngles(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5,
+                        0f, 0f);
+                WorkTicker.decide(world, manager, colony, idler, Schedule.LEISURE);
+                if (body.workTarget() != null) {
+                    context.throwGameTestException("Пришедший на площадь всё ещё держит цель: "
+                            + body.workTarget());
+                }
+            } finally {
+                discardBodies(world, colony);
+                manager.remove(colony.id());
+            }
+        } finally {
+            for (BlockPos at : square) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
 

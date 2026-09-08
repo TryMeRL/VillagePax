@@ -101,7 +101,6 @@
   "villagepax.screen.upgrade.busy": "%s is still under construction",
   "villagepax.screen.upgrade.no_room": "%s has no room to grow: a neighbouring building is in the way",
   "villagepax.screen.upgrade.gone": "The building is gone",
-  "villagepax.building.norman.town_hall.2": "Norman town hall, second level",
   "villagepax.citizen.label": "%s — %s",
   "villagepax.sign.building": "%s (under construction)",
   "villagepax.sign.level": "%s · lvl %s"

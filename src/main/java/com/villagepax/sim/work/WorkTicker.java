@@ -122,7 +122,7 @@ public final class WorkTicker {
             }
             case LEISURE -> {
                 context.holdNothing();
-                context.body().setWorkTarget(null);
+                gather(context);
             }
             case MEAL -> {
                 if (Needs.isHungry(citizen)) {
@@ -133,6 +133,18 @@ public final class WorkTicker {
             }
             case MORNING_WORK, DAY_WORK -> work(context);
         }
+    }
+
+    /**
+     * Вечерний сбор: житель идёт на площадь, а дойдя — отпускает цель.
+     * <p>
+     * Отпускает намеренно: стоять в строю кругом было бы страннее, чем
+     * расходиться. Без цели его забирает прогулка, и он топчется у ратуши
+     * сам собой — это и есть та жизнь, которой не хватало вечерам.
+     */
+    private static void gather(WorkContext context) {
+        BlockPos spot = Gathering.spot(context.world(), context.settlement(), context.citizen());
+        context.body().setWorkTarget(context.hasArrivedAt(spot) ? null : spot);
     }
 
     /**

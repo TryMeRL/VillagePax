@@ -144,6 +144,14 @@ LEGEND = {
     "s": stairs("south"),
     "e": stairs("east"),
     "w": stairs("west"),
+    # Очаг в середине дома и приметы хозяйства. Костёр не украшение:
+    # его дым идёт вверх по дымоходу и виден с улицы — это та самая
+    # «мелкая жизнь», которой заказчику не хватало. Ванильный поиск пути
+    # считает горящий костёр опасным, так что житель обходит его сам.
+    "c": ("minecraft:campfire", {"facing": "north", "lit": "true",
+                                 "signal_fire": "false", "waterlogged": "false"}),
+    "A": ("minecraft:hay_block", {"axis": "y"}),
+    "p": ("minecraft:carved_pumpkin", {"facing": "south"}),
     "D": ("villagepax:marker_door", {}),
     "K": ("villagepax:marker_workstation", {}),
     "S": ("villagepax:marker_storage", {}),
@@ -181,6 +189,40 @@ def hip_roof(size, levels):
                     row.append("e")
                 else:
                     row.append("P")
+            rows.append("".join(row))
+        layers.append(rows)
+
+    return layers
+
+
+def pad(layers, width, rows):
+    """Дополнить слои пустыми рядами: крыша квадратная, а след — нет."""
+    return [layer + ["." * width] * rows for layer in layers]
+
+
+def punch(layers, x, z, first):
+    """Пробить колонну сквозь слои начиная с `first` — под дымоход.
+
+    Руками это набирать нельзя: колонна проходит через потолок и все
+    слои крыши, и пропущенная дырка означает дом, который дымит внутрь.
+    """
+    for y in range(first, len(layers)):
+        row = list(layers[y][z])
+        row[x] = "."
+        layers[y][z] = "".join(row)
+
+
+def chimney_stack(width, depth, x, z, levels):
+    """Труба над крышей: кольцо камня вокруг пустой колонны."""
+    layers = []
+
+    for _ in range(levels):
+        rows = []
+        for row_z in range(depth):
+            row = []
+            for row_x in range(width):
+                touching = max(abs(row_x - x), abs(row_z - z)) <= 1
+                row.append("M" if touching and (row_x, row_z) != (x, z) else ".")
             rows.append("".join(row))
         layers.append(rows)
 
@@ -444,12 +486,109 @@ NORMAN_FARM = [
      "......."],
 ]
 
+# --- дом норманнов, уровень 2 ---
+
+# Решение заказчика: второй уровень — «больше и красивее». След вырос
+# с 5x5 до 7x7, кроватей стало четыре вместо двух, а в середине комнаты
+# встал очаг с дымоходом наружу.
+#
+# Очаг тут не для тепла: дым из трубы видно с улицы, и деревня перестаёт
+# выглядеть макетом. Он же и повод не расширять след ещё сильнее —
+# улучшение с 5x5 сразу на 7x9 упиралось бы в соседний дом почти всегда,
+# и игрок видел бы один отказ.
+#
+# Дымоход пробивается кодом, а не руками: колонна проходит через потолок
+# и все три слоя крыши, и одна пропущенная дырка — это дом, который дымит
+# внутрь. Такое видно только в игре.
+def _norman_house_2():
+    layers = [
+        # y=0 — булыжный цоколь
+        ["CCCCCCC"] * 7,
+        # y=1 — стены, вход, четыре кровати по стенам и очаг в середине
+        ["BWWDWWB",
+         "Wf...fW",
+         "Wh...hW",
+         "W..c..W",
+         "Wf...fW",
+         "Wh...hW",
+         "BWWWWWB"],
+        # y=2 — второй ряд стен с окнами, проём входа продолжается
+        ["BWG.GWB",
+         "W.....W",
+         "G.....G",
+         "W.....W",
+         "G.....G",
+         "W.....W",
+         "BWGWGWB"],
+        # y=3 — обвязка и настил под крышей
+        ["HHHHHHH",
+         "ZPPPPPZ",
+         "ZPPPPPZ",
+         "ZPPPPPZ",
+         "ZPPPPPZ",
+         "ZPPPPPZ",
+         "HHHHHHH"],
+    ]
+    layers += hip_roof(7, 3)
+    layers += chimney_stack(7, 7, 3, 3, 2)
+    punch(layers, 3, 3, 2)
+    return layers
+
+
+NORMAN_HOUSE_2 = _norman_house_2()
+
+# --- ферма норманнов, уровень 2 ---
+
+# Поле выросло с 5x5 грядок до 7x7, и колодец в середине по-прежнему
+# поливает всё: ванильная влажность добирает четыре блока, а от середины
+# до дальней грядки их три.
+#
+# Пугало — соломенный тюк с резной тыквой. От ворон оно в Minecraft не
+# спасает и спасать не должно: это примета живого хозяйства, из того же
+# ряда, что дым из трубы.
+NORMAN_FARM_2 = [
+    # y=0 — земляное основание под всем полем, чтобы вода не ушла вниз
+    ["ddddddddd"] * 9,
+    # y=1 — грядки и колодец в середине
+    ["ddddddddd",
+     "dFFFFFFFd",
+     "dFFFFFFFd",
+     "dFFFFFFFd",
+     "dFFF~FFFd",
+     "dFFFFFFFd",
+     "dFFFFFFFd",
+     "dFFFFFFFd",
+     "ddddddddd"],
+    # y=2 — ограда с калиткой, морковные грядки и соломенный тюк пугала
+    ["qqqqqqqqq",
+     "q*******q",
+     "q*A*****q",
+     "q*******q",
+     "g***.***q",
+     "q*******q",
+     "q*******q",
+     "q*******q",
+     "qqqqqqqqq"],
+    # y=3 — тыква пугала и место фермера над колодцем
+    [".........",
+     ".........",
+     "..p......",
+     ".........",
+     "....K....",
+     ".........",
+     ".........",
+     ".........",
+     "........."],
+]
+
 SCHEMATICS = {
     "norman/town_hall_lvl1": NORMAN_TOWN_HALL,
     "norman/town_hall_lvl2": NORMAN_TOWN_HALL_2,
     "norman/house_lvl1": NORMAN_HOUSE,
+    "norman/house_lvl2": NORMAN_HOUSE_2,
     "norman/lumberjack_lvl1": NORMAN_LUMBERJACK,
     "norman/farm_lvl1": NORMAN_FARM,
+    "norman/farm_lvl2": NORMAN_FARM_2,
 }
 
 

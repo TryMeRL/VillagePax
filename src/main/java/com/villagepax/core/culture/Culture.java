@@ -17,6 +17,7 @@ import java.util.Optional;
  * @param spawn              где размечать деревни этой культуры
  * @param namePools          имена жителей и поселений
  * @param buildings          доступные типы зданий
+ * @param road               чем этот народ мостит улицы, в порядке предпочтения
  * @param traits             модификаторы поведения: подземная застройка, террасные фермы и прочее
  * @param diplomacyDefaults  стартовое отношение к другим народам
  */
@@ -26,9 +27,20 @@ public record Culture(
         SpawnSettings spawn,
         NamePools namePools,
         List<Identifier> buildings,
+        List<Identifier> road,
         List<Identifier> traits,
         Map<Identifier, Integer> diplomacyDefaults
 ) {
+
+    /**
+     * Народ без своей мостовой. Улицы у него всё равно появятся — билдер
+     * натопчет тропу, для неё материал не нужен.
+     */
+    public Culture(String displayName, CultureKind kind, SpawnSettings spawn, NamePools namePools,
+                   List<Identifier> buildings, List<Identifier> traits,
+                   Map<Identifier, Integer> diplomacyDefaults) {
+        this(displayName, kind, spawn, namePools, buildings, List.of(), traits, diplomacyDefaults);
+    }
 
     public static final Codec<Culture> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.STRING.fieldOf("display_name").forGetter(Culture::displayName),
@@ -37,6 +49,7 @@ public record Culture(
             NamePools.CODEC.optionalFieldOf("name_pools", new NamePools(List.of(), List.of(), List.of()))
                     .forGetter(Culture::namePools),
             Identifier.CODEC.listOf().optionalFieldOf("buildings", List.of()).forGetter(Culture::buildings),
+            Identifier.CODEC.listOf().optionalFieldOf("road", List.of()).forGetter(Culture::road),
             Identifier.CODEC.listOf().optionalFieldOf("traits", List.of()).forGetter(Culture::traits),
             Codec.unboundedMap(Identifier.CODEC, Codec.INT).optionalFieldOf("diplomacy_defaults", Map.of())
                     .forGetter(Culture::diplomacyDefaults)

@@ -84,6 +84,7 @@ import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Materials;
+import com.villagepax.sim.build.Roads;
 import com.villagepax.sim.work.BuilderJob;
 import net.minecraft.state.property.Properties;
 import net.minecraft.util.math.Direction;
@@ -4119,6 +4120,262 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
 
         context.complete();
+    }
+
+    // --- улицы колонии ---
+
+    /**
+     * Улица от двери дома к ратуше: те самые восемь тайлов, которые кладёт
+     * {@code Roads}, посчитанные по той же линии вручную.
+     * <p>
+     * Проверять точные места, а не «сколько-нибудь замостил», намеренно:
+     * улица обязана быть <b>непрерывной</b> от двери до площади. Дорожка
+     * с провалами не помогает поиску пути и выглядит хуже, чем её
+     * отсутствие.
+     */
+    private static final int[][] STREET = {
+            {9, 2}, {8, 2}, {7, 2}, {6, 2}, {5, 2}, {4, 2}, {3, 1}, {2, 1}
+    };
+
+    /** Место ратуши и якорь дома, между которыми ляжет улица. */
+    private static final BlockPos STREET_HALL = new BlockPos(1, 9, 1);
+    private static final BlockPos STREET_HOUSE = new BlockPos(10, 9, 3);
+
+    /** Высота газона: улица ложится на него, дом стоит на нём же. */
+    private static final int LAWN = 8;
+
+    /**
+     * Билдер сам мостит улицу от готового дома к ратуше.
+     * <p>
+     * Решение заказчика: деревня должна становиться деревней, а не набором
+     * домов на траве. Приказа игрока на это нет — билдер берётся за улицу,
+     * когда строить больше нечего.
+     * <p>
+     * Материала на складе нет, поэтому улица получается натоптанной тропой:
+     * она ничего не стоит, ровно как удар лопатой по траве у игрока. Так
+     * улицы появляются и у самой бедной колонии — иначе игрок не увидел бы
+     * этой работы вовсе.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "streets")
+    public void builderPavesAStreetToTheTownHall(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(STREET_HALL);
+        List<BlockPos> lawn = lawn(world, context);
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building house = plan(colony, context.getAbsolutePos(STREET_HOUSE), HOUSE_TYPE,
+                BlockRotation.NONE);
+
+        try {
+            raiseHouse(context, world, manager, colony, house, housePlan);
+
+            Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+            CitizenEntity body = (CitizenEntity) world.getEntity(mason.entityUuid().orElseThrow());
+
+            // Три решения: найти дело, дойти, положить первый тайл.
+            runWork(world, manager, colony, mason, 3, Schedule.MORNING_WORK);
+            if (!body.getMainHandStack().isOf(Items.IRON_SHOVEL)) {
+                context.throwGameTestException("Билдер топчет тропу без лопаты в руке: "
+                        + body.getMainHandStack());
+            }
+
+            runWork(world, manager, colony, mason, 20, Schedule.MORNING_WORK);
+
+            for (int[] tile : STREET) {
+                BlockState state = world.getBlockState(streetTile(context, tile));
+                if (!state.isOf(Blocks.DIRT_PATH)) {
+                    context.throwGameTestException("Улица прервалась на " + tile[0] + "," + tile[1]
+                            + ": там " + state.getBlock());
+                }
+                if (!state.isIn(ModTags.PREFERRED_PATH)) {
+                    context.throwGameTestException("Замощённое не считается дорогой — "
+                            + "поиск пути по такой улице жителей не поведёт");
+                }
+            }
+
+            int paved = 0;
+            for (BlockPos at : lawn) {
+                if (world.getBlockState(at).isOf(Blocks.DIRT_PATH)) {
+                    paved++;
+                }
+            }
+            if (paved != STREET.length) {
+                context.throwGameTestException("Замощено тайлов " + paved + ", а улица должна "
+                        + "быть шириной в один: ждали " + STREET.length);
+            }
+        } finally {
+            clearStreet(world, house, housePlan, lawn);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Улица берёт только излишки материала.
+     * <p>
+     * Без этого правила дорожка молча съедала бы булыжник, отложенный
+     * игроком на цоколь следующего дома, — и он не понял бы, куда девается
+     * камень. Здесь гравия ровно на один тайл больше запаса: улица кладёт
+     * одну плиту и переходит на бесплатную тропу.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "streets")
+    public void streetTakesOnlySurplusMaterial(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(STREET_HALL);
+        List<BlockPos> lawn = lawn(world, context);
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building house = plan(colony, context.getAbsolutePos(STREET_HOUSE), HOUSE_TYPE,
+                BlockRotation.NONE);
+
+        try {
+            raiseHouse(context, world, manager, colony, house, housePlan);
+
+            ItemStack over = Warehouse.of(world, colony)
+                    .add(new ItemStack(Items.GRAVEL, Roads.RESERVE + 1));
+            if (!over.isEmpty()) {
+                context.throwGameTestException("Склад не принял гравий: " + over);
+            }
+
+            Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+            runWork(world, manager, colony, mason, 24, Schedule.MORNING_WORK);
+
+            BlockState first = world.getBlockState(streetTile(context, STREET[0]));
+            if (!first.isOf(Blocks.GRAVEL)) {
+                context.throwGameTestException("Излишек гравия не пошёл в мостовую: у двери "
+                        + first.getBlock());
+            }
+
+            int left = Warehouse.of(world, colony).count(Items.GRAVEL);
+            if (left != Roads.RESERVE) {
+                context.throwGameTestException("Запас тронут: гравия осталось " + left
+                        + " вместо " + Roads.RESERVE);
+            }
+
+            for (int index = 1; index < STREET.length; index++) {
+                BlockState state = world.getBlockState(streetTile(context, STREET[index]));
+                if (!state.isOf(Blocks.DIRT_PATH)) {
+                    context.throwGameTestException("Материал кончился, а улица встала: на "
+                            + STREET[index][0] + "," + STREET[index][1] + " лежит "
+                            + state.getBlock());
+                }
+            }
+        } finally {
+            clearStreet(world, house, housePlan, lawn);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Чужого улица не трогает: ни дорожки игрока, ни грядки.
+     * <p>
+     * То же правило, по которому фермер не считает своими посадки игрока.
+     * Мостить билдер вправе только натуральный грунт: увидел кварц или
+     * пашню — обошёл и пошёл дальше, а не встал и не перекопал.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "streets")
+    public void streetLeavesPlayerBlocksAndFieldsAlone(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(STREET_HALL);
+        List<BlockPos> lawn = lawn(world, context);
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building house = plan(colony, context.getAbsolutePos(STREET_HOUSE), HOUSE_TYPE,
+                BlockRotation.NONE);
+
+        // Прямо на будущей улице: своя дорожка игрока и его грядка.
+        BlockPos mine = streetTile(context, STREET[2]);
+        BlockPos field = streetTile(context, STREET[4]);
+
+        try {
+            raiseHouse(context, world, manager, colony, house, housePlan);
+            world.setBlockState(mine, Blocks.QUARTZ_BLOCK.getDefaultState());
+            world.setBlockState(field, Blocks.FARMLAND.getDefaultState());
+
+            Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+            runWork(world, manager, colony, mason, 24, Schedule.MORNING_WORK);
+
+            if (!world.getBlockState(mine).isOf(Blocks.QUARTZ_BLOCK)) {
+                context.throwGameTestException("Улица перекопала дорожку игрока: теперь там "
+                        + world.getBlockState(mine).getBlock());
+            }
+            if (!world.getBlockState(field).isOf(Blocks.FARMLAND)) {
+                context.throwGameTestException("Улица прошла по грядке: теперь там "
+                        + world.getBlockState(field).getBlock());
+            }
+
+            // А вокруг чужого улица всё-таки легла: обошла, а не встала.
+            for (int index = 0; index < STREET.length; index++) {
+                if (index == 2 || index == 4) {
+                    continue;
+                }
+                BlockState state = world.getBlockState(streetTile(context, STREET[index]));
+                if (!state.isOf(Blocks.DIRT_PATH)) {
+                    context.throwGameTestException("Улица встала перед чужим блоком: на "
+                            + STREET[index][0] + "," + STREET[index][1] + " лежит "
+                            + state.getBlock());
+                }
+            }
+        } finally {
+            clearStreet(world, house, housePlan, lawn);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Ровный газон под колонию: улице надо по чему идти. */
+    private static List<BlockPos> lawn(ServerWorld world, TestContext context) {
+        List<BlockPos> laid = new ArrayList<>();
+
+        for (int x = 0; x <= 14; x++) {
+            for (int z = 0; z <= 4; z++) {
+                BlockPos at = context.getAbsolutePos(new BlockPos(x, LAWN, z));
+                world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                laid.add(at);
+            }
+        }
+        return laid;
+    }
+
+    private static BlockPos streetTile(TestContext context, int[] tile) {
+        return context.getAbsolutePos(new BlockPos(tile[0], LAWN, tile[1]));
+    }
+
+    /** Дом строится разом: улицу мостят от <b>готового</b> здания. */
+    private static void raiseHouse(TestContext context, ServerWorld world, SettlementManager manager,
+                                   Settlement colony, Building house, Schematic housePlan) {
+        stockFor(world, colony, housePlan);
+        if (BuildJob.advance(world, manager, colony.id(), house.id(), 10_000)
+                != BuildJob.Outcome.FINISHED) {
+            context.throwGameTestException("Дом не достроился, мостить нечего");
+        }
+    }
+
+    private static void clearStreet(ServerWorld world, Building house, Schematic housePlan,
+                                    List<BlockPos> lawn) {
+        demolish(world, house, housePlan);
+        for (BlockPos at : lawn) {
+            world.setBlockState(at, Blocks.AIR.getDefaultState());
+        }
     }
 
     // --- помощники задачи 1.8 ---

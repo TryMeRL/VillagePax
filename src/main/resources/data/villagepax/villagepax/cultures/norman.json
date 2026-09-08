@@ -7,9 +7,31 @@
     "min_distance_chunks": 48
   },
   "name_pools": {
-    "male": ["Rollo", "Guillaume", "Thibault", "Bertrand", "Aubert", "Ancel", "Foulques"],
-    "female": ["Adelise", "Mahaut", "Sibylle", "Aveline", "Emmeline", "Richilde"],
-    "settlement": ["Beauvoir", "Roquemont", "Valberge", "Sainte-Ombre", "Fontenay", "Clairbois"]
+    "male": [
+      "Rollo",
+      "Guillaume",
+      "Thibault",
+      "Bertrand",
+      "Aubert",
+      "Ancel",
+      "Foulques"
+    ],
+    "female": [
+      "Adelise",
+      "Mahaut",
+      "Sibylle",
+      "Aveline",
+      "Emmeline",
+      "Richilde"
+    ],
+    "settlement": [
+      "Beauvoir",
+      "Roquemont",
+      "Valberge",
+      "Sainte-Ombre",
+      "Fontenay",
+      "Clairbois"
+    ]
   },
   "buildings": [
     "villagepax:norman/town_hall",
@@ -18,6 +40,10 @@
     "villagepax:norman/builder_hut",
     "villagepax:norman/lumberjack",
     "villagepax:norman/farm"
+  ],
+  "road": [
+    "minecraft:gravel",
+    "minecraft:cobblestone"
   ],
   "traits": [
     "villagepax:stone_masonry",

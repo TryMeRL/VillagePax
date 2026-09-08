@@ -44,6 +44,23 @@ public final class ModTags {
     public static final TagKey<Block> PREFERRED_PATH = TagKey.of(
             RegistryKeys.BLOCK, new Identifier(VillagePax.MOD_ID, "preferred_path"));
 
+    /**
+     * Земля, которую билдер вправе замостить.
+     * <p>
+     * Улицу нельзя прокладывать по чему попало: если игрок выложил свою
+     * дорожку из кварца или поставил на пути грядку, трогать это нельзя —
+     * то же правило, по которому фермер не считает своими чужие посадки.
+     * В теге поэтому только <b>натуральный грунт</b>: трава, земля, песок,
+     * гравий. Пашня в {@code #minecraft:dirt} не входит, и улица не съест
+     * поле.
+     * <p>
+     * Песок перечислен поимённо, а не тегом {@code #minecraft:sand}: в том
+     * теге лежит и подозрительный песок, а в нём — находки археологии.
+     * Замостить его значило бы уничтожить добычу молча.
+     */
+    public static final TagKey<Block> PAVABLE = TagKey.of(
+            RegistryKeys.BLOCK, new Identifier(VillagePax.MOD_ID, "pavable"));
+
     private ModTags() {
     }
 }

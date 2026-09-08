@@ -9,6 +9,8 @@ import com.villagepax.sim.build.Schematic;
 import com.villagepax.entity.CitizenWorkGoal;
 import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Materials;
+import com.villagepax.sim.build.Roads;
+import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import com.villagepax.sim.build.SchematicLoader;
@@ -31,6 +33,10 @@ import java.util.Optional;
  * <p>
  * Самой стройкой по-прежнему занимается {@link BuildJob}; здесь только
  * решение, где стоять и когда переходить.
+ * <p>
+ * Когда строить нечего, билдер <b>мостит улицы</b> — решение заказчика.
+ * Тем же порядком: подошёл, положил тайл, перешёл. Работа эта вечная только
+ * на вид: готовая улица не даёт тайлов, и билдер снова свободен.
  */
 public final class BuilderJob implements Job {
 
@@ -67,9 +73,14 @@ public final class BuilderJob implements Job {
         }
 
         Building site = context.site().orElse(null);
-        if (site == null || !BuildJob.isUnderConstruction(site)) {
+        if (site == null) {
             context.goIdle();
             return Optional.empty();
+        }
+        if (!BuildJob.isUnderConstruction(site)) {
+            // Здание готово, но привязка осталась: значит, билдер занят
+            // его улицей.
+            return paveStreet(context, site);
         }
 
         BuildJob.Outcome outcome = BuildJob.advance(context.world(), context.manager(),
@@ -120,7 +131,20 @@ public final class BuilderJob implements Job {
         if (context.state().isIdle()) {
             return Optional.empty();
         }
-        return context.site().flatMap(site -> standingSpot(context.world(), site));
+
+        Building site = context.site().orElse(null);
+        if (site == null) {
+            return Optional.empty();
+        }
+        if (!BuildJob.isUnderConstruction(site)) {
+            // Улица: цель — место над тайлом, работу сделает следующее
+            // решение. Класть блоки отсюда нельзя: это ответ на вопрос
+            // «куда идти», а не «что делать».
+            Block paving = Roads.paving(context.settlement(), context.warehouse());
+            return Roads.nextTile(context.world(), context.settlement(), site, paving,
+                    reachable(context)).map(BlockPos::up);
+        }
+        return standingSpot(context.world(), site);
     }
 
     /**
@@ -147,6 +171,73 @@ public final class BuilderJob implements Job {
             context.setState(JobState.startAt(site.id(), JobState.Phase.TO_SITE));
             return;
         }
+
+        findStreetWork(context);
+    }
+
+    /**
+     * Стройки нет — значит, пора мостить.
+     * <p>
+     * Улица привязывается к тому зданию, от двери которого она идёт, и этим
+     * же опознавателем делится между билдерами: занятость считает
+     * {@link Claims}, и двое не возьмутся за одну дорожку.
+     */
+    private static void findStreetWork(WorkContext context) {
+        Block paving = Roads.paving(context.settlement(), context.warehouse());
+
+        for (Building done : context.settlement().buildings()) {
+            if (BuildJob.isUnderConstruction(done)
+                    || Claims.takenByAnother(context.settlement(), context.citizen(), done.id())) {
+                continue;
+            }
+            if (Roads.nextTile(context.world(), context.settlement(), done, paving,
+                    reachable(context)).isEmpty()) {
+                continue;
+            }
+            context.setState(JobState.startAt(done.id(), JobState.Phase.TO_SITE));
+            return;
+        }
+    }
+
+    /**
+     * Один тайл улицы за решение — тем же темпом, что и стройка: улица
+     * должна расти на глазах, а не появляться разом.
+     */
+    private static Optional<BlockPos> paveStreet(WorkContext context, Building site) {
+        Block paving = Roads.paving(context.settlement(), context.warehouse());
+        BlockPos tile = Roads.nextTile(context.world(), context.settlement(), site, paving,
+                reachable(context)).orElse(null);
+
+        if (tile == null) {
+            context.holdNothing();
+            context.goIdle();
+            return Optional.empty();
+        }
+
+        // В руке — то, чем мостит: лопата у натоптанной тропы, камень
+        // или гравий у настоящей мостовой.
+        context.hold(Roads.inHand(paving));
+
+        if (!BuildJob.withinReach(context.position(), tile)) {
+            context.setState(context.state().withPhase(JobState.Phase.TO_SITE));
+            return Optional.of(tile.up());
+        }
+
+        if (Roads.pave(context.world(), context.warehouse(), tile, paving)) {
+            context.swing();
+        }
+        context.setState(context.state().withPhase(JobState.Phase.WORKING));
+
+        // Цель — место над тайлом: по улице ходят, а не стоят в ней.
+        return Optional.of(tile.up());
+    }
+
+    /**
+     * До тайла, к которому житель так и не смог подойти, улица не встаёт.
+     * Без этого одна недостижимая точка держала бы дорожку навсегда.
+     */
+    private static java.util.function.Predicate<BlockPos> reachable(WorkContext context) {
+        return tile -> !context.body().isUnreachable(tile.up());
     }
 
     /**

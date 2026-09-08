@@ -102,6 +102,11 @@ public final class ColonyRenderer {
 
         matrices.pop();
 
+        // Сливается только свой слой линий. Подписи сливать нечем и незачем:
+        // слой текста у каждой текстуры шрифта свой, а событие AFTER_ENTITIES
+        // по своему описанию как раз и предназначено для дописывания в
+        // приёмники сущностей — их ваниль сбросит сама, тем же вызовом,
+        // которым сбрасывает подписи над мобами.
         if (context.consumers() instanceof VertexConsumerProvider.Immediate immediate) {
             immediate.draw(RenderLayer.getLines());
         }

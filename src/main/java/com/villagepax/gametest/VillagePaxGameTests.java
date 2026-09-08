@@ -2041,6 +2041,57 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    /**
+     * Достроенное здание начинает работать в тот же день, а не с рассветом.
+     * <p>
+     * Кровати и мастерские раздаются на смене суток, и без этой проверки
+     * дом, законченный в полдень, стоял бы пустым ровно ту ночь, в которую
+     * он готов. Поэтому тест ведёт стройку руками билдера, от начала
+     * до конца, и не зовёт раздачу сам.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "home")
+    public void finishedHouseGivesBedsWithoutWaitingForDawn(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic house = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, house);
+
+            Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+            if (!mason.isHomeless()) {
+                context.throwGameTestException("Житель с кроватью до постройки дома");
+            }
+
+            runWork(world, manager, colony, mason, 300, Schedule.MORNING_WORK);
+
+            if (!site.isOperational()) {
+                context.throwGameTestException("Дом не достроился за 300 решений: шаг "
+                        + site.nextStep());
+            }
+            if (mason.isHomeless()) {
+                context.throwGameTestException("Дом готов, а житель всё ещё без кровати: "
+                        + "раздача ждёт рассвета");
+            }
+            if (!Housing.sleepingSpots(world, colony).contains(mason.bed().orElseThrow())) {
+                context.throwGameTestException("Кровать досталась вне дома");
+            }
+        } finally {
+            demolish(world, site, house);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
     // --- задача 1.9а: профессии как данные и лесоруб ---
 
     private static final Identifier LUMBERJACK_SCHEMATIC =

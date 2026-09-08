@@ -67,8 +67,18 @@ public final class BuilderJob implements Job {
             // иначе билдер начнёт бегать кругами, пока курьер несёт брёвна.
             case ADVANCED, WAITING_FOR_MATERIALS -> context.setState(state.withPhase(JobState.Phase.WORKING));
 
-            // Стройки больше нет — по любой причине.
-            case FINISHED, ALREADY_DONE, NO_SCHEMATIC, NOT_LOADED, NOT_FOUND, NO_BUILDER ->
+            // Готовое здание обязано заработать сразу. Раздача кроватей
+            // и мастерских иначе ждёт рассвета, и достроенный в полдень дом
+            // стоит пустым ровно ту ночь, в которую он готов, — а игрок
+            // видит мод, который не работает.
+            case FINISHED -> {
+                Housing.assignBeds(context.world(), context.settlement());
+                Workplaces.assign(context.world(), context.settlement());
+                context.goIdle();
+            }
+
+            // Стройки больше нет по другой причине.
+            case ALREADY_DONE, NO_SCHEMATIC, NOT_LOADED, NOT_FOUND, NO_BUILDER ->
                     context.goIdle();
         }
 

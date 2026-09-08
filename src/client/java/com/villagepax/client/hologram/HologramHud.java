@@ -40,10 +40,32 @@ public final class HologramHud {
         context.drawTextWithShadow(client.textRenderer, verdict, MARGIN, y, 0xFFFFFF);
         y += LINE;
 
+        // Числа видны на экране, а не угадываются: игрок жмёт клавишу
+        // и сразу видит, на сколько сдвинул призрак.
+        Text state = Text.translatable("villagepax.hologram.state",
+                        signed(placement.lift()), String.valueOf(placement.range()),
+                        Text.translatable(placement.pinned()
+                                ? "villagepax.hologram.pinned"
+                                : "villagepax.hologram.following"))
+                .formatted(placement.pinned() ? Formatting.AQUA : Formatting.WHITE);
+        context.drawTextWithShadow(client.textRenderer, state, MARGIN, y, 0xFFFFFF);
+        y += LINE;
+
         Text keys = Text.translatable("villagepax.hologram.keys",
-                HologramKeys.rotateKey(), HologramKeys.confirmKey(), HologramKeys.cancelKey())
+                HologramKeys.rotateKey(), HologramKeys.liftKeys(), HologramKeys.rangeKeys())
                 .formatted(Formatting.GRAY);
         context.drawTextWithShadow(client.textRenderer, keys, MARGIN, y, 0xFFFFFF);
+        y += LINE;
+
+        Text more = Text.translatable("villagepax.hologram.keys_more",
+                HologramKeys.pinKey(), HologramKeys.confirmKey(), HologramKeys.cancelKey())
+                .formatted(Formatting.GRAY);
+        context.drawTextWithShadow(client.textRenderer, more, MARGIN, y, 0xFFFFFF);
+    }
+
+    /** Со знаком: «+2» понятнее, чем «2», когда речь о сдвиге. */
+    private static String signed(int value) {
+        return value > 0 ? "+" + value : String.valueOf(value);
     }
 
     /** Схема {@code norman/farm_lvl1} — это здание {@code norman/farm}. */

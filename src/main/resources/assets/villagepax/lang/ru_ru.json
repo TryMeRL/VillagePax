@@ -76,7 +76,7 @@
   "villagepax.key.confirm": "Поставить здание",
   "villagepax.key.cancel": "Отменить установку",
   "villagepax.hologram.placing": "Ставим: %s",
-  "villagepax.hologram.keys": "%s — повернуть, %s — поставить, %s — отмена",
+  "villagepax.hologram.keys": "%s — повернуть, %s — выше и ниже, %s — дальше и ближе",
   "villagepax.hologram.checking": "Проверяем место…",
   "villagepax.hologram.ok": "Здесь можно строить",
   "villagepax.hologram.outside": "Вне границ колонии",
@@ -85,5 +85,14 @@
   "villagepax.hologram.bad_name": "Схема названа неверно",
   "villagepax.hologram.too_far": "Слишком далеко от тебя",
   "villagepax.hologram.rotated": "Поворот: %s",
-  "villagepax.hologram.cancelled": "Установка отменена"
+  "villagepax.hologram.cancelled": "Установка отменена",
+  "villagepax.key.pin": "Закрепить голограмму",
+  "villagepax.key.higher": "Голограмму выше",
+  "villagepax.key.lower": "Голограмму ниже",
+  "villagepax.key.farther": "Голограмму дальше",
+  "villagepax.key.closer": "Голограмму ближе",
+  "villagepax.hologram.state": "Высота %s, дальность %s — %s",
+  "villagepax.hologram.pinned": "закреплено",
+  "villagepax.hologram.following": "идёт за взглядом",
+  "villagepax.hologram.keys_more": "%s — закрепить, %s — поставить, %s — отмена"
 }

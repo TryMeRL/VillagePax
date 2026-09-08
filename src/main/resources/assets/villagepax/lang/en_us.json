@@ -76,7 +76,7 @@
   "villagepax.key.confirm": "Place building",
   "villagepax.key.cancel": "Cancel placement",
   "villagepax.hologram.placing": "Placing: %s",
-  "villagepax.hologram.keys": "%s to rotate, %s to place, %s to cancel",
+  "villagepax.hologram.keys": "%s to rotate, %s up and down, %s farther and closer",
   "villagepax.hologram.checking": "Checking the spot…",
   "villagepax.hologram.ok": "You can build here",
   "villagepax.hologram.outside": "Outside the colony borders",
@@ -85,5 +85,14 @@
   "villagepax.hologram.bad_name": "Schematic is named wrong",
   "villagepax.hologram.too_far": "Too far from you",
   "villagepax.hologram.rotated": "Rotation: %s",
-  "villagepax.hologram.cancelled": "Placement cancelled"
+  "villagepax.hologram.cancelled": "Placement cancelled",
+  "villagepax.key.pin": "Pin the hologram",
+  "villagepax.key.higher": "Hologram up",
+  "villagepax.key.lower": "Hologram down",
+  "villagepax.key.farther": "Hologram farther",
+  "villagepax.key.closer": "Hologram closer",
+  "villagepax.hologram.state": "Height %s, range %s — %s",
+  "villagepax.hologram.pinned": "pinned",
+  "villagepax.hologram.following": "follows your view",
+  "villagepax.hologram.keys_more": "%s to pin, %s to place, %s to cancel"
 }

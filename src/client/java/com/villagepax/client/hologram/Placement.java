@@ -13,6 +13,7 @@ import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.Vec3i;
+import net.minecraft.world.RaycastContext;
 
 /**
  * Режим установки: игрок водит призраком здания по земле.
@@ -29,8 +30,25 @@ import net.minecraft.util.math.Vec3i;
  */
 public final class Placement {
 
-    /** Как далеко перед игроком встаёт призрак, если тот смотрит в небо. */
-    private static final double AHEAD = 6.0;
+    /** Насколько далеко призрак стоит от игрока по умолчанию. */
+    public static final int DEFAULT_RANGE = 8;
+
+    /**
+     * Ближе двух блоков призрак упирается в самого игрока, дальше сорока
+     * восьми сервер откажет по расстоянию — там же и предел заказа.
+     */
+    public static final int MIN_RANGE = 2;
+    public static final int MAX_RANGE = 48;
+
+    /**
+     * Насколько призрак можно поднять или опустить.
+     * <p>
+     * Опустить нужнее, чем поднять: место под перекрестием — это блок
+     * <b>над</b> поверхностью, а фундамент чаще хочется вкопать в землю,
+     * а не поставить на траву. Без этого приходилось ломать блок,
+     * чтобы прицелиться в получившуюся ямку.
+     */
+    public static final int MAX_LIFT = 16;
 
     private static Placement active;
 
@@ -38,7 +56,12 @@ public final class Placement {
     private GhostPlan plan;
 
     private BlockPos anchor;
+    private BlockPos aimed;
     private BlockRotation rotation = BlockRotation.NONE;
+
+    private int range = DEFAULT_RANGE;
+    private int lift;
+    private boolean pinned;
 
     private boolean allowed;
     private String reason = "villagepax.hologram.checking";
@@ -112,6 +135,18 @@ public final class Placement {
         return schematic;
     }
 
+    public int range() {
+        return range;
+    }
+
+    public int lift() {
+        return lift;
+    }
+
+    public boolean pinned() {
+        return pinned;
+    }
+
     // --- управление ---
 
     public void rotate() {
@@ -121,6 +156,33 @@ public final class Placement {
             case CLOCKWISE_180 -> BlockRotation.COUNTERCLOCKWISE_90;
             default -> BlockRotation.NONE;
         };
+    }
+
+    /** Отодвинуть или придвинуть призрак, не двигаясь самому. */
+    public void pushAway(int blocks) {
+        range = Math.max(MIN_RANGE, Math.min(MAX_RANGE, range + blocks));
+    }
+
+    /**
+     * Поднять или опустить призрак.
+     * <p>
+     * Это и есть «удобное проектирование»: место под перекрестием — блок
+     * над поверхностью, и без сдвига вниз фундамент встаёт на траву,
+     * а не в землю.
+     */
+    public void raise(int blocks) {
+        lift = Math.max(-MAX_LIFT, Math.min(MAX_LIFT, lift + blocks));
+    }
+
+    /**
+     * Закрепить призрак на месте — или отпустить.
+     * <p>
+     * Закреплённый не идёт за взглядом, и вокруг него можно обойти, посмотреть
+     * с другой стороны и только потом подтвердить. Поворот и высота при этом
+     * по-прежнему меняются: закрепляется место, а не вид.
+     */
+    public void togglePin() {
+        pinned = !pinned;
     }
 
     /** Подтвердить: заказ уходит на сервер ровно туда, где стоял призрак. */
@@ -146,13 +208,15 @@ public final class Placement {
      * кадр: игрок сдвигается на блок пару раз в секунду, и этого хватает.
      */
     public void follow(MinecraftClient client) {
-        BlockPos aim = aim(client);
-        if (aim == null || plan == null) {
+        if (!pinned) {
+            aimed = aim(client);
+        }
+        if (aimed == null || plan == null) {
             // Без плана неизвестен размер, а значит и якорь: примерка ушла бы
             // не на то место, и призрак мигнул бы неверным приговором.
             return;
         }
-        anchor = centre(aim);
+        anchor = centre(aimed).up(lift);
 
         if (!anchor.equals(probed) || rotation != probedRotation) {
             probed = anchor;
@@ -168,21 +232,33 @@ public final class Placement {
     }
 
     /**
-     * Куда смотрит игрок. По блоку под перекрестием — так место выбирается
-     * глазами; если перекрестие в небе, призрак встаёт перед игроком.
+     * Куда смотрит игрок — свой луч, а не ванильное перекрестие.
+     * <p>
+     * Ванильное перекрестие видит блоки в пяти шагах: этого хватает, чтобы
+     * ударить кайлом, и совсем не хватает, чтобы поставить дом на пригорке
+     * напротив. Свой луч бьёт настолько далеко, насколько игрок сам отодвинул
+     * призрак, и потому дальность — управляемая величина, а не постоянная.
+     * <p>
+     * Если луч ни во что не попал (игрок смотрит в небо), призрак встаёт
+     * на своей дальности на высоте ног игрока: без этого он исчезал бы,
+     * стоило поднять голову.
      */
     private BlockPos aim(MinecraftClient client) {
-        if (client.player == null) {
+        if (client.player == null || client.world == null) {
             return null;
         }
-        if (client.crosshairTarget instanceof BlockHitResult hit
-                && hit.getType() == HitResult.Type.BLOCK) {
+
+        Vec3d eyes = client.player.getCameraPosVec(1.0f);
+        Vec3d far = eyes.add(client.player.getRotationVec(1.0f).multiply(range));
+
+        BlockHitResult hit = client.world.raycast(new RaycastContext(eyes, far,
+                RaycastContext.ShapeType.OUTLINE, RaycastContext.FluidHandling.NONE,
+                client.player));
+
+        if (hit.getType() == HitResult.Type.BLOCK) {
             return hit.getBlockPos().offset(hit.getSide());
         }
-
-        Vec3d ahead = client.player.getPos()
-                .add(client.player.getRotationVec(1.0f).multiply(AHEAD));
-        return BlockPos.ofFloored(ahead.x, client.player.getY(), ahead.z);
+        return BlockPos.ofFloored(far.x, client.player.getY(), far.z);
     }
 
     /**

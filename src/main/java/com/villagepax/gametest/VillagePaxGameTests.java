@@ -67,8 +67,10 @@ import net.minecraft.inventory.SimpleInventory;
 import com.villagepax.core.quest.QuestManager;
 import com.villagepax.sim.Standing;
 import com.villagepax.sim.quest.Quests;
+import com.villagepax.sim.trade.Coins;
 import com.villagepax.sim.trade.Trading;
 import com.villagepax.item.ModItems;
+import com.villagepax.item.PurseItem;
 import com.villagepax.sim.Villages;
 import com.villagepax.sim.VillageSites;
 import net.minecraft.util.math.ChunkPos;
@@ -5715,6 +5717,9 @@ public class VillagePaxGameTests implements FabricGameTest {
         Settlement colony = colonyWithBuilder(world, manager, hall);
         UUID player = UUID.randomUUID();
         SimpleInventory hands = new SimpleInventory(36);
+        // Сдача, которой не нашлось места, — признак ошибки: в тесте
+        // инвентарь заведомо просторен, и список обязан остаться пустым.
+        List<ItemStack> spilled = new ArrayList<>();
 
         try {
             TradeTable.Deal bread = Trading.find(colony, Trading.Side.VILLAGE_SELLS,
@@ -5730,56 +5735,64 @@ public class VillagePaxGameTests implements FabricGameTest {
 
             // У деревни хлеб, у игрока монета и стекло. Кошель пуст.
             Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 12));
-            hands.addStack(new ItemStack(Trading.COIN, 3));
+            hands.addStack(new ItemStack(ModItems.COIN, 3));
             hands.addStack(new ItemStack(Items.GLASS_PANE, 8));
 
             // Деревня без монеты не покупает. Отказ — это содержание, не сбой.
             Trading.Outcome poor = Trading.trade(colony, player, hands,
-                    Warehouse.of(world, colony), Trading.Side.VILLAGE_BUYS, glass);
+                    Warehouse.of(world, colony), Trading.Side.VILLAGE_BUYS, glass,
+                    spilled::add);
             if (poor != Trading.Outcome.NO_COIN) {
                 context.throwGameTestException("Деревня без монеты купила стекло: " + poor);
             }
-            if (hands.count(Items.GLASS_PANE) != 8 || hands.count(Trading.COIN) != 3) {
+            if (hands.count(Items.GLASS_PANE) != 8 || Coins.total(hands) != 3) {
                 context.throwGameTestException("Отказ тронул сумку: стекла "
-                        + hands.count(Items.GLASS_PANE) + ", монет " + hands.count(Trading.COIN));
+                        + hands.count(Items.GLASS_PANE) + ", монет " + Coins.total(hands));
             }
 
             // Деревня продаёт. Чужак платит полторы цены: хлеб по цене
             // датапака стоит один изумруд, а с него берут два.
             Trading.Outcome bought = Trading.trade(colony, player, hands,
-                    Warehouse.of(world, colony), Trading.Side.VILLAGE_SELLS, bread);
+                    Warehouse.of(world, colony), Trading.Side.VILLAGE_SELLS, bread,
+                    spilled::add);
             if (bought != Trading.Outcome.DONE) {
                 context.throwGameTestException("Покупка хлеба отказана: " + bought);
             }
-            if (hands.count(Items.BREAD) != 6 || hands.count(Trading.COIN) != 1) {
+            if (hands.count(Items.BREAD) != 6 || Coins.total(hands) != 1) {
                 context.throwGameTestException("У игрока после покупки хлеба "
-                        + hands.count(Items.BREAD) + " хлеба и " + hands.count(Trading.COIN)
+                        + hands.count(Items.BREAD) + " хлеба и " + Coins.total(hands)
                         + " монет, ожидалось 6 и 1");
             }
             Warehouse after = Warehouse.of(world, colony);
-            if (after.count(Items.BREAD) != 6 || after.count(Trading.COIN) != 2) {
+            if (after.count(Items.BREAD) != 6 || Coins.total(after.coins()) != 2) {
                 context.throwGameTestException("На складе после продажи хлеба "
-                        + after.count(Items.BREAD) + " хлеба и " + after.count(Trading.COIN)
+                        + after.count(Items.BREAD) + " хлеба и " + Coins.total(after.coins())
                         + " монет, ожидалось 6 и 2");
             }
 
             // Теперь кошель не пуст, и стекло деревня берёт. Чужаку платят
             // половину: цена датапака — две монеты, чужаку одна.
             Trading.Outcome sold = Trading.trade(colony, player, hands,
-                    Warehouse.of(world, colony), Trading.Side.VILLAGE_BUYS, glass);
+                    Warehouse.of(world, colony), Trading.Side.VILLAGE_BUYS, glass,
+                    spilled::add);
             if (sold != Trading.Outcome.DONE) {
                 context.throwGameTestException("Продажа стекла отказана: " + sold);
             }
-            if (hands.count(Items.GLASS_PANE) != 0 || hands.count(Trading.COIN) != 2) {
+            if (hands.count(Items.GLASS_PANE) != 0 || Coins.total(hands) != 2) {
                 context.throwGameTestException("У игрока после продажи стекла "
-                        + hands.count(Items.GLASS_PANE) + " стекла и " + hands.count(Trading.COIN)
+                        + hands.count(Items.GLASS_PANE) + " стекла и " + Coins.total(hands)
                         + " монет, ожидалось 0 и 2");
             }
             Warehouse paid = Warehouse.of(world, colony);
-            if (paid.count(Items.GLASS_PANE) != 8 || paid.count(Trading.COIN) != 1) {
+            if (paid.count(Items.GLASS_PANE) != 8 || Coins.total(paid.coins()) != 1) {
                 context.throwGameTestException("На складе после покупки стекла "
-                        + paid.count(Items.GLASS_PANE) + " стекла и " + paid.count(Trading.COIN)
+                        + paid.count(Items.GLASS_PANE) + " стекла и " + Coins.total(paid.coins())
                         + " монет, ожидалось 8 и 1");
+            }
+
+            if (!spilled.isEmpty()) {
+                context.throwGameTestException("Сдача не влезла в просторный инвентарь: "
+                        + spilled);
             }
 
             // Две удачные сделки — два очка знакомства. Торговлей тебя
@@ -5791,7 +5804,8 @@ public class VillagePaxGameTests implements FabricGameTest {
         } finally {
             Warehouse.of(world, colony).take(Items.BREAD, 64);
             Warehouse.of(world, colony).take(Items.GLASS_PANE, 64);
-            Warehouse.of(world, colony).take(Trading.COIN, 64);
+            Coins.pay(Warehouse.of(world, colony).coins(),
+                    Coins.total(Warehouse.of(world, colony).coins()));
             manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
@@ -5818,6 +5832,7 @@ public class VillagePaxGameTests implements FabricGameTest {
         Settlement colony = colonyWithBuilder(world, manager, hall);
         UUID player = UUID.randomUUID();
         SimpleInventory hands = new SimpleInventory(36);
+        List<ItemStack> spilled = new ArrayList<>();
 
         try {
             TradeTable.Deal bell = Trading.find(colony, Trading.Side.VILLAGE_SELLS,
@@ -5829,11 +5844,12 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             Warehouse.of(world, colony).add(new ItemStack(Items.BELL, 1));
-            hands.addStack(new ItemStack(Trading.COIN, 48));
+            hands.addStack(new ItemStack(ModItems.COIN, 48));
 
             // Чужаку колокол не продают, даже когда монета при нём.
             Trading.Outcome stranger = Trading.trade(colony, player, hands,
-                    Warehouse.of(world, colony), Trading.Side.VILLAGE_SELLS, bell);
+                    Warehouse.of(world, colony), Trading.Side.VILLAGE_SELLS, bell,
+                    spilled::add);
             if (stranger != Trading.Outcome.NO_TRUST) {
                 context.throwGameTestException("Колокол продан чужаку: " + stranger);
             }
@@ -5841,7 +5857,8 @@ public class VillagePaxGameTests implements FabricGameTest {
             // На один шаг ниже порога — по-прежнему нет.
             colony.addReputation(player, bell.minReputation() - 1);
             if (Trading.trade(colony, player, hands, Warehouse.of(world, colony),
-                    Trading.Side.VILLAGE_SELLS, bell) != Trading.Outcome.NO_TRUST) {
+                    Trading.Side.VILLAGE_SELLS, bell, spilled::add)
+                    != Trading.Outcome.NO_TRUST) {
                 context.throwGameTestException("Порог доверия сдвинут: "
                         + colony.reputationOf(player) + " хватило при пороге "
                         + bell.minReputation());
@@ -5850,13 +5867,14 @@ public class VillagePaxGameTests implements FabricGameTest {
             colony.addReputation(player, 1);
             int trusted = colony.reputationOf(player);
             Trading.Outcome friend = Trading.trade(colony, player, hands,
-                    Warehouse.of(world, colony), Trading.Side.VILLAGE_SELLS, bell);
+                    Warehouse.of(world, colony), Trading.Side.VILLAGE_SELLS, bell,
+                    spilled::add);
             if (friend != Trading.Outcome.DONE) {
                 context.throwGameTestException("Другу колокол не продали: " + friend);
             }
-            if (hands.count(Items.BELL) != 1 || hands.count(Trading.COIN) != 24) {
+            if (hands.count(Items.BELL) != 1 || Coins.total(hands) != 24) {
                 context.throwGameTestException("После покупки колокола у игрока "
-                        + hands.count(Items.BELL) + " колоколов и " + hands.count(Trading.COIN)
+                        + hands.count(Items.BELL) + " колоколов и " + Coins.total(hands)
                         + " монет, ожидалось 1 и 24");
             }
             if (colony.reputationOf(player) != trusted) {
@@ -5865,7 +5883,8 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
         } finally {
             Warehouse.of(world, colony).take(Items.BELL, 8);
-            Warehouse.of(world, colony).take(Trading.COIN, 64);
+            Coins.pay(Warehouse.of(world, colony).coins(),
+                    Coins.total(Warehouse.of(world, colony).coins()));
             manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
@@ -5920,7 +5939,9 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             Warehouse warehouse = Warehouse.of(world, village);
-            warehouse.take(Trading.COIN, warehouse.count(Trading.COIN));
+            // Опустошить кошель целиком: монета бывает трёх достоинств,
+            // и вычитать её штуками одного вида было бы неверно.
+            Coins.pay(warehouse.coins(), Coins.total(warehouse.coins()));
 
             int beggarly = Warehouse.of(world, village).totalItems();
             Villages.newDay(world, manager, village);
@@ -5931,7 +5952,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             // А с монетой — привозит, и монета убывает.
-            Warehouse.of(world, village).add(new ItemStack(Trading.COIN, 32));
+            Warehouse.of(world, village).add(new ItemStack(ModItems.COIN, 32));
             int withPurse = Warehouse.of(world, village).totalItems();
             Villages.newDay(world, manager, village);
 
@@ -5940,9 +5961,9 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("С монетой обоз ничего не привёз: было "
                         + withPurse + ", стало " + rich.totalItems());
             }
-            if (rich.count(Trading.COIN) >= 32) {
-                context.throwGameTestException("Обоз привёз бесплатно: монет осталось "
-                        + rich.count(Trading.COIN) + " из 32");
+            if (Coins.total(rich.coins()) >= 32) {
+                context.throwGameTestException("Обоз привёз бесплатно: монеты осталось "
+                        + Coins.total(rich.coins()) + " из 32");
             }
 
             // Округление цены: вверх при покупке, вниз при подсчёте, сколько
@@ -6033,7 +6054,7 @@ public class VillagePaxGameTests implements FabricGameTest {
                         + bread.ready());
             }
 
-            hands.addStack(new ItemStack(Trading.COIN, 4));
+            hands.addStack(new ItemStack(ModItems.COIN, 4));
             QuestView ready = QuestNet.viewOf(colony, player, hands, Villages.ELDER,
                     Warehouse.of(world, colony)).orElseThrow();
             QuestView.Stall now = ready.stalls().stream()
@@ -6050,7 +6071,7 @@ public class VillagePaxGameTests implements FabricGameTest {
 
             // Колокол по-прежнему заперт доверием, хотя монета уже при игроке:
             // недоверие называется раньше безденежья.
-            hands.addStack(new ItemStack(Trading.COIN, 48));
+            hands.addStack(new ItemStack(ModItems.COIN, 48));
             QuestView rich = QuestNet.viewOf(colony, player, hands, Villages.ELDER,
                     Warehouse.of(world, colony)).orElseThrow();
             QuestView.Stall bell = rich.stalls().stream()
@@ -6506,6 +6527,243 @@ public class VillagePaxGameTests implements FabricGameTest {
                 world.setBlockState(at, Blocks.AIR.getDefaultState());
             }
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- монета мода и кошель ---
+
+    /**
+     * Монета размениваетcя сама: заплатить пять медяков золотым можно.
+     * <p>
+     * Это главное в своей монете и единственное, что в ней непросто.
+     * Игрок с одним золотым в кармане обязан иметь возможность купить
+     * хлеб за два медяка — иначе крупная монета становится обузой,
+     * а не богатством. Сдача при этом должна быть <b>ровной</b>: не
+     * «примерно семьдесят шесть», а именно восемь серебряков и четыре
+     * медяка.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "coins")
+    public void coinsBreakIntoChangeWhenPaying(TestContext context) {
+        SimpleInventory pocket = new SimpleInventory(36);
+        pocket.addStack(new ItemStack(ModItems.GOLD_COIN, 1));
+
+        if (Coins.total(pocket) != Coins.GOLD) {
+            context.throwGameTestException("Золотой стоит " + Coins.total(pocket)
+                    + " медяков, а должен " + Coins.GOLD);
+            return;
+        }
+        if (Coins.has(pocket, Coins.GOLD + 1)) {
+            context.throwGameTestException("На один золотой хватает больше, чем на золотой");
+        }
+
+        List<ItemStack> change = Coins.pay(pocket, 5);
+        if (!change.isEmpty()) {
+            context.throwGameTestException("Сдача не влезла в пустой инвентарь: " + change);
+        }
+        if (Coins.total(pocket) != Coins.GOLD - 5) {
+            context.throwGameTestException("После уплаты пяти осталось "
+                    + Coins.total(pocket) + " вместо " + (Coins.GOLD - 5));
+        }
+        if (pocket.count(ModItems.SILVER_COIN) != 8 || pocket.count(ModItems.COIN) != 4
+                || pocket.count(ModItems.GOLD_COIN) != 0) {
+            context.throwGameTestException("Сдача неровная: золотых "
+                    + pocket.count(ModItems.GOLD_COIN) + ", серебряков "
+                    + pocket.count(ModItems.SILVER_COIN) + ", медяков "
+                    + pocket.count(ModItems.COIN) + "; ожидалось 0, 8 и 4");
+        }
+
+        // И обратно: выдача идёт крупным вперёд, а не горстью медяков.
+        SimpleInventory paid = new SimpleInventory(36);
+        Coins.earn(paid, Coins.GOLD + Coins.SILVER * 2 + 3);
+        if (paid.count(ModItems.GOLD_COIN) != 1 || paid.count(ModItems.SILVER_COIN) != 2
+                || paid.count(ModItems.COIN) != 3) {
+            context.throwGameTestException("Выдано мелочью: золотых "
+                    + paid.count(ModItems.GOLD_COIN) + ", серебряков "
+                    + paid.count(ModItems.SILVER_COIN) + ", медяков "
+                    + paid.count(ModItems.COIN));
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Кошель — это деньги, а не сундук: торг заглядывает в него сам.
+     * <p>
+     * Иначе игрок, убравший монету в кошель, не смог бы ничего купить,
+     * пока не вытряхнет его на землю, — и кошель из удобства стал бы
+     * помехой. Проверяется покупкой при <b>пустых руках</b>: вся монета
+     * лежит в кошеле.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "coins")
+    public void purseCountsAsMoneyWhenTrading(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        UUID player = UUID.randomUUID();
+        SimpleInventory hands = new SimpleInventory(36);
+        List<ItemStack> spilled = new ArrayList<>();
+
+        try {
+            TradeTable.Deal bread = Trading.find(colony, Trading.Side.VILLAGE_SELLS,
+                    Items.BREAD, 6).orElse(null);
+            if (bread == null) {
+                context.throwGameTestException("Стол торга норманнов не загрузился");
+                return;
+            }
+
+            // setStack, а не addStack: SimpleInventory кладёт КОПИЮ стопки,
+            // и тест держал бы в руках не тот кошель, который списывают.
+            ItemStack purse = new ItemStack(ModItems.PURSE);
+            PurseItem.setValue(purse, Coins.SILVER);
+            hands.setStack(0, purse);
+            Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 12));
+
+            if (Coins.total(hands) != Coins.SILVER) {
+                context.throwGameTestException("Монета в кошеле не считается: "
+                        + Coins.total(hands) + " вместо " + Coins.SILVER);
+            }
+            if (Coins.loose(hands) != 0) {
+                context.throwGameTestException("В руках нашлась россыпь, которой нет");
+            }
+
+            int price = Trading.priceFor(bread, Trading.Side.VILLAGE_SELLS, 0);
+            Trading.Outcome bought = Trading.trade(colony, player, hands,
+                    Warehouse.of(world, colony), Trading.Side.VILLAGE_SELLS, bread,
+                    spilled::add);
+
+            if (bought != Trading.Outcome.DONE) {
+                context.throwGameTestException("Покупка из кошеля отказана: " + bought);
+                return;
+            }
+            if (PurseItem.valueOf(purse) != Coins.SILVER - price) {
+                context.throwGameTestException("Из кошеля списано неверно: осталось "
+                        + PurseItem.valueOf(purse) + " вместо " + (Coins.SILVER - price));
+            }
+            if (Coins.loose(hands) != 0) {
+                context.throwGameTestException("Плата развалилась на россыпь в руках: "
+                        + Coins.loose(hands));
+            }
+            if (hands.count(Items.BREAD) != bread.count()) {
+                context.throwGameTestException("Хлеба получено " + hands.count(Items.BREAD));
+            }
+            if (!spilled.isEmpty()) {
+                context.throwGameTestException("Что-то просыпалось: " + spilled);
+            }
+        } finally {
+            Coins.pay(Warehouse.of(world, colony).coins(),
+                    Coins.total(Warehouse.of(world, colony).coins()));
+            Warehouse.of(world, colony).take(Items.BREAD, 64);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Кошель наполняется и вытряхивается, и больше своего не берёт.
+     * <p>
+     * Предел нужен не для баланса: кошель без предела — это банк
+     * в кармане, и он обесценил бы сундук. Проверяется и он, и то, что
+     * вытряхнутое возвращается <b>крупной монетой</b>, а не горстью.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "coins")
+    public void purseStowsAndShakesOut(TestContext context) {
+        SimpleInventory pocket = new SimpleInventory(36);
+        // setStack, а не addStack: SimpleInventory кладёт копию стопки.
+        ItemStack purse = new ItemStack(ModItems.PURSE);
+        pocket.setStack(0, purse);
+        pocket.addStack(new ItemStack(ModItems.COIN, 12));
+
+        int stowed = Coins.fillPurse(pocket, purse);
+        if (stowed != 12 || PurseItem.valueOf(purse) != 12 || Coins.loose(pocket) != 0) {
+            context.throwGameTestException("Убрано " + stowed + ", в кошеле "
+                    + PurseItem.valueOf(purse) + ", в руках " + Coins.loose(pocket)
+                    + "; ожидалось 12, 12 и 0");
+        }
+
+        int taken = Coins.emptyPurse(pocket, purse);
+        if (taken != 12 || PurseItem.valueOf(purse) != 0 || Coins.loose(pocket) != 12) {
+            context.throwGameTestException("Вынуто " + taken + ", в кошеле "
+                    + PurseItem.valueOf(purse) + ", в руках " + Coins.loose(pocket));
+        }
+        if (pocket.count(ModItems.SILVER_COIN) != 1 || pocket.count(ModItems.COIN) != 3) {
+            context.throwGameTestException("Вытряхнуто мелочью: серебряков "
+                    + pocket.count(ModItems.SILVER_COIN) + ", медяков "
+                    + pocket.count(ModItems.COIN) + "; ожидались 1 и 3");
+        }
+
+        // Предел: больше своего кошель не возьмёт, а остаток вернёт.
+        int over = PurseItem.put(purse, PurseItem.CAPACITY + 100);
+        if (PurseItem.valueOf(purse) != PurseItem.CAPACITY || over != 100) {
+            context.throwGameTestException("Предел кошеля не держит: внутри "
+                    + PurseItem.valueOf(purse) + " при пределе " + PurseItem.CAPACITY
+                    + ", отказано " + over);
+        }
+
+        context.complete();
+    }
+
+    // --- целость данных: объявленное обязано существовать ---
+
+    /**
+     * Всё, что культура объявила, должно быть построимо — и наоборот.
+     * <p>
+     * Эта проверка написана по следам настоящей оплошности: склад и
+     * мастерская строителя были объявлены у норманнов с первого дня и
+     * <b>не имели схемы</b>. Тип есть, а построить нельзя: деревня молча
+     * пропускала их, выбирая, что строить дальше, а игрок не находил их
+     * в пульте заказов. Молчание — худший исход из возможных, потому что
+     * искать причину негде.
+     * <p>
+     * Проверяется в три стороны сразу:
+     * <ul>
+     *   <li>у каждого объявленного здания есть <b>тип</b> с ролью;
+     *   <li>у каждого есть <b>схема первого уровня</b>;
+     *   <li>у каждой схемы есть народ, который её объявил, — иначе
+     *       схема лежит в датапаке мёртвым грузом.
+     * </ul>
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "data")
+    public void everyDeclaredBuildingCanBeBuilt(TestContext context) {
+        List<String> complaints = new ArrayList<>();
+        List<Identifier> declared = new ArrayList<>();
+
+        CultureManager.all().forEach((cultureId, culture) -> {
+            for (Identifier type : culture.buildings()) {
+                declared.add(type);
+
+                if (BuildingTypes.get(type).isEmpty()) {
+                    complaints.add(cultureId + " объявил здание " + type
+                            + ", а типа с такой ролью нет");
+                }
+                Identifier first = new Identifier(type.getNamespace(),
+                        type.getPath() + "_lvl1");
+                if (SchematicLoader.get(first).isEmpty()) {
+                    complaints.add(cultureId + " объявил здание " + type
+                            + ", а схемы " + first + " нет: построить нельзя");
+                }
+            }
+        });
+
+        for (Identifier schematic : SchematicLoader.ids()) {
+            if (BuildJob.levelOf(schematic).orElse(1) != 1) {
+                continue;
+            }
+            Identifier type = BuildJob.buildingTypeOf(schematic).orElse(null);
+            if (type != null && !declared.contains(type)) {
+                complaints.add("схема " + schematic + " лежит зря: народа, "
+                        + "который объявил бы " + type + ", нет");
+            }
+        }
+
+        if (!complaints.isEmpty()) {
+            context.throwGameTestException("Данные не сходятся:\n  "
+                    + String.join("\n  ", complaints));
         }
 
         context.complete();

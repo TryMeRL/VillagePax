@@ -31,6 +31,32 @@ public final class ModItems {
     public static final Item TOWN_HALL_BLUEPRINT = register("town_hall_blueprint",
             new TownHallBlueprintItem(new Item.Settings().maxCount(1).rarity(Rarity.UNCOMMON)));
 
+    /**
+     * Медяк — единица счёта. Все цены в моде названы в медяках.
+     * <p>
+     * Монета не крафтится из руды, и это правило, а не недоделка: было бы
+     * можно — кошель набивался бы кайлом, и торговля обесценилась бы
+     * к третьему дню. Монета входит в мир только выручкой деревень
+     * и наградой за квесты.
+     */
+    public static final Item COIN = register("coin", new Item(new Item.Settings()));
+
+    /** Серебряк: девять медяков. */
+    public static final Item SILVER_COIN = register("silver_coin", new Item(new Item.Settings()));
+
+    /** Золотой: девять серебряков. */
+    public static final Item GOLD_COIN = register("gold_coin", new Item(new Item.Settings()));
+
+    /**
+     * Кошель. Решение заказчика: «нужен просто кошелёк как предмет».
+     * <p>
+     * Внутри не слоты, а одно число — сколько в нём медяков. Монета
+     * одинакова, и раскладывать её по слотам значило бы придумать работу
+     * на ровном месте.
+     */
+    public static final Item PURSE = register("purse",
+            new PurseItem(new Item.Settings().maxCount(1)));
+
     public static final ItemGroup GROUP = Registry.register(
             Registries.ITEM_GROUP,
             new Identifier(VillagePax.MOD_ID, "general"),

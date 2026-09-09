@@ -37,7 +37,9 @@
     "villagepax:maya/town_hall",
     "villagepax:maya/house",
     "villagepax:maya/farm",
-    "villagepax:maya/lumberjack"
+    "villagepax:maya/lumberjack",
+    "villagepax:maya/warehouse",
+    "villagepax:maya/builder_hut"
   ],
   "road": [
     "minecraft:stone_bricks",

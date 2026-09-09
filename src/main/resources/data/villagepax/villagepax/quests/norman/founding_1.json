@@ -13,6 +13,11 @@
     {
       "type": "reputation",
       "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 9
     }
   ],
   "dialogue": "villagepax.quest.founding_1",

@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "villagepax:coin",
+    "villagepax:silver_coin",
+    "villagepax:gold_coin"
+  ]
+}

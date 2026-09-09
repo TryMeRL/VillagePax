@@ -13,6 +13,7 @@ import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
+import com.villagepax.sim.trade.Coins;
 import com.villagepax.sim.trade.Trading;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.item.Item;
@@ -20,6 +21,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.BlockRotation;
+import net.minecraft.util.ItemScatterer;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -198,7 +200,9 @@ public final class Villages {
     private static void earn(ServerWorld world, Settlement village, Warehouse warehouse) {
         int coin = Math.min(incomePerDay(), PURSE_CAP - Trading.purse(warehouse));
         if (coin > 0) {
-            warehouse.addOrScatter(world, village.center(), new ItemStack(Trading.COIN, coin));
+            Coins.earn(warehouse.coins(), coin).forEach(left ->
+                    ItemScatterer.spawn(world, village.center().getX(), village.center().getY(),
+                            village.center().getZ(), left));
         }
     }
 
@@ -250,9 +254,12 @@ public final class Villages {
             }
 
             int cost = Trading.costOf(rate, bring);
-            if (!warehouse.take(Trading.COIN, cost)) {
+            if (!Coins.has(warehouse.coins(), cost)) {
                 continue;
             }
+            Coins.pay(warehouse.coins(), cost).forEach(change ->
+                    ItemScatterer.spawn(world, village.center().getX(), village.center().getY(),
+                            village.center().getZ(), change));
             warehouse.addOrScatter(world, village.center(), new ItemStack(goods, bring));
             left -= bring;
         }

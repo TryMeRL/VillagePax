@@ -11,6 +11,7 @@ import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Standing;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.quest.Quests;
+import com.villagepax.sim.trade.Coins;
 import com.villagepax.sim.trade.Trading;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -145,7 +146,7 @@ public final class QuestNet {
             if (!wares.has(deal.item(), deal.count())) {
                 return QuestView.Ready.VILLAGE_CANT;
             }
-            return carried.count(Trading.COIN) >= price
+            return Coins.has(carried, price)
                     ? QuestView.Ready.YES : QuestView.Ready.PLAYER_CANT;
         }
         if (purse < price) {
@@ -281,7 +282,10 @@ public final class QuestNet {
         // Через update: доверие за сделку — состояние поселения, и его надо
         // сохранить. Склад сохраняет себя сам, он в блок-энтити.
         manager.update(village, state -> outcome[0] = Trading.trade(state, player.getUuid(),
-                player.getInventory(), wares, side, deal));
+                player.getInventory(), wares, side, deal,
+                // Сдача, которой не нашлось места, падает под ноги: терять
+                // деньги игрока молча нельзя.
+                left -> player.getInventory().offerOrDrop(left)));
 
         if (outcome[0] == Trading.Outcome.DONE) {
             world.playSound(null, player.getBlockPos(), SoundEvents.ENTITY_VILLAGER_TRADE,

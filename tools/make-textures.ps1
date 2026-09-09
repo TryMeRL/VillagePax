@@ -57,6 +57,15 @@ $hex.Add("9","FF7E6832")   # palm thatch, dark
 $hex.Add("o","FFE0D8C4")   # carved stone, lit
 $hex.Add("O","FF9E9686")   # carved stone, shadow
 $hex.Add("Q","FFCFC6B0")   # carved stone
+$hex.Add("C","FFB87333")   # copper coin
+$hex.Add("c","FF8C5220")   # copper coin, shadow
+$hex.Add("E","FFD9915A")   # copper coin, lit
+$hex.Add("X","FFC0C0C8")   # silver coin
+$hex.Add("x","FF8E8E99")   # silver coin, shadow
+$hex.Add("Y","FFE4E4EC")   # silver coin, lit
+$hex.Add("Z","FFE0B030")   # gold coin
+$hex.Add("z","FFA87A18")   # gold coin, shadow
+$hex.Add("F","FFF2D46A")   # gold coin, lit
 $hex.Add(" ","00000000")   # transparent
 
 $color = New-Object "System.Collections.Generic.Dictionary[string,System.Drawing.Color]" ([System.StringComparer]::Ordinal)
@@ -416,6 +425,78 @@ $maps["block\thatch"] = @(
     "7897789877897898"
     "9897789877897898"
     "7897789877897898")
+
+$maps["item\coin"] = @(
+    "                "
+    "    cccccccc    "
+    "   ccEEEEECcc   "
+    "  ccEEEEECCCcc  "
+    " ccEEEEccCCCCcc "
+    " cEEEcECCCcCCCc "
+    " cEEEECCCCCCCCc "
+    " cEEcCCccCCcCCc "
+    " cEEcCCccCCcCCc "
+    " cECCCCCCCCCCCc "
+    " cCCCcCCCCcCCCc "
+    " ccCCCCccCCCCcc "
+    "  ccCCCCCCCCcc  "
+    "   ccCCCCCCcc   "
+    "    cccccccc    "
+    "                ")
+
+$maps["item\silver_coin"] = @(
+    "                "
+    "    xxxxxxxx    "
+    "   xxYYYYYXxx   "
+    "  xxYYYYYXXXxx  "
+    " xxYYYYxxXXXXxx "
+    " xYYYxYXXXxXXXx "
+    " xYYYYXXXXXXXXx "
+    " xYYxXXxxXXxXXx "
+    " xYYxXXxxXXxXXx "
+    " xYXXXXXXXXXXXx "
+    " xXXXxXXXXxXXXx "
+    " xxXXXXxxXXXXxx "
+    "  xxXXXXXXXXxx  "
+    "   xxXXXXXXxx   "
+    "    xxxxxxxx    "
+    "                ")
+
+$maps["item\gold_coin"] = @(
+    "                "
+    "    zzzzzzzz    "
+    "   zzFFFFFZzz   "
+    "  zzFFFFFZZZzz  "
+    " zzFFFFzzZZZZzz "
+    " zFFFzFZZZzZZZz "
+    " zFFFFZZZZZZZZz "
+    " zFFzZZzzZZzZZz "
+    " zFFzZZzzZZzZZz "
+    " zFZZZZZZZZZZZz "
+    " zZZZzZZZZzZZZz "
+    " zzZZZZzzZZZZzz "
+    "  zzZZZZZZZZzz  "
+    "   zzZZZZZZzz   "
+    "    zzzzzzzz    "
+    "                ")
+
+$maps["item\purse"] = @(
+    "                "
+    "       tt       "
+    "      t  t      "
+    "     t    t     "
+    "    bBBBBBBb    "
+    "   bBhhhhhhBb   "
+    "  bBhhhhhhhhBb  "
+    "  BhhhcCCchhhB  "
+    "  BhhhCEEEChhB  "
+    "  BhhhcCCchhhB  "
+    "  bBhhhhhhhhBb  "
+    "   bBhhhhhhBb   "
+    "    bBBBBBBb    "
+    "     bbbbbb     "
+    "                "
+    "                ")
 
 $rng = New-Object System.Random 20260905
 

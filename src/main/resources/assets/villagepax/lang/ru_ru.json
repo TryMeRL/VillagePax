@@ -171,5 +171,21 @@
   "villagepax.building.maya.lumberjack": "Хижина рубщика",
   "villagepax.quest.maya_founding_1": "Кровля храма прохудилась, а брёвен джунглей у нас нет: все ушли на подпорную стену. Принеси, и я это запомню.",
   "villagepax.quest.maya_founding_2": "Терраса оседает после дождей. Нужен камень, много камня, — иначе поле уйдёт вниз вместе с урожаем.",
-  "villagepax.quest.maya_founding_3": "Ты нам не чужой. Накорми деревню — и я отдам тебе чертёж ратуши: ставь своё поселение."
+  "villagepax.quest.maya_founding_3": "Ты нам не чужой. Накорми деревню — и я отдам тебе чертёж ратуши: ставь своё поселение.",
+  "item.villagepax.coin": "Медяк",
+  "item.villagepax.silver_coin": "Серебряк",
+  "item.villagepax.gold_coin": "Золотой",
+  "item.villagepax.purse": "Кошель",
+  "villagepax.coins.none": "пусто",
+  "villagepax.coins.gold": "%sз",
+  "villagepax.coins.silver": "%sс",
+  "villagepax.coins.copper": "%sм",
+  "villagepax.coins.join": "%s %s",
+  "villagepax.purse.how": "Щелчок — убрать монету, вприсядку — вытряхнуть. з/с/м — золото, серебро, медь.",
+  "villagepax.purse.put_in": "В кошель убрано: %s",
+  "villagepax.purse.took_out": "Из кошеля вынуто: %s",
+  "villagepax.purse.empty": "Кошель пуст",
+  "villagepax.purse.nothing_to_add": "Убирать нечего: ни одной монеты при себе",
+  "villagepax.building.maya.warehouse": "Склад майя",
+  "villagepax.building.maya.builder_hut": "Двор строителя"
 }

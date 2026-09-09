@@ -10,11 +10,11 @@ import com.villagepax.sim.Warehouse;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * Торг с деревней: монета, склад и «всё или ничего».
@@ -37,8 +37,7 @@ import java.util.UUID;
  */
 public final class Trading {
 
-    /** Монета. Изумруд: игрок уже знает его цену по ванильным жителям. */
-    public static final Item COIN = Items.EMERALD;
+
 
     /**
      * Сколько доверия даёт одна сделка и до какой черты.
@@ -131,9 +130,14 @@ public final class Trading {
                 .orElse(List.of());
     }
 
-    /** Сколько монеты в кошеле деревни. */
+    /**
+     * Сколько монеты в кошеле деревни, в медяках.
+     * <p>
+     * Кошель деревни — монета на её складе. Отдельного хранилища для
+     * денег у неё нет: правда лежит в сундуках.
+     */
     public static int purse(Warehouse warehouse) {
-        return warehouse.count(COIN);
+        return Coins.total(warehouse.coins());
     }
 
     /**
@@ -197,7 +201,8 @@ public final class Trading {
      * @param deal     сделка из стола торга этого народа
      */
     public static Outcome trade(Settlement village, UUID player, Inventory carried,
-                                Warehouse wares, Side side, TradeTable.Deal deal) {
+                                Warehouse wares, Side side, TradeTable.Deal deal,
+                                Consumer<ItemStack> spill) {
         if (!dealsOn(village, side).contains(deal)) {
             return Outcome.NO_DEAL;
         }
@@ -209,35 +214,37 @@ public final class Trading {
         int count = deal.count();
         int price = priceFor(deal, side, village.reputationOf(player));
 
+        Inventory chest = wares.coins();
+
         if (side == Side.VILLAGE_SELLS) {
             if (!wares.has(goods, count)) {
                 return Outcome.NO_STOCK;
             }
-            if (carried.count(COIN) < price) {
+            if (!Coins.has(carried, price)) {
                 return Outcome.NO_GOODS;
             }
-            if (!Stacks.room(carried, goods, count) || !wares.room(COIN, price)) {
+            if (!Stacks.room(carried, goods, count) || !Coins.room(chest, price)) {
                 return Outcome.NO_ROOM;
             }
 
-            Stacks.take(carried, COIN, price);
+            Coins.pay(carried, price).forEach(spill);
             wares.take(goods, count);
             Stacks.insert(carried, new ItemStack(goods, count));
-            wares.add(new ItemStack(COIN, price));
+            Coins.earn(chest, price).forEach(spill);
         } else {
             if (carried.count(goods) < count) {
                 return Outcome.NO_GOODS;
             }
-            if (purse(wares) < price) {
+            if (!Coins.has(chest, price)) {
                 return Outcome.NO_COIN;
             }
-            if (!Stacks.room(carried, COIN, price) || !wares.room(goods, count)) {
+            if (!Coins.room(carried, price) || !wares.room(goods, count)) {
                 return Outcome.NO_ROOM;
             }
 
             Stacks.take(carried, goods, count);
-            wares.take(COIN, price);
-            Stacks.insert(carried, new ItemStack(COIN, price));
+            Coins.pay(chest, price).forEach(spill);
+            Coins.earn(carried, price).forEach(spill);
             wares.add(new ItemStack(goods, count));
         }
 

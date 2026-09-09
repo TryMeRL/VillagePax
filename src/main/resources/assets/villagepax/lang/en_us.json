@@ -171,5 +171,21 @@
   "villagepax.building.maya.lumberjack": "Cutter's Hut",
   "villagepax.quest.maya_founding_1": "The temple thatch has worn through and we have no jungle logs left: they all went into the retaining wall. Bring some and I will remember it.",
   "villagepax.quest.maya_founding_2": "The terrace is slipping after the rains. We need stone, a lot of it, or the field will go down with the harvest.",
-  "villagepax.quest.maya_founding_3": "You are no stranger to us. Feed the village, and I will hand you a town hall blueprint: found your own settlement."
+  "villagepax.quest.maya_founding_3": "You are no stranger to us. Feed the village, and I will hand you a town hall blueprint: found your own settlement.",
+  "item.villagepax.coin": "Copper Coin",
+  "item.villagepax.silver_coin": "Silver Coin",
+  "item.villagepax.gold_coin": "Gold Coin",
+  "item.villagepax.purse": "Purse",
+  "villagepax.coins.none": "empty",
+  "villagepax.coins.gold": "%sg",
+  "villagepax.coins.silver": "%ss",
+  "villagepax.coins.copper": "%sc",
+  "villagepax.coins.join": "%s %s",
+  "villagepax.purse.how": "Use to stow coins, sneak-use to shake them out. g/s/c — gold, silver, copper.",
+  "villagepax.purse.put_in": "Stowed in the purse: %s",
+  "villagepax.purse.took_out": "Taken from the purse: %s",
+  "villagepax.purse.empty": "The purse is empty",
+  "villagepax.purse.nothing_to_add": "Nothing to stow: not a coin on you",
+  "villagepax.building.maya.warehouse": "Maya Storehouse",
+  "villagepax.building.maya.builder_hut": "Builder's Yard"
 }

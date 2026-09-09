@@ -1,6 +1,8 @@
 package com.villagepax.client.screen;
 
+import com.villagepax.item.ModItems;
 import com.villagepax.screen.QuestNet;
+import com.villagepax.sim.trade.Coins;
 import com.villagepax.screen.QuestView;
 import io.wispforest.owo.ui.base.BaseOwoScreen;
 import io.wispforest.owo.ui.component.BoxComponent;
@@ -22,7 +24,6 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
@@ -318,13 +319,19 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         return row;
     }
 
-    /** Монета числом: изумруд и сколько. */
+    /**
+     * Монета числом: медяк и сумма.
+     * <p>
+     * Сумма пишется словами достоинств — «2з 4с 7м», — а не числом медяков:
+     * «сто восемьдесят пять» игроку ни о чём не говорит, а «2з 4с 7м» он
+     * сравнит с тем, что у него в кошеле, не считая в голове.
+     */
     private static Component coins(int amount) {
         FlowLayout purse = Containers.horizontalFlow(Sizing.content(), Sizing.content());
         purse.gap(2);
         purse.verticalAlignment(VerticalAlignment.CENTER);
-        purse.child(Components.item(new ItemStack(Items.EMERALD)));
-        purse.child(Components.label(Text.literal(String.valueOf(amount))
+        purse.child(Components.item(new ItemStack(ModItems.COIN)));
+        purse.child(Components.label(Coins.spell(amount).copy()
                 .formatted(Formatting.WHITE)));
         return purse;
     }

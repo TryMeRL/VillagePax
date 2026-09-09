@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "CCC",
+    "CCC",
+    "CCC"
+  ],
+  "key": {
+    "C": {
+      "item": "villagepax:coin"
+    }
+  },
+  "result": {
+    "item": "villagepax:silver_coin",
+    "count": 1
+  }
+}

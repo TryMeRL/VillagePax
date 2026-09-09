@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "SSS",
+    "SSS",
+    "SSS"
+  ],
+  "key": {
+    "S": {
+      "item": "villagepax:silver_coin"
+    }
+  },
+  "result": {
+    "item": "villagepax:gold_coin",
+    "count": 1
+  }
+}

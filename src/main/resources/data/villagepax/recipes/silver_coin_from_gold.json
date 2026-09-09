@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "villagepax:gold_coin"
+    }
+  ],
+  "result": {
+    "item": "villagepax:silver_coin",
+    "count": 9
+  }
+}

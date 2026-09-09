@@ -49,6 +49,7 @@ import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
+import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.ModTags;
 import com.villagepax.screen.QuestView;
 import com.villagepax.screen.QuestNet;
@@ -4817,6 +4818,76 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
         } finally {
             demolish(world, site, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- типы зданий из датапака ---
+
+    /**
+     * Права зданию даёт объявленный тип, а не его имя.
+     * <p>
+     * Самый старый долг мода, и вот чем он был опасен: ратушу узнавали
+     * по тому, что путь типа кончается на {@code town_hall}. Здание
+     * с именем {@code norman/town_hall_ruins} мод счёл бы ратушей
+     * и позволил бы поднимать по нему уровень колонии — до второго уровня
+     * ратуши, которой нет.
+     * <p>
+     * Теперь роль объявлена данными, а молчание датапака <b>не наделяет
+     * здание правами</b>: неописанное здание строится и чинится, но
+     * колонии уровня не даёт и мастерской никому не служит.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "orders")
+    public void onlyDeclaredTypesGetRights(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        Identifier ruins = new Identifier("villagepax", "norman/town_hall_ruins");
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            // Объявленное узнаётся.
+            if (!Levels.isTownHallType(TOWN_HALL_TYPE)) {
+                context.throwGameTestException("Настоящая ратуша не узнана по данным");
+            }
+            if (!BuildingTypes.isHome(HOUSE_TYPE)) {
+                context.throwGameTestException("Дом не объявлен жильём");
+            }
+            if (!BuildingTypes.employs(FARM_TYPE, FarmJob.FARMER)) {
+                context.throwGameTestException("Ферма не объявлена мастерской фермера");
+            }
+
+            // А похожее имя — нет.
+            if (Levels.isTownHallType(ruins)) {
+                context.throwGameTestException("Здание " + ruins + " сочли ратушей по имени — "
+                        + "это и был тот самый долг");
+            }
+            if (BuildingTypes.employs(ruins, FarmJob.FARMER)) {
+                context.throwGameTestException("Необъявленное здание служит мастерской");
+            }
+
+            // И уровень колонии от него не растёт.
+            colony.addBuilding(new Building(UUID.randomUUID(), ruins, 2, hall.add(20, 0, 20),
+                    BlockRotation.NONE, BuildProgress.DONE, List.of()));
+            Levels.refresh(colony);
+            if (colony.level() != SettlementLevel.HAMLET) {
+                context.throwGameTestException("Колония выросла от здания, которое ратушей "
+                        + "не объявлено: " + colony.level().id());
+            }
+
+            // Имя у неописанного здания всё-таки есть: пустой строки
+            // в интерфейсе быть не должно.
+            if (!BuildingTypes.displayName(ruins)
+                    .equals("villagepax.building.norman.town_hall_ruins")) {
+                context.throwGameTestException("У неописанного здания нет запасного имени: "
+                        + BuildingTypes.displayName(ruins));
+            }
+        } finally {
             discardBodies(world, colony);
             manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());

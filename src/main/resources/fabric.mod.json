@@ -4,6 +4,7 @@
   "version": "${version}",
   "name": "Village Pax",
   "description": "Колонии, народы, дипломатия и вера в одном движке поселений.",
+  "icon": "assets/villagepax/icon.png",
   "authors": [],
   "license": "ARR",
   "environment": "*",

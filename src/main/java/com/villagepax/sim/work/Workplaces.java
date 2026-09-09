@@ -1,6 +1,7 @@
 package com.villagepax.sim.work;
 
 import com.villagepax.core.profession.Profession;
+import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
@@ -27,7 +28,7 @@ import java.util.UUID;
  * работу, которая уже идёт. Лесорубу и фермеру место нужно: там его роща
  * или поле.
  * <p>
- * Здание находится <b>по соглашению об именовании</b>: профессия
+ * Здание берётся из <b>типа здания</b>, объявленного датапаком: профессия
  * {@code villagepax:lumberjack} работает в здании, чей тип кончается
  * на {@code lumberjack}. Это заглушка до типов зданий из датапака — тот же
  * приём, которым культура находит свою ратушу. Когда появится
@@ -121,23 +122,16 @@ public final class Workplaces {
     /**
      * Обслуживает ли здание эту профессию.
      * <p>
-     * Имя места берётся из данных профессии, а не выводится из её имени:
-     * фермер работает на <b>ферме</b>, а не на «фермере». Совпадающие
-     * имена в датапаке писать не нужно.
-     * <p>
-     * Сопоставление по имени — заглушка до типов зданий из датапака: когда
-     * появится {@code BuildingType}, здание объявит это само.
+     * Спрашивается у <b>типа здания</b>: он сам объявляет, кто в нём
+     * работает. Прежде сопоставляли по имени — «фермер работает там, где
+     * путь кончается на farm», — и это было заглушкой, которая держалась
+     * до первого датапака с другими именами. Здание без объявленного типа
+     * не служит мастерской никому: молчание датапака не наделяет здание
+     * правами.
      */
     private static boolean serves(Building building, Citizen citizen) {
-        Identifier profession = citizen.profession().orElse(null);
-        if (profession == null) {
-            return false;
-        }
-        String place = ProfessionManager.get(profession)
-                .map(known -> known.workplaceOf(profession))
-                .orElse(profession.getPath());
-
-        String type = building.type().getPath();
-        return type.equals(place) || type.endsWith("/" + place);
+        return citizen.profession()
+                .filter(profession -> BuildingTypes.employs(building.type(), profession))
+                .isPresent();
     }
 }

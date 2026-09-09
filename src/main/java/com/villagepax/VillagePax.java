@@ -3,6 +3,7 @@ package com.villagepax;
 import com.villagepax.block.ModBlocks;
 import com.villagepax.block.entity.ModBlockEntities;
 import com.villagepax.core.config.Configs;
+import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.core.quest.QuestManager;
@@ -18,6 +19,8 @@ import com.villagepax.sim.Greeting;
 import com.villagepax.sim.Villages;
 import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.work.WorkTicker;
+import com.villagepax.sim.work.Crafting;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.resource.ResourceType;
@@ -51,6 +54,8 @@ public class VillagePax implements ModInitializer {
         QuestNet.registerServer();
 
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+                .registerReloadListener(new BuildingTypes());
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
                 .registerReloadListener(new CultureManager());
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
                 .registerReloadListener(new ProfessionManager());
@@ -58,6 +63,12 @@ public class VillagePax implements ModInitializer {
                 .registerReloadListener(new SchematicLoader());
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
                 .registerReloadListener(new QuestManager());
+
+        // Разложенные по выходу рецепты забываются на перезагрузке датапака:
+        // иначе колония крафтила бы по рецепту, которого там уже нет.
+        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register(
+                (server, manager, success) -> Crafting.forgetRecipes());
+        ServerLifecycleEvents.SERVER_STARTED.register(server -> Crafting.forgetRecipes());
 
         LOGGER.info("Village Pax: инициализация, настройки в {}", Configs.path());
     }

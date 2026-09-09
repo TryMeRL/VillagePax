@@ -2,6 +2,7 @@ package com.villagepax.screen;
 
 import com.mojang.serialization.DataResult;
 import com.villagepax.VillagePax;
+import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
@@ -348,14 +349,14 @@ public final class TownHallNet {
     }
 
     /**
-     * Ключ локализации типа здания по соглашению об именовании:
-     * {@code villagepax:norman/farm} → {@code villagepax.building.norman.farm}.
+     * Ключ локализации названия здания.
      * <p>
-     * Заглушка до {@code BuildingType} из датапака: у профессии название
-     * лежит в её файле, а у здания такого файла ещё нет.
+     * Из файла типа здания, как у профессии. Соглашение об именовании
+     * осталось запасным путём: у здания без объявленного типа пусть будет
+     * хоть какое-то имя, а не пустая строка в интерфейсе.
      */
     public static String buildingKey(Identifier type) {
-        return "villagepax.building." + type.getPath().replace('/', '.');
+        return BuildingTypes.displayName(type);
     }
 
 

@@ -2,6 +2,7 @@ package com.villagepax.core.culture;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.villagepax.core.building.BuildingTypes;
 import net.minecraft.util.Identifier;
 
 import java.util.List;
@@ -60,11 +61,14 @@ public record Culture(
     ).apply(instance, Culture::new));
 
     /**
-     * Тип здания ратуши у этого народа. Ищется по соглашению об именовании,
-     * чтобы датапак не обязан был объявлять его отдельным полем.
+     * Тип здания ратуши у этого народа.
+     * <p>
+     * Ищется среди зданий культуры по <b>объявленной роли</b>, а не по
+     * имени: народ вправе назвать свою ратушу как угодно, а мод обязан
+     * узнать её по данным.
      */
     public Optional<Identifier> townHallBuilding() {
-        return buildings.stream().filter(id -> id.getPath().endsWith("town_hall")).findFirst();
+        return buildings.stream().filter(BuildingTypes::isTownHall).findFirst();
     }
 
     /**

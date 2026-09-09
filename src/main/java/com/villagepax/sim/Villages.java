@@ -2,6 +2,7 @@ package com.villagepax.sim;
 
 import com.villagepax.VillagePax;
 import com.villagepax.core.config.Configs;
+import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.entity.CitizenSpawner;
@@ -331,22 +332,19 @@ public final class Villages {
     }
 
     /**
-     * С чего деревня начинает. Дом и ферма: под крышей спят, с поля едят,
-     * и без того и другого жители разбегутся на третий день.
+     * С чего деревня начинает — из данных типа здания.
+     * <p>
+     * Прежде выбирали по окончанию пути: {@code /house} и {@code /farm}.
+     * Работало это до первого народа, у которого жильё называется иначе,
+     * — а под крышей спят и с поля едят у всех, и без того и другого
+     * жители разбегутся на третий день.
      */
     private static List<Identifier> startingBuildings(Culture culture) {
-        List<Identifier> starting = new ArrayList<>();
-        for (Identifier type : culture.buildings()) {
-            String path = type.getPath();
-            if (path.endsWith("/house") || path.endsWith("/farm")) {
-                starting.add(type);
-            }
-        }
-        return starting;
+        return BuildingTypes.starting(culture.buildings());
     }
 
     private static boolean isTownHall(Identifier type) {
-        return type.getPath().endsWith("town_hall");
+        return Levels.isTownHallType(type);
     }
 
     /**

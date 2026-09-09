@@ -1,5 +1,6 @@
 package com.villagepax.sim.work;
 
+import com.villagepax.VillagePax;
 import com.villagepax.sim.Warehouse;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -9,6 +10,7 @@ import net.minecraft.recipe.RecipeType;
 import net.minecraft.server.world.ServerWorld;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +29,13 @@ import java.util.Map;
  * ровно то, что умеет игрок, и добавленный мод-рецепт достаётся ей
  * бесплатно.
  * <p>
+ * Рецепты разложены <b>по выходу</b> один раз, а не перебираются каждый
+ * раз заново. Разница не косметическая: ванильных рецептов верстака около
+ * тысячи, и наивный перебор давал их по тысяче на каждую попытку сделать
+ * предмет — а на втором ходу ещё по тысяче на каждый недостающий
+ * ингредиент, то есть до сотни тысяч сравнений на один блок стены.
+ * Указатель превращает это в один поиск по карте.
+ * <p>
  * Превращение идёт <b>в два хода</b>, не глубже. Ступеням нужны доски,
  * доскам брёвна — одного хода не хватало, и стройка вставала на ступенях,
  * имея гору брёвен. Двух хватает всем цепочкам мода. Глубже не идём
@@ -38,7 +47,52 @@ public final class Crafting {
     /** Насколько глубоко колония доделывает ингредиенты ингредиентов. */
     private static final int MAX_DEPTH = 2;
 
+    /**
+     * Рецепты по предмету, который они дают.
+     * <p>
+     * Считается один раз на загруженный датапак. Сбрасывается по событию
+     * перезагрузки — не по числу рецептов и не по времени: {@code /reload}
+     * умеет заменить рецепт, не меняя их количества, и догадка «столько
+     * же, значит те же» однажды подсунула бы колонии рецепт, которого
+     * в датапаке уже нет.
+     */
+    private static Map<Item, List<CraftingRecipe>> byOutput;
+
     private Crafting() {
+    }
+
+    /**
+     * Забыть разложенные рецепты. Зовётся на перезагрузке датапака.
+     * <p>
+     * Открыто наружу, потому что событие ловит запуск мода: класс
+     * превращений про жизненный цикл сервера знать не обязан.
+     */
+    public static void forgetRecipes() {
+        byOutput = null;
+    }
+
+    /**
+     * Рецепты, дающие этот предмет.
+     * <p>
+     * Раскладка ленивая: на выделенном сервере без единой колонии она
+     * не понадобится вовсе, а стоит обхода всех рецептов игры.
+     */
+    private static List<CraftingRecipe> recipesFor(ServerWorld world, Item want) {
+        if (byOutput == null) {
+            Map<Item, List<CraftingRecipe>> index = new HashMap<>();
+
+            for (CraftingRecipe recipe : world.getRecipeManager()
+                    .listAllOfType(RecipeType.CRAFTING)) {
+                ItemStack output = recipe.getOutput(world.getRegistryManager());
+                if (!output.isEmpty()) {
+                    index.computeIfAbsent(output.getItem(), item -> new ArrayList<>()).add(recipe);
+                }
+            }
+
+            byOutput = index;
+            VillagePax.LOGGER.debug("Рецептов разложено по выходу: {}", index.size());
+        }
+        return byOutput.getOrDefault(want, List.of());
     }
 
     /**
@@ -57,14 +111,8 @@ public final class Crafting {
             return false;
         }
 
-        for (CraftingRecipe recipe : world.getRecipeManager()
-                .listAllOfType(RecipeType.CRAFTING)) {
-
+        for (CraftingRecipe recipe : recipesFor(world, want)) {
             ItemStack output = recipe.getOutput(world.getRegistryManager());
-            if (!output.isOf(want) || output.isEmpty()) {
-                continue;
-            }
-
             Map<Item, Integer> cost = costOf(world, warehouse, recipe, depth);
             if (cost == null) {
                 continue;
@@ -155,10 +203,8 @@ public final class Crafting {
     public static List<Item> makeable(ServerWorld world, Warehouse warehouse, List<Item> wanted) {
         List<Item> able = new ArrayList<>();
         for (Item want : wanted) {
-            for (CraftingRecipe recipe : world.getRecipeManager()
-                    .listAllOfType(RecipeType.CRAFTING)) {
-                if (recipe.getOutput(world.getRegistryManager()).isOf(want)
-                        && costOf(world, warehouse, recipe, MAX_DEPTH) != null) {
+            for (CraftingRecipe recipe : recipesFor(world, want)) {
+                if (costOf(world, warehouse, recipe, MAX_DEPTH) != null) {
                     able.add(want);
                     break;
                 }

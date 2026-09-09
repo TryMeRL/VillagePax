@@ -108,5 +108,19 @@
   "villagepax.screen.upgrade.gone": "Здания больше нет",
   "villagepax.citizen.label": "%s — %s",
   "villagepax.sign.building": "%s (строится)",
-  "villagepax.sign.level": "%s · ур. %s"
+  "villagepax.sign.level": "%s · ур. %s",
+  "villagepax.profession.elder": "Старейшина",
+  "villagepax.standing.stranger": "чужак",
+  "villagepax.standing.known": "знакомый",
+  "villagepax.standing.friend": "друг",
+  "villagepax.standing.honoured": "почётный житель",
+  "villagepax.quest.said": "%s: %s",
+  "villagepax.quest.nothing_left": "Больше просить нечего. Ты нам %s.",
+  "villagepax.quest.not_yet": "Пока ты нам всего лишь %s. Приходи позже.",
+  "villagepax.quest.done": "Вот это дело. Держи и не забывай нас.",
+  "villagepax.quest.standing_up": "%s теперь считает тебя: %s",
+  "villagepax.quest.objective.deliver": "  нужно: %s — %s шт. (у тебя %s)",
+  "villagepax.quest.founding_1": "Зима близко, а поленницы пусты. Принеси брёвен, и я это запомню.",
+  "villagepax.quest.founding_2": "Цоколь нового дома нечем выложить. Нужен камень.",
+  "villagepax.quest.founding_3": "Ты нам не чужой. Накорми деревню — и я отдам тебе чертёж ратуши: ставь своё поселение."
 }

@@ -1,0 +1,19 @@
+{
+  "giver": "villagepax:elder",
+  "min_reputation": 15,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:cobblestone",
+      "count": 24
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    }
+  ],
+  "dialogue": "villagepax.quest.founding_2",
+  "next": "villagepax:norman/founding_3"
+}

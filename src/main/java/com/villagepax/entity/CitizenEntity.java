@@ -2,6 +2,10 @@ package com.villagepax.entity;
 
 import com.villagepax.VillagePax;
 import com.villagepax.core.profession.ProfessionManager;
+import com.villagepax.core.quest.QuestManager;
+import com.villagepax.sim.quest.Quests;
+import net.minecraft.util.ActionResult;
+import net.minecraft.util.Hand;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
@@ -19,6 +23,7 @@ import net.minecraft.sound.SoundEvents;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -210,6 +215,40 @@ public class CitizenEntity extends PathAwareEntity {
             return Optional.empty();
         }
         return SettlementManager.get(world).byId(settlementId).flatMap(s -> s.citizen(citizenId));
+    }
+
+    /**
+     * Щелчок по жителю: разговор.
+     * <p>
+     * Отвечает только тот, кому есть что сказать, — выдающий квесты. Все
+     * остальные пропускают нажатие дальше, чтобы не съедать игроку действие
+     * предметом в руке: житель, глотающий удар кайлом, раздражал бы.
+     */
+    @Override
+    protected ActionResult interactMob(PlayerEntity player, Hand hand) {
+        if (getWorld().isClient() || !(player instanceof ServerPlayerEntity server)
+                || hand != Hand.MAIN_HAND) {
+            return ActionResult.PASS;
+        }
+
+        ServerWorld world = (ServerWorld) getWorld();
+        Citizen citizen = data(world).orElse(null);
+        if (citizen == null || citizen.profession().isEmpty()) {
+            return ActionResult.PASS;
+        }
+        if (QuestManager.all().values().stream()
+                .noneMatch(quest -> quest.giver().equals(citizen.profession().get()))) {
+            return ActionResult.PASS;
+        }
+
+        SettlementManager manager = SettlementManager.get(world);
+        Settlement village = settlementId().flatMap(manager::byId).orElse(null);
+        if (village == null) {
+            return ActionResult.PASS;
+        }
+
+        Quests.talk(manager, village, server, citizen);
+        return ActionResult.SUCCESS;
     }
 
     public void applyFrom(Citizen citizen) {

@@ -64,6 +64,9 @@ public final class Villages {
     /** Насколько неровным может быть след здания: деревня не строит на скале. */
     private static final int MAX_SLOPE = 2;
 
+    /** Профессия, с которой игрок разговаривает. Данными задан только её файл. */
+    public static final Identifier ELDER = new Identifier(VillagePax.MOD_ID, "elder");
+
     private Villages() {
     }
 
@@ -113,9 +116,10 @@ public final class Villages {
         ColonyFounder.raiseTownHall(world, site, village, culture, cultureId);
         manager.add(village);
 
-        // Двое сразу: без строителя не встанет ничего, а один житель
-        // на деревню — это не деревня.
+        // Трое сразу: без строителя не встанет ничего, без старейшины
+        // не с кем говорить, а один житель на деревню — это не деревня.
         settle(world, village, Founding.firstBuilder(cultureId, culture, random));
+        settle(world, village, elder(cultureId, culture, random));
         settle(world, village, Founding.newCitizen(cultureId, culture, random));
 
         // Дом и ферма уже стоят: деревня старше игрока.
@@ -336,6 +340,18 @@ public final class Villages {
 
     private static boolean isTownHall(Identifier type) {
         return type.getPath().endsWith("town_hall");
+    }
+
+    /**
+     * Старейшина. Ставится <b>явно</b>, а не через приоритет найма: у деревни
+     * он обязан быть с первого дня, потому что это единственный, с кем игрок
+     * может заговорить. Колонии игрока он, наоборот, не нужен — некому
+     * выдавать квесты самому себе, — и поэтому приоритет найма у него ноль.
+     */
+    private static Citizen elder(Identifier cultureId, Culture culture, Random random) {
+        Citizen elder = Founding.newCitizen(cultureId, culture, random);
+        elder.setProfession(ELDER);
+        return elder;
     }
 
     private static void settle(ServerWorld world, Settlement village, Citizen citizen) {

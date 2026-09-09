@@ -9,7 +9,9 @@ import net.minecraft.util.math.ChunkPos;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -36,7 +38,11 @@ public class Settlement {
             SettlementStats.CODEC.optionalFieldOf("stats", SettlementStats.INITIAL).forGetter(Settlement::stats),
             Building.CODEC.listOf().optionalFieldOf("buildings", List.of()).forGetter(Settlement::buildings),
             Citizen.CODEC.listOf().optionalFieldOf("citizens", List.of()).forGetter(Settlement::citizens),
-            Codec.LONG.optionalFieldOf("last_day", UNSEEN_DAY).forGetter(Settlement::lastDay)
+            Codec.LONG.optionalFieldOf("last_day", UNSEEN_DAY).forGetter(Settlement::lastDay),
+            Codec.unboundedMap(Uuids.STRING_CODEC, Codec.INT)
+                    .optionalFieldOf("reputation", Map.of()).forGetter(Settlement::reputation),
+            Codec.unboundedMap(Uuids.STRING_CODEC, Identifier.CODEC.listOf())
+                    .optionalFieldOf("quests_done", Map.of()).forGetter(Settlement::questsDone)
     ).apply(instance, Settlement::new));
 
     private final UUID id;
@@ -57,6 +63,18 @@ public class Settlement {
      */
     private long lastDay;
 
+    /**
+     * Доверие деревни к каждому игроку и выполненные им квесты.
+     * <p>
+     * Лежит в <b>поселении</b>, а не на игроке, и это не случайно: отношение
+     * — это отношение <i>деревни</i>, и на сервере их у одного игрока столько
+     * же, сколько деревень. Хранение на игроке потребовало бы либо компонента
+     * с чужой библиотекой, либо второй карты «игрок → деревня», которая
+     * умеет разойтись с первой.
+     */
+    private final Map<UUID, Integer> reputation;
+    private final Map<UUID, List<Identifier>> questsDone;
+
     public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
                       SettlementLevel level, SettlementStats stats,
                       List<Building> buildings, List<Citizen> citizens) {
@@ -66,6 +84,14 @@ public class Settlement {
     public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
                       SettlementLevel level, SettlementStats stats,
                       List<Building> buildings, List<Citizen> citizens, long lastDay) {
+        this(id, culture, owner, name, center, level, stats, buildings, citizens, lastDay,
+                Map.of(), Map.of());
+    }
+
+    public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
+                      SettlementLevel level, SettlementStats stats,
+                      List<Building> buildings, List<Citizen> citizens, long lastDay,
+                      Map<UUID, Integer> reputation, Map<UUID, List<Identifier>> questsDone) {
         this.id = id;
         this.culture = culture;
         this.owner = owner;
@@ -76,6 +102,9 @@ public class Settlement {
         this.buildings = new ArrayList<>(buildings);
         this.citizens = new ArrayList<>(citizens);
         this.lastDay = lastDay;
+        this.reputation = new LinkedHashMap<>(reputation);
+        this.questsDone = new LinkedHashMap<>();
+        questsDone.forEach((player, quests) -> this.questsDone.put(player, new ArrayList<>(quests)));
     }
 
     public static Settlement found(Identifier culture, Owner owner, String name, BlockPos center) {
@@ -165,6 +194,37 @@ public class Settlement {
 
     public boolean hasSeenADay() {
         return lastDay != UNSEEN_DAY;
+    }
+
+    // --- доверие и квесты ---
+
+    public Map<UUID, Integer> reputation() {
+        return Collections.unmodifiableMap(reputation);
+    }
+
+    public Map<UUID, List<Identifier>> questsDone() {
+        return Collections.unmodifiableMap(questsDone);
+    }
+
+    public int reputationOf(UUID player) {
+        return reputation.getOrDefault(player, 0);
+    }
+
+    public Standing standingOf(UUID player) {
+        return Standing.of(reputationOf(player));
+    }
+
+    public void addReputation(UUID player, int amount) {
+        reputation.merge(player, amount, Integer::sum);
+    }
+
+    /** Что этот игрок здесь уже сделал. Пустой список — не значит «никогда». */
+    public List<Identifier> questsDone(UUID player) {
+        return Collections.unmodifiableList(questsDone.getOrDefault(player, List.of()));
+    }
+
+    public void noteQuestDone(UUID player, Identifier quest) {
+        questsDone.computeIfAbsent(player, ignored -> new ArrayList<>()).add(quest);
     }
 
     public int population() {

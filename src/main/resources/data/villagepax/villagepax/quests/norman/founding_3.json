@@ -1,0 +1,23 @@
+{
+  "giver": "villagepax:elder",
+  "min_reputation": 30,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:bread",
+      "count": 8
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 20
+    },
+    {
+      "type": "item",
+      "item": "villagepax:town_hall_blueprint",
+      "count": 1
+    }
+  ],
+  "dialogue": "villagepax.quest.founding_3"
+}

@@ -1,0 +1,19 @@
+{
+  "giver": "villagepax:elder",
+  "min_reputation": 0,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:oak_log",
+      "count": 16
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    }
+  ],
+  "dialogue": "villagepax.quest.founding_1",
+  "next": "villagepax:norman/founding_2"
+}

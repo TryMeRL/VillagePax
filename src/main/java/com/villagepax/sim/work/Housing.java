@@ -192,9 +192,17 @@ public final class Housing {
         }
 
         for (Identifier profession : ProfessionManager.byHiringPriority()) {
-            if (!filled.contains(profession)) {
-                return Optional.of(profession);
+            if (filled.contains(profession)) {
+                continue;
             }
+            // Нулевой приоритет значит «сама собой не нанимается»: такова
+            // старейшина, которую деревня ставит явно, а колонии игрока
+            // не нужна вовсе.
+            if (ProfessionManager.get(profession)
+                    .filter(known -> known.hiringPriority() <= 0).isPresent()) {
+                continue;
+            }
+            return Optional.of(profession);
         }
         return Optional.empty();
     }

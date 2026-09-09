@@ -108,5 +108,19 @@
   "villagepax.screen.upgrade.gone": "The building is gone",
   "villagepax.citizen.label": "%s — %s",
   "villagepax.sign.building": "%s (under construction)",
-  "villagepax.sign.level": "%s · lvl %s"
+  "villagepax.sign.level": "%s · lvl %s",
+  "villagepax.profession.elder": "Elder",
+  "villagepax.standing.stranger": "a stranger",
+  "villagepax.standing.known": "an acquaintance",
+  "villagepax.standing.friend": "a friend",
+  "villagepax.standing.honoured": "an honoured resident",
+  "villagepax.quest.said": "%s: %s",
+  "villagepax.quest.nothing_left": "There is nothing left to ask. To us you are %s.",
+  "villagepax.quest.not_yet": "So far you are only %s to us. Come back later.",
+  "villagepax.quest.done": "Now that is work. Take this, and do not forget us.",
+  "villagepax.quest.standing_up": "%s now counts you as: %s",
+  "villagepax.quest.objective.deliver": "  needed: %s — %s pcs (you have %s)",
+  "villagepax.quest.founding_1": "Winter is close and the woodpiles are empty. Bring logs and I will remember it.",
+  "villagepax.quest.founding_2": "There is nothing to lay the new house's footing with. We need stone.",
+  "villagepax.quest.founding_3": "You are no stranger to us. Feed the village, and I will hand you a town hall blueprint: found your own settlement."
 }

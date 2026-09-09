@@ -50,6 +50,12 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
 import com.villagepax.core.ModTags;
+import com.villagepax.core.quest.Quest;
+import net.minecraft.inventory.SimpleInventory;
+import com.villagepax.core.quest.QuestManager;
+import com.villagepax.sim.Standing;
+import com.villagepax.sim.quest.Quests;
+import com.villagepax.item.ModItems;
 import com.villagepax.sim.Villages;
 import com.villagepax.sim.VillageSites;
 import net.minecraft.util.math.ChunkPos;
@@ -4190,6 +4196,282 @@ public class VillagePaxGameTests implements FabricGameTest {
             discardBodies(world, colony);
             manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- задача 1.13: квесты и репутация ---
+
+    private static final Identifier FOUNDING_1 = new Identifier("villagepax", "norman/founding_1");
+    private static final Identifier FOUNDING_2 = new Identifier("villagepax", "norman/founding_2");
+    private static final Identifier FOUNDING_3 = new Identifier("villagepax", "norman/founding_3");
+
+    /**
+     * Цепочка проходится по порядку и кончается.
+     * <p>
+     * Порядок задан не списком, а ссылками {@code next}: каждый квест
+     * называет следующий. Проверяется именно проход по ссылкам, потому что
+     * кольцевая или оборванная ссылка в датапаке — это игрок, у которого
+     * цепочка не идёт дальше первого шага.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void questChainWalksInOrderAndEnds(TestContext context) {
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", hall);
+        UUID player = UUID.randomUUID();
+
+        if (!QuestManager.get(FOUNDING_1).isPresent()) {
+            context.throwGameTestException("Стартовая цепочка не загружена. Загружены: "
+                    + QuestManager.ids());
+            return;
+        }
+
+        if (!Quests.offered(village, player, Villages.ELDER).equals(Optional.of(FOUNDING_1))) {
+            context.throwGameTestException("Первым предложен не первый квест: "
+                    + Quests.offered(village, player, Villages.ELDER));
+        }
+
+        village.noteQuestDone(player, FOUNDING_1);
+        if (!Quests.offered(village, player, Villages.ELDER).equals(Optional.of(FOUNDING_2))) {
+            context.throwGameTestException("После первого квеста не предложен второй: "
+                    + Quests.offered(village, player, Villages.ELDER));
+        }
+
+        village.noteQuestDone(player, FOUNDING_2);
+        if (!Quests.offered(village, player, Villages.ELDER).equals(Optional.of(FOUNDING_3))) {
+            context.throwGameTestException("После второго квеста не предложен третий: "
+                    + Quests.offered(village, player, Villages.ELDER));
+        }
+
+        village.noteQuestDone(player, FOUNDING_3);
+        if (Quests.offered(village, player, Villages.ELDER).isPresent()) {
+            context.throwGameTestException("Цепочка не кончилась: предложено "
+                    + Quests.offered(village, player, Villages.ELDER));
+        }
+
+        // Другому игроку та же деревня предлагает цепочку с начала.
+        if (!Quests.offered(village, UUID.randomUUID(), Villages.ELDER)
+                .equals(Optional.of(FOUNDING_1))) {
+            context.throwGameTestException("Второму игроку цепочка не начинается заново");
+        }
+
+        manager.remove(village.id());
+        context.complete();
+    }
+
+    /**
+     * Цепочка кончается чертежом ратуши, и это вход в мод.
+     * <p>
+     * Решение дизайна: игрок находит деревню, выполняет цепочку, дорастает
+     * до друга и получает чертёж. Крафт остался подстраховкой на неудачный
+     * сид. Поэтому награда последнего квеста проверяется прямо: без неё
+     * весь вход в мод обрывается, а понять это можно было бы только
+     * доиграв цепочку до конца руками.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void foundingChainRewardsTheBlueprint(TestContext context) {
+        Quest last = QuestManager.get(FOUNDING_3).orElse(null);
+        if (last == null) {
+            context.throwGameTestException("Последнего квеста цепочки нет. Загружены: "
+                    + QuestManager.ids());
+            return;
+        }
+
+        boolean givesBlueprint = last.rewards().stream()
+                .anyMatch(reward -> reward instanceof Quest.Reward.Give give
+                        && give.item() == ModItems.TOWN_HALL_BLUEPRINT);
+        if (!givesBlueprint) {
+            context.throwGameTestException("Цепочка не выдаёт чертёж ратуши: " + last.rewards());
+        }
+
+        int trust = 0;
+        for (Identifier id : List.of(FOUNDING_1, FOUNDING_2, FOUNDING_3)) {
+            Quest quest = QuestManager.get(id).orElseThrow();
+            for (Quest.Reward reward : quest.rewards()) {
+                if (reward instanceof Quest.Reward.Trust up) {
+                    trust += up.amount();
+                }
+            }
+            if (!quest.giver().equals(Villages.ELDER)) {
+                context.throwGameTestException("Квест " + id + " выдаёт не старейшина: "
+                        + quest.giver());
+            }
+            if (quest.objectives().isEmpty()) {
+                context.throwGameTestException("У квеста " + id + " нет ни одной цели");
+            }
+        }
+
+        if (Standing.of(trust).ordinal() < Standing.FRIEND.ordinal()) {
+            context.throwGameTestException("Вся цепочка даёт доверия " + trust
+                    + " — это " + Standing.of(trust).id() + ", а чертёж отдают другу");
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Полный проход входа в мод: цепочка сдаётся и кончается чертежом.
+     * <p>
+     * <b>Приёмочный тест всей версии 0.1</b> в той части, которую можно
+     * проверить без игрока: найти деревню, сдать три квеста, получить
+     * чертёж ратуши. Игрока в игровом тесте нет, поэтому вместо его рук —
+     * обычный склад, а вместо инвентаря награды — список. Ровно теми же
+     * вызовами работает щелчок по старейшине: {@code talk} — тонкая
+     * обёртка над {@code handIn}.
+     * <p>
+     * Проверяется и то, что <b>не</b> отдают: принёс мало — не забрали
+     * ничего. Отобранная половина даром была бы хуже отказа.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void wholeFoundingChainPaysOutTheBlueprint(TestContext context) {
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", hall);
+        UUID player = UUID.randomUUID();
+
+        SimpleInventory hands = new SimpleInventory(36);
+        List<ItemStack> paid = new ArrayList<>();
+
+        // Пустые руки: сдавать нечего, но и отбирать нечего.
+        if (Quests.handIn(village, player, Villages.ELDER, hands, paid::add)
+                != Quests.Handover.NOT_ENOUGH) {
+            context.throwGameTestException("С пустыми руками квест приняли");
+        }
+        if (!village.questsDone(player).isEmpty() || village.reputationOf(player) != 0) {
+            context.throwGameTestException("Отказ всё-таки что-то изменил");
+        }
+
+        // Принёс меньше нужного — тоже отказ, и брёвна остались при игроке.
+        hands.addStack(new ItemStack(Items.OAK_LOG, 15));
+        if (Quests.handIn(village, player, Villages.ELDER, hands, paid::add)
+                != Quests.Handover.NOT_ENOUGH) {
+            context.throwGameTestException("Приняли пятнадцать брёвен вместо шестнадцати");
+        }
+        if (hands.count(Items.OAK_LOG) != 15) {
+            context.throwGameTestException("У игрока отобрали недостающее: осталось "
+                    + hands.count(Items.OAK_LOG));
+        }
+
+        // Донёс шестнадцатое — приняли ровно шестнадцать.
+        hands.addStack(new ItemStack(Items.OAK_LOG, 1));
+        if (Quests.handIn(village, player, Villages.ELDER, hands, paid::add)
+                != Quests.Handover.DONE) {
+            context.throwGameTestException("Шестнадцать брёвен не приняли");
+        }
+        if (hands.count(Items.OAK_LOG) != 0) {
+            context.throwGameTestException("Забрали не всё нужное или лишнее: осталось "
+                    + hands.count(Items.OAK_LOG));
+        }
+        if (village.reputationOf(player) != 15) {
+            context.throwGameTestException("Доверие после первого квеста "
+                    + village.reputationOf(player) + ", а обещали пятнадцать");
+        }
+
+        // Второй и третий шаги цепочки.
+        hands.addStack(new ItemStack(Items.COBBLESTONE, 24));
+        if (Quests.handIn(village, player, Villages.ELDER, hands, paid::add)
+                != Quests.Handover.DONE) {
+            context.throwGameTestException("Второй квест не приняли");
+        }
+
+        hands.addStack(new ItemStack(Items.BREAD, 8));
+        if (Quests.handIn(village, player, Villages.ELDER, hands, paid::add)
+                != Quests.Handover.DONE) {
+            context.throwGameTestException("Третий квест не приняли: доверия "
+                    + village.reputationOf(player));
+        }
+
+        // Чертёж выдан, и деревня считает игрока другом.
+        boolean gotBlueprint = paid.stream()
+                .anyMatch(stack -> stack.isOf(ModItems.TOWN_HALL_BLUEPRINT));
+        if (!gotBlueprint) {
+            context.throwGameTestException("Чертёж ратуши не выдан. Выдано: " + paid);
+        }
+        if (village.standingOf(player).ordinal() < Standing.FRIEND.ordinal()) {
+            context.throwGameTestException("После всей цепочки игрок всё ещё "
+                    + village.standingOf(player).id());
+        }
+
+        // Цепочка кончилась: просить больше нечего.
+        if (Quests.handIn(village, player, Villages.ELDER, hands, paid::add)
+                != Quests.Handover.NOTHING_OFFERED) {
+            context.throwGameTestException("Деревня просит что-то после конца цепочки");
+        }
+
+        context.complete();
+    }
+
+    /**
+     * В деревне есть с кем заговорить.
+     * <p>
+     * Старейшина ставится явно при основании, а не через приоритет найма:
+     * без неё деревня — набор домов, в котором игроку нечего делать.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void villageHasAnElderToTalkTo(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+
+        try {
+            for (int x = -20; x <= 20; x++) {
+                for (int z = -20; z <= 20; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала: место занято="
+                        + manager.isSettled(centre) + ", помеха=" + whoBlocks(manager, centre));
+                return;
+            }
+
+            Citizen elder = village.citizens().stream()
+                    .filter(citizen -> citizen.profession().filter(Villages.ELDER::equals).isPresent())
+                    .findFirst().orElse(null);
+            if (elder == null) {
+                context.throwGameTestException("В деревне нет старейшины: "
+                        + village.citizens().stream().map(citizen -> citizen.profession()
+                                .map(Identifier::toString).orElse("без дела")).toList());
+                return;
+            }
+
+            // И ей есть что предложить пришедшему.
+            if (Quests.offered(village, UUID.randomUUID(), Villages.ELDER).isEmpty()) {
+                context.throwGameTestException("Старейшине нечего предложить игроку");
+            }
+
+            // Приток жителей старейшину не назначает: в колонии игрока
+            // выдавать квесты некому.
+            Settlement colony = colonyWithBuilder(world, manager,
+                    context.getAbsolutePos(new BlockPos(0, 40, 0)));
+            try {
+                for (int newcomer = 0; newcomer < 4; newcomer++) {
+                    Housing.welcomeNewcomer(world, colony, new java.util.Random(newcomer));
+                }
+                boolean hiredElder = colony.citizens().stream()
+                        .anyMatch(citizen -> citizen.profession()
+                                .filter(Villages.ELDER::equals).isPresent());
+                if (hiredElder) {
+                    context.throwGameTestException("Колония игрока наняла старейшину сама собой");
+                }
+            } finally {
+                discardBodies(world, colony);
+                manager.remove(colony.id());
+                world.setBlockState(context.getAbsolutePos(new BlockPos(0, 40, 0)),
+                        Blocks.AIR.getDefaultState());
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
         }
 
         context.complete();

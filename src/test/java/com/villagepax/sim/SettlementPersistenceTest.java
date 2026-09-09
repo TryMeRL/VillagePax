@@ -187,6 +187,37 @@ class SettlementPersistenceTest {
         assertFalse(back.isHomeless());
     }
 
+    /**
+     * Доверие деревни и выполненные квесты обязаны переживать перезаход.
+     * <p>
+     * Это не косметика: на доверии держится вход в мод. Потерянное поле
+     * означало бы, что игрок проходит стартовую цепочку, выходит из игры —
+     * и старейшина снова просит у него брёвна как у чужака.
+     */
+    @Test
+    void trustAndFinishedQuestsSurviveRoundTrip() {
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар",
+                new BlockPos(200, 70, -140));
+
+        UUID friend = UUID.randomUUID();
+        UUID stranger = UUID.randomUUID();
+        Identifier first = new Identifier("villagepax", "norman/founding_1");
+        Identifier second = new Identifier("villagepax", "norman/founding_2");
+
+        village.addReputation(friend, 50);
+        village.noteQuestDone(friend, first);
+        village.noteQuestDone(friend, second);
+        village.addReputation(stranger, 5);
+
+        Settlement restored = roundTrip(village);
+
+        assertEquals(50, restored.reputationOf(friend), "доверие");
+        assertEquals(Standing.FRIEND, restored.standingOf(friend));
+        assertEquals(5, restored.reputationOf(stranger));
+        assertEquals(List.of(first, second), restored.questsDone(friend), "выполненные квесты");
+        assertTrue(restored.questsDone(stranger).isEmpty());
+    }
+
     /** У новой колонии суточные нужды ещё ни разу не считались. */
     @Test
     void freshSettlementHasNotSeenADay() {

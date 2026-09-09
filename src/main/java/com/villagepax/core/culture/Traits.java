@@ -37,6 +37,16 @@ public final class Traits {
     /** И сколько кладёт мастер по камню на каменном шаге. */
     private static final int MASONRY_BLOCKS_PER_TURN = 2;
 
+    /**
+     * Насколько неровной может быть площадка: по умолчанию и у террасников.
+     * <p>
+     * Четыре, а не «сколько угодно»: обрыв остаётся обрывом даже для тех,
+     * кто умеет строить террасы, — а дом, у которого угол висит в пяти
+     * блоках над землёй, читается как ошибка, а не как замысел.
+     */
+    private static final int PLAIN_SLOPE = 2;
+    private static final int TERRACED_SLOPE = 4;
+
     private Traits() {
     }
 
@@ -107,6 +117,18 @@ public final class Traits {
             return MASONRY_BLOCKS_PER_TURN;
         }
         return BLOCKS_PER_TURN;
+    }
+
+    /**
+     * Насколько неровным может быть след здания у этого народа.
+     * <p>
+     * Деревня не строит на скале: половина дома висела бы в воздухе, а
+     * другая была бы утоплена в холм. Но народ, умеющий держать землю
+     * подпорной стеной, берётся и за склон — и его деревня выглядит иначе,
+     * потому что лепится по склону, а не стоит на ровном.
+     */
+    public static int maxSlope(Identifier culture) {
+        return has(culture, Trait.TERRACE_FARMING) ? TERRACED_SLOPE : PLAIN_SLOPE;
     }
 
     /**

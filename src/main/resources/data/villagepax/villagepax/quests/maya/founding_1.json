@@ -1,11 +1,11 @@
 {
   "giver": "villagepax:elder",
-  "culture": "villagepax:norman",
+  "culture": "villagepax:maya",
   "min_reputation": 0,
   "objectives": [
     {
       "type": "deliver",
-      "item": "minecraft:oak_log",
+      "item": "minecraft:jungle_log",
       "count": 16
     }
   ],
@@ -15,6 +15,6 @@
       "amount": 15
     }
   ],
-  "dialogue": "villagepax.quest.founding_1",
-  "next": "villagepax:norman/founding_2"
+  "dialogue": "villagepax.quest.maya_founding_1",
+  "next": "villagepax:maya/founding_2"
 }

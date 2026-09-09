@@ -18,17 +18,33 @@ import java.util.Optional;
  * одного файла, кроме двух соседних.
  *
  * @param giver          профессия, которая выдаёт квест
+ * @param culture        народ, у которого эта просьба; пусто — у любого
  * @param minReputation  порог доверия: ниже него о квесте не заговорят
  * @param objectives     что требуется сделать
  * @param rewards        что за это дают
  * @param dialogue       ключ локализации: этими словами житель просит
  * @param next           квест, который открывается после этого
  */
-public record Quest(Identifier giver, int minReputation, List<Objective> objectives,
-                    List<Reward> rewards, String dialogue, Optional<Identifier> next) {
+public record Quest(Identifier giver, Optional<Identifier> culture, int minReputation,
+                    List<Objective> objectives, List<Reward> rewards, String dialogue,
+                    Optional<Identifier> next) {
+
+    /**
+     * Просят ли эту просьбу в деревне этого народа.
+     * <p>
+     * Квест без народа — общий: так можно написать просьбу, с которой
+     * к игроку обращается кто угодно. Но <b>цепочка входа в мод у каждого
+     * народа своя</b>, и без этого поля старейшина майя просил бы дров
+     * на норманнскую зиму: квесты в датапаке разложены по выдающей
+     * профессии, а профессия у старейшин одна на всех.
+     */
+    public boolean fitsCulture(Identifier settlementCulture) {
+        return culture.isEmpty() || culture.get().equals(settlementCulture);
+    }
 
     public static final Codec<Quest> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Identifier.CODEC.fieldOf("giver").forGetter(Quest::giver),
+            Identifier.CODEC.optionalFieldOf("culture").forGetter(Quest::culture),
             Codec.INT.optionalFieldOf("min_reputation", 0).forGetter(Quest::minReputation),
             Objective.CODEC.listOf().fieldOf("objectives").forGetter(Quest::objectives),
             Reward.CODEC.listOf().optionalFieldOf("rewards", List.of()).forGetter(Quest::rewards),

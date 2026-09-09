@@ -45,6 +45,18 @@ $hex.Add("v","FF47372A")   # bark, shadow
 $hex.Add("j","FFC79E5E")   # cut wood, lit
 $hex.Add("y","FFB8B2A4")   # linen, shadow
 $hex.Add("U","FF6A7F98")   # dyed cloth, shadow
+$hex.Add("1","FFE7DCC0")   # maya limestone
+$hex.Add("2","FFD5C8A8")   # maya limestone, shaded
+$hex.Add("3","FFF2EAD6")   # maya limestone, sun-bleached
+$hex.Add("4","FFB4503A")   # maya ochre red
+$hex.Add("5","FF8E3B2B")   # maya ochre red, deep
+$hex.Add("6","FF4E8C6A")   # maya jade
+$hex.Add("7","FFC2A65C")   # palm thatch, light
+$hex.Add("8","FFA88C46")   # palm thatch, mid
+$hex.Add("9","FF7E6832")   # palm thatch, dark
+$hex.Add("o","FFE0D8C4")   # carved stone, lit
+$hex.Add("O","FF9E9686")   # carved stone, shadow
+$hex.Add("Q","FFCFC6B0")   # carved stone
 $hex.Add(" ","00000000")   # transparent
 
 $color = New-Object "System.Collections.Generic.Dictionary[string,System.Drawing.Color]" ([System.StringComparer]::Ordinal)
@@ -65,6 +77,9 @@ $noise.Add("M", "L")
 $noise.Add("S", "s")
 $noise.Add("n", "N")
 $noise.Add("W", "V")
+$noise.Add("4", "5")
+$noise.Add("7", "8")
+$noise.Add("o", "Q")
 
 $maps = [ordered]@{}
 
@@ -347,6 +362,60 @@ $maps["item\town_hall_blueprint"] = @(
     "       ww       "
     "       ww       "
     "                ")
+
+$maps["block\ochre_plaster"] = @(
+    "3333333333333333"
+    "4444444444444444"
+    "4454444444444544"
+    "4444444544444444"
+    "4444444444544444"
+    "4544444444444454"
+    "4444454444444444"
+    "4444444444445444"
+    "4441444454444444"
+    "4444444444444544"
+    "4544444444444444"
+    "4444444544414444"
+    "4444444444444454"
+    "4454444444444444"
+    "4444444444544444"
+    "5555555555555555")
+
+$maps["block\carved_stone"] = @(
+    "OOOOOOOOOOOOOOOO"
+    "oooooooooooooooo"
+    "ooooooo66ooooooo"
+    "oooooo4444oooooo"
+    "ooooo444444ooooo"
+    "oooo44444444oooo"
+    "oooooooooooooooo"
+    "ooo4444444444ooo"
+    "oo444444444444oo"
+    "oooooooooooooooo"
+    "o44444444444444o"
+    "4444444444444444"
+    "oooooooooooooooo"
+    "QQQQQQQQQQQQQQQQ"
+    "oooooooooooooooo"
+    "OOOOOOOOOOOOOOOO")
+
+$maps["block\thatch"] = @(
+    "7897789877897898"
+    "7897789877897898"
+    "7897789877897898"
+    "9897789877897898"
+    "7897789977897898"
+    "7897789877897998"
+    "7897789877897898"
+    "7997789877897898"
+    "7897789877997898"
+    "7897789877897898"
+    "7897989877897898"
+    "7897789877897898"
+    "7897789877897899"
+    "7897789877897898"
+    "9897789877897898"
+    "7897789877897898")
 
 $rng = New-Object System.Random 20260905
 

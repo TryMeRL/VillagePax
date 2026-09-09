@@ -1,7 +1,7 @@
 {
   "giver": "villagepax:elder",
-  "culture": "villagepax:norman",
-  "min_reputation": 15,
+  "culture": "villagepax:maya",
+  "min_reputation": 10,
   "objectives": [
     {
       "type": "deliver",
@@ -12,9 +12,9 @@
   "rewards": [
     {
       "type": "reputation",
-      "amount": 15
+      "amount": 20
     }
   ],
-  "dialogue": "villagepax.quest.founding_2",
-  "next": "villagepax:norman/founding_3"
+  "dialogue": "villagepax.quest.maya_founding_2",
+  "next": "villagepax:maya/founding_3"
 }

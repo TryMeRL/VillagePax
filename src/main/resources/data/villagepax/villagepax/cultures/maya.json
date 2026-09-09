@@ -1,0 +1,58 @@
+{
+  "display_name": "villagepax.culture.maya",
+  "kind": "historical",
+  "spawn": {
+    "biomes": "#minecraft:is_jungle",
+    "weight": 10,
+    "min_distance_chunks": 48
+  },
+  "name_pools": {
+    "male": [
+      "Balam",
+      "Itzam",
+      "Kanek",
+      "Yaxun",
+      "Chan",
+      "Bacab",
+      "Ah Kin"
+    ],
+    "female": [
+      "Ixchel",
+      "Sak Nikte",
+      "Ixik",
+      "Yohl",
+      "Kaqchel",
+      "Ixmucane"
+    ],
+    "settlement": [
+      "Yaxchilan",
+      "Kaminaljuyu",
+      "Uxmal",
+      "Coba",
+      "Xunantunich",
+      "Naranjo"
+    ]
+  },
+  "buildings": [
+    "villagepax:maya/town_hall",
+    "villagepax:maya/house",
+    "villagepax:maya/farm",
+    "villagepax:maya/lumberjack"
+  ],
+  "road": [
+    "minecraft:stone_bricks",
+    "minecraft:gravel"
+  ],
+  "decor": [
+    "villagepax:carved_stone",
+    "villagepax:grain_sack",
+    "minecraft:composter",
+    "minecraft:cauldron",
+    "minecraft:flower_pot",
+    "minecraft:barrel"
+  ],
+  "traits": [
+    "villagepax:terrace_farming"
+  ],
+  "diplomacy_defaults": {}
+}

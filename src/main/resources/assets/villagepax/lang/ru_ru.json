@@ -160,5 +160,16 @@
   "villagepax.screen.overview.section_build": "Стройка",
   "villagepax.settlement.level.hamlet": "хутор",
   "villagepax.settlement.level.village": "деревня",
-  "villagepax.settlement.level.town": "городок"
+  "villagepax.settlement.level.town": "городок",
+  "block.villagepax.ochre_plaster": "Охряная штукатурка",
+  "block.villagepax.carved_stone": "Резной камень майя",
+  "block.villagepax.thatch": "Пальмовая кровля",
+  "villagepax.culture.maya": "Майя",
+  "villagepax.building.maya.town_hall": "Храм совета",
+  "villagepax.building.maya.house": "Дом майя",
+  "villagepax.building.maya.farm": "Террасное поле",
+  "villagepax.building.maya.lumberjack": "Хижина рубщика",
+  "villagepax.quest.maya_founding_1": "Кровля храма прохудилась, а брёвен джунглей у нас нет: все ушли на подпорную стену. Принеси, и я это запомню.",
+  "villagepax.quest.maya_founding_2": "Терраса оседает после дождей. Нужен камень, много камня, — иначе поле уйдёт вниз вместе с урожаем.",
+  "villagepax.quest.maya_founding_3": "Ты нам не чужой. Накорми деревню — и я отдам тебе чертёж ратуши: ставь своё поселение."
 }

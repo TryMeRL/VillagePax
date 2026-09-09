@@ -160,5 +160,16 @@
   "villagepax.screen.overview.section_build": "Construction",
   "villagepax.settlement.level.hamlet": "hamlet",
   "villagepax.settlement.level.village": "village",
-  "villagepax.settlement.level.town": "town"
+  "villagepax.settlement.level.town": "town",
+  "block.villagepax.ochre_plaster": "Ochre Plaster",
+  "block.villagepax.carved_stone": "Maya Carved Stone",
+  "block.villagepax.thatch": "Palm Thatch",
+  "villagepax.culture.maya": "Maya",
+  "villagepax.building.maya.town_hall": "Council Temple",
+  "villagepax.building.maya.house": "Maya House",
+  "villagepax.building.maya.farm": "Terraced Field",
+  "villagepax.building.maya.lumberjack": "Cutter's Hut",
+  "villagepax.quest.maya_founding_1": "The temple thatch has worn through and we have no jungle logs left: they all went into the retaining wall. Bring some and I will remember it.",
+  "villagepax.quest.maya_founding_2": "The terrace is slipping after the rains. We need stone, a lot of it, or the field will go down with the harvest.",
+  "villagepax.quest.maya_founding_3": "You are no stranger to us. Feed the village, and I will hand you a town hall blueprint: found your own settlement."
 }

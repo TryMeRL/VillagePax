@@ -70,6 +70,37 @@ public final class ModBlocks {
                     .strength(0.6f)
                     .sounds(BlockSoundGroup.WOOL)));
 
+    /**
+     * Стена майя: охра по извести.
+     * <p>
+     * Красная, и это не вольность. Норманнская штукатурка кремовая, и
+     * первый набросок известковой стены майя от неё почти не отличался —
+     * а народ обязан узнаваться с первого взгляда, иначе своя архитектура
+     * не имеет смысла. Охрой по извести майя красили в действительности.
+     */
+    public static final Block OCHRE_PLASTER = register("ochre_plaster", plain());
+
+    /**
+     * Резной камень майя: ступенчатая пирамида с нефритом на вершине.
+     * <p>
+     * То же место в их архитектуре, какое у норманнов занимает фахверк, —
+     * приметный блок, по которому читается стена. Ставится в углах и
+     * на видных местах, а не сплошь: рельеф на каждом блоке был бы шумом.
+     */
+    public static final Block CARVED_STONE = register("carved_stone", plain());
+
+    /**
+     * Пальмовая кровля.
+     * <p>
+     * Своя, а не ванильный тюк сена: тюк лежит в декоре у норманнов, и
+     * кровля из него читалась бы как сеновал. Держится как трава и звучит
+     * как трава — по ней сразу понятно, что это не камень.
+     */
+    public static final Block THATCH = register("thatch",
+            new Block(AbstractBlock.Settings.create()
+                    .strength(0.5f)
+                    .sounds(BlockSoundGroup.GRASS)));
+
     public static final Block MARKER_WORKSTATION = registerMarker("marker_workstation");
     public static final Block MARKER_BED = registerMarker("marker_bed");
     public static final Block MARKER_STORAGE = registerMarker("marker_storage");

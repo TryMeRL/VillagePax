@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "SPS"
+  ],
+  "key": {
+    "S": {
+      "item": "minecraft:stone_bricks"
+    },
+    "P": {
+      "item": "villagepax:ochre_plaster"
+    }
+  },
+  "result": {
+    "item": "villagepax:carved_stone",
+    "count": 3
+  }
+}

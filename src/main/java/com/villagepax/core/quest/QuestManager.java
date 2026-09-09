@@ -72,7 +72,7 @@ public class QuestManager extends JsonDataLoader implements IdentifiableResource
      * Выводится, а не объявляется полем: поле «первый» рассыпалось бы, стоило
      * автору датапака добавить вторую цепочку и забыть его переставить.
      */
-    public static Optional<Identifier> firstOf(Identifier giver) {
+    public static Optional<Identifier> firstOf(Identifier giver, Identifier culture) {
         Set<Identifier> linked = quests.values().stream()
                 .map(Quest::next)
                 .filter(Optional::isPresent)
@@ -81,6 +81,10 @@ public class QuestManager extends JsonDataLoader implements IdentifiableResource
 
         return quests.entrySet().stream()
                 .filter(entry -> entry.getValue().giver().equals(giver))
+                // Народ важен не меньше выдающего: цепочек с одним и тем же
+                // старейшиной столько же, сколько народов, и голова у каждой
+                // своя. Без этого игрок услышал бы от майя норманнскую просьбу.
+                .filter(entry -> entry.getValue().fitsCulture(culture))
                 .map(Map.Entry::getKey)
                 .filter(id -> !linked.contains(id))
                 .sorted(java.util.Comparator.comparing(Identifier::toString))

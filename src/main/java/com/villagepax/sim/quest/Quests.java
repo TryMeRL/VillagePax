@@ -70,7 +70,7 @@ public final class Quests {
      * старейшина молчит, и непонятно, что делать.
      */
     public static Optional<Identifier> offered(Settlement village, UUID player, Identifier giver) {
-        Identifier current = QuestManager.firstOf(giver).orElse(null);
+        Identifier current = QuestManager.firstOf(giver, village.culture()).orElse(null);
         List<Identifier> done = village.questsDone(player);
 
         // Ограничение обхода — число квестов: кольцевая ссылка в датапаке

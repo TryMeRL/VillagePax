@@ -1,12 +1,12 @@
 {
   "giver": "villagepax:elder",
-  "culture": "villagepax:norman",
+  "culture": "villagepax:maya",
   "min_reputation": 30,
   "objectives": [
     {
       "type": "deliver",
-      "item": "minecraft:bread",
-      "count": 8
+      "item": "minecraft:carrot",
+      "count": 24
     }
   ],
   "rewards": [
@@ -20,5 +20,5 @@
       "count": 1
     }
   ],
-  "dialogue": "villagepax.quest.founding_3"
+  "dialogue": "villagepax.quest.maya_founding_3"
 }

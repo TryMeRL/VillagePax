@@ -2872,12 +2872,19 @@ public class VillagePaxGameTests implements FabricGameTest {
             // Предлагаются только здания своего народа, только первого
             // уровня и без ратуши: уровни растут кнопкой «Улучшить», а
             // ратуша стоит с основания. Считается ожидаемое по загруженным
-            // схемам, а не числом: добавится седьмое здание — тест не
+            // схемам, а не числом: добавится ещё одно здание — тест не
             // придётся править.
+            //
+            // «Своего народа» пришлось начать считать всерьёз, когда народов
+            // стало двое: до майя список схем и список своих зданий совпадали,
+            // и тест этого не различал.
+            List<Identifier> ourBuildings = CultureManager.get(NORMAN).buildings();
             long expectedOffers = SchematicLoader.ids().stream()
                     .filter(schematic -> BuildJob.levelOf(schematic).orElse(1) == 1)
                     .filter(schematic -> BuildJob.buildingTypeOf(schematic)
-                            .filter(type -> !Levels.isTownHallType(type)).isPresent())
+                            .filter(type -> !Levels.isTownHallType(type)
+                                    && ourBuildings.contains(type))
+                            .isPresent())
                     .count();
             if (view.offers().size() != expectedOffers) {
                 context.throwGameTestException("Предложено " + view.offers().size()
@@ -6305,6 +6312,205 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
     }
 
+    // --- фаза 0.2: второй народ ---
+
+    private static final Identifier MAYA = new Identifier("villagepax", "maya");
+    private static final Identifier MAYA_TOWN_HALL_TYPE =
+            new Identifier("villagepax", "maya/town_hall");
+    private static final Identifier MAYA_HOUSE_TYPE = new Identifier("villagepax", "maya/house");
+
+    /**
+     * Каждый народ просит своё.
+     * <p>
+     * Квесты в датапаке разложены по выдающей профессии, а старейшина
+     * у всех народов один и тот же. Без народа у самой просьбы майя
+     * встречали бы игрока норманнской фразой про зимние поленницы — и это
+     * не мелочь, а первое, что игрок в чужой деревне слышит.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "maya")
+    public void eachPeopleAsksItsOwnQuests(TestContext context) {
+        BlockPos where = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        UUID player = UUID.randomUUID();
+
+        Settlement norman = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", where);
+        Settlement maya = Settlement.found(MAYA, Owner.AUTONOMOUS, "Йашчилан", where);
+
+        Identifier asksNorman = Quests.offered(norman, player, Villages.ELDER).orElse(null);
+        Identifier asksMaya = Quests.offered(maya, player, Villages.ELDER).orElse(null);
+
+        if (asksNorman == null || asksMaya == null) {
+            context.throwGameTestException("Старейшина молчит: у норманнов " + asksNorman
+                    + ", у майя " + asksMaya);
+            return;
+        }
+        if (!asksNorman.getPath().startsWith("norman/")) {
+            context.throwGameTestException("Норманны просят чужое: " + asksNorman);
+        }
+        if (!asksMaya.getPath().startsWith("maya/")) {
+            context.throwGameTestException("Майя просят чужое: " + asksMaya);
+        }
+        if (asksNorman.equals(asksMaya)) {
+            context.throwGameTestException("Оба народа просят одно и то же: " + asksMaya);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Деревня майя встаёт своей, а не перекрашенной норманнской.
+     * <p>
+     * Проверяется по трём разным следам сразу, потому что «второй народ»
+     * ломается по-разному: типы зданий могут оказаться чужими, схема —
+     * норманнской, а материал — общим. Поэтому смотрим и на объявленные
+     * типы, и на то, что <b>в мире действительно стоит охряная стена</b>.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "maya")
+    public void mayaVillageIsBuiltOfItsOwnMaterial(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+
+        try {
+            for (int x = -20; x <= 20; x++) {
+                for (int z = -20; z <= 20; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+
+            village = Villages.found(world, MAYA, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня майя не встала: помеха="
+                        + whoBlocks(manager, centre));
+                return;
+            }
+
+            for (Building building : village.buildings()) {
+                if (!building.type().getPath().startsWith("maya/")) {
+                    context.throwGameTestException("У майя чужое здание: " + building.type());
+                    return;
+                }
+            }
+            if (village.buildings().size() < 3) {
+                context.throwGameTestException("Деревня встала неполной: зданий "
+                        + village.buildings().size() + ", ожидались ратуша, дом и поле");
+            }
+
+            // Ратуша ставится при основании целиком, значит охряная стена
+            // обязана уже стоять в мире. Ищем её в следе поселения.
+            boolean ochre = false;
+            for (BlockPos at : BlockPos.iterate(centre.add(-10, -1, -10), centre.add(10, 12, 10))) {
+                if (world.getBlockState(at).isOf(ModBlocks.OCHRE_PLASTER)) {
+                    ochre = true;
+                    break;
+                }
+            }
+            if (!ochre) {
+                context.throwGameTestException("В деревне майя нет ни одной охряной стены — "
+                        + "стоит что-то чужое");
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Террасники берутся за склон, на который норманны не пойдут.
+     * <p>
+     * Это и есть черта {@code terrace_farming} в деле. Проверяется на
+     * настоящей площадке со ступенью, а не только числом из настройки:
+     * число могло бы остаться неприменённым.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "maya")
+    public void terraceBuildersTakeSlopesOthersRefuse(TestContext context) {
+        if (Traits.maxSlope(MAYA) <= Traits.maxSlope(NORMAN)) {
+            context.throwGameTestException("Уклон у террасников не больше: майя "
+                    + Traits.maxSlope(MAYA) + ", норманны " + Traits.maxSlope(NORMAN));
+            return;
+        }
+        if (!Traits.has(MAYA, Trait.TERRACE_FARMING)) {
+            context.throwGameTestException("У майя нет объявленной черты террас: "
+                    + Traits.of(MAYA));
+        }
+        if (Traits.has(NORMAN, Trait.TERRACE_FARMING)) {
+            context.throwGameTestException("Черта террас досталась и норманнам");
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Храм совета второго уровня достраивается, ни разу не встав в воздух.
+     * <p>
+     * Двенадцать блоков высотой — самая высокая схема мода, и на ней
+     * проверяется тот же предел досягаемости, на котором споткнулся дом
+     * норманнов. Если билдер не дотянется до гребня, играть за майя будет
+     * нельзя: ратуша у них выше всего остального.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "reach")
+    public void mayaTempleIsBuiltWithoutStandingInMidair(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic temple = schematic(context, new Identifier("villagepax", "maya/town_hall_lvl2"));
+
+        // Ратуша вплотную: дальше двенадцати блоков билдер не берёт
+        // со склада сам, и проверка досягаемости выродилась бы в проверку
+        // подвоза.
+        BlockPos hall = context.getAbsolutePos(new BlockPos(8, 9, 8));
+        List<BlockPos> ground = new ArrayList<>();
+
+        try {
+            for (int x = -2; x <= 12; x++) {
+                for (int z = -2; z <= 12; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    ground.add(at);
+                }
+            }
+
+            Settlement colony = colonyWithBuilder(world, manager, hall, MAYA);
+            BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 9, 0));
+            Building site = new Building(UUID.randomUUID(), MAYA_TOWN_HALL_TYPE, 2, anchor,
+                    BlockRotation.NONE, BuildProgress.PLANNED, List.of());
+            colony.addBuilding(site);
+
+            try {
+                stockFor(world, colony, temple);
+                Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER,
+                        context.getAbsolutePos(new BlockPos(-1, 9, -1)));
+
+                int stalled = runWorkOnFoot(world, manager, colony, mason, 1_200);
+
+                if (!site.isOperational()) {
+                    context.throwGameTestException("Храм не достроился: билдер встал на шаге "
+                            + site.nextStep() + " из " + temple.plan().steps().size() + ", и "
+                            + stalled + " раз его посылали туда, где человек стоять не может");
+                }
+                if (stalled > 0) {
+                    context.throwGameTestException("Билдера " + stalled
+                            + " раз посылали стоять в воздух — в игре он туда не дойдёт");
+                }
+            } finally {
+                demolish(world, site, temple);
+                discardBodies(world, colony);
+                manager.remove(colony.id());
+            }
+        } finally {
+            for (BlockPos at : ground) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
     /**
      * Убрать деревню за собой начисто — включая память о месте.
      * <p>
@@ -6460,8 +6666,9 @@ public class VillagePaxGameTests implements FabricGameTest {
      * ровно как в игре, где он до неё не дойдёт.
      * <p>
      * Проверяется на доме второго уровня: он девять блоков высотой, и труба
-     * у него идёт до самого верха. Это самая высокая схема мода, и если
-     * дотянуться нельзя до неё, то нельзя и до ратуши второго уровня.
+     * у него идёт до самого верха. Самой высокой схемой мода он был до
+     * майя; теперь выше него храм совета второго уровня, и у него своя
+     * проверка — {@link #mayaTempleIsBuiltWithoutStandingInMidair}.
      */
     @GameTest(templateName = EMPTY_STRUCTURE, batchId = "reach")
     public void tallHouseIsBuiltWithoutStandingInMidair(TestContext context) {
@@ -7280,8 +7487,13 @@ public class VillagePaxGameTests implements FabricGameTest {
 
     /** Ратуша ставится настоящим блоком: без неё у колонии нет ни одного хранилища. */
     private static Settlement colonyWithBuilder(ServerWorld world, SettlementManager manager, BlockPos center) {
+        return colonyWithBuilder(world, manager, center, NORMAN);
+    }
+
+    private static Settlement colonyWithBuilder(ServerWorld world, SettlementManager manager,
+                                                BlockPos center, Identifier culture) {
         world.setBlockState(center, ModBlocks.TOWN_HALL.getDefaultState());
-        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Стройка", center);
+        Settlement colony = Settlement.found(culture, Owner.of(UUID.randomUUID()), "Стройка", center);
         Citizen builder = Citizen.newborn("Rollo", "le Macon", NORMAN, Gender.MALE);
         builder.setProfession(BuildJob.BUILDER);
         colony.addCitizen(builder);

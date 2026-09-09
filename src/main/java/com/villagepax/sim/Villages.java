@@ -5,6 +5,7 @@ import com.villagepax.core.config.Configs;
 import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
+import com.villagepax.core.culture.Traits;
 import com.villagepax.core.trade.TradeTable;
 import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.screen.BuildOrders;
@@ -89,8 +90,7 @@ public final class Villages {
     private static final int PLACE_RINGS = 5;
     private static final int PLACE_STEP = 7;
 
-    /** Насколько неровным может быть след здания: деревня не строит на скале. */
-    private static final int MAX_SLOPE = 2;
+
 
     /** Профессия, с которой игрок разговаривает. Данными задан только её файл. */
     public static final Identifier ELDER = new Identifier(VillagePax.MOD_ID, "elder");
@@ -353,7 +353,7 @@ public final class Villages {
                         continue;
                     }
                     BlockPos anchor = surface(world, centre.add(dx, 0, dz));
-                    if (anchor != null && isFlatEnough(world, anchor, schematic)) {
+                    if (anchor != null && isFlatEnough(world, village, anchor, schematic)) {
                         spots.add(anchor);
                     }
                 }
@@ -374,14 +374,19 @@ public final class Villages {
     /**
      * Ровность следа. Без этой проверки деревня охотно ставит дом на склон,
      * и половина его висит в воздухе, а другая утоплена в холм.
+     * <p>
+     * Насколько неровно — дело народа: у майя есть черта террасного
+     * земледелия, и они берутся за склоны, на которые норманны не пойдут.
      */
-    private static boolean isFlatEnough(ServerWorld world, BlockPos anchor, Schematic schematic) {
+    private static boolean isFlatEnough(ServerWorld world, Settlement village, BlockPos anchor,
+                                        Schematic schematic) {
         Vec3i size = schematic.size();
+        int allowed = Traits.maxSlope(village.culture());
 
         for (int dx = 0; dx < size.getX(); dx += Math.max(1, size.getX() - 1)) {
             for (int dz = 0; dz < size.getZ(); dz += Math.max(1, size.getZ() - 1)) {
                 BlockPos corner = surface(world, anchor.add(dx, 0, dz));
-                if (corner == null || Math.abs(corner.getY() - anchor.getY()) > MAX_SLOPE) {
+                if (corner == null || Math.abs(corner.getY() - anchor.getY()) > allowed) {
                     return false;
                 }
             }

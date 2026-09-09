@@ -4825,6 +4825,68 @@ public class VillagePaxGameTests implements FabricGameTest {
         context.complete();
     }
 
+    // --- очередь заказов ---
+
+    /**
+     * Билдер берётся за то, что игрок поставил вперёд.
+     * <p>
+     * Заказал три дома — решаешь, какой первым. Без очереди билдер брался
+     * за первую размеченную стройку, и переставить порядок было нечем:
+     * приходилось отменять заказы и размечать заново.
+     * <p>
+     * Проверяется на двух стройках, из которых <b>вторая</b> объявлена
+     * важной: если бы очередь не работала, билдер взялся бы за первую.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "orders")
+    public void builderTakesTheUrgentSiteFirst(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        Building first = plan(colony, context.getAbsolutePos(new BlockPos(0, 8, 0)),
+                HOUSE_TYPE, BlockRotation.NONE);
+        Building urgent = plan(colony, context.getAbsolutePos(new BlockPos(0, 8, 8)),
+                HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, housePlan);
+            stockFor(world, colony, housePlan);
+
+            // Без приоритета очередь идёт по времени заказа.
+            if (!colony.byPriority().get(0).id().equals(first.id())) {
+                context.throwGameTestException("При равной важности порядок заказа не сохранён");
+            }
+
+            urgent.setPriority(5);
+            if (!colony.byPriority().get(0).id().equals(urgent.id())) {
+                context.throwGameTestException("Важная стройка не стала первой в очереди");
+            }
+
+            Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+            runWork(world, manager, colony, mason, 4, Schedule.MORNING_WORK);
+
+            UUID taken = mason.jobState().building().orElse(null);
+            if (taken == null) {
+                context.throwGameTestException("Билдер не взялся ни за что");
+            }
+            if (!taken.equals(urgent.id())) {
+                context.throwGameTestException("Билдер взялся не за важную стройку: "
+                        + (taken.equals(first.id()) ? "за первую по времени" : taken.toString()));
+            }
+        } finally {
+            demolish(world, first, housePlan);
+            demolish(world, urgent, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
     // --- список заказов ---
 
     /**

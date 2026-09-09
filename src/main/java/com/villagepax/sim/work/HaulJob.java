@@ -92,7 +92,7 @@ public final class HaulJob implements Job {
     private void findWork(WorkContext context) {
         Warehouse warehouse = context.warehouse();
 
-        for (Building site : context.settlement().buildings()) {
+        for (Building site : context.settlement().byPriority()) {
             if (!BuildJob.isUnderConstruction(site) || BuildJob.storageIsNearby(warehouse, site)) {
                 continue;
             }

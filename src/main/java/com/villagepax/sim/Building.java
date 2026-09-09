@@ -32,7 +32,8 @@ public class Building {
             BuildProgress.CODEC.optionalFieldOf("progress", BuildProgress.PLANNED).forGetter(Building::progress),
             Uuids.STRING_CODEC.listOf().optionalFieldOf("workers", List.of()).forGetter(Building::workers),
             Codec.INT.optionalFieldOf("next_step", 0).forGetter(Building::nextStep),
-            ItemTally.CODEC.optionalFieldOf("stock", new ItemTally()).forGetter(Building::stock)
+            ItemTally.CODEC.optionalFieldOf("stock", new ItemTally()).forGetter(Building::stock),
+            Codec.INT.optionalFieldOf("priority", 0).forGetter(Building::priority)
     ).apply(instance, Building::new));
 
     private final UUID id;
@@ -71,6 +72,16 @@ public class Building {
      */
     private final ItemTally stock;
 
+    /**
+     * Насколько эта стройка важнее прочих.
+     * <p>
+     * Заказал три дома — решаешь, какой первым. Без этого билдер брался
+     * за первую попавшуюся стройку, то есть за ту, что размечена раньше,
+     * и переставить порядок было нечем: приходилось отменять заказы
+     * и размечать заново.
+     */
+    private int priority;
+
     public Building(UUID id, Identifier type, int level, BlockPos anchor, BlockRotation rotation,
                     BuildProgress progress, List<UUID> workers) {
         this(id, type, level, anchor, rotation, progress, workers, 0);
@@ -83,6 +94,13 @@ public class Building {
 
     public Building(UUID id, Identifier type, int level, BlockPos anchor, BlockRotation rotation,
                     BuildProgress progress, List<UUID> workers, int nextStep, ItemTally stock) {
+        this(id, type, level, anchor, rotation, progress, workers, nextStep, stock, 0);
+    }
+
+    public Building(UUID id, Identifier type, int level, BlockPos anchor, BlockRotation rotation,
+                    BuildProgress progress, List<UUID> workers, int nextStep, ItemTally stock,
+                    int priority) {
+        this.priority = priority;
         this.id = id;
         this.type = type;
         this.level = level;
@@ -148,6 +166,15 @@ public class Building {
 
     public ItemTally stock() {
         return stock;
+    }
+
+    public int priority() {
+        return priority;
+    }
+
+    /** Подвинуть в очереди. Отрицательное значит «потом». */
+    public void setPriority(int priority) {
+        this.priority = priority;
     }
 
     public int nextStep() {

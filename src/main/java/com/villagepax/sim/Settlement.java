@@ -10,6 +10,7 @@ import net.minecraft.util.math.ChunkPos;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -159,6 +160,19 @@ public class Settlement {
 
     public List<Building> buildings() {
         return Collections.unmodifiableList(buildings);
+    }
+
+    /**
+     * Здания в порядке очереди: сперва важные, потом по времени заказа.
+     * <p>
+     * Порядок заказа сохраняется при равной важности намеренно — иначе
+     * список прыгал бы от решения к решению, а с ним и билдер: он берётся
+     * за первую подходящую стройку, и «первая» обязана быть устойчивой.
+     */
+    public List<Building> byPriority() {
+        List<Building> queue = new ArrayList<>(buildings);
+        queue.sort(Comparator.comparingInt(Building::priority).reversed());
+        return queue;
     }
 
     public List<Citizen> citizens() {

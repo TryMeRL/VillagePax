@@ -261,7 +261,7 @@ public final class BuilderJob implements Job {
      * не доходит, стройка встаёт. Со стороны это ровно «работники повисли».
      */
     private void findWork(WorkContext context) {
-        for (Building site : context.settlement().buildings()) {
+        for (Building site : context.settlement().byPriority()) {
             if (!BuildJob.isUnderConstruction(site) || nextStepPosition(site).isEmpty()) {
                 continue;
             }

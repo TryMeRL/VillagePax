@@ -136,5 +136,10 @@
   "villagepax.greeting.title": "Village Pax: где-то в лесах стоят норманнские деревни.",
   "villagepax.greeting.how": "Найди старейшину, выполни его просьбы — за них он отдаст чертёж ратуши, и с него начнётся твоя колония.",
   "villagepax.locate.none": "Поблизости нет мест под деревни: народы ставят их в биомах %s, а такого рядом не нашлось.",
-  "villagepax.locate.found": "Ближайшая деревня — %s, около %s, это %s блоков отсюда."
+  "villagepax.locate.found": "Ближайшая деревня — %s, около %s, это %s блоков отсюда.",
+  "villagepax.screen.overview.section_colony": "Колония",
+  "villagepax.screen.overview.section_build": "Стройка",
+  "villagepax.settlement.level.hamlet": "хутор",
+  "villagepax.settlement.level.village": "деревня",
+  "villagepax.settlement.level.town": "городок"
 }

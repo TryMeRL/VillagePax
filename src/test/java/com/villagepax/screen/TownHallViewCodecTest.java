@@ -38,7 +38,7 @@ class TownHallViewCodecTest {
                         new ItemTally(Map.of(new Identifier("minecraft", "oak_fence"), 6)))),
                 List.of(new TownHallView.BuildingLine(UUID.randomUUID(),
                         new Identifier("villagepax", "norman/town_hall"), 1,
-                        BuildProgress.DONE, new BlockPos(10, 64, -20), true)),
+                        BuildProgress.DONE, new BlockPos(10, 64, -20), true, 3)),
                 List.of(new TownHallView.CitizenLine(UUID.randomUUID(), "Rollo le Macon",
                         Optional.of(new Identifier("villagepax", "builder")), true,
                         Optional.of(new Identifier("villagepax", "norman/town_hall")),

@@ -101,7 +101,7 @@ public record TownHallView(
     }
 
     public record BuildingLine(UUID id, Identifier type, int level, BuildProgress progress,
-                               BlockPos anchor, boolean canUpgrade) {
+                               BlockPos anchor, boolean canUpgrade, int priority) {
 
         public static final Codec<BuildingLine> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Uuids.CODEC.fieldOf("id").forGetter(BuildingLine::id),
@@ -109,7 +109,8 @@ public record TownHallView(
                 Codec.INT.fieldOf("level").forGetter(BuildingLine::level),
                 BuildProgress.CODEC.fieldOf("progress").forGetter(BuildingLine::progress),
                 BlockPos.CODEC.fieldOf("anchor").forGetter(BuildingLine::anchor),
-                Codec.BOOL.fieldOf("can_upgrade").forGetter(BuildingLine::canUpgrade)
+                Codec.BOOL.fieldOf("can_upgrade").forGetter(BuildingLine::canUpgrade),
+                Codec.INT.optionalFieldOf("priority", 0).forGetter(BuildingLine::priority)
         ).apply(instance, BuildingLine::new));
     }
 
@@ -207,10 +208,13 @@ public record TownHallView(
 
     private static List<BuildingLine> buildings(Settlement settlement) {
         List<BuildingLine> lines = new ArrayList<>();
-        for (Building building : settlement.buildings()) {
+        // В порядке очереди: список в пульте обязан показывать то же,
+        // в каком порядке билдер берётся за дело.
+        for (Building building : settlement.byPriority()) {
             lines.add(new BuildingLine(building.id(), building.type(), building.level(),
                     building.progress(), building.anchor(),
-                    building.isOperational() && BuildOrders.canUpgrade(building)));
+                    building.isOperational() && BuildOrders.canUpgrade(building),
+                    building.priority()));
         }
         return lines;
     }

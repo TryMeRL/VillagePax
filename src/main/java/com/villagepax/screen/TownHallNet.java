@@ -56,6 +56,7 @@ public final class TownHallNet {
     public static final Identifier ORDER = new Identifier(VillagePax.MOD_ID, "town_hall_order");
     public static final Identifier ASSIGN = new Identifier(VillagePax.MOD_ID, "town_hall_assign");
     public static final Identifier UPGRADE = new Identifier(VillagePax.MOD_ID, "town_hall_upgrade");
+    public static final Identifier PRIORITY = new Identifier(VillagePax.MOD_ID, "town_hall_priority");
 
     /** Голограмма: клиент просит план схемы, потом примеряет место. */
     public static final Identifier PLAN_REQUEST = new Identifier(VillagePax.MOD_ID, "plan_request");
@@ -90,6 +91,12 @@ public final class TownHallNet {
             BlockPos anchor = buf.readBlockPos();
             BlockRotation rotation = BuildOrders.rotation(buf.readString(16));
             server.execute(() -> probe(player, schematic, anchor, rotation));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(PRIORITY, (server, player, handler, buf, sender) -> {
+            UUID building = buf.readUuid();
+            int shift = buf.readInt();
+            server.execute(() -> reorder(player, building, shift));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(UPGRADE, (server, player, handler, buf, sender) -> {
@@ -178,6 +185,24 @@ public final class TownHallNet {
                     Text.translatable(buildingKey(clash.clash().type())),
                     Text.literal(clash.clash().anchor().toShortString()));
         }
+    }
+
+    /**
+     * Подвинуть стройку в очереди.
+     * <p>
+     * Требует открытого пульта, как и остальные приказы: иначе кнопка
+     * в интерфейсе стала бы способом распоряжаться колонией откуда угодно.
+     */
+    private static void reorder(ServerPlayerEntity player, UUID building, int shift) {
+        Settlement colony = consoleColony(player);
+        if (colony == null) {
+            return;
+        }
+
+        SettlementManager manager = SettlementManager.get(player.getServerWorld());
+        manager.update(colony.id(), settlement -> settlement.building(building)
+                .ifPresent(site -> site.setPriority(
+                        Math.max(-99, Math.min(99, site.priority() + shift)))));
     }
 
     /**

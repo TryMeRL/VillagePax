@@ -136,5 +136,10 @@
   "villagepax.greeting.title": "Village Pax: Norman villages stand somewhere in the forests.",
   "villagepax.greeting.how": "Find their elder and do what he asks — he will hand you a town hall blueprint, and your own colony starts from it.",
   "villagepax.locate.none": "No village sites nearby: peoples settle in biomes %s, and none is around.",
-  "villagepax.locate.found": "Nearest village: %s, around %s, %s blocks from here."
+  "villagepax.locate.found": "Nearest village: %s, around %s, %s blocks from here.",
+  "villagepax.screen.overview.section_colony": "Colony",
+  "villagepax.screen.overview.section_build": "Construction",
+  "villagepax.settlement.level.hamlet": "hamlet",
+  "villagepax.settlement.level.village": "village",
+  "villagepax.settlement.level.town": "town"
 }

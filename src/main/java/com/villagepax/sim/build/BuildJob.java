@@ -132,7 +132,14 @@ public final class BuildJob {
     private BuildJob() {
     }
 
-    /** Схема для здания: по соглашению об именовании, пока нет типов зданий из датапака. */
+    /**
+     * Схема для здания: приписка {@code _lvlN} к типу.
+     * <p>
+     * Соглашение об именовании <b>осталось намеренно</b> и после того, как
+     * типы зданий стали данными. Оно не наделяет здание правами — права
+     * объявляет роль в файле типа, — а лишь называет файл схемы. Лишнее
+     * поле «где моя схема» в каждом типе было бы обрядом без смысла.
+     */
     public static Identifier schematicId(Building building) {
         return new Identifier(building.type().getNamespace(),
                 building.type().getPath() + "_lvl" + building.level());

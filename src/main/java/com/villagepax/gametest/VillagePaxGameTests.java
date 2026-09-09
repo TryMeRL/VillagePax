@@ -6770,6 +6770,72 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
     /**
+     * Ни один блок мода не остаётся без применения.
+     * <p>
+     * Проверка написана по следам второй настоящей оплошности того же
+     * рода. Блок белья был зарегистрирован, отрисован, включён в тег
+     * декора и имел рецепт — а <b>ни одна культура его не перечисляла
+     * и ни одна схема не ставила</b>. Встретить его в игре было нельзя
+     * иначе как достав из творческой вкладки.
+     * <p>
+     * Блок считается применённым, если он стоит в какой-нибудь схеме или
+     * назван в наборе декора какого-нибудь народа. Исключение одно —
+     * ратуша: её ставит основание колонии, а не схема, и это записано
+     * прямо здесь, чтобы исключение нельзя было завести молча.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "data")
+    public void noModBlockIsLeftUnused(TestContext context) {
+        Set<Block> used = new HashSet<>();
+
+        for (Identifier id : SchematicLoader.ids()) {
+            Schematic schematic = SchematicLoader.get(id).orElseThrow();
+            for (BuildStep step : schematic.plan().steps()) {
+                if (step.placesBlock()) {
+                    used.add(schematic.blockAt(step.paletteIndex()).getBlock());
+                }
+            }
+        }
+        CultureManager.all().values().forEach(culture -> {
+            for (Identifier id : culture.decor()) {
+                used.add(Registries.BLOCK.get(id));
+            }
+        });
+
+        // Маркеры в готовом плане не встречаются: разборщик схемы меняет
+        // их на сундук или воздух, потому что маркер — это МЕСТО, а не
+        // блок. Спрашивать о них надо у плана, и тогда маркер, которого
+        // не ставит ни одна схема, всё равно найдётся.
+        for (Identifier id : SchematicLoader.ids()) {
+            Schematic schematic = SchematicLoader.get(id).orElseThrow();
+            for (MarkerKind kind : MarkerKind.values()) {
+                if (!schematic.plan().positionsOf(kind).isEmpty()) {
+                    used.add(Registries.BLOCK.get(
+                            new Identifier("villagepax", kind.blockPath())));
+                }
+            }
+        }
+
+        // Ратушу ставит основание колонии, а не схема: ColonyFounder
+        // кладёт её блок сам, и в схеме её нет.
+        used.add(ModBlocks.TOWN_HALL);
+
+        List<Identifier> idle = new ArrayList<>();
+        ModBlocks.registered().forEach((id, block) -> {
+            if (!used.contains(block)) {
+                idle.add(id);
+            }
+        });
+
+        if (!idle.isEmpty()) {
+            context.throwGameTestException("Блоки мода, которых нет ни в схемах, "
+                    + "ни в наборах декора: " + idle.stream().map(Identifier::toString)
+                    .sorted().toList());
+        }
+
+        context.complete();
+    }
+
+    /**
      * Убрать деревню за собой начисто — включая память о месте.
      * <p>
      * Забыть место обязательно: места деревень вечны, и мир игровых тестов

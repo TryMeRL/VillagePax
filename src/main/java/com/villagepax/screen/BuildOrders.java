@@ -2,6 +2,7 @@ package com.villagepax.screen;
 
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.Building;
+import com.villagepax.sim.Levels;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.build.BuildJob;
@@ -216,8 +217,15 @@ public final class BuildOrders {
             return new Result.TopLevel(building);
         }
 
-        Building clash = overlapping(colony, building.anchor(), building.rotation(), schematic,
-                buildingId);
+        // Ратуша переякоряется, остальные растут от своего угла. Разница
+        // в том, что у ратуши есть точка, которую держать надо: её блок
+        // в середине поселения. Дом такой точки не имеет, и переносить его
+        // при улучшении значило бы отобрать у игрока выбор места.
+        BlockPos anchor = Levels.isTownHallType(building.type())
+                ? centredAnchor(colony.center(), schematic, building.rotation())
+                : building.anchor();
+
+        Building clash = overlapping(colony, anchor, building.rotation(), schematic, buildingId);
         if (clash != null) {
             return new Result.Overlaps(clash);
         }
@@ -225,11 +233,26 @@ public final class BuildOrders {
         manager.update(colony.id(), settlement -> settlement.building(buildingId)
                 .ifPresent(target -> {
                     target.setLevel(next);
+                    target.moveTo(anchor);
                     target.restartBuilding();
                 }));
 
         return new Result.Placed(building, BuildSite.rotatedSize(schematic.size(),
                 building.rotation()), schematic.plan().blockCount());
+    }
+
+    /**
+     * Якорь, при котором заданная точка окажется <b>серединой</b> следа.
+     * <p>
+     * Нужен ратуше. Её блок стоит в середине поселения, а якорь схемы —
+     * это угол: поставь ратушу якорем на свой же блок, и блок окажется
+     * в углу здания, а само здание уедет на север-запад от середины
+     * деревни. Ровно это игрок и увидел.
+     */
+    public static BlockPos centredAnchor(BlockPos centre, Schematic schematic,
+                                         BlockRotation rotation) {
+        Vec3i size = BuildSite.rotatedSize(schematic.size(), rotation);
+        return centre.add(-(size.getX() / 2), 0, -(size.getZ() / 2));
     }
 
     /** Есть ли у этого здания следующий уровень — для кнопки в пульте. */

@@ -38,7 +38,16 @@ public class Building {
     private final UUID id;
     private final Identifier type;
     private int level;
-    private final BlockPos anchor;
+
+    /**
+     * Угол следа здания.
+     * <p>
+     * Меняется только у ратуши и только при улучшении: её блок стоит
+     * в середине поселения, и след обязан оставаться вокруг него, а не
+     * расти от угла на север-запад. Остальные здания растут от своего
+     * угла, чтобы улучшение не переносило дом с выбранного игроком места.
+     */
+    private BlockPos anchor;
     private final BlockRotation rotation;
     private BuildProgress progress;
     private final List<UUID> workers;
@@ -107,6 +116,11 @@ public class Building {
 
     public BlockPos anchor() {
         return anchor;
+    }
+
+    /** Переехать. Смотри оговорку у {@link #anchor}. */
+    public void moveTo(BlockPos where) {
+        this.anchor = where.toImmutable();
     }
 
     public BlockRotation rotation() {

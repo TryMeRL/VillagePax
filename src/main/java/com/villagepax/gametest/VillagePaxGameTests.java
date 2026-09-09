@@ -3266,8 +3266,17 @@ public class VillagePaxGameTests implements FabricGameTest {
         Building townHall = raisedTownHall(colony, hall);
 
         try {
-            // Дом вплотную: след ратуши второго уровня 9x9 в него упрётся.
-            Building neighbour = plan(colony, hall.add(5, 0, 5), HOUSE_TYPE, BlockRotation.NONE);
+            // Дом вплотную: при первом уровне (след 7x7 вокруг блока ратуши)
+            // он не мешает, а при втором (9x9 вокруг того же блока) упрётся.
+            // Ратуша растёт от своей середины, а не от угла, поэтому сосед
+            // ставится по её будущему краю, а не по нынешнему.
+            Building neighbour = plan(colony, hall.add(4, 0, 4), HOUSE_TYPE, BlockRotation.NONE);
+
+            // Посылку через BuildOrders.check не проверить: он не умеет
+            // не замечать само здание, и ратуша всегда «мешает себе».
+            // Геометрия здесь считается на бумаге: блок ратуши в середине,
+            // след первого уровня 7x7 доходит до +3, второго 9x9 — до +4,
+            // а сосед стоит на +4.
 
             BuildOrders.Result refused = BuildOrders.upgrade(manager, colony, townHall.id());
             if (!(refused instanceof BuildOrders.Result.Overlaps clash)) {
@@ -5767,9 +5776,18 @@ public class VillagePaxGameTests implements FabricGameTest {
      * с провалами не помогает поиску пути и выглядит хуже, чем её
      * отсутствие.
      */
-    private static final int[][] STREET = {
-            {9, 2}, {8, 2}, {7, 2}, {6, 2}, {5, 2}, {4, 2}, {3, 1}, {2, 1}
-    };
+    /**
+     * Ожидаемый маршрут больше не выписывается координатами.
+     * <p>
+     * Раньше здесь стояли восемь угаданных пар, и любая правка правила
+     * (например «улица начинается от порога, а не от стены») ломала тест
+     * не по делу. Теперь проверяются <b>свойства</b>: маршрут спрашивается
+     * у {@code Roads}, и он обязан начинаться прямо перед дверью, не
+     * рваться и быть шириной в один тайл.
+     */
+    private static List<BlockPos> streetOf(ServerWorld world, Settlement colony, Building house) {
+        return Roads.route(world, colony, house);
+    }
 
     /** Место ратуши и якорь дома, между которыми ляжет улица. */
     private static final BlockPos STREET_HALL = new BlockPos(1, 9, 1);
@@ -5818,15 +5836,42 @@ public class VillagePaxGameTests implements FabricGameTest {
 
             runWork(world, manager, colony, mason, 20, Schedule.MORNING_WORK);
 
-            for (int[] tile : STREET) {
-                BlockState state = world.getBlockState(streetTile(context, tile));
+            List<BlockPos> street = streetOf(world, colony, house);
+            if (street.size() < 4) {
+                context.throwGameTestException("Маршрут улицы вышел длиной " + street.size()
+                        + " — от дома до площади должно быть дальше");
+            }
+
+            for (BlockPos tile : street) {
+                BlockState state = world.getBlockState(tile);
                 if (!state.isOf(Blocks.DIRT_PATH)) {
-                    context.throwGameTestException("Улица прервалась на " + tile[0] + "," + tile[1]
-                            + ": там " + state.getBlock());
+                    context.throwGameTestException("Улица прервалась на "
+                            + tile.toShortString() + ": там " + state.getBlock());
                 }
                 if (!state.isIn(ModTags.PREFERRED_PATH)) {
                     context.throwGameTestException("Замощённое не считается дорогой — "
                             + "поиск пути по такой улице жителей не поведёт");
+                }
+            }
+
+            // Путь ведёт ОТ ДВЕРИ: первый тайл стоит прямо перед входом.
+            BlockPos door = BuildJob.pointsOfInterest(house, housePlan, MarkerKind.DOOR).get(0);
+            BlockPos first = street.get(0);
+            int fromDoor = Math.max(Math.abs(first.getX() - door.getX()),
+                    Math.abs(first.getZ() - door.getZ()));
+            if (fromDoor != 1) {
+                context.throwGameTestException("Улица начинается в " + fromDoor
+                        + " блоках от двери " + door.toShortString() + ", а надо у порога");
+            }
+
+            // И маршрут не рвётся: соседние тайлы стоят рядом.
+            for (int index = 1; index < street.size(); index++) {
+                BlockPos was = street.get(index - 1);
+                BlockPos now = street.get(index);
+                if (Math.max(Math.abs(now.getX() - was.getX()),
+                        Math.abs(now.getZ() - was.getZ())) > 1) {
+                    context.throwGameTestException("Разрыв в улице между "
+                            + was.toShortString() + " и " + now.toShortString());
                 }
             }
 
@@ -5836,9 +5881,9 @@ public class VillagePaxGameTests implements FabricGameTest {
                     paved++;
                 }
             }
-            if (paved != STREET.length) {
-                context.throwGameTestException("Замощено тайлов " + paved + ", а улица должна "
-                        + "быть шириной в один: ждали " + STREET.length);
+            if (paved != street.size()) {
+                context.throwGameTestException("Замощено тайлов " + paved + ", а в маршруте "
+                        + street.size() + ": улица должна быть шириной в один");
             }
         } finally {
             clearStreet(world, house, housePlan, lawn);
@@ -5883,9 +5928,10 @@ public class VillagePaxGameTests implements FabricGameTest {
             Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
             runWork(world, manager, colony, mason, 24, Schedule.MORNING_WORK);
 
-            BlockState first = world.getBlockState(streetTile(context, STREET[0]));
+            List<BlockPos> street = streetOf(world, colony, house);
+            BlockState first = world.getBlockState(street.get(0));
             if (!first.isOf(Blocks.GRAVEL)) {
-                context.throwGameTestException("Излишек гравия не пошёл в мостовую: у двери "
+                context.throwGameTestException("Излишек гравия не пошёл в мостовую: у порога "
                         + first.getBlock());
             }
 
@@ -5895,12 +5941,11 @@ public class VillagePaxGameTests implements FabricGameTest {
                         + " вместо " + Roads.reserve());
             }
 
-            for (int index = 1; index < STREET.length; index++) {
-                BlockState state = world.getBlockState(streetTile(context, STREET[index]));
+            for (int index = 1; index < street.size(); index++) {
+                BlockState state = world.getBlockState(street.get(index));
                 if (!state.isOf(Blocks.DIRT_PATH)) {
                     context.throwGameTestException("Материал кончился, а улица встала: на "
-                            + STREET[index][0] + "," + STREET[index][1] + " лежит "
-                            + state.getBlock());
+                            + street.get(index).toShortString() + " лежит " + state.getBlock());
                 }
             }
         } finally {
@@ -5933,12 +5978,20 @@ public class VillagePaxGameTests implements FabricGameTest {
         Building house = plan(colony, context.getAbsolutePos(STREET_HOUSE), HOUSE_TYPE,
                 BlockRotation.NONE);
 
-        // Прямо на будущей улице: своя дорожка игрока и его грядка.
-        BlockPos mine = streetTile(context, STREET[2]);
-        BlockPos field = streetTile(context, STREET[4]);
+        BlockPos mine;
+        BlockPos field;
 
         try {
             raiseHouse(context, world, manager, colony, house, housePlan);
+
+            // Прямо на будущей улице: своя дорожка игрока и его грядка.
+            List<BlockPos> planned = streetOf(world, colony, house);
+            if (planned.size() < 6) {
+                context.throwGameTestException("Маршрут короче шести тайлов, некуда ставить чужое");
+                return;
+            }
+            mine = planned.get(2);
+            field = planned.get(4);
             world.setBlockState(mine, Blocks.QUARTZ_BLOCK.getDefaultState());
             world.setBlockState(field, Blocks.FARMLAND.getDefaultState());
 
@@ -5955,15 +6008,14 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             // А вокруг чужого улица всё-таки легла: обошла, а не встала.
-            for (int index = 0; index < STREET.length; index++) {
-                if (index == 2 || index == 4) {
+            for (BlockPos tile : streetOf(world, colony, house)) {
+                if (tile.equals(mine) || tile.equals(field)) {
                     continue;
                 }
-                BlockState state = world.getBlockState(streetTile(context, STREET[index]));
+                BlockState state = world.getBlockState(tile);
                 if (!state.isOf(Blocks.DIRT_PATH)) {
                     context.throwGameTestException("Улица встала перед чужим блоком: на "
-                            + STREET[index][0] + "," + STREET[index][1] + " лежит "
-                            + state.getBlock());
+                            + tile.toShortString() + " лежит " + state.getBlock());
                 }
             }
         } finally {
@@ -5988,10 +6040,6 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
         }
         return laid;
-    }
-
-    private static BlockPos streetTile(TestContext context, int[] tile) {
-        return context.getAbsolutePos(new BlockPos(tile[0], LAWN, tile[1]));
     }
 
     /** Дом строится разом: улицу мостят от <b>готового</b> здания. */
@@ -6038,7 +6086,14 @@ public class VillagePaxGameTests implements FabricGameTest {
      * считается по <b>зданию</b>: без него колонии нечего улучшать.
      */
     private static Building raisedTownHall(Settlement colony, BlockPos at) {
-        Building hall = new Building(UUID.randomUUID(), TOWN_HALL_TYPE, 1, at,
+        // Якорь считается так же, как при основании: блок ратуши — середина
+        // её следа, а не угол. Иначе тест проверял бы геометрию, которой
+        // в игре не бывает.
+        BlockPos anchor = SchematicLoader.get(TOWN_HALL_SCHEMATIC)
+                .map(schematic -> BuildOrders.centredAnchor(at, schematic, BlockRotation.NONE))
+                .orElse(at);
+
+        Building hall = new Building(UUID.randomUUID(), TOWN_HALL_TYPE, 1, anchor,
                 BlockRotation.NONE, BuildProgress.DONE, List.of());
         colony.addBuilding(hall);
         return hall;

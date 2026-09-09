@@ -5,6 +5,8 @@ import com.villagepax.block.entity.TownHallBlockEntity;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.entity.CitizenSpawner;
+import com.villagepax.screen.BuildOrders;
+import com.villagepax.sim.build.SchematicLoader;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
@@ -87,7 +89,16 @@ public final class ColonyFounder {
         Identifier buildingType = culture.townHallBuilding()
                 .orElseGet(() -> new Identifier(cultureId.getNamespace(), cultureId.getPath() + "/town_hall"));
 
+        // Якорь такой, чтобы блок ратуши оказался серединой её следа,
+        // а не углом: иначе улучшение до второго уровня уводит здание
+        // на север-запад от середины деревни.
+        BlockPos anchor = SchematicLoader.get(new Identifier(buildingType.getNamespace(),
+                        buildingType.getPath() + "_lvl1"))
+                .map(schematic -> BuildOrders.centredAnchor(pos, schematic, BlockRotation.NONE))
+                .orElse(pos);
+
         settlement.addBuilding(new Building(
-                UUID.randomUUID(), buildingType, 1, pos, BlockRotation.NONE, BuildProgress.DONE, List.of()));
+                UUID.randomUUID(), buildingType, 1, anchor, BlockRotation.NONE,
+                BuildProgress.DONE, List.of()));
     }
 }

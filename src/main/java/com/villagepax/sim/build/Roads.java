@@ -194,15 +194,20 @@ public final class Roads {
     }
 
     /**
-     * Маршрут улицы: от двери здания к центру колонии, по земле.
+     * Маршрут улицы: от порога здания к центру колонии, по земле.
+     * <p>
+     * Открыт наружу для приёмки: «улица идёт от двери и не рвётся» — это
+     * обещание мода, и проверять его надо прямо, а не угадывая координаты
+     * в тесте.
      * <p>
      * Звездой от ратуши, а не сетью между домами: у хутора из пяти зданий
      * это и есть площадь с расходящимися улицами, а сеть потребовала бы
      * хранить графы и объяснять игроку, почему дорожка пошла вот так.
      */
-    private static List<BlockPos> route(ServerWorld world, Settlement colony, Building building) {
+    public static List<BlockPos> route(ServerWorld world, Settlement colony, Building building) {
+        Schematic schematic = SchematicLoader.get(BuildJob.schematicId(building)).orElse(null);
         BlockPos door = door(colony, building).orElse(null);
-        if (door == null) {
+        if (schematic == null || door == null) {
             return List.of();
         }
 
@@ -210,7 +215,12 @@ public final class Roads {
         List<BlockPos> tiles = new ArrayList<>();
         int height = door.getY() - 1;
 
-        for (BlockPos column : line(door, colony.center())) {
+        // Улица начинается с порога — с тайла наружу от двери, — а не
+        // от самой двери. Дверь стоит в стене, её колонна лежит внутри
+        // следа и мостить её нельзя; улица от этого начиналась там, где
+        // линия впервые выходила из-под здания, то есть сбоку от входа.
+        // Игрок и сказал: пусть пути ведут от двери.
+        for (BlockPos column : line(doorstep(building, schematic, door), colony.center())) {
             // Внутри зданий не мостят. Без этого улица прошла бы прямо
             // по грядкам фермы и по земле рощи лесоруба: там под ногами
             // тот же грунт, что и на лугу.
@@ -263,6 +273,43 @@ public final class Roads {
 
         BlockState state = world.getBlockState(at);
         return state.isIn(ModTags.PAVABLE) || state.isIn(ModTags.PREFERRED_PATH);
+    }
+
+    /**
+     * Порог: тайл прямо перед дверью, снаружи стены.
+     * <p>
+     * Считается по <b>той стене, в которой дверь стоит</b>, а не шагами
+     * в сторону площади. Разница видна сразу: шагами к площади порог
+     * съезжает по диагонали и улица начинается сбоку от входа, а игрок
+     * просил, чтобы путь вёл <b>от двери</b>.
+     * <p>
+     * Дверь всегда лежит на краю следа — она в стене. Какой это край,
+     * тот и говорит, куда наружу.
+     */
+    private static BlockPos doorstep(Building building, Schematic schematic, BlockPos door) {
+        Vec3i size = BuildSite.rotatedSize(schematic.size(), building.rotation());
+        BlockPos anchor = building.anchor();
+
+        int minX = anchor.getX();
+        int minZ = anchor.getZ();
+        int maxX = minX + size.getX() - 1;
+        int maxZ = minZ + size.getZ() - 1;
+
+        if (door.getZ() == minZ) {
+            return door.north();
+        }
+        if (door.getZ() == maxZ) {
+            return door.south();
+        }
+        if (door.getX() == minX) {
+            return door.west();
+        }
+        if (door.getX() == maxX) {
+            return door.east();
+        }
+        // Дверь не в стене — такое бывает у калитки в середине ограды.
+        // Тогда улица начнётся там, где линия сама выйдет из-под следа.
+        return door;
     }
 
     /**

@@ -221,6 +221,25 @@ public final class Warehouse {
     }
 
     /**
+     * Влезет ли столько на склад, если ничего не двигать.
+     * <p>
+     * Нужно торгу: сделка обязана быть «всё или ничего», а
+     * {@link #addOrScatter} рассыпал бы непоместившееся под ноги — на
+     * стройке это правильно, а в торге означало бы «продал, и половина
+     * товара валяется у крыльца».
+     */
+    public boolean room(Item item, int amount) {
+        int left = amount;
+        for (Container container : containers) {
+            if (left <= 0) {
+                return true;
+            }
+            left -= Stacks.roomFor(container.inventory(), item, left);
+        }
+        return left <= 0;
+    }
+
+    /**
      * Выдача «всё или ничего»: сначала считаем, потом забираем.
      * <p>
      * Частичная выдача была бы хуже отказа — билдер получил бы половину

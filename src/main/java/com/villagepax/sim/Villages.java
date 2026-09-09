@@ -5,12 +5,14 @@ import com.villagepax.core.config.Configs;
 import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
+import com.villagepax.core.trade.TradeTable;
 import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.screen.BuildOrders;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
+import com.villagepax.sim.trade.Trading;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -49,17 +51,39 @@ public final class Villages {
     private static final int EVERY = 100;
 
     /**
-     * Сколько материала деревня получает за игровой день — из настроек.
+     * Сколько материала обоз довозит за игровой день — из настроек.
      * <p>
-     * Заглушка вместо торговли, и названа заглушкой честно. Деревня не умеет
-     * ни крафтить, ни торговать — а без стекла, кроватей и штукатурки её
-     * жители не поставят ни одного дома, сколько бы брёвен ни навалили.
-     * Пока это «привоз со стороны»; в фазе с караванами он станет настоящим
-     * обозом, который можно перехватить или защитить.
+     * Это <b>предел телеги</b>, а не подарок: сколько бы монеты у деревни
+     * ни было, больше этого за день не привезут. Прежде здесь стояла
+     * заглушка — материалы появлялись на складе даром, потому что деревня
+     * не умеет ни выплавить стекло, ни соткать кровать. Теперь у привоза
+     * есть цена, и платит её деревня из своего кошеля.
      */
     public static int tradePerDay() {
         return Configs.get().villageTradePerDay();
     }
+
+    /**
+     * Сколько монеты деревня выручает за день со своих полей и ремёсел.
+     * <p>
+     * Плоско, а не по числу жителей, и это осознанно: доход по головам
+     * пришлось бы объяснять — чем именно занят каждый, — а честно ответить
+     * на это можно только настоящим производством, и оно дело следующей
+     * фазы. Пока деревня зарабатывает как деревня: понемногу и постоянно.
+     */
+    public static int incomePerDay() {
+        return Configs.get().villageIncomePerDay();
+    }
+
+    /**
+     * Сколько монеты деревня держит при себе.
+     * <p>
+     * Предел нужен затем, что деревня без стройки иначе копила бы изумруды
+     * годами, и вернувшийся через сто дней игрок продал бы ей всё, что
+     * унёс, — деньги из ниоткуда. Излишек уходит своим же: у деревни есть
+     * на что тратить и без обоза.
+     */
+    public static final int PURSE_CAP = 128;
 
     /** Кольца поиска места для нового здания и шаг между ними, в блоках. */
     private static final int PLACE_RINGS = 5;
@@ -155,19 +179,45 @@ public final class Villages {
             return;
         }
 
-        deliver(world, village);
+        // Сперва выручка, потом покупки: деревня тратит заработанное
+        // сегодня, а не ждёт следующего утра, чтобы им распорядиться.
+        Warehouse warehouse = Warehouse.of(world, village);
+        earn(world, village, warehouse);
+        deliver(world, village, warehouse);
         planNext(world, manager, village, culture);
     }
 
     /**
-     * Привоз со стороны: докладывает на склад то, чего не хватает стройке.
+     * Дневная выручка деревни: монета со своих полей и ремёсел.
      * <p>
-     * Не «дать всего и сразу»: за день привозят не больше
-     * {@link #tradePerDay()} штук, поэтому дом растёт несколько дней и это
-     * видно. И только то, что нужно <b>текущей</b> стройке — склад деревни
-     * не превращается в бездонный сундук.
+     * Кладётся на склад изумрудами, потому что кошель деревни — это и есть
+     * её склад: у мода одно правило про имущество, и деньги ему не
+     * исключение. Заодно кошель становится виден игроку — в пульте и в
+     * сундуке, — и торговля перестаёт быть разговором с воздухом.
      */
-    private static void deliver(ServerWorld world, Settlement village) {
+    private static void earn(ServerWorld world, Settlement village, Warehouse warehouse) {
+        int coin = Math.min(incomePerDay(), PURSE_CAP - Trading.purse(warehouse));
+        if (coin > 0) {
+            warehouse.addOrScatter(world, village.center(), new ItemStack(Trading.COIN, coin));
+        }
+    }
+
+    /**
+     * Обоз: довозит то, чего не хватает стройке, — <b>за деньги</b>.
+     * <p>
+     * Три предела разом, и каждый значит своё. Телега — не больше
+     * {@link #tradePerDay()} штук за день, поэтому дом растёт несколько
+     * дней и это видно. Кошель — не больше, чем деревня может заплатить,
+     * поэтому бедная деревня строит медленно, а игрок, продавший ей
+     * материалы, ускоряет стройку по-настоящему. Заявка — только то, что
+     * нужно <b>текущей</b> стройке, поэтому склад не превращается в
+     * бездонный сундук.
+     * <p>
+     * Не по карману один товар — смотрим следующий, а не прекращаем возить:
+     * дубовая доска дешевле стекла, и остановиться на стекле значило бы
+     * не привезти ничего.
+     */
+    private static void deliver(ServerWorld world, Settlement village, Warehouse warehouse) {
         Building site = underConstruction(village).orElse(null);
         if (site == null) {
             return;
@@ -177,7 +227,6 @@ public final class Villages {
             return;
         }
 
-        Warehouse warehouse = Warehouse.of(world, village);
         int left = tradePerDay();
 
         // Окно заявки — весь план: привозят под всю стройку, а не под
@@ -190,8 +239,21 @@ public final class Villages {
             if (left <= 0) {
                 break;
             }
-            int bring = Math.min(left, Math.min(want.getValue(), want.getKey().getMaxCount()));
-            warehouse.addOrScatter(world, village.center(), new ItemStack(want.getKey(), bring));
+            Item goods = want.getKey();
+            TradeTable.Deal rate = Trading.rate(village, goods);
+
+            int bring = Math.min(Math.min(left, want.getValue()),
+                    Math.min(goods.getMaxCount(),
+                            Trading.affordable(rate, Trading.purse(warehouse))));
+            if (bring <= 0) {
+                continue;
+            }
+
+            int cost = Trading.costOf(rate, bring);
+            if (!warehouse.take(Trading.COIN, cost)) {
+                continue;
+            }
+            warehouse.addOrScatter(world, village.center(), new ItemStack(goods, bring));
             left -= bring;
         }
     }

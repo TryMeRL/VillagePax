@@ -1,0 +1,25 @@
+{
+  "culture": "villagepax:norman",
+  "sells": [
+    { "item": "minecraft:bread", "count": 6, "price": 1 },
+    { "item": "minecraft:wheat", "count": 16, "price": 1 },
+    { "item": "minecraft:hay_block", "count": 4, "price": 1 },
+    { "item": "villagepax:plaster", "count": 8, "price": 1 },
+    { "item": "villagepax:timber_frame", "count": 4, "price": 1 },
+    { "item": "villagepax:firewood", "count": 4, "price": 1 },
+    { "item": "minecraft:cobblestone", "count": 32, "price": 1 },
+    { "item": "minecraft:dark_oak_log", "count": 8, "price": 2 },
+    { "item": "minecraft:stone_bricks", "count": 8, "price": 2, "min_reputation": 20 },
+    { "item": "minecraft:bell", "count": 1, "price": 24, "min_reputation": 45 }
+  ],
+  "buys": [
+    { "item": "minecraft:glass_pane", "count": 8, "price": 2 },
+    { "item": "minecraft:red_bed", "count": 1, "price": 3 },
+    { "item": "minecraft:lantern", "count": 2, "price": 1 },
+    { "item": "minecraft:red_carpet", "count": 4, "price": 1 },
+    { "item": "minecraft:bookshelf", "count": 2, "price": 3 },
+    { "item": "minecraft:ladder", "count": 8, "price": 1 },
+    { "item": "minecraft:iron_ingot", "count": 4, "price": 3 },
+    { "item": "minecraft:oak_sapling", "count": 8, "price": 1 }
+  ]
+}

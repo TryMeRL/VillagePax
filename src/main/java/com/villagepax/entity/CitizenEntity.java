@@ -6,11 +6,15 @@ import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.core.quest.QuestManager;
 import com.villagepax.screen.QuestNet;
 import com.villagepax.sim.quest.Quests;
+import com.villagepax.sim.trade.Trading;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
+import net.minecraft.util.Identifier;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.Villages;
+import com.villagepax.sim.Warehouse;
 import net.minecraft.block.BlockState;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.entity.EntityType;
@@ -250,9 +254,10 @@ public class CitizenEntity extends PathAwareEntity {
     /**
      * Щелчок по жителю: разговор.
      * <p>
-     * Отвечает только тот, кому есть что сказать, — выдающий квесты. Все
-     * остальные пропускают нажатие дальше, чтобы не съедать игроку действие
-     * предметом в руке: житель, глотающий удар кайлом, раздражал бы.
+     * Отвечает только тот, кому есть что сказать, — выдающий квесты или
+     * стоящий за столом торга своего народа. Все остальные пропускают
+     * нажатие дальше, чтобы не съедать игроку действие предметом в руке:
+     * житель, глотающий удар кайлом, раздражал бы.
      */
     @Override
     protected ActionResult interactMob(PlayerEntity player, Hand hand) {
@@ -266,14 +271,24 @@ public class CitizenEntity extends PathAwareEntity {
         if (citizen == null || citizen.profession().isEmpty()) {
             return ActionResult.PASS;
         }
-        if (QuestManager.all().values().stream()
-                .noneMatch(quest -> quest.giver().equals(citizen.profession().get()))) {
-            return ActionResult.PASS;
-        }
-
         SettlementManager manager = SettlementManager.get(world);
         Settlement village = settlementId().flatMap(manager::byId).orElse(null);
         if (village == null) {
+            return ActionResult.PASS;
+        }
+        // Торг — вторая причина заговорить, и её нельзя было забыть: народ
+        // с прилавком, но без квестов, молчал бы на щелчок, и прилавок
+        // остался бы недостижимым.
+        //
+        // Но торгует не всякий, а старейшина: иначе нажатие съедал бы
+        // каждый житель деревни, и удар кайлом по пахарю открывал бы
+        // прилавок. Тот же, с кем игрок и так разговаривает.
+        Identifier profession = citizen.profession().get();
+        boolean gives = QuestManager.all().values().stream()
+                .anyMatch(quest -> quest.giver().equals(profession));
+        boolean trades = profession.equals(Villages.ELDER)
+                && Trading.tableOf(village).isPresent();
+        if (!gives && !trades) {
             return ActionResult.PASS;
         }
 
@@ -284,7 +299,7 @@ public class CitizenEntity extends PathAwareEntity {
         Quests.greet(server, citizen);
         citizen.profession()
                 .flatMap(giver -> QuestNet.viewOf(village, server.getUuid(),
-                        server.getInventory(), giver))
+                        server.getInventory(), giver, Warehouse.of(world, village)))
                 .ifPresent(view -> QuestNet.send(server, view));
         return ActionResult.SUCCESS;
     }

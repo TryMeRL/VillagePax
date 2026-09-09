@@ -4,6 +4,7 @@ import com.villagepax.block.ModBlocks;
 import com.villagepax.block.entity.ModBlockEntities;
 import com.villagepax.core.config.Configs;
 import com.villagepax.core.building.BuildingTypes;
+import com.villagepax.core.trade.TradeTables;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.core.quest.QuestManager;
@@ -63,6 +64,8 @@ public class VillagePax implements ModInitializer {
                 .registerReloadListener(new SchematicLoader());
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
                 .registerReloadListener(new QuestManager());
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+                .registerReloadListener(new TradeTables());
 
         // Разложенные по выходу рецепты забываются на перезагрузке датапака:
         // иначе колония крафтила бы по рецепту, которого там уже нет.

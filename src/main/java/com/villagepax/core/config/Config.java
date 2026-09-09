@@ -29,6 +29,7 @@ import java.util.Map;
  * @param hungerWarnDays        через сколько дней голода житель жалуется
  * @param hungerLeaveDays       через сколько уходит навсегда
  * @param villageTradePerDay    сколько материала деревня получает привозом за день
+ * @param villageIncomePerDay   сколько монеты деревня выручает со своих полей за день
  * @param roadReserve           сколько материала не тратится на улицы
  * @param ticksPerDecision      как часто житель решает, что делать
  * @param citizenLabels         показывать ли имя и ремесло над жителем
@@ -43,6 +44,7 @@ public record Config(
         int hungerWarnDays,
         int hungerLeaveDays,
         int villageTradePerDay,
+        int villageIncomePerDay,
         int roadReserve,
         int ticksPerDecision,
         boolean citizenLabels,
@@ -52,7 +54,7 @@ public record Config(
 ) {
 
     public static final Config DEFAULT = new Config(
-            true, 0, 1.0, 4, 6, 64, 16, 10, true, true, 4, true);
+            true, 0, 1.0, 4, 6, 64, 16, 16, 10, true, true, 4, true);
 
     // Допустимые значения объявлены по одному разу и здесь: из них собирается
     // и кодек, и таблица RANGES, по которой игроку сообщают о непринятом.
@@ -80,6 +82,7 @@ public record Config(
             Map.entry("hunger_warn_days", DAYS),
             Map.entry("hunger_leave_days", DAYS),
             Map.entry("village_trade_per_day", AMOUNT),
+            Map.entry("village_income_per_day", AMOUNT),
             Map.entry("road_reserve", AMOUNT),
             Map.entry("ticks_per_decision", TEMPO),
             Map.entry("citizen_labels", Codec.BOOL),
@@ -100,6 +103,8 @@ public record Config(
                     .forGetter(Config::hungerLeaveDays),
             AMOUNT.optionalFieldOf("village_trade_per_day", DEFAULT.villageTradePerDay)
                     .forGetter(Config::villageTradePerDay),
+            AMOUNT.optionalFieldOf("village_income_per_day", DEFAULT.villageIncomePerDay)
+                    .forGetter(Config::villageIncomePerDay),
             AMOUNT.optionalFieldOf("road_reserve", DEFAULT.roadReserve)
                     .forGetter(Config::roadReserve),
             TEMPO.optionalFieldOf("ticks_per_decision", DEFAULT.ticksPerDecision)

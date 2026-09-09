@@ -60,10 +60,12 @@ import com.villagepax.screen.ColonyNet;
 import com.villagepax.sim.build.Roads;
 import com.villagepax.sim.work.Needs;
 import com.villagepax.core.quest.Quest;
+import com.villagepax.core.trade.TradeTable;
 import net.minecraft.inventory.SimpleInventory;
 import com.villagepax.core.quest.QuestManager;
 import com.villagepax.sim.Standing;
 import com.villagepax.sim.quest.Quests;
+import com.villagepax.sim.trade.Trading;
 import com.villagepax.item.ModItems;
 import com.villagepax.sim.Villages;
 import com.villagepax.sim.VillageSites;
@@ -5057,8 +5059,8 @@ public class VillagePaxGameTests implements FabricGameTest {
             // Выключаем всё, что выключается.
             Configs.override(new Config(false, 48, 2.0,
                     Config.DEFAULT.hungerWarnDays(), 30,
-                    Config.DEFAULT.villageTradePerDay(), 8, 3,
-                    false, false, Config.DEFAULT.carrySlots(), false));
+                    Config.DEFAULT.villageTradePerDay(), Config.DEFAULT.villageIncomePerDay(),
+                    8, 3, false, false, Config.DEFAULT.carrySlots(), false));
 
             WorkTicker.decide(world, manager, colony, worker, Schedule.MORNING_WORK);
             if (body.getCustomName() != null || body.isCustomNameVisible()) {
@@ -5237,7 +5239,8 @@ public class VillagePaxGameTests implements FabricGameTest {
         UUID player = UUID.randomUUID();
         SimpleInventory hands = new SimpleInventory(36);
 
-        QuestView empty = QuestNet.viewOf(village, player, hands, Villages.ELDER).orElse(null);
+        QuestView empty = QuestNet.viewOf(village, player, hands, Villages.ELDER,
+                Warehouse.of(context.getWorld(), village)).orElse(null);
         if (empty == null) {
             context.throwGameTestException("Разговор не собрался вовсе");
             return;
@@ -5271,7 +5274,8 @@ public class VillagePaxGameTests implements FabricGameTest {
         // Принесли ровно столько, сколько просят: кнопка обязана включиться.
         hands.addStack(new ItemStack(need.item(), need.need()));
 
-        QuestView full = QuestNet.viewOf(village, player, hands, Villages.ELDER).orElseThrow();
+        QuestView full = QuestNet.viewOf(village, player, hands, Villages.ELDER,
+                Warehouse.of(context.getWorld(), village)).orElseThrow();
         QuestView.Offer ready = full.quest().orElseThrow();
         if (!ready.ready()) {
             context.throwGameTestException("Принесено всё, а кнопка выключена");
@@ -5537,12 +5541,16 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
     /**
-     * Суточное решение деревни: привоз со стороны двигает стройку.
+     * Суточное решение деревни: обоз двигает стройку.
      * <p>
-     * Деревня не умеет ни крафтить, ни торговать, и без привоза её стройка
-     * встала бы навсегда на первом же стекле. Проверяется, что за день
-     * стройка <b>продвинулась</b>, а не что склад наполнился: наполнение
-     * без продвижения означало бы, что материал привозят не тот.
+     * Деревня не умеет ни выплавить стекло, ни соткать кровать, и без обоза
+     * её стройка встала бы навсегда на первом же окне. Проверяется, что за
+     * день стройка <b>продвинулась</b>, а не что склад наполнился:
+     * наполнение без продвижения означало бы, что материал привозят не тот.
+     * <p>
+     * Заодно проверяется, что обоз работает <b>на дневную выручку</b>:
+     * деревня начинает без монеты, зарабатывает её сама и на неё же
+     * покупает. Прежде материалы появлялись даром.
      */
     @GameTest(templateName = EMPTY_STRUCTURE, batchId = "village")
     public void villageGrowsFromDayToDay(TestContext context) {
@@ -5674,6 +5682,464 @@ public class VillagePaxGameTests implements FabricGameTest {
                 VillageSites.candidate(world, NORMAN, norman, cellX + 1, cellZ);
         if (first.isPresent() && first.equals(neighbour)) {
             context.throwGameTestException("Две клетки сетки дали одно место");
+        }
+
+        context.complete();
+    }
+
+    // --- фаза 0.2: монета и торг вместо заглушки «привоз со стороны» ---
+
+    /**
+     * Торг двигает и товар, и монету — в обе стороны.
+     * <p>
+     * Проверяется целиком, потому что <b>сделка обязана быть «всё или
+     * ничего»</b>: половина сделки — это либо товар из ниоткуда, либо
+     * монеты в никуда. Считается по обеим сторонам сразу: что убыло у
+     * игрока, что прибыло на складе, и наоборот.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trade")
+    public void tradeMovesGoodsAndCoinBothWays(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        UUID player = UUID.randomUUID();
+        SimpleInventory hands = new SimpleInventory(36);
+
+        try {
+            TradeTable.Deal bread = Trading.find(colony, Trading.Side.VILLAGE_SELLS,
+                    Items.BREAD, 6).orElse(null);
+            if (bread == null) {
+                context.throwGameTestException("Норманны не продают хлеб — "
+                        + "стол торга не загрузился");
+                return;
+            }
+
+            TradeTable.Deal glass = Trading.find(colony, Trading.Side.VILLAGE_BUYS,
+                    Items.GLASS_PANE, 8).orElseThrow();
+
+            // У деревни хлеб, у игрока монета и стекло. Кошель пуст.
+            Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 12));
+            hands.addStack(new ItemStack(Trading.COIN, 3));
+            hands.addStack(new ItemStack(Items.GLASS_PANE, 8));
+
+            // Деревня без монеты не покупает. Отказ — это содержание, не сбой.
+            Trading.Outcome poor = Trading.trade(colony, player, hands,
+                    Warehouse.of(world, colony), Trading.Side.VILLAGE_BUYS, glass);
+            if (poor != Trading.Outcome.NO_COIN) {
+                context.throwGameTestException("Деревня без монеты купила стекло: " + poor);
+            }
+            if (hands.count(Items.GLASS_PANE) != 8 || hands.count(Trading.COIN) != 3) {
+                context.throwGameTestException("Отказ тронул сумку: стекла "
+                        + hands.count(Items.GLASS_PANE) + ", монет " + hands.count(Trading.COIN));
+            }
+
+            // Деревня продаёт. Чужак платит полторы цены: хлеб по цене
+            // датапака стоит один изумруд, а с него берут два.
+            Trading.Outcome bought = Trading.trade(colony, player, hands,
+                    Warehouse.of(world, colony), Trading.Side.VILLAGE_SELLS, bread);
+            if (bought != Trading.Outcome.DONE) {
+                context.throwGameTestException("Покупка хлеба отказана: " + bought);
+            }
+            if (hands.count(Items.BREAD) != 6 || hands.count(Trading.COIN) != 1) {
+                context.throwGameTestException("У игрока после покупки хлеба "
+                        + hands.count(Items.BREAD) + " хлеба и " + hands.count(Trading.COIN)
+                        + " монет, ожидалось 6 и 1");
+            }
+            Warehouse after = Warehouse.of(world, colony);
+            if (after.count(Items.BREAD) != 6 || after.count(Trading.COIN) != 2) {
+                context.throwGameTestException("На складе после продажи хлеба "
+                        + after.count(Items.BREAD) + " хлеба и " + after.count(Trading.COIN)
+                        + " монет, ожидалось 6 и 2");
+            }
+
+            // Теперь кошель не пуст, и стекло деревня берёт. Чужаку платят
+            // половину: цена датапака — две монеты, чужаку одна.
+            Trading.Outcome sold = Trading.trade(colony, player, hands,
+                    Warehouse.of(world, colony), Trading.Side.VILLAGE_BUYS, glass);
+            if (sold != Trading.Outcome.DONE) {
+                context.throwGameTestException("Продажа стекла отказана: " + sold);
+            }
+            if (hands.count(Items.GLASS_PANE) != 0 || hands.count(Trading.COIN) != 2) {
+                context.throwGameTestException("У игрока после продажи стекла "
+                        + hands.count(Items.GLASS_PANE) + " стекла и " + hands.count(Trading.COIN)
+                        + " монет, ожидалось 0 и 2");
+            }
+            Warehouse paid = Warehouse.of(world, colony);
+            if (paid.count(Items.GLASS_PANE) != 8 || paid.count(Trading.COIN) != 1) {
+                context.throwGameTestException("На складе после покупки стекла "
+                        + paid.count(Items.GLASS_PANE) + " стекла и " + paid.count(Trading.COIN)
+                        + " монет, ожидалось 8 и 1");
+            }
+
+            // Две удачные сделки — два очка знакомства. Торговлей тебя
+            // запоминают в лицо, и это единственное, что она даёт.
+            if (colony.reputationOf(player) != 2) {
+                context.throwGameTestException("Доверие за две сделки: "
+                        + colony.reputationOf(player) + ", ожидалось 2");
+            }
+        } finally {
+            Warehouse.of(world, colony).take(Items.BREAD, 64);
+            Warehouse.of(world, colony).take(Items.GLASS_PANE, 64);
+            Warehouse.of(world, colony).take(Trading.COIN, 64);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Доверие решает, что вообще выложат на прилавок, — и торгом его выше
+     * знакомства не поднять.
+     * <p>
+     * Оба правила проверяются вместе, потому что вместе они и работают:
+     * колокол норманны отдают только другу, а другом за покупки не
+     * становятся. Без верхней черты чертёж ратуши — награда за цепочку
+     * квестов — покупался бы хлебом в двести приёмов, и вход в мод
+     * превратился бы в перекладывание стопок.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trade")
+    public void trustGatesTheGoodsAndTradeStopsAtAcquaintance(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        UUID player = UUID.randomUUID();
+        SimpleInventory hands = new SimpleInventory(36);
+
+        try {
+            TradeTable.Deal bell = Trading.find(colony, Trading.Side.VILLAGE_SELLS,
+                    Items.BELL, 1).orElse(null);
+            if (bell == null) {
+                context.throwGameTestException("Норманны не продают колокол — "
+                        + "стол торга не загрузился");
+                return;
+            }
+
+            Warehouse.of(world, colony).add(new ItemStack(Items.BELL, 1));
+            hands.addStack(new ItemStack(Trading.COIN, 48));
+
+            // Чужаку колокол не продают, даже когда монета при нём.
+            Trading.Outcome stranger = Trading.trade(colony, player, hands,
+                    Warehouse.of(world, colony), Trading.Side.VILLAGE_SELLS, bell);
+            if (stranger != Trading.Outcome.NO_TRUST) {
+                context.throwGameTestException("Колокол продан чужаку: " + stranger);
+            }
+
+            // На один шаг ниже порога — по-прежнему нет.
+            colony.addReputation(player, bell.minReputation() - 1);
+            if (Trading.trade(colony, player, hands, Warehouse.of(world, colony),
+                    Trading.Side.VILLAGE_SELLS, bell) != Trading.Outcome.NO_TRUST) {
+                context.throwGameTestException("Порог доверия сдвинут: "
+                        + colony.reputationOf(player) + " хватило при пороге "
+                        + bell.minReputation());
+            }
+
+            colony.addReputation(player, 1);
+            int trusted = colony.reputationOf(player);
+            Trading.Outcome friend = Trading.trade(colony, player, hands,
+                    Warehouse.of(world, colony), Trading.Side.VILLAGE_SELLS, bell);
+            if (friend != Trading.Outcome.DONE) {
+                context.throwGameTestException("Другу колокол не продали: " + friend);
+            }
+            if (hands.count(Items.BELL) != 1 || hands.count(Trading.COIN) != 24) {
+                context.throwGameTestException("После покупки колокола у игрока "
+                        + hands.count(Items.BELL) + " колоколов и " + hands.count(Trading.COIN)
+                        + " монет, ожидалось 1 и 24");
+            }
+            if (colony.reputationOf(player) != trusted) {
+                context.throwGameTestException("Торг поднял доверие выше знакомства: было "
+                        + trusted + ", стало " + colony.reputationOf(player));
+            }
+        } finally {
+            Warehouse.of(world, colony).take(Items.BELL, 8);
+            Warehouse.of(world, colony).take(Trading.COIN, 64);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Обоз возит за деньги, а не даром.
+     * <p>
+     * Это и есть замена <b>заглушки</b>, которая жила в моде до сих пор:
+     * материалы появлялись на складе деревни из ниоткуда. Проверяется
+     * прямо: деревня без монеты не получает ничего, та же деревня с
+     * монетой — получает. Если однажды привоз снова станет подарком,
+     * первая половина теста упадёт.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trade")
+    public void caravanBringsNothingWithoutCoin(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+
+        try {
+            // Выручка выключена: иначе деревня заработает монету в том же
+            // дне и проверка «без монеты» проверяла бы не то.
+            Configs.override(new Config(true, 0, 1.0,
+                    Config.DEFAULT.hungerWarnDays(), Config.DEFAULT.hungerLeaveDays(),
+                    Config.DEFAULT.villageTradePerDay(), 0,
+                    Config.DEFAULT.roadReserve(), Config.DEFAULT.ticksPerDecision(),
+                    true, true, Config.DEFAULT.carrySlots(), true));
+
+            for (int x = -20; x <= 20; x++) {
+                for (int z = -20; z <= 20; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала: помеха="
+                        + whoBlocks(manager, centre));
+                return;
+            }
+            if (village.buildings().stream().noneMatch(BuildJob::isUnderConstruction)) {
+                context.throwGameTestException("Деревня ничего не строит — возить нечего");
+                return;
+            }
+
+            Warehouse warehouse = Warehouse.of(world, village);
+            warehouse.take(Trading.COIN, warehouse.count(Trading.COIN));
+
+            int beggarly = Warehouse.of(world, village).totalItems();
+            Villages.newDay(world, manager, village);
+            int afterEmptyDay = Warehouse.of(world, village).totalItems();
+            if (afterEmptyDay != beggarly) {
+                context.throwGameTestException("Без монеты обоз всё равно привёз "
+                        + (afterEmptyDay - beggarly) + " предметов — привоз снова даровой");
+            }
+
+            // А с монетой — привозит, и монета убывает.
+            Warehouse.of(world, village).add(new ItemStack(Trading.COIN, 32));
+            int withPurse = Warehouse.of(world, village).totalItems();
+            Villages.newDay(world, manager, village);
+
+            Warehouse rich = Warehouse.of(world, village);
+            if (rich.totalItems() <= withPurse) {
+                context.throwGameTestException("С монетой обоз ничего не привёз: было "
+                        + withPurse + ", стало " + rich.totalItems());
+            }
+            if (rich.count(Trading.COIN) >= 32) {
+                context.throwGameTestException("Обоз привёз бесплатно: монет осталось "
+                        + rich.count(Trading.COIN) + " из 32");
+            }
+
+            // Округление цены: вверх при покупке, вниз при подсчёте, сколько
+            // по карману. Наоборот — и деревня возила бы себе даром.
+            TradeTable.Deal rate = new TradeTable.Deal(Items.OAK_PLANKS, 4, 1, 0);
+            if (Trading.costOf(rate, 5) != 2 || Trading.costOf(rate, 4) != 1) {
+                context.throwGameTestException("Цена пяти штук по «1 за 4»: "
+                        + Trading.costOf(rate, 5) + ", ожидалось 2");
+            }
+            if (Trading.affordable(rate, 3) != 12 || Trading.affordable(rate, 0) != 0) {
+                context.throwGameTestException("На три монеты по «1 за 4» доступно "
+                        + Trading.affordable(rate, 3) + ", ожидалось 12");
+            }
+        } finally {
+            Configs.override(Config.DEFAULT);
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Прилавок доезжает до экрана — вместе с причиной, почему нельзя.
+     * <p>
+     * Причина важнее самого прилавка. Серая кнопка без объяснения — это
+     * загадка: игрок не знает, идти ему за монетой, за доверием или просто
+     * прийти назавтра. Порядок причин тоже проверяется: недоверие
+     * называется <b>раньше</b> безденежья, иначе игрок пойдёт искать
+     * изумруды под товар, который ему всё равно не продадут.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trade")
+    public void stallsReachTheScreenWithTheReasonWhyNot(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        UUID player = UUID.randomUUID();
+        SimpleInventory hands = new SimpleInventory(36);
+
+        try {
+            QuestView view = QuestNet.viewOf(colony, player, hands, Villages.ELDER,
+                    Warehouse.of(world, colony)).orElseThrow();
+            if (!view.trades() || view.stalls().isEmpty()) {
+                context.throwGameTestException("Прилавок не доехал до экрана");
+                return;
+            }
+            if (view.purse() != 0) {
+                context.throwGameTestException("Кошель пустой деревни: " + view.purse());
+            }
+
+            // Пустой склад: продавать нечего, покупать не на что. А заодно
+            // проверяется, что сервер находит у себя <b>каждую</b> сделку,
+            // которую сам же показал: клиент присылает её назад именно так.
+            for (QuestView.Stall stall : view.stalls()) {
+                Trading.Side side = stall.villageSells()
+                        ? Trading.Side.VILLAGE_SELLS : Trading.Side.VILLAGE_BUYS;
+                TradeTable.Deal named = Trading.find(colony, side, stall.item(),
+                        stall.count()).orElse(null);
+                if (named == null) {
+                    context.throwGameTestException("Показанная сделка не находится обратно: "
+                            + Registries.ITEM.getId(stall.item()));
+                    return;
+                }
+
+                QuestView.Ready expected = named.minReputation() > 0
+                        ? QuestView.Ready.NO_TRUST : QuestView.Ready.VILLAGE_CANT;
+                if (stall.ready() != expected) {
+                    context.throwGameTestException("У пустой деревни сделка "
+                            + Registries.ITEM.getId(stall.item()) + " в состоянии "
+                            + stall.ready() + ", ожидалось " + expected);
+                }
+                if (stall.ready().reasonKey().isEmpty()) {
+                    context.throwGameTestException("Отказ без объяснения: "
+                            + Registries.ITEM.getId(stall.item()));
+                }
+            }
+
+            // Товар на складе есть, монеты у игрока нет: теперь дело в нём.
+            Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 12));
+            QuestView stocked = QuestNet.viewOf(colony, player, hands, Villages.ELDER,
+                    Warehouse.of(world, colony)).orElseThrow();
+            QuestView.Stall bread = stocked.stalls().stream()
+                    .filter(stall -> stall.villageSells() && stall.item() == Items.BREAD)
+                    .findFirst().orElseThrow();
+            if (bread.ready() != QuestView.Ready.PLAYER_CANT) {
+                context.throwGameTestException("Хлеб на складе, монеты нет, а причина: "
+                        + bread.ready());
+            }
+
+            hands.addStack(new ItemStack(Trading.COIN, 4));
+            QuestView ready = QuestNet.viewOf(colony, player, hands, Villages.ELDER,
+                    Warehouse.of(world, colony)).orElseThrow();
+            QuestView.Stall now = ready.stalls().stream()
+                    .filter(stall -> stall.villageSells() && stall.item() == Items.BREAD)
+                    .findFirst().orElseThrow();
+            if (now.ready() != QuestView.Ready.YES || now.ready().reasonKey().isPresent()) {
+                context.throwGameTestException("Сделка сходится, а кнопка не включена: "
+                        + now.ready());
+            }
+            if (ready.purse() != 0) {
+                context.throwGameTestException("Кошель деревни изменился без сделки: "
+                        + ready.purse());
+            }
+
+            // Колокол по-прежнему заперт доверием, хотя монета уже при игроке:
+            // недоверие называется раньше безденежья.
+            hands.addStack(new ItemStack(Trading.COIN, 48));
+            QuestView rich = QuestNet.viewOf(colony, player, hands, Villages.ELDER,
+                    Warehouse.of(world, colony)).orElseThrow();
+            QuestView.Stall bell = rich.stalls().stream()
+                    .filter(stall -> stall.item() == Items.BELL)
+                    .findFirst().orElseThrow();
+            if (bell.ready() != QuestView.Ready.NO_TRUST) {
+                context.throwGameTestException("Колокол чужаку показан доступным: "
+                        + bell.ready());
+            }
+        } finally {
+            Warehouse.of(world, colony).take(Items.BREAD, 64);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Цена зависит от доверия: другу продают дешевле, а покупают у него
+     * дороже.
+     * <p>
+     * Решение плана, и оно важнее, чем кажется: без него доверие остаётся
+     * строкой в экране и порогом у пары товаров, а с ним — тем, что видно
+     * кошельком на каждой сделке. Цена в датапаке — цена <b>для друга</b>.
+     * <p>
+     * Проверяется вся лестница целиком, а не пара чисел: ступень, добавленную
+     * когда-нибудь без цены, поймает именно этот обход.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trade")
+    public void pricesFollowStanding(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            TradeTable.Deal bell = Trading.find(colony, Trading.Side.VILLAGE_SELLS,
+                    Items.BELL, 1).orElse(null);
+            TradeTable.Deal shelf = Trading.find(colony, Trading.Side.VILLAGE_BUYS,
+                    Items.BOOKSHELF, 2).orElse(null);
+            if (bell == null || shelf == null) {
+                context.throwGameTestException("Стол торга норманнов не загрузился");
+                return;
+            }
+
+            // Округление названо числами: чужак платит полторы цены
+            // колокола, почётный житель — три четверти, и обе округлены
+            // против него.
+            int forStranger = Trading.priceFor(bell, Trading.Side.VILLAGE_SELLS, 0);
+            int forFriend = Trading.priceFor(bell, Trading.Side.VILLAGE_SELLS,
+                    Standing.FRIEND.from());
+            int forHonoured = Trading.priceFor(bell, Trading.Side.VILLAGE_SELLS,
+                    Standing.HONOURED.from());
+            if (forStranger != 36 || forFriend != 24 || forHonoured != 18) {
+                context.throwGameTestException("Колокол по цене 24 обходится в "
+                        + forStranger + " чужаку, " + forFriend + " другу и "
+                        + forHonoured + " почётному; ожидалось 36, 24 и 18");
+            }
+            if (forFriend != bell.price()) {
+                context.throwGameTestException("Цена датапака — не цена для друга: "
+                        + bell.price() + " против " + forFriend);
+            }
+
+            // Лестница целиком: чем больше доверия, тем дешевле покупка
+            // и тем дороже продажа. Ни одна цена не ноль — бесплатный
+            // товар это уже не торговля.
+            int cheapest = Integer.MAX_VALUE;
+            int dearest = 0;
+            for (Standing standing : Standing.values()) {
+                int pay = Trading.priceFor(bell, Trading.Side.VILLAGE_SELLS, standing.from());
+                int get = Trading.priceFor(shelf, Trading.Side.VILLAGE_BUYS, standing.from());
+
+                if (pay > cheapest) {
+                    context.throwGameTestException("У ступени " + standing.id()
+                            + " покупка дороже, чем у предыдущей: " + pay + " против " + cheapest);
+                }
+                if (get < dearest) {
+                    context.throwGameTestException("У ступени " + standing.id()
+                            + " продажа дешевле, чем у предыдущей: " + get + " против " + dearest);
+                }
+                if (pay < 1 || get < 1) {
+                    context.throwGameTestException("Даром: ступень " + standing.id()
+                            + " платит " + pay + ", получает " + get);
+                }
+                cheapest = pay;
+                dearest = get;
+            }
+
+            // Обоз при этом торгует по цене датапака: у телеги нет доверия.
+            if (Trading.rate(colony, Items.GLASS_PANE).price() != 2) {
+                context.throwGameTestException("Обоз берёт за стекло не цену датапака: "
+                        + Trading.rate(colony, Items.GLASS_PANE).price());
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
 
         context.complete();

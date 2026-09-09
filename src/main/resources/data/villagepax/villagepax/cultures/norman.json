@@ -55,8 +55,7 @@
     "minecraft:hay_block"
   ],
   "traits": [
-    "villagepax:stone_masonry",
-    "villagepax:mounted_warfare"
+    "villagepax:stone_masonry"
   ],
   "diplomacy_defaults": {}
 }

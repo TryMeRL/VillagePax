@@ -4,6 +4,8 @@ import com.villagepax.block.ModBlocks;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureKind;
 import com.villagepax.core.culture.CultureManager;
+import com.villagepax.core.culture.Trait;
+import com.villagepax.core.culture.Traits;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.ColonyFounder;
 import com.villagepax.sim.Founding;
@@ -6143,6 +6145,164 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
 
         context.complete();
+    }
+
+    // --- фаза 0.2: черты народа ---
+
+    /**
+     * Черта народа разбирается громко: описку не принимают за отсутствие.
+     * <p>
+     * Черта — это <b>включатель кода</b>, а не число. Народ без своей черты
+     * перестаёт быть собой, и лишняя буква в json не должна означать
+     * «черты нет»: искать причину игрок будет в поведении жителей, а не
+     * в датапаке. Проверяется и чужое пространство имён — {@code othermod:}
+     * молча считать своим нельзя.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "traits")
+    public void unknownTraitsAreNamedOutLoud(TestContext context) {
+        if (!Traits.has(NORMAN, Trait.STONE_MASONRY)) {
+            context.throwGameTestException("У норманнов нет объявленного каменного дела: "
+                    + Traits.of(NORMAN));
+        }
+
+        Identifier typo = new Identifier("villagepax", "stone_masonery");
+        Identifier alien = new Identifier("othermod", "stone_masonry");
+        List<Identifier> declared = List.of(typo, alien,
+                new Identifier("villagepax", Trait.STONE_MASONRY.id()));
+
+        if (!Traits.resolve(declared).equals(java.util.Set.of(Trait.STONE_MASONRY))) {
+            context.throwGameTestException("Из трёх строк узнана не одна черта: "
+                    + Traits.resolve(declared));
+        }
+        List<Identifier> strangers = Traits.unknown(declared);
+        if (strangers.size() != 2 || !strangers.contains(typo) || !strangers.contains(alien)) {
+            context.throwGameTestException("Непонятые черты не названы: " + strangers);
+        }
+
+        // И темп: камень быстрее только у того, у кого есть черта.
+        Identifier nobody = new Identifier("villagepax", "no_such_people");
+        int stone = Traits.blocksPerTurn(NORMAN, Blocks.COBBLESTONE.getDefaultState());
+        int wood = Traits.blocksPerTurn(NORMAN, Blocks.OAK_PLANKS.getDefaultState());
+        int stranger = Traits.blocksPerTurn(nobody, Blocks.COBBLESTONE.getDefaultState());
+
+        if (stone != 2 || wood != 1 || stranger != 1) {
+            context.throwGameTestException("Темп по черте: камень " + stone + ", дерево "
+                    + wood + ", чужой народ " + stranger + "; ожидалось 2, 1 и 1");
+        }
+        if (Traits.blocksPerTurn(NORMAN, null) != 1) {
+            context.throwGameTestException("У расчистки, где блока нет, темп "
+                    + Traits.blocksPerTurn(NORMAN, null));
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Каменное дело видно на стройке: мастер по камню кончает раньше.
+     * <p>
+     * Сравниваются <b>два прогона одной и той же площадки</b> — народом
+     * с чертой и народом без неё, — а не число шагов за одно решение.
+     * Так пришлось потому, что план бесплатно пропускает шаги, которые уже
+     * совпали с миром: над готовой площадкой первое же решение «сдвигает»
+     * план на два десятка шагов расчистки, не положив ни блока. Счётчик
+     * решений от этого не страдает: пропуски одинаковы в обоих прогонах.
+     * <p>
+     * Мир между прогонами возвращается в прежний вид — иначе второй прогон
+     * получил бы даром то, что первый уже расчистил, и сравнение врало бы.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "traits")
+    public void masonsFinishStoneworkSooner(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic house = schematic(context, new Identifier("villagepax", "norman/house_lvl1"));
+
+        // Ратуша вплотную к стройке намеренно: дальше двенадцати блоков
+        // билдер не берёт со склада сам, и оба прогона встали бы
+        // по нехватке материалов, а сравниваем мы темп.
+        BlockPos storage = context.getAbsolutePos(new BlockPos(8, 9, 8));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> ground = new ArrayList<>();
+
+        try {
+            for (int x = -2; x <= 12; x++) {
+                for (int z = -2; z <= 12; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    ground.add(at);
+                }
+            }
+
+            // Народ без объявленных черт: культуры с таким именем в датапаке
+            // нет, и черт у неё поэтому нет никаких. Это же проверяет, что
+            // отсутствие культуры не роняет стройку.
+            Identifier plainFolk = new Identifier("villagepax", "no_such_people");
+
+            int mason = decisionsToBuild(context, world, manager, NORMAN, anchor, storage, house);
+            int plain = decisionsToBuild(context, world, manager, plainFolk, anchor, storage, house);
+
+            if (mason <= 0 || plain <= 0) {
+                context.throwGameTestException("Дом не достроился: у мастера " + mason
+                        + " решений, у прочих " + plain + " (ноль означает недострой)");
+                return;
+            }
+            if (mason >= plain) {
+                context.throwGameTestException("Каменное дело не ускорило стройку: "
+                        + mason + " решений у мастера против " + plain + " у народа без черты");
+            }
+        } finally {
+            for (BlockPos at : ground) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(storage, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Сколько решений уходит на дом у этого народа. Ноль — не достроил.
+     * <p>
+     * За собой убирает начисто: план возвращается в воздух, тела
+     * исчезают, поселение забывается. Следующий прогон обязан начинаться
+     * с того же мира, иначе сравнивать нечего.
+     */
+    private static int decisionsToBuild(TestContext context, ServerWorld world,
+                                        SettlementManager manager, Identifier culture,
+                                        BlockPos anchor, BlockPos storage, Schematic schematic) {
+        world.setBlockState(storage, ModBlocks.TOWN_HALL.getDefaultState());
+        Settlement colony = Settlement.found(culture, Owner.of(UUID.randomUUID()),
+                "Проба", storage);
+        manager.add(colony);
+
+        Building site = new Building(UUID.randomUUID(), HOUSE_TYPE, 1, anchor,
+                BlockRotation.NONE, BuildProgress.PLANNED, List.of());
+        colony.addBuilding(site);
+
+        try {
+            stockFor(world, colony, schematic);
+            Citizen builder = hireWithBody(world, colony, BuildJob.BUILDER,
+                    context.getAbsolutePos(new BlockPos(-1, 9, -1)));
+            CitizenEntity body = (CitizenEntity) world
+                    .getEntity(builder.entityUuid().orElseThrow());
+
+            for (int round = 1; round <= 600; round++) {
+                WorkTicker.decide(world, manager, colony, builder, Schedule.MORNING_WORK);
+                if (site.isOperational()) {
+                    return round;
+                }
+
+                BlockPos target = body.workTarget();
+                if (target != null && standable(world, target)) {
+                    body.refreshPositionAndAngles(target.getX() + 0.5, target.getY(),
+                            target.getZ() + 0.5, 0f, 0f);
+                }
+            }
+            return 0;
+        } finally {
+            demolish(world, site, schematic);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+        }
     }
 
     /**

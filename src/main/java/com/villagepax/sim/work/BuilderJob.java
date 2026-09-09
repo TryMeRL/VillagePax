@@ -1,6 +1,7 @@
 package com.villagepax.sim.work;
 
 import com.villagepax.VillagePax;
+import com.villagepax.core.culture.Traits;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Levels;
 import com.villagepax.sim.Sounds;
@@ -13,6 +14,7 @@ import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Roads;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import com.villagepax.sim.build.SchematicLoader;
@@ -132,8 +134,13 @@ public final class BuilderJob implements Job {
         // семнадцать сотен булыжника вместо двадцати пяти.
         state = context.state();
 
+        // Сколько блоков за решение — дело народа. У мастеров по камню
+        // каменный шаг идёт вдвое быстрее, и это видно на цоколе.
+        int pace = Traits.blocksPerTurn(context.settlement().culture(),
+                nextBlockState(site).orElse(null));
+
         BuildJob.Outcome outcome = BuildJob.advance(context.world(), context.manager(),
-                context.settlement().id(), site.id(), 1, context.position());
+                context.settlement().id(), site.id(), pace, context.position());
 
         // В руке — тот блок, который он сейчас ставит. Работа должна быть
         // видна: без этого билдер машет пустыми руками, и понять, что
@@ -480,6 +487,29 @@ public final class BuilderJob implements Job {
      * — и в руке тогда пусто. Пусто и у блоков без предмета: настенный
      * факел из воздуха не выложишь, но и показать «воздух» нельзя.
      */
+    /**
+     * Какой блок пойдёт следующим шагом плана.
+     * <p>
+     * Нужно черте народа: темп зависит от материала <b>следующего</b> шага,
+     * а не от здания в среднем. Пусто у расчистки — там ставить нечего.
+     */
+    private static Optional<BlockState> nextBlockState(Building site) {
+        Schematic schematic = SchematicLoader.get(BuildJob.schematicId(site)).orElse(null);
+        if (schematic == null) {
+            return Optional.empty();
+        }
+
+        List<BuildStep> steps = schematic.plan().steps();
+        if (site.nextStep() >= steps.size()) {
+            return Optional.empty();
+        }
+
+        BuildStep step = steps.get(site.nextStep());
+        return step.placesBlock()
+                ? Optional.of(schematic.blockAt(step.paletteIndex()))
+                : Optional.empty();
+    }
+
     private static ItemStack nextBlockInHand(Building site) {
         Schematic schematic = SchematicLoader.get(BuildJob.schematicId(site)).orElse(null);
         if (schematic == null) {

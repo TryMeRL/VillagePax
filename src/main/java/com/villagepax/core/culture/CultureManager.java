@@ -41,7 +41,12 @@ public class CultureManager extends JsonDataLoader implements IdentifiableResour
         prepared.forEach((id, json) -> Culture.CODEC
                 .parse(JsonOps.INSTANCE, json)
                 .resultOrPartial(error -> VillagePax.LOGGER.error("Культура {} не загружена: {}", id, error))
-                .ifPresent(culture -> loaded.put(id, culture)));
+                .ifPresent(culture -> {
+                    loaded.put(id, culture);
+                    // Черта — включатель кода, и описка в ней означает
+                    // народ без своего поведения. Молчать об этом нельзя.
+                    Traits.audit(id, culture.traits());
+                }));
 
         cultures = Collections.unmodifiableMap(loaded);
 

@@ -45,6 +45,16 @@
     "minecraft:gravel",
     "minecraft:cobblestone"
   ],
+  "decor": [
+    "villagepax:firewood",
+    "villagepax:laundry",
+    "villagepax:grain_sack",
+    "minecraft:barrel",
+    "minecraft:composter",
+    "minecraft:cauldron",
+    "minecraft:flower_pot",
+    "minecraft:hay_block"
+  ],
   "traits": [
     "villagepax:stone_masonry",
     "villagepax:mounted_warfare"

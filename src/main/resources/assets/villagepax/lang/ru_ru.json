@@ -1,6 +1,11 @@
 {
   "itemGroup.villagepax.general": "Village Pax",
   "block.villagepax.town_hall": "Ратуша",
+  "block.villagepax.timber_frame": "Фахверк норманнов",
+  "block.villagepax.plaster": "Штукатурка",
+  "block.villagepax.firewood": "Поленница",
+  "block.villagepax.laundry": "Бельё на верёвке",
+  "block.villagepax.grain_sack": "Мешок снеди",
   "block.villagepax.marker_workstation": "Маркер: рабочее место",
   "block.villagepax.marker_bed": "Маркер: кровать",
   "block.villagepax.marker_storage": "Маркер: сундук",

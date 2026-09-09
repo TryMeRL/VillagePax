@@ -50,6 +50,11 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
 import com.villagepax.core.ModTags;
+import com.villagepax.core.culture.Culture;
+import com.villagepax.core.culture.CultureManager;
+import com.villagepax.sim.build.Decor;
+import net.minecraft.block.Block;
+import net.minecraft.registry.Registries;
 import com.villagepax.screen.ColonyMap;
 import com.villagepax.screen.ColonyNet;
 import net.minecraft.text.Text;
@@ -868,12 +873,18 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Состояние здания " + site.progress().id() + ", ожидалось done");
             }
 
+            // Слоты декора из проверки исключены намеренно: они и есть
+            // расчищенные места, в которые обстановку ставит Decor — у одного
+            // дома поленница, у другого бельё. Пустыми они быть не обязаны.
+            Set<BlockPos> decorSlots = new HashSet<>(
+                    BuildJob.pointsOfInterest(site, schematic, MarkerKind.DECOR));
+
             for (BuildStep step : schematic.plan().steps()) {
                 BlockPos where = BuildJob.worldPos(site, schematic.size(), step.pos());
                 BlockState actual = world.getBlockState(where);
 
                 if (!step.placesBlock()) {
-                    if (!actual.isAir()) {
+                    if (!actual.isAir() && !decorSlots.contains(where)) {
                         context.throwGameTestException("Расчищенное место занято " + actual.getBlock()
                                 + " в " + step.pos().toShortString());
                     }
@@ -4179,6 +4190,103 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
 
         context.complete();
+    }
+
+    // --- слоты декора ---
+
+    /**
+     * Слот декора заполняется, и всегда одним и тем же.
+     * <p>
+     * Маркер декора задумывался с самого начала, но дел не делал: становился
+     * воздухом, и все дома колонии выходили близнецами. Теперь на его место
+     * встаёт блок из списка культуры.
+     * <p>
+     * Устойчивость проверяется ремонтом, и это главное в тесте. Случайность
+     * из генератора пережила бы постройку, но не ремонт: дом менял бы облик
+     * всякий раз, когда билдер подлатает стену, и игрок видел бы мод, который
+     * сам себя переделывает.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "decor")
+    public void decorSlotsAreFilledAndStayTheSame(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic house = schematic(context, HOUSE_LVL2);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = new Building(UUID.randomUUID(), HOUSE_TYPE, 2, anchor,
+                BlockRotation.NONE, BuildProgress.PLANNED, List.of());
+        colony.addBuilding(site);
+
+        try {
+            stockFor(world, colony, house);
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Дом не достроился");
+            }
+
+            List<BlockPos> slots = BuildJob.pointsOfInterest(site, house, MarkerKind.DECOR);
+            if (slots.size() != 2) {
+                context.throwGameTestException("Слотов декора " + slots.size() + ", а в схеме два");
+            }
+
+            List<Block> chosen = new ArrayList<>();
+            for (BlockPos slot : slots) {
+                BlockState state = world.getBlockState(slot);
+                if (state.isAir()) {
+                    context.throwGameTestException("Слот декора на "
+                            + slot.toShortString() + " остался пустым");
+                }
+                if (!decorTable().contains(state.getBlock())) {
+                    context.throwGameTestException("В слот встало то, чего нет в списке "
+                            + "культуры: " + state.getBlock());
+                }
+                chosen.add(state.getBlock());
+            }
+
+            // Ремонт: план проходится заново, и декор обязан вернуться тот же.
+            site.setProgress(BuildProgress.DAMAGED);
+            for (BlockPos slot : slots) {
+                world.setBlockState(slot, Blocks.AIR.getDefaultState());
+            }
+            stockFor(world, colony, house);
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Ремонт не завершился");
+            }
+
+            for (int index = 0; index < slots.size(); index++) {
+                Block back = world.getBlockState(slots.get(index)).getBlock();
+                if (back != chosen.get(index)) {
+                    context.throwGameTestException("После ремонта декор сменился: было "
+                            + chosen.get(index) + ", стало " + back);
+                }
+            }
+        } finally {
+            demolish(world, site, house);
+            for (BlockPos slot : BuildJob.pointsOfInterest(site, house, MarkerKind.DECOR)) {
+                world.setBlockState(slot, Blocks.AIR.getDefaultState());
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Список декора норманнов — из датапака, а не из догадки теста. */
+    private static List<Block> decorTable() {
+        Culture norman = CultureManager.get(NORMAN);
+        List<Block> table = new ArrayList<>();
+        if (norman != null) {
+            for (Identifier id : norman.decor()) {
+                table.add(Registries.BLOCK.get(id));
+            }
+        }
+        return table;
     }
 
     // --- билдер строит стоя на земле ---

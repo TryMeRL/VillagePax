@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_column_horizontal",
+  "textures": {
+    "end": "villagepax:block/firewood_end",
+    "side": "villagepax:block/firewood_side"
+  }
+}

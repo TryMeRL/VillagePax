@@ -133,7 +133,11 @@ LEGEND = {
     "B": ("minecraft:dark_oak_log", {"axis": "y"}),
     "H": ("minecraft:dark_oak_log", {"axis": "x"}),
     "Z": ("minecraft:dark_oak_log", {"axis": "z"}),
-    "W": ("minecraft:white_terracotta", {}),
+    # Своя стена народа, а не крашеная глина. Фахверк — примета норманнов,
+    # и по нему деревню узнают издалека; глина же была заимствованием,
+    # которое в любом чужом моде выглядит иначе.
+    "W": ("villagepax:timber_frame", {}),
+    "X": ("villagepax:plaster", {}),
     # Камень и колокол — приметы второго уровня: издалека видно, что
     # колония поднялась, а не просто обзавелась ещё одним сараем.
     "M": ("minecraft:stone_bricks", {}),
@@ -508,7 +512,7 @@ def _norman_house_2():
         ["BWWDWWB",
          "Wf...fW",
          "Wh...hW",
-         "W..c..W",
+         "WO.c.OW",
          "Wf...fW",
          "Wh...hW",
          "BWWWWWB"],

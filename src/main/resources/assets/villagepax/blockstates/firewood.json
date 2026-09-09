@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "axis=y": {
+      "model": "villagepax:block/firewood"
+    },
+    "axis=z": {
+      "model": "villagepax:block/firewood_horizontal",
+      "x": 90
+    },
+    "axis=x": {
+      "model": "villagepax:block/firewood_horizontal",
+      "x": 90,
+      "y": 90
+    }
+  }
+}

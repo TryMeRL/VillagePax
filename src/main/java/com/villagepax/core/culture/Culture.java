@@ -18,6 +18,7 @@ import java.util.Optional;
  * @param namePools          имена жителей и поселений
  * @param buildings          доступные типы зданий
  * @param road               чем этот народ мостит улицы, в порядке предпочтения
+ * @param decor              чем заполняются слоты декора в его схемах
  * @param traits             модификаторы поведения: подземная застройка, террасные фермы и прочее
  * @param diplomacyDefaults  стартовое отношение к другим народам
  */
@@ -28,6 +29,7 @@ public record Culture(
         NamePools namePools,
         List<Identifier> buildings,
         List<Identifier> road,
+        List<Identifier> decor,
         List<Identifier> traits,
         Map<Identifier, Integer> diplomacyDefaults
 ) {
@@ -39,7 +41,8 @@ public record Culture(
     public Culture(String displayName, CultureKind kind, SpawnSettings spawn, NamePools namePools,
                    List<Identifier> buildings, List<Identifier> traits,
                    Map<Identifier, Integer> diplomacyDefaults) {
-        this(displayName, kind, spawn, namePools, buildings, List.of(), traits, diplomacyDefaults);
+        this(displayName, kind, spawn, namePools, buildings, List.of(), List.of(), traits,
+                diplomacyDefaults);
     }
 
     public static final Codec<Culture> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -50,6 +53,7 @@ public record Culture(
                     .forGetter(Culture::namePools),
             Identifier.CODEC.listOf().optionalFieldOf("buildings", List.of()).forGetter(Culture::buildings),
             Identifier.CODEC.listOf().optionalFieldOf("road", List.of()).forGetter(Culture::road),
+            Identifier.CODEC.listOf().optionalFieldOf("decor", List.of()).forGetter(Culture::decor),
             Identifier.CODEC.listOf().optionalFieldOf("traits", List.of()).forGetter(Culture::traits),
             Codec.unboundedMap(Identifier.CODEC, Codec.INT).optionalFieldOf("diplomacy_defaults", Map.of())
                     .forGetter(Culture::diplomacyDefaults)

@@ -24,6 +24,8 @@ import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityModelLayerRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
+import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.model.Dilation;
 import net.minecraft.client.model.TexturedModelData;
 import net.minecraft.client.render.entity.model.BipedEntityModel;
@@ -43,11 +45,24 @@ public class VillagePaxClient implements ClientModInitializer {
         EntityModelLayerRegistry.registerModelLayer(CitizenEntityRenderer.LAYER,
                 () -> TexturedModelData.of(BipedEntityModel.getModelData(Dilation.NONE, 0.0f), 64, 64));
         EntityRendererRegistry.register(ModEntities.CITIZEN, CitizenEntityRenderer::new);
+        registerCutouts();
         HandledScreens.register(TownHallScreens.TOWN_HALL, TownHallScreen::new);
         registerViewUpdates();
         registerColonyMap();
         registerHologram();
         registerTooltips();
+    }
+
+    /**
+     * Блоки с прозрачностью.
+     * <p>
+     * Слой отрисовки в Fabric задаётся <b>кодом клиента</b>, а не полем
+     * {@code render_type} в модели: это поле читает Forge, а здесь оно
+     * молча ничего не делает. Без этой строки бельё на верёвке рисуется
+     * непрозрачным слоем, и вокруг простыней стоят чёрные квадраты.
+     */
+    private static void registerCutouts() {
+        BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LAUNDRY, RenderLayer.getCutout());
     }
 
     /**

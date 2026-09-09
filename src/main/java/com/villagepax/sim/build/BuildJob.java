@@ -23,8 +23,10 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.Vec3i;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -210,6 +212,11 @@ public final class BuildJob {
         Warehouse warehouse = Warehouse.of(world, settlement);
         List<BuildStep> steps = schematic.plan().steps();
 
+        // Слоты декора план не расчищает: см. perform. Считаются один раз
+        // на обращение — их два-три на здание.
+        Set<BlockPos> decorSlots = new HashSet<>(
+                pointsOfInterest(building, schematic, MarkerKind.DECOR));
+
         // Повреждённое здание чинится по той же схеме, и план обязан пройтись
         // заново: у него nextStep стоит в конце с прошлой стройки, иначе
         // ремонт мгновенно "завершился" бы, не поставив ни блока.
@@ -226,7 +233,7 @@ public final class BuildJob {
         int worked = 0;
         while (worked < maxSteps && building.nextStep() < steps.size()) {
             StepResult result = perform(world, settlement, warehouse, building, schematic,
-                    steps.get(building.nextStep()), workFrom);
+                    steps.get(building.nextStep()), workFrom, decorSlots);
 
             if (result == StepResult.BLOCKED) {
                 return Outcome.WAITING_FOR_MATERIALS;
@@ -245,6 +252,11 @@ public final class BuildJob {
 
         if (building.nextStep() >= steps.size()) {
             building.setProgress(BuildProgress.DONE);
+
+            // Слоты декора заполняются здесь, а не по ходу плана: так они
+            // достаются и после ремонта, который проходит план заново.
+            Decor.fill(world, settlement, building, schematic);
+
             returnLeftovers(world, warehouse, building);
             return Outcome.FINISHED;
         }
@@ -271,7 +283,7 @@ public final class BuildJob {
 
     private static StepResult perform(ServerWorld world, Settlement settlement, Warehouse warehouse,
                                       Building building, Schematic schematic, BuildStep step,
-                                      Vec3d workFrom) {
+                                      Vec3d workFrom, Set<BlockPos> decorSlots) {
         BlockPos where = worldPos(building, schematic.size(), step.pos());
 
         // Центр поселения не перестраивается никогда.
@@ -288,6 +300,16 @@ public final class BuildJob {
 
         if (!step.placesBlock()) {
             if (world.getBlockState(where).isAir()) {
+                return StepResult.SKIPPED;
+            }
+
+            // Слот декора план не расчищает. Обстановку в него поставил
+            // {@link Decor} — бесплатно, потому что заявка на материалы
+            // считается по плану, а декор в плане только место. Снеси его
+            // ремонтом, сдай на склад и поставь новый бесплатно — и колония
+            // начнёт печатать предметы из воздуха при каждом ремонте.
+            // Заодно это защищает то, что игрок поставил в слот сам.
+            if (decorSlots.contains(where)) {
                 return StepResult.SKIPPED;
             }
             if (isTooFar(workFrom, where)) {

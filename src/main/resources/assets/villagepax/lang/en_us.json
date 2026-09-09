@@ -1,6 +1,11 @@
 {
   "itemGroup.villagepax.general": "Village Pax",
   "block.villagepax.town_hall": "Town Hall",
+  "block.villagepax.timber_frame": "Norman half-timbering",
+  "block.villagepax.plaster": "Plaster",
+  "block.villagepax.firewood": "Firewood stack",
+  "block.villagepax.laundry": "Washing line",
+  "block.villagepax.grain_sack": "Sack of provisions",
   "block.villagepax.marker_workstation": "Marker: Workstation",
   "block.villagepax.marker_bed": "Marker: Bed",
   "block.villagepax.marker_storage": "Marker: Storage",

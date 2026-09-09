@@ -13,7 +13,6 @@
     "#minecraft:wool_carpets",
     "#minecraft:rails",
     "#minecraft:climbable",
-
     "minecraft:torch",
     "minecraft:wall_torch",
     "minecraft:soul_torch",
@@ -22,7 +21,6 @@
     "minecraft:soul_lantern",
     "minecraft:campfire",
     "minecraft:bell",
-
     "minecraft:chest",
     "minecraft:barrel",
     "minecraft:crafting_table",
@@ -41,6 +39,7 @@
     "minecraft:lectern",
     "minecraft:bookshelf",
     "minecraft:lever",
-    "minecraft:water"
+    "minecraft:water",
+    "villagepax:laundry"
   ]
 }

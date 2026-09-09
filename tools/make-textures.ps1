@@ -28,6 +28,15 @@ $hex.Add("p","FFE8DCC0")   # parchment
 $hex.Add("q","FFD2C4A2")   # parchment, shaded
 $hex.Add("i","FF3A4A6B")   # ink
 $hex.Add("w","FFB03A32")   # wax seal
+$hex.Add("b","FFB9A47A")   # burlap, light
+$hex.Add("B","FF97815A")   # burlap, shaded
+$hex.Add("t","FF6E5B38")   # rope
+$hex.Add("r","FF8A7A5C")   # washing line
+$hex.Add("W","FFE8E4DA")   # linen
+$hex.Add("V","FFCFC9BC")   # linen, shaded
+$hex.Add("u","FF7C93AE")   # dyed cloth
+$hex.Add("n","FF5A4632")   # bark
+$hex.Add("N","FF6E5540")   # bark, lit
 $hex.Add(" ","00000000")   # transparent
 
 $color = New-Object "System.Collections.Generic.Dictionary[string,System.Drawing.Color]" ([System.StringComparer]::Ordinal)
@@ -46,6 +55,10 @@ $noise.Add(".", ",")
 $noise.Add("L", "M")
 $noise.Add("M", "L")
 $noise.Add("S", "s")
+$noise.Add("b", "B")
+$noise.Add("B", "b")
+$noise.Add("n", "N")
+$noise.Add("W", "V")
 
 $maps = [ordered]@{}
 
@@ -192,6 +205,124 @@ $maps["block\marker_decor"] = @(
     "kKKKKKKPPKKKKKKk"
     "kKKKKKKKKKKKKKKk"
     "kkkkkkkkkkkkkkkk")
+
+# --- decor blocks: the Norman village gets its own material ---
+
+# Half-timbering: a beam frame with a single stud, so a wall of these tiles
+# into a proper timbered facade instead of a flat sheet.
+$maps["block\timber_frame"] = @(
+    "################"
+    "#......##......#"
+    "#......##......#"
+    "#......##......#"
+    "#......##......#"
+    "#......##......#"
+    "#......##......#"
+    "#......##......#"
+    "#......##......#"
+    "#......##......#"
+    "#......##......#"
+    "#......##......#"
+    "#......##......#"
+    "#......##......#"
+    "#......##......#"
+    "################")
+
+# Bare plaster. Flat on purpose: the deterministic noise does the mottling,
+# and a pattern here would fight the timbering next to it.
+$maps["block\plaster"] = @(
+    "................"
+    "................"
+    "................"
+    "................"
+    "................"
+    "................"
+    "................"
+    "................"
+    "................"
+    "................"
+    "................"
+    "................"
+    "................"
+    "................"
+    "................"
+    "................")
+
+$maps["block\firewood_side"] = @(
+    "nnnnnnnnnnnnnnnn"
+    "nNnNnnNnnnNnnNnn"
+    "nnnnnnnnnnnnnnnn"
+    "dddddddddddddddd"
+    "nnnnnnnnnnnnnnnn"
+    "nNnnNnnnNnnNnnNn"
+    "nnnnnnnnnnnnnnnn"
+    "dddddddddddddddd"
+    "nnnnnnnnnnnnnnnn"
+    "nNnNnnNnnnNnnNnn"
+    "nnnnnnnnnnnnnnnn"
+    "dddddddddddddddd"
+    "nnnnnnnnnnnnnnnn"
+    "nNnnNnnnNnnNnnNn"
+    "nnnnnnnnnnnnnnnn"
+    "dddddddddddddddd")
+
+# Cut ends of the bundle: sixteen logs looked at end-on.
+$maps["block\firewood_end"] = @(
+    "dddddddddddddddd"
+    "dLLddLLddLLddLLd"
+    "dLLddLLddLLddLLd"
+    "dddddddddddddddd"
+    "dddddddddddddddd"
+    "dLLddLLddLLddLLd"
+    "dLLddLLddLLddLLd"
+    "dddddddddddddddd"
+    "dddddddddddddddd"
+    "dLLddLLddLLddLLd"
+    "dLLddLLddLLddLLd"
+    "dddddddddddddddd"
+    "dddddddddddddddd"
+    "dLLddLLddLLddLLd"
+    "dLLddLLddLLddLLd"
+    "dddddddddddddddd")
+
+# Washing on a line: a rope across the top and two cloths hanging off it.
+# Transparent everywhere else, so the cross model reads as cloth, not a bush.
+$maps["block\laundry"] = @(
+    "rrrrrrrrrrrrrrrr"
+    " WWWWW   uuuuu  "
+    " WWWWW   uuuuu  "
+    " WWWWW   uuuuu  "
+    " WWWWW   uuuuu  "
+    " WWWWW   uuuuu  "
+    " WWWWW   uuuuu  "
+    " WWWWW   uuuuu  "
+    " WWWWW   uuuuu  "
+    " WWWWW   uuuuu  "
+    " WWWWW   uuuuu  "
+    " WWWWW   uuuuu  "
+    " WWWWW   uuuuu  "
+    "  WWW    uuu    "
+    "                "
+    "                ")
+
+# Sacking with two rope bands. Grain, flour, whatever the colony hauls.
+$maps["block\grain_sack"] = @(
+    "bBbBbBbBbBbBbBbB"
+    "BbBbBbBbBbBbBbBb"
+    "tttttttttttttttt"
+    "tttttttttttttttt"
+    "bBbBbBbBbBbBbBbB"
+    "BbBbBbBbBbBbBbBb"
+    "bBbBbBbBbBbBbBbB"
+    "BbBbBbBbBbBbBbBb"
+    "bBbBbBbBbBbBbBbB"
+    "tttttttttttttttt"
+    "tttttttttttttttt"
+    "bBbBbBbBbBbBbBbB"
+    "BbBbBbBbBbBbBbBb"
+    "bBbBbBbBbBbBbBbB"
+    "BbBbBbBbBbBbBbBb"
+    "bBbBbBbBbBbBbBbB")
 
 $maps["item\town_hall_blueprint"] = @(
     "                "

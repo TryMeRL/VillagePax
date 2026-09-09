@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "LL",
+    "LL"
+  ],
+  "key": {
+    "L": {
+      "tag": "minecraft:logs"
+    }
+  },
+  "result": {
+    "item": "villagepax:firewood",
+    "count": 1
+  }
+}

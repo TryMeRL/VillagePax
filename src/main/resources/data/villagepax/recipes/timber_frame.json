@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "LPL"
+  ],
+  "key": {
+    "L": {
+      "tag": "minecraft:logs"
+    },
+    "P": {
+      "item": "villagepax:plaster"
+    }
+  },
+  "result": {
+    "item": "villagepax:timber_frame",
+    "count": 3
+  }
+}

@@ -57,6 +57,50 @@ public final class VillageSites {
     }
 
     /**
+     * Догадка о месте деревни: только координаты клетки, без проверок.
+     * <p>
+     * Отличается от {@link Site} тем, что <b>не</b> смотрит в мир: ни биом,
+     * ни грунт, ни загруженность чанка. Это ответ на вопрос «куда идти»,
+     * а не «можно ли ставить здесь сейчас». Проверить биом и грунт всё
+     * равно нельзя, не сгенерировав чанк, — а генерировать полкарты,
+     * чтобы ответить на вопрос игрока, недопустимо.
+     */
+    public record Guess(Identifier culture, BlockPos where) {
+    }
+
+    /**
+     * Куда идти за ближайшей деревней.
+     * <p>
+     * Обходятся клетки сетки вокруг игрока — по кольцу шириной в две клетки
+     * в каждую сторону, этого хватает: клетка сама шириной в семь с половиной
+     * сотен блоков. Высота берётся с потолка мира, потому что настоящую можно
+     * узнать только сгенерировав чанк; игроку нужны X и Z.
+     */
+    public static Guess guessNearest(ServerWorld world, BlockPos from) {
+        Guess best = null;
+        double bestAway = Double.MAX_VALUE;
+
+        for (Map.Entry<Identifier, Culture> entry : CultureManager.all().entrySet()) {
+            int spacing = spacing(entry.getValue());
+            int cellX = Math.floorDiv(new ChunkPos(from).x, spacing);
+            int cellZ = Math.floorDiv(new ChunkPos(from).z, spacing);
+
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    BlockPos where = cellCentre(world, entry.getKey(), entry.getValue(),
+                            cellX + dx, cellZ + dz);
+                    double away = where.getSquaredDistance(from.getX(), where.getY(), from.getZ());
+                    if (away < bestAway) {
+                        bestAway = away;
+                        best = new Guess(entry.getKey(), where);
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+    /**
      * Места деревень рядом с точкой — по одному на клетку сетки.
      * <p>
      * Проверяется и биом, и грунт, и загруженность чанка: ответ должен быть
@@ -103,20 +147,7 @@ public final class VillageSites {
      */
     public static Optional<BlockPos> candidate(ServerWorld world, Identifier cultureId,
                                                Culture culture, int cellX, int cellZ) {
-        int spacing = spacing(culture);
-
-        // Кандидат держится в середине клетки: у краёв две соседние деревни
-        // могли бы оказаться вплотную, и обе отказались бы возникать.
-        int inset = Math.max(1, spacing / 4);
-        int room = Math.max(1, spacing - 2 * inset);
-
-        Random random = new Random(world.getSeed()
-                ^ (cellX * MIX_X + cellZ * MIX_Z)
-                ^ cultureId.toString().hashCode());
-
-        int chunkX = cellX * spacing + inset + random.nextInt(room);
-        int chunkZ = cellZ * spacing + inset + random.nextInt(room);
-        BlockPos column = new ChunkPos(chunkX, chunkZ).getStartPos().add(8, 0, 8);
+        BlockPos column = cellCentre(world, cultureId, culture, cellX, cellZ);
 
         if (!world.isChunkLoaded(column)) {
             // Высоту поверхности в незагруженном чанке спрашивать нельзя:
@@ -132,6 +163,30 @@ public final class VillageSites {
             return Optional.empty();
         }
         return ColonyFounder.isBuildable(world, surface) ? Optional.of(surface) : Optional.empty();
+    }
+
+    /**
+     * Колонна в середине клетки сетки — от семени мира и номера клетки.
+     * <p>
+     * Один расчёт на две задачи: и «где кандидат», и «куда идти». Разойдись
+     * они — команда указывала бы игроку не туда, где деревня в итоге встанет.
+     * <p>
+     * Кандидат держится в середине клетки: у краёв две соседние деревни
+     * могли бы оказаться вплотную, и обе отказались бы возникать.
+     */
+    private static BlockPos cellCentre(ServerWorld world, Identifier cultureId, Culture culture,
+                                       int cellX, int cellZ) {
+        int spacing = spacing(culture);
+        int inset = Math.max(1, spacing / 4);
+        int room = Math.max(1, spacing - 2 * inset);
+
+        Random random = new Random(world.getSeed()
+                ^ (cellX * MIX_X + cellZ * MIX_Z)
+                ^ cultureId.toString().hashCode());
+
+        int chunkX = cellX * spacing + inset + random.nextInt(room);
+        int chunkZ = cellZ * spacing + inset + random.nextInt(room);
+        return new ChunkPos(chunkX, chunkZ).getStartPos().add(8, 0, 8);
     }
 
     /**

@@ -14,6 +14,7 @@ import com.villagepax.screen.ColonyNet;
 import com.villagepax.screen.QuestNet;
 import com.villagepax.screen.TownHallNet;
 import com.villagepax.screen.TownHallScreens;
+import com.villagepax.sim.Greeting;
 import com.villagepax.sim.Villages;
 import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.work.WorkTicker;
@@ -42,6 +43,7 @@ public class VillagePax implements ModInitializer {
         SchematicLoader.register();
         WorkTicker.register();
         Villages.register();
+        Greeting.register();
         BuildCommand.register();
         TownHallScreens.init();
         TownHallNet.registerServer();

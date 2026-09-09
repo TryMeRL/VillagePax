@@ -15,6 +15,8 @@ import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.sim.work.Jobs;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.VillageSites;
+import com.villagepax.sim.VillageSites;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
@@ -82,6 +84,7 @@ public final class BuildCommand {
                                         .suggests((context, builder) -> CommandSource
                                                 .suggestIdentifiers(ProfessionManager.ids(), builder))
                                         .executes(BuildCommand::hire)))
+                        .then(literal("locate").executes(BuildCommand::locate))
                         .then(literal("status").executes(BuildCommand::status))
                         .then(literal("config").executes(BuildCommand::reloadConfig))));
     }
@@ -218,6 +221,37 @@ public final class BuildCommand {
 
         tell(context, "Нанят " + hired.fullName() + " — " + profession.getPath()
                 + ". Жителей в колонии: " + colony.population());
+        return 1;
+    }
+
+    /**
+     * Где ближайшая деревня народа.
+     * <p>
+     * Без этого мод буквально нельзя найти. Места деревень считаются по
+     * семени и стоят в среднем в семи с половиной сотнях блоков друг
+     * от друга; игрок, который не знает, куда идти, будет ходить долго
+     * и решит, что мод не работает. Команда отвечает на вопрос «а где
+     * они вообще?» — и тем же ответом пользуюсь я, когда проверяю.
+     * <p>
+     * Считается по сетке, а не по загруженным чанкам: ответ нужен и про
+     * те места, до которых игрок ещё не доходил.
+     */
+    private static int locate(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource source = context.getSource();
+        ServerWorld world = source.getWorld();
+        BlockPos from = BlockPos.ofFloored(source.getPosition());
+
+        VillageSites.Guess nearest = VillageSites.guessNearest(world, from);
+        if (nearest == null) {
+            source.sendFeedback(() -> Text.translatable("villagepax.locate.none"), false);
+            return 0;
+        }
+
+        int away = (int) Math.sqrt(nearest.where().getSquaredDistance(from));
+        source.sendFeedback(() -> Text.translatable("villagepax.locate.found",
+                Text.translatable("villagepax.culture." + nearest.culture().getPath()),
+                Text.literal(nearest.where().getX() + ", " + nearest.where().getZ()),
+                Text.literal(String.valueOf(away))), false);
         return 1;
     }
 

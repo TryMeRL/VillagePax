@@ -4574,7 +4574,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             Configs.override(new Config(false, 48, 2.0,
                     Config.DEFAULT.hungerWarnDays(), 30,
                     Config.DEFAULT.villageTradePerDay(), 8, 3,
-                    false, false, Config.DEFAULT.carrySlots()));
+                    false, false, Config.DEFAULT.carrySlots(), false));
 
             WorkTicker.decide(world, manager, colony, worker, Schedule.MORNING_WORK);
             if (body.getCustomName() != null || body.isCustomNameVisible()) {
@@ -5104,6 +5104,42 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
         } finally {
             cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Команда поиска отвечает, и отвечает одно и то же.
+     * <p>
+     * Без неё мод буквально нельзя найти: места деревень стоят в семи
+     * с половиной сотнях блоков друг от друга, и игрок, не знающий, куда
+     * идти, решит, что мод не работает. Догадка нарочно <b>не смотрит
+     * в мир</b>: проверить биом и грунт нельзя, не сгенерировав чанк,
+     * а генерировать полкарты ради ответа недопустимо.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "village")
+    public void locateAlwaysAnswersTheSameWay(TestContext context) {
+        ServerWorld world = context.getWorld();
+        BlockPos from = context.getAbsolutePos(BlockPos.ORIGIN);
+
+        VillageSites.Guess first = VillageSites.guessNearest(world, from);
+        if (first == null) {
+            context.throwGameTestException("Поиск не назвал ни одного места, "
+                    + "хотя культура загружена");
+            return;
+        }
+        if (!first.culture().equals(NORMAN)) {
+            context.throwGameTestException("Названа не та культура: " + first.culture());
+        }
+        if (!first.equals(VillageSites.guessNearest(world, from))) {
+            context.throwGameTestException("Второй раз поиск назвал другое место");
+        }
+
+        // Далёкая точка обязана дать другое место, иначе сетка не работает.
+        VillageSites.Guess far = VillageSites.guessNearest(world, from.add(6000, 0, 6000));
+        if (far != null && far.where().equals(first.where())) {
+            context.throwGameTestException("Из двух далёких точек поиск назвал одно место");
         }
 
         context.complete();

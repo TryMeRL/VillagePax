@@ -34,6 +34,7 @@ import java.util.Map;
  * @param citizenLabels         показывать ли имя и ремесло над жителем
  * @param buildingLabels        показывать ли подписи над зданиями
  * @param carrySlots            сколько видов груза житель унесёт за раз
+ * @param greetNewcomers        говорить ли вошедшему без колонии, с чего начать
  */
 public record Config(
         boolean autonomousVillages,
@@ -46,11 +47,12 @@ public record Config(
         int ticksPerDecision,
         boolean citizenLabels,
         boolean buildingLabels,
-        int carrySlots
+        int carrySlots,
+        boolean greetNewcomers
 ) {
 
     public static final Config DEFAULT = new Config(
-            true, 0, 1.0, 4, 6, 64, 16, 10, true, true, 4);
+            true, 0, 1.0, 4, 6, 64, 16, 10, true, true, 4, true);
 
     // Допустимые значения объявлены по одному разу и здесь: из них собирается
     // и кодек, и таблица RANGES, по которой игроку сообщают о непринятом.
@@ -82,7 +84,8 @@ public record Config(
             Map.entry("ticks_per_decision", TEMPO),
             Map.entry("citizen_labels", Codec.BOOL),
             Map.entry("building_labels", Codec.BOOL),
-            Map.entry("carry_slots", SLOTS));
+            Map.entry("carry_slots", SLOTS),
+            Map.entry("greet_newcomers", Codec.BOOL));
 
     public static final Codec<Config> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.BOOL.optionalFieldOf("autonomous_villages", DEFAULT.autonomousVillages)
@@ -106,7 +109,9 @@ public record Config(
             Codec.BOOL.optionalFieldOf("building_labels", DEFAULT.buildingLabels)
                     .forGetter(Config::buildingLabels),
             SLOTS.optionalFieldOf("carry_slots", DEFAULT.carrySlots)
-                    .forGetter(Config::carrySlots)
+                    .forGetter(Config::carrySlots),
+            Codec.BOOL.optionalFieldOf("greet_newcomers", DEFAULT.greetNewcomers)
+                    .forGetter(Config::greetNewcomers)
     ).apply(instance, Config::new));
 
     /**

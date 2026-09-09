@@ -50,6 +50,9 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
 import com.villagepax.core.ModTags;
+import com.villagepax.sim.Villages;
+import com.villagepax.sim.VillageSites;
+import net.minecraft.util.math.ChunkPos;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.sim.build.Decor;
@@ -4190,6 +4193,227 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
 
         context.complete();
+    }
+
+    // --- задача 1.12: деревни народов ---
+
+    /**
+     * Деревня встаёт уже стоящей и сразу берётся за следующее здание.
+     * <p>
+     * Приёмка задачи: в мире находится норманнская деревня с жителями,
+     * которые работают. «Уже стоящей» — потому что деревня старше игрока:
+     * ратуша, дом и ферма ставятся мгновенно. А следующее здание она
+     * начинает при игроке, и это важнее готовых стен: видно не декорацию,
+     * а работу.
+     * <p>
+     * В своей партии намеренно: деревне нужна ровная площадка в двадцать
+     * блоков в каждую сторону, и с соседом по партии они наступили бы друг
+     * другу на застройку.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "village")
+    public void villageRisesAlreadyStandingAndKeepsBuilding(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+
+        try {
+            for (int x = -20; x <= 20; x++) {
+                for (int z = -20; z <= 20; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала на ровном лугу: место занято="
+                        + manager.isSettled(centre) + ", помеха=" + whoBlocks(manager, centre));
+                return;
+            }
+
+            if (!village.owner().isAutonomous()) {
+                context.throwGameTestException("Деревня оказалась чьей-то колонией");
+            }
+            if (village.name().isEmpty()) {
+                context.throwGameTestException("У деревни нет имени из списка народа");
+            }
+            if (village.population() < 2) {
+                context.throwGameTestException("Жителей в деревне " + village.population()
+                        + ", а одиночка — это не деревня");
+            }
+
+            long done = village.buildings().stream().filter(Building::isOperational).count();
+            long building = village.buildings().stream()
+                    .filter(BuildJob::isUnderConstruction).count();
+
+            // Ратуша, дом и ферма готовы — это три; четвёртое строится.
+            if (done < 3) {
+                context.throwGameTestException("Готовых зданий " + done
+                        + ", а деревня должна найтись стоящей: ратуша, дом и ферма");
+            }
+            if (building != 1) {
+                context.throwGameTestException("Строящихся зданий " + building
+                        + ", а деревня обязана браться ровно за одно");
+            }
+
+            // Дом настоящий: у жителей есть где спать.
+            if (Housing.sleepingSpots(world, village).isEmpty()) {
+                context.throwGameTestException("В деревне нет ни одного места для сна");
+            }
+
+            // Второй раз на том же месте деревня не возникает.
+            if (!manager.isSettled(centre)) {
+                context.throwGameTestException("Место деревни не запомнилось");
+            }
+            if (Villages.found(world, NORMAN, centre).isPresent()) {
+                context.throwGameTestException("Деревня встала на том же месте второй раз");
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Суточное решение деревни: привоз со стороны двигает стройку.
+     * <p>
+     * Деревня не умеет ни крафтить, ни торговать, и без привоза её стройка
+     * встала бы навсегда на первом же стекле. Проверяется, что за день
+     * стройка <b>продвинулась</b>, а не что склад наполнился: наполнение
+     * без продвижения означало бы, что материал привозят не тот.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "village")
+    public void villageGrowsFromDayToDay(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+
+        try {
+            for (int x = -20; x <= 20; x++) {
+                for (int z = -20; z <= 20; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала: место занято="
+                        + manager.isSettled(centre) + ", помеха=" + whoBlocks(manager, centre));
+                return;
+            }
+
+            Building site = village.buildings().stream()
+                    .filter(BuildJob::isUnderConstruction).findFirst().orElse(null);
+            if (site == null) {
+                context.throwGameTestException("Деревня ничего не строит, двигать нечего");
+                return;
+            }
+
+            int before = site.nextStep();
+            for (int day = 0; day < 3; day++) {
+                Villages.newDay(world, manager, village);
+                BuildJob.advance(world, manager, village.id(), site.id(), 2_000);
+            }
+
+            if (site.nextStep() <= before) {
+                context.throwGameTestException("За три дня стройка не продвинулась: шаг "
+                        + site.nextStep() + ", был " + before);
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Место деревни выводится из семени мира и потому одно и то же.
+     * <p>
+     * Не мелочь: если бы место выбиралось случайно при каждом обращении,
+     * деревня возникала бы у игрока то тут, то там, а на сервере два игрока
+     * получили бы две разные деревни в одной клетке.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "village")
+    public void villageSitesAreTheSameEveryTime(TestContext context) {
+        ServerWorld world = context.getWorld();
+        Culture norman = CultureManager.get(NORMAN);
+        if (norman == null) {
+            context.throwGameTestException("Культура норманнов не загружена");
+            return;
+        }
+
+        int cellX = new ChunkPos(context.getAbsolutePos(BlockPos.ORIGIN)).x
+                / VillageSites.spacing(norman);
+        int cellZ = new ChunkPos(context.getAbsolutePos(BlockPos.ORIGIN)).z
+                / VillageSites.spacing(norman);
+
+        Optional<BlockPos> first = VillageSites.candidate(world, NORMAN, norman, cellX, cellZ);
+        Optional<BlockPos> again = VillageSites.candidate(world, NORMAN, norman, cellX, cellZ);
+
+        if (!first.equals(again)) {
+            context.throwGameTestException("Место деревни поменялось между двумя вопросами: "
+                    + first + " и " + again);
+        }
+
+        // Соседняя клетка обязана дать другое место, иначе сетка не работает.
+        Optional<BlockPos> neighbour =
+                VillageSites.candidate(world, NORMAN, norman, cellX + 1, cellZ);
+        if (first.isPresent() && first.equals(neighbour)) {
+            context.throwGameTestException("Две клетки сетки дали одно место");
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Убрать деревню за собой начисто — включая память о месте.
+     * <p>
+     * Забыть место обязательно: места деревень вечны, и мир игровых тестов
+     * переживает прогон. Без этого второй запуск подряд не поднимал бы
+     * деревню и падал — что и случилось, когда тест был написан.
+     */
+    private static void cleanUpVillage(ServerWorld world, SettlementManager manager,
+                                       Settlement village, BlockPos centre, List<BlockPos> meadow) {
+        if (village != null) {
+            razeVillage(world, village);
+            discardBodies(world, village);
+            manager.remove(village.id());
+        }
+        manager.forget(centre);
+        for (BlockPos at : meadow) {
+            world.setBlockState(at, Blocks.AIR.getDefaultState());
+        }
+    }
+
+    /**
+     * Кто мешает деревне встать здесь. Нужно в сообщении об отказе: без
+     * этого «деревня не встала» не отличает занятое место от тесноты,
+     * и на поиск причины уходит прогон за прогоном.
+     */
+    private static String whoBlocks(SettlementManager manager, BlockPos centre) {
+        Settlement probe = Settlement.found(NORMAN, Owner.AUTONOMOUS, "проба", centre);
+        return manager.conflictWith(probe)
+                .map(clash -> clash.name() + " в " + clash.center().toShortString())
+                .orElse("нет");
+    }
+
+    /** Убрать деревню за собой: игровые тесты делят один мир. */
+    private static void razeVillage(ServerWorld world, Settlement village) {
+        for (Building site : village.buildings()) {
+            SchematicLoader.get(BuildJob.schematicId(site))
+                    .ifPresent(schematic -> demolish(world, site, schematic));
+        }
+        world.setBlockState(village.center(), Blocks.AIR.getDefaultState());
     }
 
     // --- слоты декора ---

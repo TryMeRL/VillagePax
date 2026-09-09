@@ -11,6 +11,7 @@ import com.villagepax.item.ModItems;
 import com.villagepax.screen.ColonyNet;
 import com.villagepax.screen.TownHallNet;
 import com.villagepax.screen.TownHallScreens;
+import com.villagepax.sim.Villages;
 import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.work.WorkTicker;
 import net.fabricmc.api.ModInitializer;
@@ -34,6 +35,7 @@ public class VillagePax implements ModInitializer {
         CitizenSpawner.register();
         SchematicLoader.register();
         WorkTicker.register();
+        Villages.register();
         BuildCommand.register();
         TownHallScreens.init();
         TownHallNet.registerServer();

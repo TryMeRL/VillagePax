@@ -71,8 +71,13 @@ public final class ColonyFounder {
         CitizenSpawner.spawnBody(world, settlement, builder);
     }
 
-    private static void raiseTownHall(ServerWorld world, BlockPos pos, Settlement settlement,
-                                      Culture culture, Identifier cultureId) {
+    /**
+     * Ратуша как блок и как здание. Открыто наружу, потому что тем же
+     * порядком начинается и деревня народа: разница между колонией и
+     * деревней — только во владельце.
+     */
+    public static void raiseTownHall(ServerWorld world, BlockPos pos, Settlement settlement,
+                                     Culture culture, Identifier cultureId) {
         world.setBlockState(pos, ModBlocks.TOWN_HALL.getDefaultState());
 
         if (world.getBlockEntity(pos) instanceof TownHallBlockEntity townHall) {

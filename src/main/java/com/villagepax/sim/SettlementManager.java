@@ -12,8 +12,10 @@ import net.minecraft.world.PersistentState;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -31,8 +33,22 @@ public class SettlementManager extends PersistentState {
 
     public static final String KEY = "villagepax_settlements";
     private static final String LIST_TAG = "settlements";
+    private static final String SITES_TAG = "settled_sites";
 
     private final Map<UUID, Settlement> settlements = new LinkedHashMap<>();
+
+    /**
+     * Места, на которых деревня уже возникала — или отказалась возникнуть.
+     * <p>
+     * Хранится затем, что места деревень считаются по семени мира и потому
+     * вечны. Без этой памяти снесённая игроком деревня возникала бы снова
+     * при каждом его приходе, а клетка, где деревне не ужиться с соседом,
+     * проверялась бы заново каждые пять секунд.
+     * <p>
+     * Позиция, а не опознаватель поселения: поселение можно распустить, а
+     * место остаётся тем же.
+     */
+    private final Set<Long> settledSites = new HashSet<>();
 
     public static SettlementManager get(ServerWorld world) {
         return world.getPersistentStateManager()
@@ -59,6 +75,10 @@ public class SettlementManager extends PersistentState {
         if (broken > 0) {
             VillagePax.LOGGER.error("Повреждённых записей поселений: {}. Остальные {} загружены.",
                     broken, manager.settlements.size());
+        }
+
+        for (long site : nbt.getLongArray(SITES_TAG)) {
+            manager.settledSites.add(site);
         }
         return manager;
     }
@@ -90,7 +110,34 @@ public class SettlementManager extends PersistentState {
         }
 
         nbt.put(LIST_TAG, list);
+        nbt.putLongArray(SITES_TAG,
+                settledSites.stream().mapToLong(Long::longValue).toArray());
         return nbt;
+    }
+
+    /** Возникала ли деревня на этом месте. */
+    public boolean isSettled(BlockPos site) {
+        return settledSites.contains(site.asLong());
+    }
+
+    /** Запомнить место как обжитое — навсегда, даже если деревня не встала. */
+    public void remember(BlockPos site) {
+        if (settledSites.add(site.asLong())) {
+            markDirty();
+        }
+    }
+
+    /**
+     * Забыть место. Нужно там, где деревню убирают начисто, — в игровых
+     * тестах, которые делят один мир, и позже понадобится отладочной
+     * команде: без этого снесённую деревню не поднять обратно.
+     */
+    public boolean forget(BlockPos site) {
+        boolean forgotten = settledSites.remove(site.asLong());
+        if (forgotten) {
+            markDirty();
+        }
+        return forgotten;
     }
 
     public void add(Settlement settlement) {

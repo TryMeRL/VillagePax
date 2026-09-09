@@ -4,6 +4,7 @@ import com.villagepax.entity.CitizenEntity;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.Villages;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.Entity;
 import net.minecraft.server.world.ServerWorld;
@@ -84,6 +85,11 @@ public final class WorkTicker {
                 Workplaces.assign(world, state);
             } else {
                 Needs.newDay(world, manager, state);
+                if (state.owner().isAutonomous()) {
+                    // Деревня решает за себя сама: игрока, который разметил
+                    // бы ей здание, у неё нет.
+                    Villages.newDay(world, manager, state);
+                }
             }
         });
     }

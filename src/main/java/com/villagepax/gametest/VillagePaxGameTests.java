@@ -4181,6 +4181,120 @@ public class VillagePaxGameTests implements FabricGameTest {
         context.complete();
     }
 
+    // --- билдер строит стоя на земле ---
+
+    /**
+     * Высокое здание билдер достраивает, <b>ни разу не встав в воздух</b>.
+     * <p>
+     * Жалоба игрока: «строитель продолжает тупить при постройке, пытается
+     * дотянуться а не может». Прежние тесты стройки этого поймать не могли
+     * и не могут: {@code runWork} телепортирует тело прямо в назначенную
+     * точку, а телепортом достаётся и блок на крыше. В игре у жителя
+     * телепорта нет.
+     * <p>
+     * Поэтому здесь {@link #runWorkOnFoot} переносит тело только туда, где
+     * <b>может стоять человек</b>: твёрдое под ногами, пусто на месте и над
+     * головой. Назначили точку в воздухе — житель остаётся там, где был,
+     * ровно как в игре, где он до неё не дойдёт.
+     * <p>
+     * Проверяется на доме второго уровня: он девять блоков высотой, и труба
+     * у него идёт до самого верха. Это самая высокая схема мода, и если
+     * дотянуться нельзя до неё, то нельзя и до ратуши второго уровня.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "reach")
+    public void tallHouseIsBuiltWithoutStandingInMidair(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic tall = schematic(context, HOUSE_LVL2);
+
+        // Ратуша рядом со стройкой намеренно: дальше двенадцати блоков
+        // билдер не берёт со склада сам, и стройка встала бы по нехватке
+        // материалов, а проверяем мы досягаемость.
+        BlockPos hall = context.getAbsolutePos(new BlockPos(8, 9, 8));
+        List<BlockPos> ground = new ArrayList<>();
+
+        try {
+            // Ровная площадка под здание и вокруг него: билдеру надо где стоять.
+            for (int x = -2; x <= 12; x++) {
+                for (int z = -2; z <= 12; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    ground.add(at);
+                }
+            }
+
+            Settlement colony = colonyWithBuilder(world, manager, hall);
+            BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 9, 0));
+            Building site = new Building(UUID.randomUUID(), HOUSE_TYPE, 2, anchor,
+                    BlockRotation.NONE, BuildProgress.PLANNED, List.of());
+            colony.addBuilding(site);
+
+            try {
+                stockFor(world, colony, tall);
+                Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER,
+                        context.getAbsolutePos(new BlockPos(-1, 9, -1)));
+
+                int stalled = runWorkOnFoot(world, manager, colony, mason, 900);
+
+                if (!site.isOperational()) {
+                    context.throwGameTestException("Дом второго уровня не достроился: билдер "
+                            + "встал на шаге " + site.nextStep() + " из "
+                            + tall.plan().steps().size() + ", и " + stalled
+                            + " раз его посылали в точку, где человек стоять не может");
+                }
+                if (stalled > 0) {
+                    context.throwGameTestException("Билдера " + stalled
+                            + " раз посылали стоять в воздух — в игре он туда не дойдёт");
+                }
+            } finally {
+                demolish(world, site, tall);
+                discardBodies(world, colony);
+                manager.remove(colony.id());
+            }
+        } finally {
+            for (BlockPos at : ground) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Прогон стройки без телепорта по воздуху: тело переносится только туда,
+     * где может стоять человек. Возвращает, сколько раз ему назвали точку,
+     * до которой в игре не дойти.
+     */
+    private static int runWorkOnFoot(ServerWorld world, SettlementManager manager,
+                                     Settlement colony, Citizen worker, int rounds) {
+        CitizenEntity body = (CitizenEntity) world.getEntity(worker.entityUuid().orElseThrow());
+        int impossible = 0;
+
+        for (int round = 0; round < rounds; round++) {
+            WorkTicker.decide(world, manager, colony, worker, Schedule.MORNING_WORK);
+
+            BlockPos target = body.workTarget();
+            if (target == null) {
+                continue;
+            }
+            if (standable(world, target)) {
+                body.refreshPositionAndAngles(target.getX() + 0.5, target.getY(),
+                        target.getZ() + 0.5, 0f, 0f);
+            } else {
+                impossible++;
+            }
+        }
+        return impossible;
+    }
+
+    /** Ноги на твёрдом, голова в пустоте — то же, что требует ванильная ходьба. */
+    private static boolean standable(ServerWorld world, BlockPos spot) {
+        return world.getBlockState(spot.down()).isSolidBlock(world, spot.down())
+                && world.getBlockState(spot).getCollisionShape(world, spot).isEmpty()
+                && world.getBlockState(spot.up()).getCollisionShape(world, spot.up()).isEmpty();
+    }
+
     // --- вторые уровни дома и фермы ---
 
     private static final Identifier HOUSE_LVL2 = new Identifier("villagepax", "norman/house_lvl2");

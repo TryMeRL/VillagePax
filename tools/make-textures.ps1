@@ -37,6 +37,14 @@ $hex.Add("V","FFCFC9BC")   # linen, shaded
 $hex.Add("u","FF7C93AE")   # dyed cloth
 $hex.Add("n","FF5A4632")   # bark
 $hex.Add("N","FF6E5540")   # bark, lit
+$hex.Add("=","FF5E4531")   # beam, lit edge
+$hex.Add("_","FF3A281B")   # beam, shadowed edge
+$hex.Add("'","FFE6DCC6")   # plaster, lit
+$hex.Add("h","FFC9B78F")   # burlap, lit
+$hex.Add("v","FF47372A")   # bark, shadow
+$hex.Add("j","FFC79E5E")   # cut wood, lit
+$hex.Add("y","FFB8B2A4")   # linen, shadow
+$hex.Add("U","FF6A7F98")   # dyed cloth, shadow
 $hex.Add(" ","00000000")   # transparent
 
 $color = New-Object "System.Collections.Generic.Dictionary[string,System.Drawing.Color]" ([System.StringComparer]::Ordinal)
@@ -55,8 +63,6 @@ $noise.Add(".", ",")
 $noise.Add("L", "M")
 $noise.Add("M", "L")
 $noise.Add("S", "s")
-$noise.Add("b", "B")
-$noise.Add("B", "b")
 $noise.Add("n", "N")
 $noise.Add("W", "V")
 
@@ -64,20 +70,20 @@ $maps = [ordered]@{}
 
 $maps["block\town_hall_side"] = @(
     "################"
-    "#..............#"
-    "#.##........##.#"
-    "#..##......##..#"
-    "#...##....##...#"
-    "#....##..##....#"
-    "#.....####.....#"
-    "#......##......#"
-    "#......##......#"
-    "#.....####.....#"
-    "#....##..##....#"
-    "#...##....##...#"
-    "#..##......##..#"
-    "#.##........##.#"
-    "#..............#"
+    "#=============_#"
+    "#'##.......##',#"
+    "#.,'##...##'..,#"
+    "#..,.'#.#'.,...#"
+    "#,..,.###.,..,.#"
+    "#..,..'#'..,...#"
+    "#.,..'#.#'..,,.#"
+    "#..,'#...#'.,..#"
+    "#.,'#.,,.,#'...#"
+    "#,'#..,..,.#',.#"
+    "#'#.,...,.,.#,,#"
+    "##.,..,...,..##,"
+    "#,..,...,..,..,#"
+    "#______________#"
     "################")
 
 $maps["block\town_hall_top"] = @(
@@ -212,109 +218,102 @@ $maps["block\marker_decor"] = @(
 # into a proper timbered facade instead of a flat sheet.
 $maps["block\timber_frame"] = @(
     "################"
-    "#......##......#"
-    "#......##......#"
-    "#......##......#"
-    "#......##......#"
-    "#......##......#"
-    "#......##......#"
-    "#......##......#"
-    "#......##......#"
-    "#......##......#"
-    "#......##......#"
-    "#......##......#"
-    "#......##......#"
-    "#......##......#"
-    "#......##......#"
+    "#======#=======#"
+    "#''''''#'''''''#"
+    "#......#.......#"
+    "#......#.......#"
+    "#,,,,,,#,,,,,,,#"
+    "#______#_______#"
+    "################"
+    "#======#=======#"
+    "#''''''#'''''''#"
+    "#......#.......#"
+    "#......#.......#"
+    "#,,,,,,#,,,,,,,#"
+    "#,,,,,,#,,,,,,,#"
+    "#______#_______#"
     "################")
 
 # Bare plaster. Flat on purpose: the deterministic noise does the mottling,
 # and a pattern here would fight the timbering next to it.
 $maps["block\plaster"] = @(
-    "................"
-    "................"
-    "................"
-    "................"
-    "................"
-    "................"
-    "................"
-    "................"
-    "................"
-    "................"
-    "................"
-    "................"
-    "................"
-    "................"
-    "................"
-    "................")
+    "'..,..'...,..'.."
+    "..'...,..'....,."
+    ",..'....,...'..."
+    "..,...'...,....'"
+    "'...,....'...,.."
+    "...'...,....'..."
+    ".,....'...,....,"
+    "..,'.....,...'.."
+    "'....,..'.....,."
+    "..'....,...'...."
+    ",...'.....,...'."
+    "...,...'....,..."
+    "'.....,...'....."
+    "..,'....,....'.."
+    ".'...,...'...,.."
+    "...'....,...'...")
 
 $maps["block\firewood_side"] = @(
     "nnnnnnnnnnnnnnnn"
     "nNnNnnNnnnNnnNnn"
-    "nnnnnnnnnnnnnnnn"
+    "nnvnnnnvnnnnvnnn"
     "dddddddddddddddd"
     "nnnnnnnnnnnnnnnn"
     "nNnnNnnnNnnNnnNn"
-    "nnnnnnnnnnnnnnnn"
+    "nvnnnnvnnnnvnnnn"
     "dddddddddddddddd"
     "nnnnnnnnnnnnnnnn"
     "nNnNnnNnnnNnnNnn"
-    "nnnnnnnnnnnnnnnn"
+    "nnvnnnnvnnnnvnnn"
     "dddddddddddddddd"
     "nnnnnnnnnnnnnnnn"
     "nNnnNnnnNnnNnnNn"
-    "nnnnnnnnnnnnnnnn"
+    "nvnnnnvnnnnvnnnn"
     "dddddddddddddddd")
 
 # Cut ends of the bundle: sixteen logs looked at end-on.
 $maps["block\firewood_end"] = @(
     "dddddddddddddddd"
-    "dLLddLLddLLddLLd"
-    "dLLddLLddLLddLLd"
+    "djLddjLddjLddjLd"
+    "dLMddLMddLMddLMd"
     "dddddddddddddddd"
     "dddddddddddddddd"
-    "dLLddLLddLLddLLd"
-    "dLLddLLddLLddLLd"
+    "djLddjLddjLddjLd"
+    "dLMddLMddLMddLMd"
     "dddddddddddddddd"
     "dddddddddddddddd"
-    "dLLddLLddLLddLLd"
-    "dLLddLLddLLddLLd"
+    "djLddjLddjLddjLd"
+    "dLMddLMddLMddLMd"
     "dddddddddddddddd"
     "dddddddddddddddd"
-    "dLLddLLddLLddLLd"
-    "dLLddLLddLLddLLd"
+    "djLddjLddjLddjLd"
+    "dLMddLMddLMddLMd"
     "dddddddddddddddd")
 
 # Washing on a line: a rope across the top and two cloths hanging off it.
 # Transparent everywhere else, so the cross model reads as cloth, not a bush.
 $maps["block\laundry"] = @(
     "rrrrrrrrrrrrrrrr"
-    " WWWWW   uuuuu  "
-    " WWWWW   uuuuu  "
-    " WWWWW   uuuuu  "
-    " WWWWW   uuuuu  "
-    " WWWWW   uuuuu  "
-    " WWWWW   uuuuu  "
-    " WWWWW   uuuuu  "
-    " WWWWW   uuuuu  "
-    " WWWWW   uuuuu  "
-    " WWWWW   uuuuu  "
-    " WWWWW   uuuuu  "
-    " WWWWW   uuuuu  "
-    "  WWW    uuu    "
+    " WyWWW   uUuuu  "
+    " WyWWW   uUuuu  "
+    " WyWWV   uUuuU  "
+    " WyWWW   uUuuu  "
+    " WyWWW   uUuuu  "
+    " WyWWV   uUuuU  "
+    " WyWWW   uUuuu  "
+    " WyWWW   uUuuu  "
+    " WyWWV   uUuuU  "
+    " WyWWW   uUuuu  "
+    " WVWWW   uUuuu  "
+    " VVWWV   uUUuU  "
+    "  WVW     uUu   "
     "                "
     "                ")
 
 # Sacking with two rope bands. Grain, flour, whatever the colony hauls.
 $maps["block\grain_sack"] = @(
-    "bBbBbBbBbBbBbBbB"
-    "BbBbBbBbBbBbBbBb"
-    "tttttttttttttttt"
-    "tttttttttttttttt"
-    "bBbBbBbBbBbBbBbB"
-    "BbBbBbBbBbBbBbBb"
-    "bBbBbBbBbBbBbBbB"
-    "BbBbBbBbBbBbBbBb"
+    "hhhhhhhhhhhhhhhh"
     "bBbBbBbBbBbBbBbB"
     "tttttttttttttttt"
     "tttttttttttttttt"
@@ -322,7 +321,14 @@ $maps["block\grain_sack"] = @(
     "BbBbBbBbBbBbBbBb"
     "bBbBbBbBbBbBbBbB"
     "BbBbBbBbBbBbBbBb"
-    "bBbBbBbBbBbBbBbB")
+    "bBbBbBbBbBbBbBbB"
+    "tttttttttttttttt"
+    "tttttttttttttttt"
+    "bBbBbBbBbBbBbBbB"
+    "BbBbBbBbBbBbBbBb"
+    "BbBbBbBbBbBbBbBb"
+    "BBBBBBBBBBBBBBBB"
+    "BBBBBBBBBBBBBBBB")
 
 $maps["item\town_hall_blueprint"] = @(
     "                "

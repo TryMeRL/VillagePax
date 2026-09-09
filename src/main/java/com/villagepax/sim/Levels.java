@@ -1,5 +1,7 @@
 package com.villagepax.sim;
 
+import net.minecraft.util.Identifier;
+
 /**
  * Уровень колонии равен уровню её ратуши.
  * <p>
@@ -44,13 +46,21 @@ public final class Levels {
         }
     }
 
+    private static boolean isTownHall(Building building) {
+        return isTownHallType(building.type());
+    }
+
     /**
-     * Ратуша находится по соглашению об именовании — тем же, которым
+     * Ратуша опознаётся по соглашению об именовании — тем же, которым
      * профессия находит свою мастерскую. Долг тот же: когда появится
      * {@code BuildingType} из датапака, здание объявит это само.
+     * <p>
+     * Открыто наружу, потому что спрашивают в двух местах: здесь — про
+     * уровень колонии, и в списке заказов — чтобы не предлагать построить
+     * вторую ратушу. Ратуша у поселения одна: она и есть его середина.
      */
-    private static boolean isTownHall(Building building) {
-        String type = building.type().getPath();
-        return type.equals("town_hall") || type.endsWith("/town_hall");
+    public static boolean isTownHallType(Identifier type) {
+        String path = type.getPath();
+        return path.equals("town_hall") || path.endsWith("/town_hall");
     }
 }

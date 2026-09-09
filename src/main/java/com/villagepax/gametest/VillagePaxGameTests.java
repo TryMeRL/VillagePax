@@ -2862,11 +2862,19 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Житель с кроватью показан бездомным");
             }
 
-            // Предлагаются только здания своего народа, и все загруженные
-            // схемы норманнов в его списке есть.
-            if (view.offers().size() != SchematicLoader.ids().size()) {
+            // Предлагаются только здания своего народа, только первого
+            // уровня и без ратуши: уровни растут кнопкой «Улучшить», а
+            // ратуша стоит с основания. Считается ожидаемое по загруженным
+            // схемам, а не числом: добавится седьмое здание — тест не
+            // придётся править.
+            long expectedOffers = SchematicLoader.ids().stream()
+                    .filter(schematic -> BuildJob.levelOf(schematic).orElse(1) == 1)
+                    .filter(schematic -> BuildJob.buildingTypeOf(schematic)
+                            .filter(type -> !Levels.isTownHallType(type)).isPresent())
+                    .count();
+            if (view.offers().size() != expectedOffers) {
                 context.throwGameTestException("Предложено " + view.offers().size()
-                        + " схем из " + SchematicLoader.ids().size() + " загруженных");
+                        + " схем, а первых уровней без ратуши " + expectedOffers);
             }
 
             // Профессии едут в снимке вместе с ключами названий: на клиенте,
@@ -4401,6 +4409,66 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
         } finally {
             demolish(world, site, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    // --- список заказов ---
+
+    /**
+     * Каждое здание предлагается один раз, и ратуша не предлагается вовсе.
+     * <p>
+     * Игрок сообщил: «в ратуше двоятся здания». Причина была в списке
+     * заказов: он собирался из <b>всех</b> схем культуры, а подпись
+     * у уровней одна на тип — и «Дом норманнов» стоял в списке дважды,
+     * за первый уровень и за второй. Заказать второй уровень к тому же
+     * значило бы поставить дом, у которого не было первого: уровни растут
+     * кнопкой «Улучшить».
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "orders")
+    public void orderListShowsEachBuildingOnce(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            List<Identifier> offers = TownHallView.of(world, colony).offers();
+
+            if (offers.isEmpty()) {
+                context.throwGameTestException("Заказать нечего вовсе");
+            }
+
+            Set<Identifier> types = new HashSet<>();
+            for (Identifier schematic : offers) {
+                if (BuildJob.levelOf(schematic).orElse(1) != 1) {
+                    context.throwGameTestException("В заказах не первый уровень: " + schematic
+                            + ". Уровни растут кнопкой «Улучшить», а не заказом с нуля");
+                }
+
+                Identifier type = BuildJob.buildingTypeOf(schematic).orElseThrow();
+                if (Levels.isTownHallType(type)) {
+                    context.throwGameTestException("Ратушу предлагают построить второй раз: "
+                            + "она уже стоит с основания");
+                }
+                if (!types.add(type)) {
+                    context.throwGameTestException("Тип " + type + " предложен дважды — "
+                            + "именно это игрок и видел как двоящиеся здания");
+                }
+            }
+
+            // И то, что предлагается, обязано быть построимо: схема есть.
+            for (Identifier schematic : offers) {
+                if (SchematicLoader.get(schematic).isEmpty()) {
+                    context.throwGameTestException("Предложена схема, которой нет: " + schematic);
+                }
+            }
+        } finally {
             discardBodies(world, colony);
             manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());

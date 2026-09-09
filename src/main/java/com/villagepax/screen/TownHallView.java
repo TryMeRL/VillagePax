@@ -10,6 +10,7 @@ import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.ItemTally;
+import com.villagepax.sim.Levels;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.build.BuildJob;
@@ -330,8 +331,22 @@ public record TownHallView(
 
         List<Identifier> offers = new ArrayList<>();
         for (Identifier schematic : SchematicLoader.ids()) {
+            // Только первый уровень. Второй и дальше — дело кнопки
+            // «Улучшить»: заказать сразу второй уровень значило бы поставить
+            // дом, у которого не было первого. А в списке от этого каждое
+            // здание показывалось дважды — подпись у уровней одна на тип,
+            // и игрок видел «Дом норманнов, Дом норманнов». Ровно это
+            // и было сообщено как «в ратуше двоятся здания».
+            if (BuildJob.levelOf(schematic).orElse(1) != 1) {
+                continue;
+            }
+
             BuildJob.buildingTypeOf(schematic)
                     .filter(type -> culture.buildings().contains(type))
+                    // Ратуша у поселения одна: она и есть его середина, и она
+                    // уже стоит с основания. Предложи её — и в списке зданий
+                    // появится вторая, которую некуда поставить.
+                    .filter(type -> !Levels.isTownHallType(type))
                     .ifPresent(type -> offers.add(schematic));
         }
         return offers;

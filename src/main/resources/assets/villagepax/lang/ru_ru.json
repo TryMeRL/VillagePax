@@ -187,5 +187,7 @@
   "villagepax.purse.empty": "Кошель пуст",
   "villagepax.purse.nothing_to_add": "Убирать нечего: ни одной монеты при себе",
   "villagepax.building.maya.warehouse": "Склад майя",
-  "villagepax.building.maya.builder_hut": "Двор строителя"
+  "villagepax.building.maya.builder_hut": "Двор строителя",
+  "villagepax.citizen.died": "%s из поселения «%s» погиб: %s",
+  "villagepax.citizen.died.unknown": "неизвестно отчего"
 }

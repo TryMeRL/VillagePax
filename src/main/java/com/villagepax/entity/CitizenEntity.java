@@ -449,9 +449,50 @@ public class CitizenEntity extends PathAwareEntity {
         SettlementManager.get(world).update(settlementId, settlement ->
                 settlement.citizen(citizenId).ifPresent(citizen -> {
                     settlement.removeCitizen(citizenId);
-                    VillagePax.LOGGER.info("Житель {} из поселения {} погиб",
-                            citizen.fullName(), settlement.name());
+                    VillagePax.LOGGER.info("Житель {} из поселения {} погиб от {}",
+                            citizen.fullName(), settlement.name(), lastCause());
+                    mourn(world, settlement, citizen);
                 }));
+    }
+
+    /**
+     * Сказать хозяину колонии, что житель погиб и от чего.
+     * <p>
+     * Написано после настоящей смерти: строитель сгорел на очаге, а игрок
+     * узнал об этом <b>из файла лога</b>, разбирая, почему стройка встала.
+     * Потеря жителя — самое дорогое, что может случиться с колонией:
+     * нанимается он днями, а гибнет за секунды. Молчать о таком нельзя,
+     * и <b>причину</b> назвать обязательно: «сгорел» и «утонул» лечатся
+     * по-разному, а без причины игрок не поймёт, что чинить.
+     */
+    private void mourn(ServerWorld world, Settlement settlement, Citizen citizen) {
+        Text notice = Text.translatable("villagepax.citizen.died",
+                Text.literal(citizen.fullName()), Text.literal(settlement.name()),
+                lastCause());
+
+        settlement.owner().player().ifPresentOrElse(
+                owner -> {
+                    ServerPlayerEntity player = world.getServer().getPlayerManager()
+                            .getPlayer(owner);
+                    if (player != null) {
+                        player.sendMessage(notice, false);
+                    }
+                },
+                // У деревни народа хозяина нет, и сообщать некому. Но если
+                // игрок стоит рядом — он это видел, и молчать странно.
+                () -> world.getPlayers(near -> near.squaredDistanceTo(this) <= 64 * 64)
+                        .forEach(near -> near.sendMessage(notice, false)));
+    }
+
+    /**
+     * От чего погиб. Ванильное описание смерти без имени жертвы: «сгорел
+     * в огне», «утонул», «убит зомби».
+     */
+    private Text lastCause() {
+        DamageSource source = getRecentDamageSource();
+        return source == null
+                ? Text.translatable("villagepax.citizen.died.unknown")
+                : Text.translatable("death.attack." + source.getName());
     }
 
     /**

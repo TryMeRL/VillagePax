@@ -187,5 +187,7 @@
   "villagepax.purse.empty": "The purse is empty",
   "villagepax.purse.nothing_to_add": "Nothing to stow: not a coin on you",
   "villagepax.building.maya.warehouse": "Maya Storehouse",
-  "villagepax.building.maya.builder_hut": "Builder's Yard"
+  "villagepax.building.maya.builder_hut": "Builder's Yard",
+  "villagepax.citizen.died": "%s of %s has died: %s",
+  "villagepax.citizen.died.unknown": "cause unknown"
 }

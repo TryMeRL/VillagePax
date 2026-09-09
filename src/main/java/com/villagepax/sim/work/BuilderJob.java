@@ -11,6 +11,7 @@ import com.villagepax.entity.CitizenWorkGoal;
 import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Roads;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.block.Block;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -38,6 +39,14 @@ import java.util.Optional;
  * Когда строить нечего, билдер <b>мостит улицы</b> — решение заказчика.
  * Тем же порядком: подошёл, положил тайл, перешёл. Работа эта вечная только
  * на вид: готовая улица не даёт тайлов, и билдер снова свободен.
+ * <p>
+ * А когда материалов не хватает и <b>носить их больше некому</b>, билдер
+ * идёт на склад сам. Это ответ на замкнутый круг, с которым столкнулся
+ * игрок: курьеру нужен дом, дому нужны материалы у стройки, а материалы
+ * без курьера к далёкой стройке не попадают. Первый житель делает всё
+ * сам — только медленно, потому что ходит вместо того, чтобы класть.
+ * Появился курьер — билдер снова только строит, и география опять
+ * что-то значит.
  */
 public final class BuilderJob implements Job {
 
@@ -74,6 +83,18 @@ public final class BuilderJob implements Job {
     public Optional<BlockPos> tick(WorkContext context) {
         JobState state = context.state();
 
+        // Груз, который нести уже некуда, возвращается на склад. Билдеру это
+        // нужно ровно так же, как курьеру: он тоже носит — когда носить
+        // больше некому, — и брошенный в руках материал так же исчезает
+        // из экономики колонии. Без этой строки дом не достраивался: часть
+        // блоков навсегда оставалась у жителя в руках.
+        if (state.hasStrandedLoad()) {
+            Hauling.returnLoad(context);
+            Hauling.showLoad(context);
+            return context.warehouse().nearest(context.body().getBlockPos())
+                    .map(com.villagepax.sim.Warehouse.Container::pos);
+        }
+
         if (state.isIdle()) {
             findWork(context);
             return whereToStand(context);
@@ -90,6 +111,27 @@ public final class BuilderJob implements Job {
             return paveStreet(context, site);
         }
 
+        // Идёт за материалами сам: носить больше некому.
+        if (state.phase() == JobState.Phase.TO_STORAGE) {
+            return fetchMaterials(context, site);
+        }
+
+        // Принёс — сперва сложить на площадку, потом строить.
+        if (state.isCarrying()) {
+            Hauling.showLoad(context);
+            if (!Hauling.unload(context, site)) {
+                return Optional.of(site.anchor());
+            }
+        }
+
+        // Состояние перечитывается заново, и это не перестраховка. Разгрузка
+        // его уже поменяла: груз с рук снят и лежит на площадке. Продолжи
+        // работать со старым значением — и следующая же смена фазы вернула бы
+        // груз в руки, хотя материалы уже сложены. Колония начала бы печатать
+        // предметы при каждом ходе: именно так на площадке и оказалось
+        // семнадцать сотен булыжника вместо двадцати пяти.
+        state = context.state();
+
         BuildJob.Outcome outcome = BuildJob.advance(context.world(), context.manager(),
                 context.settlement().id(), site.id(), 1, context.position());
 
@@ -105,9 +147,20 @@ public final class BuilderJob implements Job {
             // Дошли до блока за пределами вытянутой руки: перейти к нему.
             case OUT_OF_REACH -> context.setState(state.withPhase(JobState.Phase.TO_SITE));
 
-            // Работа идёт — или ждём материалов, стоя на месте: уходить нельзя,
-            // иначе билдер начнёт бегать кругами, пока курьер несёт брёвна.
-            case ADVANCED, WAITING_FOR_MATERIALS -> context.setState(state.withPhase(JobState.Phase.WORKING));
+            // Работа идёт — стоим и работаем.
+            case ADVANCED -> context.setState(state.withPhase(JobState.Phase.WORKING));
+
+            // Материалов нет. Есть курьер — ждём на месте: уходить нельзя,
+            // иначе билдер начнёт бегать кругами, пока тот несёт брёвна.
+            // Курьера нет — идём за материалами сами.
+            case WAITING_FOR_MATERIALS -> {
+                if (Hauling.nobodyElseWillCarry(context.settlement())
+                        && Hauling.wanted(context, site).isPresent()) {
+                    context.setState(state.withPhase(JobState.Phase.TO_STORAGE));
+                    return Hauling.whereToFetch(context, site);
+                }
+                context.setState(state.withPhase(JobState.Phase.WORKING));
+            }
 
             // Готовое здание обязано заработать сразу. Раздача кроватей
             // и мастерских иначе ждёт рассвета, и достроенный в полдень дом
@@ -137,6 +190,39 @@ public final class BuilderJob implements Job {
         }
 
         return whereToStand(context);
+    }
+
+    /**
+     * Ходка за материалами: дойти до сундука, набрать слоты, вернуться.
+     * <p>
+     * Набирается сразу несколько видов груза — за одну ходку и брёвна,
+     * и стекло. Один вид за ходку означал бы, что дом из семнадцати видов
+     * блоков требует семнадцати походов через полдеревни.
+     */
+    private static Optional<BlockPos> fetchMaterials(WorkContext context, Building site) {
+        // Руки полны — идти сдавать, а не стоять у сундука. Без этого билдер
+        // с полными слотами топтался у ратуши навсегда: взять больше нельзя,
+        // а уйти он не догадывался.
+        if (context.state().usedSlots() >= Hauling.slots()
+                || Hauling.wanted(context, site).isEmpty()) {
+            context.setState(context.state().withPhase(
+                    context.state().isCarrying()
+                            ? JobState.Phase.TO_SITE
+                            : JobState.Phase.WORKING));
+            Hauling.showLoad(context);
+            return context.state().isCarrying()
+                    ? Optional.of(site.anchor())
+                    : whereToStand(context);
+        }
+
+        if (Hauling.fillUp(context, site)) {
+            context.setState(context.state().withPhase(JobState.Phase.TO_SITE));
+            Hauling.showLoad(context);
+            return Optional.of(site.anchor());
+        }
+
+        Hauling.showLoad(context);
+        return Hauling.whereToFetch(context, site);
     }
 
     private static Optional<BlockPos> whereToStand(WorkContext context) {
@@ -271,7 +357,7 @@ public final class BuilderJob implements Job {
      * ближайшая опора, до которой человек хотя бы дойдёт, — пусть с неё
      * и не достать, зато следующий шаг плана он поставит.
      */
-    private static Optional<BlockPos> standingSpot(ServerWorld world, Building site) {
+    public static Optional<BlockPos> standingSpot(ServerWorld world, Building site) {
         BlockPos target = nextStepPosition(site).orElse(null);
         if (target == null) {
             return Optional.empty();

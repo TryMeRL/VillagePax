@@ -7,6 +7,8 @@ import com.villagepax.core.Named;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Uuids;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -23,9 +25,9 @@ import java.util.UUID;
  *
  * @param phase    что житель делает прямо сейчас
  * @param building здание, к которому привязана работа
- * @param carried  груз в руках, если несёт
+ * @param carried  что житель несёт: по слоту на каждый вид груза
  */
-public record JobState(Phase phase, Optional<UUID> building, Optional<Load> carried) {
+public record JobState(Phase phase, Optional<UUID> building, List<Load> carried) {
 
     /**
      * Фаза работы. Одно перечисление на все профессии: их будет семь,
@@ -86,15 +88,29 @@ public record JobState(Phase phase, Optional<UUID> building, Optional<Load> carr
         }
     }
 
-    public static final JobState IDLE = new JobState(Phase.IDLE, Optional.empty(), Optional.empty());
+    public static final JobState IDLE = new JobState(Phase.IDLE, Optional.empty(), List.of());
+
+    /**
+     * Груз читается и списком, и одиночной записью.
+     * <p>
+     * Одиночная — это старая форма, когда житель нёс один вид груза. Читать
+     * её надо: в сохранении игрока может быть курьер на полпути, и терять
+     * его брёвна молча нельзя — по правилу «потерянные брёвна хуже уборки
+     * на площадке». Записывается всегда список.
+     */
+    private static final Codec<List<Load>> LOADS = Codec.either(Load.CODEC.listOf(), Load.CODEC)
+            .xmap(either -> either.map(java.util.function.Function.identity(), List::of),
+                    com.mojang.datafixers.util.Either::left);
 
     public static final Codec<JobState> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Phase.CODEC.optionalFieldOf("phase", Phase.IDLE).forGetter(JobState::phase),
             Uuids.STRING_CODEC.optionalFieldOf("building").forGetter(JobState::building),
-            Load.CODEC.optionalFieldOf("carried").forGetter(JobState::carried)
+            LOADS.optionalFieldOf("carried", List.of()).forGetter(JobState::carried)
     ).apply(instance, JobState::new));
 
     public JobState {
+        carried = List.copyOf(carried);
+
         if (phase == Phase.IDLE) {
             // Приведение к единственному виду: в простое привязка к зданию
             // бессмысленна, а лишняя ссылка мешала бы понять, что груз
@@ -108,7 +124,7 @@ public record JobState(Phase phase, Optional<UUID> building, Optional<Load> carr
 
     /** Взяться за работу над зданием. */
     public static JobState startAt(UUID building, Phase phase) {
-        return new JobState(phase, Optional.of(building), Optional.empty());
+        return new JobState(phase, Optional.of(building), List.of());
     }
 
     /**
@@ -122,16 +138,47 @@ public record JobState(Phase phase, Optional<UUID> building, Optional<Load> carr
         return new JobState(next, building, carried);
     }
 
+    /** Груз без слота с этим видом: сдал одно, остальное несёт дальше. */
+    public JobState without(Identifier item) {
+        List<Load> loads = new ArrayList<>(carried);
+        loads.removeIf(load -> load.item().equals(item));
+        return new JobState(phase, building, loads);
+    }
+
+    /**
+     * Добавить груз. Тот же вид складывается в один слот, новый занимает
+     * следующий: слот — это вид груза, а не стопка.
+     */
     public JobState carrying(Identifier item, int count) {
-        return new JobState(phase, building, Optional.of(new Load(item, count)));
+        List<Load> loads = new ArrayList<>(carried);
+
+        for (int slot = 0; slot < loads.size(); slot++) {
+            if (loads.get(slot).item().equals(item)) {
+                loads.set(slot, new Load(item, loads.get(slot).count() + count));
+                return new JobState(phase, building, loads);
+            }
+        }
+
+        loads.add(new Load(item, count));
+        return new JobState(phase, building, loads);
     }
 
     public JobState emptyHanded() {
-        return new JobState(phase, building, Optional.empty());
+        return new JobState(phase, building, List.of());
     }
 
     public boolean isCarrying() {
-        return carried.isPresent();
+        return !carried.isEmpty();
+    }
+
+    /** Сколько видов груза житель уже несёт — то есть сколько слотов занято. */
+    public int usedSlots() {
+        return carried.size();
+    }
+
+    /** Первый груз — тот, что житель держит в руках на виду. */
+    public Optional<Load> firstLoad() {
+        return carried.isEmpty() ? Optional.empty() : Optional.of(carried.get(0));
     }
 
     public boolean isIdle() {

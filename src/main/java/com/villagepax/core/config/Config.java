@@ -33,6 +33,7 @@ import java.util.Map;
  * @param ticksPerDecision      как часто житель решает, что делать
  * @param citizenLabels         показывать ли имя и ремесло над жителем
  * @param buildingLabels        показывать ли подписи над зданиями
+ * @param carrySlots            сколько видов груза житель унесёт за раз
  */
 public record Config(
         boolean autonomousVillages,
@@ -44,11 +45,12 @@ public record Config(
         int roadReserve,
         int ticksPerDecision,
         boolean citizenLabels,
-        boolean buildingLabels
+        boolean buildingLabels,
+        int carrySlots
 ) {
 
     public static final Config DEFAULT = new Config(
-            true, 0, 1.0, 4, 6, 64, 16, 10, true, true);
+            true, 0, 1.0, 4, 6, 64, 16, 10, true, true, 4);
 
     // Допустимые значения объявлены по одному разу и здесь: из них собирается
     // и кодек, и таблица RANGES, по которой игроку сообщают о непринятом.
@@ -59,6 +61,7 @@ public record Config(
     private static final Codec<Integer> DAYS = Codec.intRange(1, 1_000);
     private static final Codec<Integer> AMOUNT = Codec.intRange(0, 6_400);
     private static final Codec<Integer> TEMPO = Codec.intRange(1, 200);
+    private static final Codec<Integer> SLOTS = Codec.intRange(1, 27);
 
     /**
      * Поле файла и допустимые для него значения.
@@ -68,17 +71,18 @@ public record Config(
      * умолчанию и никакого объяснения. По этой таблице загрузчик проверяет
      * написанное отдельно и называет непринятое в логе.
      */
-    public static final Map<String, Codec<?>> RANGES = Map.of(
-            "autonomous_villages", Codec.BOOL,
-            "village_spacing_chunks", SPACING,
-            "population_scale", SCALE,
-            "hunger_warn_days", DAYS,
-            "hunger_leave_days", DAYS,
-            "village_trade_per_day", AMOUNT,
-            "road_reserve", AMOUNT,
-            "ticks_per_decision", TEMPO,
-            "citizen_labels", Codec.BOOL,
-            "building_labels", Codec.BOOL);
+    public static final Map<String, Codec<?>> RANGES = Map.ofEntries(
+            Map.entry("autonomous_villages", Codec.BOOL),
+            Map.entry("village_spacing_chunks", SPACING),
+            Map.entry("population_scale", SCALE),
+            Map.entry("hunger_warn_days", DAYS),
+            Map.entry("hunger_leave_days", DAYS),
+            Map.entry("village_trade_per_day", AMOUNT),
+            Map.entry("road_reserve", AMOUNT),
+            Map.entry("ticks_per_decision", TEMPO),
+            Map.entry("citizen_labels", Codec.BOOL),
+            Map.entry("building_labels", Codec.BOOL),
+            Map.entry("carry_slots", SLOTS));
 
     public static final Codec<Config> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.BOOL.optionalFieldOf("autonomous_villages", DEFAULT.autonomousVillages)
@@ -100,7 +104,9 @@ public record Config(
             Codec.BOOL.optionalFieldOf("citizen_labels", DEFAULT.citizenLabels)
                     .forGetter(Config::citizenLabels),
             Codec.BOOL.optionalFieldOf("building_labels", DEFAULT.buildingLabels)
-                    .forGetter(Config::buildingLabels)
+                    .forGetter(Config::buildingLabels),
+            SLOTS.optionalFieldOf("carry_slots", DEFAULT.carrySlots)
+                    .forGetter(Config::carrySlots)
     ).apply(instance, Config::new));
 
     /**

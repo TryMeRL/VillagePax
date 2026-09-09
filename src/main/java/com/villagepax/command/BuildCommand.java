@@ -235,7 +235,7 @@ public final class BuildCommand {
             tell(context, "  " + citizen.fullName()
                     + " — " + citizen.profession().map(Identifier::getPath).orElse("без профессии")
                     + ", " + citizen.jobState().phase().id()
-                    + citizen.jobState().carried()
+                    + citizen.jobState().firstLoad()
                             .map(load -> ", несёт " + load.count() + " x " + load.item())
                             .orElse(""));
         }

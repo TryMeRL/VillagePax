@@ -7,6 +7,7 @@ import net.minecraft.nbt.NbtOps;
 import net.minecraft.util.Identifier;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -38,9 +39,9 @@ class JobStateTest {
         // Фаза без здания — работа над ничем; такое состояние не должно
         // существовать вовсе, иначе цель на сущности пойдёт в никуда.
         assertThrows(IllegalArgumentException.class, () ->
-                new JobState(JobState.Phase.TO_SITE, Optional.empty(), Optional.empty()));
+                new JobState(JobState.Phase.TO_SITE, Optional.empty(), List.of()));
         assertThrows(IllegalArgumentException.class, () ->
-                new JobState(JobState.Phase.WORKING, Optional.empty(), Optional.empty()));
+                new JobState(JobState.Phase.WORKING, Optional.empty(), List.of()));
     }
 
     @Test
@@ -56,8 +57,8 @@ class JobStateTest {
 
         JobState loaded = fetching.carrying(LOG, 32).withPhase(JobState.Phase.TO_SITE);
         assertTrue(loaded.isCarrying());
-        assertEquals(32, loaded.carried().orElseThrow().count());
-        assertEquals(LOG, loaded.carried().orElseThrow().item());
+        assertEquals(32, loaded.firstLoad().orElseThrow().count());
+        assertEquals(LOG, loaded.firstLoad().orElseThrow().item());
         assertEquals(Optional.of(SITE), loaded.building());
 
         JobState delivered = loaded.emptyHanded();
@@ -115,7 +116,7 @@ class JobStateTest {
         JobState restored = roundTrip(stranded);
 
         assertTrue(restored.hasStrandedLoad(), "иначе груз пропал бы при перезаходе в мир");
-        assertEquals(5, restored.carried().orElseThrow().count());
+        assertEquals(5, restored.firstLoad().orElseThrow().count());
     }
 
     /**
@@ -139,7 +140,7 @@ class JobStateTest {
 
         assertTrue(restored.isIdle());
         assertTrue(restored.isCarrying(), "груз обязан уцелеть: он в отдельном поле");
-        assertEquals(7, restored.carried().orElseThrow().count());
+        assertEquals(7, restored.firstLoad().orElseThrow().count());
         assertTrue(restored.hasStrandedLoad(), "и его есть кому вернуть на склад");
     }
 
@@ -147,11 +148,79 @@ class JobStateTest {
     @Test
     void idlePhaseAlwaysForgetsTheBuilding() {
         JobState odd = new JobState(JobState.Phase.IDLE, Optional.of(SITE),
-                Optional.of(new JobState.Load(LOG, 2)));
+                List.of(new JobState.Load(LOG, 2)));
 
         assertEquals(Optional.empty(), odd.building());
         assertTrue(odd.hasStrandedLoad());
     }
+
+    /**
+     * Слот — это вид груза, а не стопка: тот же вид складывается в один,
+     * новый занимает следующий.
+     */
+    @Test
+    void sameKindSharesASlot() {
+        JobState carrying = JobState.startAt(SITE, JobState.Phase.TO_SITE)
+                .carrying(LOG, 10)
+                .carrying(LOG, 7)
+                .carrying(STONE, 5);
+
+        assertEquals(2, carrying.usedSlots(), "два вида груза — два слота");
+        assertEquals(17, carrying.carried().get(0).count(), "один вид складывается");
+        assertEquals(LOG, carrying.firstLoad().orElseThrow().item(), "в руках первый груз");
+    }
+
+    /** Сдал одно — остальное несёт дальше. */
+    @Test
+    void deliveringOneKindKeepsTheRest() {
+        JobState left = JobState.startAt(SITE, JobState.Phase.TO_SITE)
+                .carrying(LOG, 10)
+                .carrying(STONE, 5)
+                .without(LOG);
+
+        assertEquals(1, left.usedSlots());
+        assertEquals(STONE, left.firstLoad().orElseThrow().item());
+    }
+
+    /** Несколько слотов переживают перезаход в мир. */
+    @Test
+    void severalSlotsSurviveRoundTrip() {
+        JobState carrying = JobState.startAt(SITE, JobState.Phase.TO_SITE)
+                .carrying(LOG, 12)
+                .carrying(STONE, 30);
+
+        JobState restored = roundTrip(carrying);
+
+        assertEquals(2, restored.usedSlots());
+        assertEquals(carrying.carried(), restored.carried());
+    }
+
+    /**
+     * Старая запись груза — одиночная, а не список — обязана читаться.
+     * <p>
+     * В сохранении игрока может быть курьер на полпути. Молча потерять его
+     * брёвна нельзя: потерянные материалы хуже уборки на площадке.
+     */
+    @Test
+    void oldSingleLoadStillReads() {
+        NbtCompound load = new NbtCompound();
+        load.putString("item", LOG.toString());
+        load.putInt("count", 24);
+
+        NbtCompound old = new NbtCompound();
+        old.putString("phase", "to_site");
+        old.putString("building", SITE.toString());
+        old.put("carried", load);
+
+        JobState restored = JobState.CODEC.parse(NbtOps.INSTANCE, old)
+                .result().orElseThrow(() -> new AssertionError("старая запись не прочиталась"));
+
+        assertEquals(1, restored.usedSlots(), "один груз — один слот");
+        assertEquals(24, restored.firstLoad().orElseThrow().count());
+        assertEquals(LOG, restored.firstLoad().orElseThrow().item());
+    }
+
+    private static final Identifier STONE = new Identifier("minecraft", "cobblestone");
 
     private static JobState roundTrip(JobState state) {
         NbtElement encoded = JobState.CODEC.encodeStart(NbtOps.INSTANCE, state).result().orElseThrow();

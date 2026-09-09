@@ -50,6 +50,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
 import com.villagepax.core.ModTags;
+import com.villagepax.sim.work.Hauling;
 import com.villagepax.core.config.Config;
 import com.villagepax.core.config.Configs;
 import com.villagepax.screen.ColonyNet;
@@ -3593,7 +3594,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             for (int round = 0; round < 24 && !seenCarrying; round++) {
                 runWork(world, manager, colony, porter, 1, Schedule.MORNING_WORK);
 
-                Identifier load = porter.jobState().carried()
+                Identifier load = porter.jobState().firstLoad()
                         .map(JobState.Load::item)
                         .orElse(null);
                 if (load == null) {
@@ -3832,15 +3833,26 @@ public class VillagePaxGameTests implements FabricGameTest {
         List<BlockPos> platform = new ArrayList<>();
 
         try {
-            // Земля вокруг стройки: в пустоте стоять негде, и билдеру
-            // пришлось бы залезть на саму стройку.
+            // Площадка готовится начисто: пустота на всю высоту здания, потом
+            // земля, и обе поверх того, что было. Мир игровых тестов один
+            // на все проверки, области раздаются по-разному от прогона
+            // к прогону, а блок, случайно совпавший с планом, стройку
+            // не тормозит, а ускоряет — совпавший шаг пропускается, не тратя
+            // бюджета, и те же шестьдесят шагов то недостраивают дом,
+            // то достраивают целиком.
             for (int dx = -4; dx < size.getX() + 4; dx++) {
                 for (int dz = -4; dz < size.getZ() + 4; dz++) {
-                    BlockPos ground = anchor.add(dx, -1, dz);
-                    if (world.getBlockState(ground).isAir()) {
-                        world.setBlockState(ground, Blocks.DIRT.getDefaultState());
-                        platform.add(ground);
+                    for (int dy = 0; dy <= size.getY() + 2; dy++) {
+                        BlockPos clear = anchor.add(dx, dy, dz);
+                        if (!world.getBlockState(clear).isAir()) {
+                            world.setBlockState(clear, Blocks.AIR.getDefaultState());
+                            platform.add(clear);
+                        }
                     }
+
+                    BlockPos ground = anchor.add(dx, -1, dz);
+                    world.setBlockState(ground, Blocks.DIRT.getDefaultState());
+                    platform.add(ground);
                 }
             }
 
@@ -3848,18 +3860,25 @@ public class VillagePaxGameTests implements FabricGameTest {
             // Часть стен уже стоит: раньше билдер лез именно на них.
             BuildJob.advance(world, manager, colony.id(), site.id(), 60);
 
-            Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, anchor.add(-3, 0, -3));
-            runWork(world, manager, colony, mason, 1, Schedule.MORNING_WORK);
+            if (!BuildJob.isUnderConstruction(site)) {
+                context.throwGameTestException("Посылка теста не выполнена: дом достроился "
+                        + "за шестьдесят шагов, а проверять надо недостроенный");
+            }
 
-            CitizenEntity body = (CitizenEntity) world.getEntity(mason.entityUuid().orElseThrow());
-            BlockPos stand = body.workTarget();
+            // Спрашивается сам выбор места, а не то, что успел решить тикер.
+            // Через жителя эта проверка соревновалась бы с самим модом:
+            // мод тикает и принимает решения за того же билдера, и тест
+            // мигал через раз не по своей вине.
+            BlockPos stand = BuilderJob.standingSpot(world, site).orElse(null);
 
             if (stand == null) {
-                context.throwGameTestException("Билдер не выбрал, где встать");
+                context.throwGameTestException("Билдеру негде встать у стройки на шаге "
+                        + site.nextStep());
             }
             if (!world.getBlockState(stand.down()).isSolidBlock(world, stand.down())) {
                 context.throwGameTestException("Под ногами билдера не твёрдый блок: "
-                        + world.getBlockState(stand.down()).getBlock());
+                        + world.getBlockState(stand.down()).getBlock()
+                        + " в " + stand.toShortString());
             }
             if (stand.getY() > anchor.getY() + 2) {
                 context.throwGameTestException("Билдер полез наверх: стоит на "
@@ -4206,6 +4225,190 @@ public class VillagePaxGameTests implements FabricGameTest {
         context.complete();
     }
 
+    // --- носильщик со слотами ---
+
+    /** Далеко от склада: билдер сам до сундука не дотянется. */
+    private static final BlockPos FAR_SITE = new BlockPos(20, 8, 0);
+
+    /**
+     * Один житель поднимает стройку без курьера.
+     * <p>
+     * С этого начался разговор: курьеру нужен дом, дому нужны материалы
+     * у стройки, а материалы к далёкой стройке без курьера не попадают.
+     * Замкнутый круг. Теперь первый житель делает всё сам — ходит на склад,
+     * набирает слоты, возвращается и строит.
+     * <p>
+     * Склад намеренно дальше, чем вытянутая рука билдера: иначе он брал бы
+     * из сундука не сходя с места, и проверять было бы нечего.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "slots")
+    public void loneBuilderFetchesMaterialsHimself(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(FAR_SITE);
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, housePlan);
+
+            if (BuildJob.storageIsNearby(Warehouse.of(world, colony), site)) {
+                context.throwGameTestException("Посылка теста не выполнена: склад оказался "
+                        + "под боком, и носить ничего не надо");
+            }
+            if (!Hauling.nobodyElseWillCarry(colony)) {
+                context.throwGameTestException("Посылка теста не выполнена: в колонии есть "
+                        + "кому носить");
+            }
+
+            Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+            runWork(world, manager, colony, mason, 600, Schedule.MORNING_WORK);
+
+            if (!site.isOperational()) {
+                context.throwGameTestException("Дом не достроился без курьера: шаг "
+                        + site.nextStep() + " из " + housePlan.plan().steps().size()
+                        + ", на площадке " + site.stock().contents()
+                        + ", на складе " + Warehouse.of(world, colony).tally().contents()
+                        + ", не хватает " + Materials.shortfall(housePlan, site, 64)
+                        + ", фаза " + mason.jobState().phase().id());
+            }
+
+            // Материалы обязаны сойтись, и это не придирка к бухгалтерии.
+            // Носильщик со слотами легко начинает печатать предметы: стоит
+            // после разгрузки поработать с устаревшим состоянием, и груз
+            // возвращается в руки, уже лежа на площадке. Так на площадке
+            // и оказалось семнадцать сотен булыжника вместо двадцати пяти.
+            // Здесь склад завезли ровно под схему, сносить в пустоте нечего,
+            // значит после сдачи дома не должно остаться ничего.
+            int leftOver = Warehouse.of(world, colony).totalItems();
+            if (leftOver != 0) {
+                context.throwGameTestException("После стройки на складе осталось " + leftOver
+                        + " предметов, а завозили ровно под схему: значит, где-то "
+                        + "размножились");
+            }
+            if (mason.jobState().isCarrying()) {
+                context.throwGameTestException("Билдер остался с грузом в руках: "
+                        + mason.jobState().carried());
+            }
+        } finally {
+            demolish(world, site, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Появился курьер — билдер снова только строит.
+     * <p>
+     * Иначе решение заказчика «стройка под боком у склада идёт сама,
+     * вынесенная за околицу требует людей» перестало бы что-либо значить:
+     * география снова стала бы декорацией. Носить билдер берётся только
+     * когда носить больше <b>некому</b>.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "slots")
+    public void builderLeavesHaulingToTheCourier(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(FAR_SITE);
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, housePlan);
+
+            // Курьер в колонии есть — пусть даже он ещё не в загруженном чанке.
+            Citizen porter = Citizen.newborn("Носильщик", "", NORMAN, Gender.MALE);
+            porter.setProfession(HaulJob.COURIER);
+            colony.addCitizen(porter);
+
+            if (Hauling.nobodyElseWillCarry(colony)) {
+                context.throwGameTestException("Курьера в колонии не заметили");
+            }
+
+            Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+            runWork(world, manager, colony, mason, 40, Schedule.MORNING_WORK);
+
+            if (mason.jobState().isCarrying()) {
+                context.throwGameTestException("Билдер понёс материалы сам, хотя есть курьер: "
+                        + mason.jobState().carried());
+            }
+            if (mason.jobState().phase() == JobState.Phase.TO_STORAGE) {
+                context.throwGameTestException("Билдер пошёл на склад, хотя есть курьер");
+            }
+        } finally {
+            demolish(world, site, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * За одну ходку носильщик берёт несколько видов груза.
+     * <p>
+     * Раньше слот был один, и дом из шестнадцати видов блоков требовал
+     * шестнадцати походов через полдеревни — работа ради работы, которую
+     * игрок и видел.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "slots")
+    public void oneTripCarriesSeveralKinds(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(FAR_SITE);
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, housePlan);
+
+            Citizen porter = hireWithBody(world, colony, HaulJob.COURIER, hall.up());
+
+            int mostSlots = 0;
+            for (int round = 0; round < 40; round++) {
+                runWork(world, manager, colony, porter, 1, Schedule.MORNING_WORK);
+                mostSlots = Math.max(mostSlots, porter.jobState().usedSlots());
+            }
+
+            if (mostSlots < 2) {
+                context.throwGameTestException("Курьер за ходку взял видов груза: " + mostSlots
+                        + ". Слотов у него " + Hauling.slots() + ", а дому нужно много разного");
+            }
+            if (mostSlots > Hauling.slots()) {
+                context.throwGameTestException("Курьер унёс " + mostSlots
+                        + " видов груза, а слотов у него " + Hauling.slots());
+            }
+
+            // И принесённое доходит до площадки, а не остаётся в руках.
+            if (site.stock().isEmpty()) {
+                context.throwGameTestException("На площадку ничего не донесли");
+            }
+        } finally {
+            demolish(world, site, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
     // --- задача 1.14: настройки ---
 
     /**
@@ -4246,7 +4449,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             Configs.override(new Config(false, 48, 2.0,
                     Config.DEFAULT.hungerWarnDays(), 30,
                     Config.DEFAULT.villageTradePerDay(), 8, 3,
-                    false, false));
+                    false, false, Config.DEFAULT.carrySlots()));
 
             WorkTicker.decide(world, manager, colony, worker, Schedule.MORNING_WORK);
             if (body.getCustomName() != null || body.isCustomNameVisible()) {
@@ -5611,9 +5814,27 @@ public class VillagePaxGameTests implements FabricGameTest {
         return hall;
     }
 
+    /**
+     * Тело жителя, а если его больше нет — новое.
+     * <p>
+     * Мир игровых тестов не держит чанки вечно, и выгрузка снимает тело
+     * вместе с опознавателем в записи жителя. Тест, который на это
+     * не рассчитывает, падает через раз и не по своей вине: проверять надо
+     * решения жителя, а не то, повезло ли чанку остаться загруженным.
+     */
+    private static CitizenEntity bodyOf(ServerWorld world, Settlement colony, Citizen citizen) {
+        CitizenEntity body = citizen.entityUuid()
+                .map(world::getEntity)
+                .filter(CitizenEntity.class::isInstance)
+                .map(CitizenEntity.class::cast)
+                .orElse(null);
+
+        return body != null ? body : CitizenSpawner.spawnBody(world, colony, citizen);
+    }
+
     private static void runWork(ServerWorld world, SettlementManager manager, Settlement colony,
                                 Citizen worker, int rounds, Schedule part) {
-        CitizenEntity body = (CitizenEntity) world.getEntity(worker.entityUuid().orElseThrow());
+        CitizenEntity body = bodyOf(world, colony, worker);
 
         for (int round = 0; round < rounds; round++) {
             WorkTicker.decide(world, manager, colony, worker, part);

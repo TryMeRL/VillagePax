@@ -1,24 +1,30 @@
 # Builds a magnified contact sheet of the generated textures for visual review.
+#
+# Takes every texture under assets/villagepax/textures, so a newly drawn block
+# shows up without editing this file. Pass -Out to choose where the sheet goes.
+param(
+    [string]$Out = ""
+)
+
 Add-Type -AssemblyName System.Drawing
 
 $tex = "C:\Users\TryMe\Desktop\MODTYPA KLASS\src\main\resources\assets\villagepax\textures"
-$files = @(
-    "$tex\block\town_hall_side.png",
-    "$tex\block\town_hall_top.png",
-    "$tex\block\town_hall_bottom.png",
-    "$tex\block\marker_workstation.png",
-    "$tex\block\marker_bed.png",
-    "$tex\block\marker_storage.png",
-    "$tex\block\marker_door.png",
-    "$tex\block\marker_decor.png",
-    "$tex\item\town_hall_blueprint.png"
-)
+
+# Sorted so the sheet is stable between runs and easy to compare by eye.
+$files = @(Get-ChildItem -Path "$tex\block", "$tex\item" -Filter *.png -ErrorAction SilentlyContinue |
+    Sort-Object FullName | ForEach-Object { $_.FullName })
+
+if ($files.Count -eq 0) { throw "no textures found under $tex" }
+
+if ($Out -eq "") {
+    $Out = Join-Path ([System.IO.Path]::GetTempPath()) "villagepax-textures-sheet.png"
+}
 
 $scale = 8
 $cell  = 16 * $scale
 $gap   = 10
-$cols  = 3
-$rows  = 3
+$cols  = [math]::Min(4, $files.Count)
+$rows  = [math]::Ceiling($files.Count / $cols)
 $w = $cols * $cell + ($cols + 1) * $gap
 $h = $rows * $cell + ($rows + 1) * $gap + 22 * $rows
 
@@ -45,8 +51,7 @@ for ($i = 0; $i -lt $files.Count; $i++) {
     $g.DrawString($label, $font, $brush, $x, $y + $cell + 3)
 }
 
-$outPath = "C:\Users\TryMe\AppData\Local\Temp\claude\C--Users-TryMe-Desktop-MODTYPA-KLASS\418dba03-19e0-4c16-bf0c-4343f4516753\scratchpad\textures-sheet.png"
-$sheet.Save($outPath, [System.Drawing.Imaging.ImageFormat]::Png)
+$sheet.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png)
 $g.Dispose()
 $sheet.Dispose()
-"sheet: $outPath"
+"sheet: $Out  ($($files.Count) textures)"

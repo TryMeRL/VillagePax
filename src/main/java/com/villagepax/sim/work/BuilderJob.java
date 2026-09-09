@@ -44,8 +44,14 @@ public final class BuilderJob implements Job {
     /** Логика стройки. Профессию, которая её выбирает, называет датапак. */
     public static final Identifier LOGIC = new Identifier(VillagePax.MOD_ID, "build");
 
-    /** Докуда искать место, где встать. */
-    private static final int STAND_RADIUS = 4;
+    /**
+     * Докуда искать место, где встать.
+     * <p>
+     * Шире вытянутой руки намеренно: на склоне и в лесу опора рядом с целью
+     * может не найтись вовсе, а в семи блоках — найдётся. Место всё равно
+     * отбирается по вытянутой руке, так что дальше нужного билдер не встанет.
+     */
+    private static final int STAND_RADIUS = 7;
 
     /** На сколько выше уровня земли стройки билдер согласен подняться. */
     private static final int STAND_CLIMB = 2;
@@ -255,9 +261,15 @@ public final class BuilderJob implements Job {
      * «путь сбивается».
      * <p>
      * Место ищется кольцами от колонны блока: сперва снаружи следа здания,
-     * потом внутри — по готовому полу стоять можно, оно ровное. Если ни одно
-     * место не годится, целью снова становится сам блок: стройка обязана
-     * идти, пусть и некрасиво.
+     * потом внутри — по готовому полу стоять можно, оно ровное.
+     * <p>
+     * <b>В воздух билдера не посылают никогда.</b> Раньше, если подходящего
+     * места не нашлось, целью становился сам блок плана — а он на крыше,
+     * то есть в пустоте. Билдер шёл к нему, не доходил, следующее решение
+     * гнало его снова, и стройка вставала: игрок видел работника, который
+     * «пытается дотянуться и не может». Теперь в этом случае берётся
+     * ближайшая опора, до которой человек хотя бы дойдёт, — пусть с неё
+     * и не достать, зато следующий шаг плана он поставит.
      */
     private static Optional<BlockPos> standingSpot(ServerWorld world, Building site) {
         BlockPos target = nextStepPosition(site).orElse(null);
@@ -285,7 +297,34 @@ public final class BuilderJob implements Job {
                 }
             }
         }
-        return Optional.of(best == null ? target : best);
+        return Optional.of(best != null ? best : anyFooting(world, site, target));
+    }
+
+    /**
+     * Хоть какая-нибудь земля у цели, без проверки на вытянутую руку.
+     * <p>
+     * Нужна ровно затем, чтобы <b>не назвать целью пустоту</b>. Дойдя сюда,
+     * билдер до блока может и не достать — но он окажется у стройки, а не
+     * будет ходить кругами под точкой в небе. И стоит он при этом на земле,
+     * то есть путь себе не ломает.
+     */
+    private static BlockPos anyFooting(ServerWorld world, Building site, BlockPos target) {
+        int ground = site.anchor().getY();
+
+        for (int radius = 1; radius <= STAND_RADIUS; radius++) {
+            for (BlockPos column : ring(target, radius)) {
+                for (int y = ground + STAND_CLIMB; y >= ground - 2; y--) {
+                    BlockPos spot = new BlockPos(column.getX(), y, column.getZ());
+                    if (canStandAt(world, spot)) {
+                        return spot;
+                    }
+                }
+            }
+        }
+
+        // Земли нет вообще — стройка висит в пустоте. Тогда уж угол здания:
+        // туда билдер по крайней мере не полезет наверх.
+        return site.anchor();
     }
 
     /**

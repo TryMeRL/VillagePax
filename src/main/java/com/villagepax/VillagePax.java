@@ -11,6 +11,7 @@ import com.villagepax.entity.ModEntities;
 import com.villagepax.command.BuildCommand;
 import com.villagepax.item.ModItems;
 import com.villagepax.screen.ColonyNet;
+import com.villagepax.screen.QuestNet;
 import com.villagepax.screen.TownHallNet;
 import com.villagepax.screen.TownHallScreens;
 import com.villagepax.sim.Villages;
@@ -45,6 +46,7 @@ public class VillagePax implements ModInitializer {
         TownHallScreens.init();
         TownHallNet.registerServer();
         ColonyNet.register();
+        QuestNet.registerServer();
 
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
                 .registerReloadListener(new CultureManager());

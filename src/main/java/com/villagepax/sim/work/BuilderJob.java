@@ -147,14 +147,19 @@ public final class BuilderJob implements Job {
             // Дошли до блока за пределами вытянутой руки: перейти к нему.
             case OUT_OF_REACH -> context.setState(state.withPhase(JobState.Phase.TO_SITE));
 
-            // Работа идёт — стоим и работаем.
-            case ADVANCED -> context.setState(state.withPhase(JobState.Phase.WORKING));
+            // Работа идёт — стоим и работаем. Терпение отсчитывается
+            // заново: материалы есть.
+            case ADVANCED -> {
+                context.body().materialsArrived();
+                context.setState(state.withPhase(JobState.Phase.WORKING));
+            }
 
-            // Материалов нет. Есть курьер — ждём на месте: уходить нельзя,
-            // иначе билдер начнёт бегать кругами, пока тот несёт брёвна.
-            // Курьера нет — идём за материалами сами.
+            // Материалов нет. Ждём на месте, пока есть надежда на курьера:
+            // уходить нельзя, иначе билдер начнёт бегать кругами, пока тот
+            // несёт брёвна. Носильщика нет вовсе или он не справляется
+            // двадцать решений подряд — идём сами.
             case WAITING_FOR_MATERIALS -> {
-                if (Hauling.nobodyElseWillCarry(context.settlement())
+                if (Hauling.shouldFetchItself(context)
                         && Hauling.wanted(context, site).isPresent()) {
                     context.setState(state.withPhase(JobState.Phase.TO_STORAGE));
                     return Hauling.whereToFetch(context, site);
@@ -216,6 +221,9 @@ public final class BuilderJob implements Job {
         }
 
         if (Hauling.fillUp(context, site)) {
+            // Взял сам — терпение отсчитывается заново, иначе он останется
+            // «нетерпеливым» навсегда и перестанет ждать курьера вообще.
+            context.body().materialsArrived();
             context.setState(context.state().withPhase(JobState.Phase.TO_SITE));
             Hauling.showLoad(context);
             return Optional.of(site.anchor());

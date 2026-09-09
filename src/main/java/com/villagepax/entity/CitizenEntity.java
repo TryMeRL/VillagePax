@@ -4,6 +4,7 @@ import com.villagepax.VillagePax;
 import com.villagepax.core.config.Configs;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.core.quest.QuestManager;
+import com.villagepax.screen.QuestNet;
 import com.villagepax.sim.quest.Quests;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
@@ -113,9 +114,35 @@ public class CitizenEntity extends PathAwareEntity {
     /** Ближе этого считается «дошёл»: точность тут не нужна. */
     private static final double CLOSE_ENOUGH = 3.0;
 
+    /**
+     * Сколько решений подряд житель простоял без материалов.
+     * <p>
+     * Не сохраняется, и не должно: терпение — состояние минуты, а не мира.
+     * После перезахода билдер начнёт ждать заново, и это верно — курьер
+     * тоже начнёт ходить заново.
+     */
+    private int waitedForMaterials;
+
     private final Map<BlockPos, Long> unreachable = new HashMap<>();
     private BlockPos stuckOn;
     private int stuckFor;
+
+    /**
+     * Отметить ещё одно решение без материалов и сказать, сколько их подряд.
+     * <p>
+     * По этому счёту билдер решает, идти ли за материалами самому. Решение
+     * заказчика: помогать, <b>если курьер не справляется</b>, — а не только
+     * когда курьера нет вовсе. Курьер может спать, застрять, не дойти или
+     * просто не успевать, и стройка не должна из-за этого стоять насмерть.
+     */
+    public int noteMaterialWait() {
+        return ++waitedForMaterials;
+    }
+
+    /** Материалы появились: терпение отсчитывается заново. */
+    public void materialsArrived() {
+        waitedForMaterials = 0;
+    }
 
     /**
      * Отметить попытку дойти. Зовётся раз в решение стратегии.
@@ -248,7 +275,15 @@ public class CitizenEntity extends PathAwareEntity {
             return ActionResult.PASS;
         }
 
-        Quests.talk(manager, village, server, citizen);
+        // Экран, а не только чат — решение заказчика. В чате видно
+        // только сказанное сейчас, а игроку нужно видеть доверие, сколько
+        // до следующей ступени и сколько из просимого уже в сумке.
+        // Чат при этом остаётся: старейшина говорит, а экран показывает.
+        Quests.greet(server, citizen);
+        citizen.profession()
+                .flatMap(giver -> QuestNet.viewOf(village, server.getUuid(),
+                        server.getInventory(), giver))
+                .ifPresent(view -> QuestNet.send(server, view));
         return ActionResult.SUCCESS;
     }
 

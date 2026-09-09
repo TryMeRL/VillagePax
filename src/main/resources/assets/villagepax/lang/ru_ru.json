@@ -13,7 +13,7 @@
   "block.villagepax.marker_decor": "Маркер: декор",
   "item.villagepax.town_hall_blueprint": "Чертёж ратуши",
   "villagepax.culture.norman": "Норманны",
-  "villagepax.tooltip.marker": "Служебный блок схемы. При постройке заменяется на воздух.",
+  "villagepax.tooltip.marker": "Служебный блок схемы",
   "villagepax.found.success": "Колония «%s» основана",
   "villagepax.found.too_close": "Слишком близко к поселению «%s». Найди место подальше.",
   "villagepax.found.already_owner": "У тебя уже есть колония «%s». Одна на игрока.",
@@ -122,5 +122,15 @@
   "villagepax.quest.objective.deliver": "  нужно: %s — %s шт. (у тебя %s)",
   "villagepax.quest.founding_1": "Зима близко, а поленницы пусты. Принеси брёвен, и я это запомню.",
   "villagepax.quest.founding_2": "Цоколь нового дома нечем выложить. Нужен камень.",
-  "villagepax.quest.founding_3": "Ты нам не чужой. Накорми деревню — и я отдам тебе чертёж ратуши: ставь своё поселение."
+  "villagepax.quest.founding_3": "Ты нам не чужой. Накорми деревню — и я отдам тебе чертёж ратуши: ставь своё поселение.",
+  "villagepax.quest.screen.nothing": "Просить больше нечего. Приходи ещё.",
+  "villagepax.quest.screen.standing": "%s · доверие %s",
+  "villagepax.quest.screen.standing_next": "%s · доверие %s, до следующей ступени %s",
+  "villagepax.quest.screen.asks": "Просит:",
+  "villagepax.quest.screen.gives": "Даёт:",
+  "villagepax.quest.screen.need": "%s — %s из %s",
+  "villagepax.quest.screen.hand_in": "Отдать",
+  "villagepax.quest.too_far": "Слишком далеко, чтобы отдать",
+  "villagepax.tooltip.marker.why": "Ставится внутрь чертежа здания. Билдер убирает его при постройке и запоминает место: тут будет кровать, сундук, вход или рабочее место.",
+  "villagepax.tooltip.marker.hint": "Нужен только чтобы собрать свою схему структурным блоком. В готовой деревне маркеров не остаётся."
 }

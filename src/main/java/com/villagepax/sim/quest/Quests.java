@@ -130,6 +130,23 @@ public final class Quests {
     }
 
     /**
+     * Поздороваться: выдающий называет, чего хочет, но ничего не забирает.
+     * <p>
+     * Отделено от сдачи затем, что щелчок теперь <b>открывает экран</b>,
+     * а не отдаёт вещи. Отдать вещи одним щелчком по жителю было бы
+     * недобрым: игрок щёлкнул посмотреть, а у него забрали тридцать
+     * два хлеба.
+     */
+    public static void greet(ServerPlayerEntity player, Citizen giver) {
+        Identifier profession = giver.profession().orElse(null);
+        if (profession == null) {
+            return;
+        }
+        player.getWorld().playSound(null, player.getBlockPos(),
+                SoundEvents.ENTITY_VILLAGER_AMBIENT, SoundCategory.NEUTRAL, 1.0f, 1.0f);
+    }
+
+    /**
      * Заговорить с выдающим.
      * <p>
      * Одно нажатие делает всё, что можно сделать: если принесённое при

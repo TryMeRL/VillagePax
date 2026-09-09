@@ -50,6 +50,8 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
 import com.villagepax.core.ModTags;
+import com.villagepax.screen.QuestView;
+import com.villagepax.screen.QuestNet;
 import com.villagepax.sim.work.Hauling;
 import com.villagepax.core.config.Config;
 import com.villagepax.core.config.Configs;
@@ -4345,14 +4347,69 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
-            runWork(world, manager, colony, mason, 40, Schedule.MORNING_WORK);
+            // Меньше терпения: пока есть надежда на курьера, билдер ждёт
+            // на месте. Что он вмешается, когда курьер не справится,
+            // проверяет соседний тест.
+            runWork(world, manager, colony, mason, Hauling.PATIENCE / 2, Schedule.MORNING_WORK);
 
             if (mason.jobState().isCarrying()) {
-                context.throwGameTestException("Билдер понёс материалы сам, хотя есть курьер: "
-                        + mason.jobState().carried());
+                context.throwGameTestException("Билдер сразу понёс материалы сам, хотя есть "
+                        + "курьер и терпение не вышло: " + mason.jobState().carried());
             }
             if (mason.jobState().phase() == JobState.Phase.TO_STORAGE) {
-                context.throwGameTestException("Билдер пошёл на склад, хотя есть курьер");
+                context.throwGameTestException("Билдер сразу пошёл на склад, хотя есть курьер");
+            }
+        } finally {
+            demolish(world, site, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Курьер не справляется — билдер вмешивается.
+     * <p>
+     * Решение заказчика: помогать, <b>если курьер не справляется</b>, а не
+     * только когда его нет вовсе. Курьер может спать, застрять, не дойти
+     * или не успевать — стройка стоять из-за этого не должна.
+     * <p>
+     * Здесь курьер есть, но телом в мире не появлялся: работать он не может
+     * никак. Это самый чистый способ изобразить «не справляется», не
+     * подпирая тест сном и заблудившимся путём.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "slots")
+    public void builderStepsInWhenTheCourierCannotCope(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(FAR_SITE);
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, housePlan);
+
+            Citizen idle = Citizen.newborn("Лежебока", "", NORMAN, Gender.MALE);
+            idle.setProfession(HaulJob.COURIER);
+            colony.addCitizen(idle);
+
+            Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+            runWork(world, manager, colony, mason, 600, Schedule.MORNING_WORK);
+
+            if (!site.isOperational()) {
+                context.throwGameTestException("Стройка встала при неработающем курьере: шаг "
+                        + site.nextStep() + " из " + housePlan.plan().steps().size());
+            }
+            int leftOver = Warehouse.of(world, colony).totalItems();
+            if (leftOver != 0) {
+                context.throwGameTestException("После стройки осталось " + leftOver
+                        + " предметов, а завозили ровно под схему");
             }
         } finally {
             demolish(world, site, housePlan);
@@ -4673,6 +4730,75 @@ public class VillagePaxGameTests implements FabricGameTest {
         if (Standing.of(trust).ordinal() < Standing.FRIEND.ordinal()) {
             context.throwGameTestException("Вся цепочка даёт доверия " + trust
                     + " — это " + Standing.of(trust).id() + ", а чертёж отдают другу");
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Снимок разговора показывает то, что игрок должен видеть.
+     * <p>
+     * Решение заказчика: чата было мало. Экран обязан говорить, сколько
+     * доверия набрано, сколько до следующей ступени, что просят и сколько
+     * из этого уже в сумке, — и включать кнопку только когда принесено всё.
+     * <p>
+     * Считает всё сервер, и проверяется тоже сервер: клиенту достаются
+     * готовые числа, иначе правило «сколько считается принесённым» жило бы
+     * в двух местах и разошлось бы.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void questScreenShowsWhatIsAskedAndWhatIsBrought(TestContext context) {
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", hall);
+        UUID player = UUID.randomUUID();
+        SimpleInventory hands = new SimpleInventory(36);
+
+        QuestView empty = QuestNet.viewOf(village, player, hands, Villages.ELDER).orElse(null);
+        if (empty == null) {
+            context.throwGameTestException("Разговор не собрался вовсе");
+            return;
+        }
+        if (!empty.villageName().equals("Бовуар") || !empty.village().equals(village.id())) {
+            context.throwGameTestException("Снимок не про эту деревню: " + empty.villageName());
+        }
+        if (empty.reputation() != 0 || empty.nextAt().isEmpty()) {
+            context.throwGameTestException("У чужака доверие " + empty.reputation()
+                    + ", а до следующей ступени " + empty.nextAt());
+        }
+
+        QuestView.Offer offer = empty.quest().orElse(null);
+        if (offer == null) {
+            context.throwGameTestException("Старейшина ничего не просит у чужака — "
+                    + "тогда непонятно, что делать");
+            return;
+        }
+        if (offer.objectives().isEmpty()) {
+            context.throwGameTestException("В квесте нет требований");
+        }
+        if (offer.ready()) {
+            context.throwGameTestException("Кнопка «Отдать» включена с пустыми руками");
+        }
+
+        QuestView.Need need = offer.objectives().get(0);
+        if (need.have() != 0 || need.enough()) {
+            context.throwGameTestException("С пустыми руками принесено " + need.have());
+        }
+
+        // Принесли ровно столько, сколько просят: кнопка обязана включиться.
+        hands.addStack(new ItemStack(need.item(), need.need()));
+
+        QuestView full = QuestNet.viewOf(village, player, hands, Villages.ELDER).orElseThrow();
+        QuestView.Offer ready = full.quest().orElseThrow();
+        if (!ready.ready()) {
+            context.throwGameTestException("Принесено всё, а кнопка выключена");
+        }
+        if (!ready.objectives().get(0).enough()) {
+            context.throwGameTestException("Требование не считается выполненным: "
+                    + ready.objectives().get(0).have() + " из "
+                    + ready.objectives().get(0).need());
+        }
+        if (ready.rewards().isEmpty()) {
+            context.throwGameTestException("Награда не показана — за что тогда нести");
         }
 
         context.complete();

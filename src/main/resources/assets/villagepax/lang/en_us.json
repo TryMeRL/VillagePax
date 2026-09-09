@@ -13,7 +13,7 @@
   "block.villagepax.marker_decor": "Marker: Decor",
   "item.villagepax.town_hall_blueprint": "Town Hall Blueprint",
   "villagepax.culture.norman": "Normans",
-  "villagepax.tooltip.marker": "Schematic helper block. Replaced with air when built.",
+  "villagepax.tooltip.marker": "Schematic marker block",
   "villagepax.found.success": "Colony \"%s\" founded",
   "villagepax.found.too_close": "Too close to \"%s\". Find a spot further away.",
   "villagepax.found.already_owner": "You already run the colony \"%s\". One per player.",
@@ -122,5 +122,15 @@
   "villagepax.quest.objective.deliver": "  needed: %s — %s pcs (you have %s)",
   "villagepax.quest.founding_1": "Winter is close and the woodpiles are empty. Bring logs and I will remember it.",
   "villagepax.quest.founding_2": "There is nothing to lay the new house's footing with. We need stone.",
-  "villagepax.quest.founding_3": "You are no stranger to us. Feed the village, and I will hand you a town hall blueprint: found your own settlement."
+  "villagepax.quest.founding_3": "You are no stranger to us. Feed the village, and I will hand you a town hall blueprint: found your own settlement.",
+  "villagepax.quest.screen.nothing": "Nothing more to ask. Come again.",
+  "villagepax.quest.screen.standing": "%s · trust %s",
+  "villagepax.quest.screen.standing_next": "%s · trust %s, %s to the next standing",
+  "villagepax.quest.screen.asks": "Asks for:",
+  "villagepax.quest.screen.gives": "Gives:",
+  "villagepax.quest.screen.need": "%s — %s of %s",
+  "villagepax.quest.screen.hand_in": "Hand in",
+  "villagepax.quest.too_far": "Too far away to hand it in",
+  "villagepax.tooltip.marker.why": "Placed inside a building blueprint. The builder removes it while building and remembers the spot: a bed, a chest, a door or a workstation goes here.",
+  "villagepax.tooltip.marker.hint": "Only needed to author your own schematic with a structure block. A finished village has no markers left."
 }

@@ -8,8 +8,11 @@ import com.villagepax.client.hologram.HologramHud;
 import com.villagepax.client.hologram.HologramKeys;
 import com.villagepax.client.hologram.HologramRenderer;
 import com.villagepax.client.hologram.Placement;
+import com.villagepax.client.screen.QuestScreen;
 import com.villagepax.client.screen.TownHallScreen;
 import com.villagepax.screen.ColonyMap;
+import com.villagepax.screen.QuestNet;
+import com.villagepax.screen.QuestView;
 import com.villagepax.screen.ColonyNet;
 import com.villagepax.screen.GhostPlan;
 import com.villagepax.screen.TownHallNet;
@@ -49,6 +52,7 @@ public class VillagePaxClient implements ClientModInitializer {
         HandledScreens.register(TownHallScreens.TOWN_HALL, TownHallScreen::new);
         registerViewUpdates();
         registerColonyMap();
+        registerQuestScreen();
         registerHologram();
         registerTooltips();
     }
@@ -63,6 +67,19 @@ public class VillagePaxClient implements ClientModInitializer {
      */
     private static void registerCutouts() {
         BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LAUNDRY, RenderLayer.getCutout());
+    }
+
+    /**
+     * Экран квестов открывается по пакету, без контейнера: отдать квест
+     * можно только стоя рядом с выдающим, и эту проверку делает сервер
+     * по расстоянию, а не по открытому экрану.
+     */
+    private static void registerQuestScreen() {
+        ClientPlayNetworking.registerGlobalReceiver(QuestNet.OPEN,
+                (client, handler, buf, sender) -> {
+                    Optional<QuestView> view = QuestNet.read(buf);
+                    client.execute(() -> view.ifPresent(fresh -> QuestScreen.open(client, fresh)));
+                });
     }
 
     /**
@@ -146,7 +163,16 @@ public class VillagePaxClient implements ClientModInitializer {
             }
 
             if (stack.getItem() instanceof BlockItem blockItem && isMarker(blockItem.getBlock())) {
-                lines.add(Text.translatable("villagepax.tooltip.marker").formatted(Formatting.DARK_GRAY));
+                // Три строки, а не одна: маркеры лежат в творческой вкладке
+                // рядом с обычными блоками, и игрок вправе знать, зачем они
+                // ему вообще нужны. Одной строкой «служебный блок схемы»
+                // это не объясняется.
+                lines.add(Text.translatable("villagepax.tooltip.marker")
+                        .formatted(Formatting.GOLD));
+                lines.add(Text.translatable("villagepax.tooltip.marker.why")
+                        .formatted(Formatting.GRAY));
+                lines.add(Text.translatable("villagepax.tooltip.marker.hint")
+                        .formatted(Formatting.DARK_GRAY));
             }
         });
     }

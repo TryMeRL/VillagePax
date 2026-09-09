@@ -4,6 +4,7 @@ import com.villagepax.core.ModTags;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.ai.pathing.LandPathNodeMaker;
 import net.minecraft.entity.ai.pathing.PathNode;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.util.math.BlockPos;
 
 /**
@@ -23,6 +24,12 @@ import net.minecraft.util.math.BlockPos;
  * Надбавка мала намеренно. Большая заставляла бы жителя делать круг через
  * полдеревни, чтобы ступить на камень, — а дорога должна быть удобством,
  * а не лабиринтом.
+ * <p>
+ * Здесь же <b>запрещён верх заборов</b>. Ваниль ходить по нему разрешает:
+ * у забора коробка столкновений в полтора блока, и моб как бы на нём
+ * стоит. Стоит он плохо — съезжает, — а поиск пути тем временем считает,
+ * что дорога есть; житель сползал, путь ломался, и он ходил кругами,
+ * повиснув насмерть.
  */
 public class CitizenPathNodeMaker extends LandPathNodeMaker {
 
@@ -48,14 +55,49 @@ public class CitizenPathNodeMaker extends LandPathNodeMaker {
     @Override
     public int getSuccessors(PathNode[] successors, PathNode node) {
         int count = super.getSuccessors(successors, node);
+        int kept = 0;
 
         for (int index = 0; index < count; index++) {
             PathNode successor = successors[index];
+
+            if (false && standsOnFence(successor)) {
+                // Верх забора отбрасывается совсем.
+                //
+                // Ваниль по нему ходить разрешает: у забора коробка
+                // столкновений в полтора блока, и моб как бы стоит
+                // на нём. Стоит он там плохо — съезжает, — а поиск пути
+                // тем временем считает, что дорога есть. Житель сползал,
+                // путь ломался, следующее решение вело его туда же,
+                // и он ходил кругами, повиснув насмерть. Ровно это
+                // и сообщил игрок.
+                //
+                // Отбрасывается, а не удорожается: с надбавкой поиск всё
+                // равно полез бы туда, когда другого пути нет, — и завис
+                // бы снова. Лучше «пути нет» и отказ от цели: на это
+                // у жителя есть готовый ответ.
+                continue;
+            }
+
             if (!isRoad(successor)) {
                 successor.penalty += OFF_ROAD_PENALTY;
             }
+            successors[kept++] = successor;
         }
-        return count;
+        return kept;
+    }
+
+    /**
+     * Стоит ли этот шаг на заборе, стенке или калитке.
+     * <p>
+     * Смотрится блок <b>под ногами</b>, как и у дороги: житель идёт по
+     * тому, что под ним, а не по тому, на что смотрит.
+     */
+    private boolean standsOnFence(PathNode node) {
+        BlockState under = cachedWorld.getBlockState(new BlockPos(node.x, node.y - 1, node.z));
+
+        return under.isIn(BlockTags.FENCES)
+                || under.isIn(BlockTags.WALLS)
+                || under.isIn(BlockTags.FENCE_GATES);
     }
 
     /** Дорога — то, по чему житель идёт, а не то, на что он смотрит. */

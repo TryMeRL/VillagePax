@@ -14,6 +14,7 @@ import com.villagepax.sim.Gender;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.sim.work.Jobs;
 import com.villagepax.sim.Settlement;
+import java.util.ArrayList;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.VillageSites;
 import com.villagepax.sim.VillageSites;
@@ -243,7 +244,11 @@ public final class BuildCommand {
 
         VillageSites.Guess nearest = VillageSites.guessNearest(world, from);
         if (nearest == null) {
-            source.sendFeedback(() -> Text.translatable("villagepax.locate.none"), false);
+            // Причину назвать обязательно. «Ничего нет» без объяснения
+            // выглядит поломкой, а на деле это ответ: рядом нет биома,
+            // в котором этот народ ставит деревни.
+            source.sendFeedback(() -> Text.translatable("villagepax.locate.none",
+                    Text.literal(biomesOfCultures())), false);
             return 0;
         }
 
@@ -253,6 +258,13 @@ public final class BuildCommand {
                 Text.literal(nearest.where().getX() + ", " + nearest.where().getZ()),
                 Text.literal(String.valueOf(away))), false);
         return 1;
+    }
+
+    /** В каких биомах народы ставят деревни — для объяснения отказа. */
+    private static String biomesOfCultures() {
+        List<String> wanted = new ArrayList<>();
+        CultureManager.all().values().forEach(culture -> wanted.add(culture.spawn().biomes()));
+        return String.join(", ", wanted);
     }
 
     private static int status(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {

@@ -3253,6 +3253,90 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
     /**
+     * Улучшение достраивает, а не перестраивает.
+     * <p>
+     * Игрок сказал прямо: улучшение должно делать здание лучше, а не ломать
+     * и создавать новое. Проверяется это <b>расходом</b>, потому что расход
+     * не обманешь: если бы билдер сносил дом и ставил заново, он списал бы
+     * со склада полную стоимость второго уровня. Здесь он обязан израсходовать
+     * заметно меньше половины — остальное уже стоит.
+     * <p>
+     * И заодно проверяется, что обстановка первого этажа <b>не тронута</b>:
+     * ковёр и трибуна старейшины стоят там же. Схемы уровней связаны
+     * правилом «второй содержит первый», и правило это держит сам
+     * генератор схем, проверяя его при сборке.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "levels")
+    public void upgradeAddsInsteadOfRebuilding(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic first = schematic(context, TOWN_HALL_SCHEMATIC);
+        Schematic second = schematic(context, TOWN_HALL_LVL2);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building townHall = raisedTownHall(colony, hall);
+        BlockPos anchor = townHall.anchor();
+
+        try {
+            // Первый уровень ставится целиком и по-настоящему.
+            townHall.restartBuilding();
+            stockFor(world, colony, first);
+            if (BuildJob.advance(world, manager, colony.id(), townHall.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Первый уровень не встал");
+            }
+
+            BlockPos carpet = BuildJob.worldPos(townHall, first.size(), new BlockPos(3, 1, 3));
+            BlockPos lectern = BuildJob.worldPos(townHall, first.size(), new BlockPos(3, 1, 5));
+
+            if (!(BuildOrders.upgrade(manager, colony, townHall.id())
+                    instanceof BuildOrders.Result.Placed)) {
+                context.throwGameTestException("Улучшение отвергнуто на пустом месте");
+            }
+            if (!townHall.anchor().equals(anchor)) {
+                context.throwGameTestException("Улучшение перенесло здание");
+            }
+
+            int bill = 0;
+            for (int count : Materials.required(second).values()) {
+                bill += count;
+            }
+            stockFor(world, colony, second);
+
+            if (BuildJob.advance(world, manager, colony.id(), townHall.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Второй уровень не достроился: шаг "
+                        + townHall.nextStep());
+            }
+
+            int left = Warehouse.of(world, colony).totalItems();
+            int spent = bill - left;
+            if (spent > bill / 2) {
+                context.throwGameTestException("Улучшение израсходовало " + spent + " из "
+                        + bill + " — это перестройка, а не надстройка");
+            }
+
+            // Обстановка первого этажа на месте: ничего не снесли.
+            if (!world.getBlockState(carpet).isOf(Blocks.RED_CARPET)) {
+                context.throwGameTestException("Ковёр первого этажа снесён: теперь там "
+                        + world.getBlockState(carpet).getBlock());
+            }
+            if (!world.getBlockState(lectern).isOf(Blocks.LECTERN)) {
+                context.throwGameTestException("Трибуна старейшины снесена: теперь там "
+                        + world.getBlockState(lectern).getBlock());
+            }
+        } finally {
+            demolish(world, townHall, second);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
      * Улучшать некуда, если рядом уже стоит здание: растёт-то оно от своего
      * угла, и места ему нужно больше.
      */
@@ -3264,31 +3348,24 @@ public class VillagePaxGameTests implements FabricGameTest {
         BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
         Settlement colony = colonyWithBuilder(world, manager, hall);
         Building townHall = raisedTownHall(colony, hall);
+        BlockPos hallAnchor = townHall.anchor();
 
         try {
-            // Дом вплотную: при первом уровне (след 7x7 вокруг блока ратуши)
-            // он не мешает, а при втором (9x9 вокруг того же блока) упрётся.
-            // Ратуша растёт от своей середины, а не от угла, поэтому сосед
-            // ставится по её будущему краю, а не по нынешнему.
-            Building neighbour = plan(colony, hall.add(4, 0, 4), HOUSE_TYPE, BlockRotation.NONE);
+            // Ратуша в тесноте больше не отказывает, и это по делу: её след
+            // не растёт вовсе — второй уровень надстраивается вверх на том
+            // же пятне. Отказ «некуда расти» остался у полей: они растут
+            // на восток и юг, и сосед там мешает. Проверяется именно поле.
+            Building neighbour = plan(colony, hall.add(6, 0, 6), HOUSE_TYPE, BlockRotation.NONE);
 
-            // Посылку через BuildOrders.check не проверить: он не умеет
-            // не замечать само здание, и ратуша всегда «мешает себе».
-            // Геометрия здесь считается на бумаге: блок ратуши в середине,
-            // след первого уровня 7x7 доходит до +3, второго 9x9 — до +4,
-            // а сосед стоит на +4.
-
-            BuildOrders.Result refused = BuildOrders.upgrade(manager, colony, townHall.id());
-            if (!(refused instanceof BuildOrders.Result.Overlaps clash)) {
-                context.throwGameTestException("Улучшение в тесноте принято: " + refused);
-                return;
+            BuildOrders.Result grown = BuildOrders.upgrade(manager, colony, townHall.id());
+            if (!(grown instanceof BuildOrders.Result.Placed)) {
+                context.throwGameTestException("Ратуша не улучшилась, хотя её след не растёт "
+                        + "и мешать нечему: " + grown);
             }
-            if (!clash.clash().id().equals(neighbour.id())) {
-                context.throwGameTestException("Помехой назван не тот сосед");
-            }
-            if (townHall.level() != 1 || townHall.progress() != BuildProgress.DONE) {
-                context.throwGameTestException("Отказ всё-таки тронул ратушу: уровень "
-                        + townHall.level() + ", " + townHall.progress().id());
+            if (!townHall.anchor().equals(hallAnchor)) {
+                context.throwGameTestException("Улучшение перенесло ратушу: якорь был "
+                        + hallAnchor.toShortString() + ", стал "
+                        + townHall.anchor().toShortString());
             }
 
             // Строящееся здание улучшать нельзя.
@@ -4068,6 +4145,150 @@ public class VillagePaxGameTests implements FabricGameTest {
         return steps;
     }
 
+    /**
+     * Житель не ходит по верху забора.
+     * <p>
+     * Жалоба игрока: строитель шёл по верхам заборов, скатывался с них
+     * и ходил кругами, повиснув насмерть. Ваниль такой путь разрешает —
+     * у забора коробка столкновений в полтора блока, и моб как бы на нём
+     * стоит, — а стоит он там плохо.
+     * <p>
+     * Проверяется настоящим поиском пути через огороженное поле: путь
+     * внутрь есть (калитка открыта), и ни один его узел не стоит
+     * на заборе.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "gates")
+    public void citizenNeverWalksAlongFenceTops(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = plan(colony, anchor, FARM_TYPE, BlockRotation.NONE);
+
+        // Житель ставится с той стороны, где через забор — КОРОЧЕ: калитка
+        // на западе, а он приходит с востока. Без запрета ваниль полезет
+        // прямо через ограду, потому что обход к калитке вдвое дальше.
+        // С площадки у калитки этот тест не кусался бы вовсе: туда путь
+        // и так идёт по земле.
+        BlockPos landing = BuildJob.worldPos(farm, farmPlan.size(), new BlockPos(7, 1, 3));
+
+        try {
+            stockFor(world, colony, farmPlan);
+            BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000);
+
+            world.setBlockState(landing, Blocks.DIRT.getDefaultState());
+            Citizen farmer = hireWithBody(world, colony, FarmJob.FARMER, landing.up());
+            CitizenEntity body = (CitizenEntity) world.getEntity(farmer.entityUuid().orElseThrow());
+            body.setOnGround(true);
+
+            BlockPos plot = BuildJob.worldPos(farm, farmPlan.size(), new BlockPos(5, 2, 3));
+            Path through = body.getNavigation().findPathTo(plot, 0);
+            if (through == null) {
+                context.throwGameTestException("Пути на поле нет вовсе — калитка сломалась");
+                return;
+            }
+
+            for (int index = 0; index < through.getLength(); index++) {
+                BlockPos step = through.getNode(index).getBlockPos();
+                BlockPos under = step.down();
+                if (world.getBlockState(under).isIn(BlockTags.FENCES)
+                        || world.getBlockState(under).isIn(BlockTags.FENCE_GATES)) {
+                    context.throwGameTestException("Путь идёт по верху забора: узел "
+                            + step.toShortString() + " стоит на "
+                            + world.getBlockState(under).getBlock());
+                }
+            }
+        } finally {
+            demolish(world, farm, farmPlan);
+            world.setBlockState(landing, Blocks.AIR.getDefaultState());
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * С забора житель сходит сам.
+     * <p>
+     * Жалоба игрока: строитель шёл по верхам заборов, скатывался с них
+     * и ходил кругами, повиснув насмерть. Поиск пути через забор его
+     * не ведёт — ваниль считает забор непроходимым, — но оказаться на нём
+     * он может: коробка столкновений у забора полтора блока, и в толкотне
+     * у калитки жители выталкивают друг друга наверх.
+     * <p>
+     * Стоя там, житель ломает себе путь: ноги на полуторной высоте, узла
+     * пути в этой точке нет, и он съезжает к цели снова и снова. Поэтому
+     * его снимают на землю.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "gates")
+    public void citizenStepsOffAFenceByItself(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos ground = context.getAbsolutePos(new BlockPos(6, 8, 6));
+        BlockPos fence = ground.add(2, 0, 0);
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        List<BlockPos> laid = new ArrayList<>();
+
+        try {
+            // Площадка и забор на ней.
+            for (int dx = -2; dx <= 3; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    BlockPos at = ground.add(dx, 0, dz);
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    laid.add(at);
+                }
+            }
+            world.setBlockState(fence.up(), Blocks.OAK_FENCE.getDefaultState());
+            laid.add(fence.up());
+
+            // Житель ставится ровно на забор — так его и выталкивает толкотня.
+            Citizen worker = hireWithBody(world, colony, BuildJob.BUILDER, fence.up(2));
+            CitizenEntity body = (CitizenEntity) world.getEntity(worker.entityUuid().orElseThrow());
+            body.refreshPositionAndAngles(fence.getX() + 0.5, fence.getY() + 2,
+                    fence.getZ() + 0.5, 0f, 0f);
+
+            if (!world.getBlockState(body.getBlockPos().down()).isOf(Blocks.OAK_FENCE)) {
+                context.throwGameTestException("Посылка теста не выполнена: житель не на заборе, "
+                        + "а на " + world.getBlockState(body.getBlockPos().down()).getBlock());
+            }
+
+            if (!body.stepOffFence()) {
+                context.throwGameTestException("Житель остался стоять на заборе");
+            }
+            if (world.getBlockState(body.getBlockPos().down()).isOf(Blocks.OAK_FENCE)) {
+                context.throwGameTestException("Житель сошёл, но опять на забор");
+            }
+            if (!world.getBlockState(body.getBlockPos().down())
+                    .isSolidBlock(world, body.getBlockPos().down())) {
+                context.throwGameTestException("Житель сошёл в пустоту: под ним "
+                        + world.getBlockState(body.getBlockPos().down()).getBlock());
+            }
+
+            // И на твёрдой земле его больше не трогают.
+            if (body.stepOffFence()) {
+                context.throwGameTestException("Жителя на земле всё равно переносят");
+            }
+        } finally {
+            for (BlockPos at : laid) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
     // --- калитки в ограде ---
 
     /**
@@ -4324,6 +4545,9 @@ public class VillagePaxGameTests implements FabricGameTest {
             // именно красная шерсть, а перекрасить белую колония не может —
             // на это нужен краситель, а он растёт в поле, не на складе.
             raw(world, warehouse, hall, Items.RED_WOOL, 32);
+            // Уголь на очаг: костёр колония сложит сама из брёвен, палок
+            // и угля, но уголь ей взять негде — он в шахте.
+            raw(world, warehouse, hall, Items.COAL, 16);
 
             // Проверка посылки: готового в завозе нет.
             Warehouse stocked = Warehouse.of(world, colony);
@@ -5251,22 +5475,33 @@ public class VillagePaxGameTests implements FabricGameTest {
         BlockPos from = context.getAbsolutePos(BlockPos.ORIGIN);
 
         VillageSites.Guess first = VillageSites.guessNearest(world, from);
-        if (first == null) {
-            context.throwGameTestException("Поиск не назвал ни одного места, "
-                    + "хотя культура загружена");
-            return;
-        }
-        if (!first.culture().equals(NORMAN)) {
-            context.throwGameTestException("Названа не та культура: " + first.culture());
-        }
-        if (!first.equals(VillageSites.guessNearest(world, from))) {
-            context.throwGameTestException("Второй раз поиск назвал другое место");
+
+        // Пусто — законный ответ, и это главное в проверке. Прежняя версия
+        // всегда называла середину клетки, ничего не проверяя, и уводила
+        // игрока за семь сотен блоков в пустоту. Теперь ответ «рядом нет
+        // подходящего биома» честен: в мире игровых тестов лесов и нет.
+        if (!java.util.Objects.equals(first, VillageSites.guessNearest(world, from))) {
+            context.throwGameTestException("Второй раз поиск ответил иначе: было " + first
+                    + ", стало " + VillageSites.guessNearest(world, from));
         }
 
-        // Далёкая точка обязана дать другое место, иначе сетка не работает.
-        VillageSites.Guess far = VillageSites.guessNearest(world, from.add(6000, 0, 6000));
-        if (far != null && far.where().equals(first.where())) {
-            context.throwGameTestException("Из двух далёких точек поиск назвал одно место");
+        if (first != null) {
+            if (!first.culture().equals(NORMAN)) {
+                context.throwGameTestException("Названа не та культура: " + first.culture());
+            }
+
+            // Названное место обязано проходить ту же проверку, которой
+            // деревня возникает: иначе поиск снова уводил бы в пустоту.
+            Culture norman = CultureManager.get(NORMAN);
+            int spacing = VillageSites.spacing(norman);
+            int cellX = Math.floorDiv(new ChunkPos(first.where()).x, spacing);
+            int cellZ = Math.floorDiv(new ChunkPos(first.where()).z, spacing);
+
+            BlockPos checked = VillageSites.plannedSite(world, NORMAN, norman, cellX, cellZ);
+            if (!first.where().equals(checked)) {
+                context.throwGameTestException("Поиск назвал " + first.where().toShortString()
+                        + ", а проверка того же места даёт " + checked);
+            }
         }
 
         context.complete();
@@ -5568,8 +5803,14 @@ public class VillagePaxGameTests implements FabricGameTest {
     private static final Identifier HOUSE_LVL2 = new Identifier("villagepax", "norman/house_lvl2");
     private static final Identifier FARM_LVL2 = new Identifier("villagepax", "norman/farm_lvl2");
 
-    /** Сколько грядок на поле второго уровня: 7x7 минус тюк пугала и колодец. */
-    private static final int BIGGER_FIELD = 47;
+    /**
+     * Сколько грядок на поле второго уровня.
+     * <p>
+     * Поле растёт на восток и юг, якорь остаётся тем же: двадцать три
+     * грядки первого уровня становятся сорока шестью. Из внутренних
+     * сорока девяти клеток вычтены два колодца и тюк пугала.
+     */
+    private static final int BIGGER_FIELD = 46;
 
     /**
      * Дом второго уровня: четыре кровати и открытый дымоход.
@@ -5604,15 +5845,15 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Дом второго уровня не достроился");
             }
 
-            BlockPos hearth = BuildJob.worldPos(house, bigger.size(), new BlockPos(3, 1, 3));
+            BlockPos hearth = BuildJob.worldPos(house, bigger.size(), new BlockPos(2, 1, 2));
             BlockState fire = world.getBlockState(hearth);
             if (!fire.isOf(Blocks.CAMPFIRE) || !fire.get(CampfireBlock.LIT)) {
                 context.throwGameTestException("Очага в доме нет или он потушен: "
                         + fire.getBlock());
             }
 
-            for (int y = 2; y < bigger.size().getY(); y++) {
-                BlockPos flue = BuildJob.worldPos(house, bigger.size(), new BlockPos(3, y, 3));
+            for (int y = 3; y < bigger.size().getY(); y++) {
+                BlockPos flue = BuildJob.worldPos(house, bigger.size(), new BlockPos(2, y, 2));
                 if (!world.getBlockState(flue).isAir()) {
                     context.throwGameTestException("Дымоход закрыт на высоте " + y + ": там "
                             + world.getBlockState(flue).getBlock());
@@ -5671,7 +5912,7 @@ public class VillagePaxGameTests implements FabricGameTest {
                 BlockRotation.NONE, BuildProgress.PLANNED, List.of());
         colony.addBuilding(farm);
 
-        BlockPos landing = BuildJob.worldPos(farm, bigger.size(), new BlockPos(-1, 1, 4));
+        BlockPos landing = BuildJob.worldPos(farm, bigger.size(), new BlockPos(-1, 1, 3));
 
         try {
             stockFor(world, colony, bigger);
@@ -5694,9 +5935,9 @@ public class VillagePaxGameTests implements FabricGameTest {
                         + BIGGER_FIELD);
             }
 
-            // Пугало: тюк и тыква на нём.
-            BlockPos straw = BuildJob.worldPos(farm, bigger.size(), new BlockPos(2, 2, 2));
-            BlockPos head = BuildJob.worldPos(farm, bigger.size(), new BlockPos(2, 3, 2));
+            // Пугало: тюк и тыква на нём. Стоит на юге, в новой части поля.
+            BlockPos straw = BuildJob.worldPos(farm, bigger.size(), new BlockPos(3, 2, 7));
+            BlockPos head = BuildJob.worldPos(farm, bigger.size(), new BlockPos(3, 3, 7));
             if (!world.getBlockState(straw).isOf(Blocks.HAY_BLOCK)
                     || !world.getBlockState(head).isOf(Blocks.CARVED_PUMPKIN)) {
                 context.throwGameTestException("Пугала на поле нет: "
@@ -5704,7 +5945,7 @@ public class VillagePaxGameTests implements FabricGameTest {
                         + world.getBlockState(head).getBlock());
             }
 
-            BlockPos gate = BuildJob.worldPos(farm, bigger.size(), new BlockPos(0, 2, 4));
+            BlockPos gate = BuildJob.worldPos(farm, bigger.size(), new BlockPos(0, 2, 3));
             if (!(world.getBlockState(gate).getBlock() instanceof FenceGateBlock)) {
                 context.throwGameTestException("В ограде большого поля нет калитки, стоит "
                         + world.getBlockState(gate).getBlock());
@@ -5715,7 +5956,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             CitizenEntity body = (CitizenEntity) world.getEntity(farmer.entityUuid().orElseThrow());
             body.setOnGround(true);
 
-            BlockPos plot = BuildJob.worldPos(farm, bigger.size(), new BlockPos(1, 2, 4));
+            BlockPos plot = BuildJob.worldPos(farm, bigger.size(), new BlockPos(1, 2, 3));
             Path through = body.getNavigation().findPathTo(plot, 0);
             if (through == null || !through.reachesTarget()) {
                 context.throwGameTestException("Фермер не может войти на большое поле: "

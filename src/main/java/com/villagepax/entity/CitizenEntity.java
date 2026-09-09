@@ -11,6 +11,8 @@ import net.minecraft.util.Hand;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import net.minecraft.block.BlockState;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.ai.goal.LookAroundGoal;
@@ -447,5 +449,93 @@ public class CitizenEntity extends PathAwareEntity {
 
     public Optional<Settlement> settlement(ServerWorld world) {
         return settlementId == null ? Optional.empty() : SettlementManager.get(world).byId(settlementId);
+    }
+
+    /** Как часто проверяется, не стоит ли житель на заборе. */
+    private static final int OFF_FENCE_EVERY = 10;
+
+    /**
+     * Докуда ищется твёрдая земля, чтобы сойти с забора.
+     * <p>
+     * Два блока: забор житель пересекает по ширине за один шаг, и дальше
+     * искать незачем — если и там нет земли, значит он на заборе среди
+     * пустоты, и переносить его было бы уже не помощью.
+     */
+    private static final int OFF_FENCE_REACH = 2;
+
+    @Override
+    public void tick() {
+        super.tick();
+
+        if (!getWorld().isClient() && age % OFF_FENCE_EVERY == 0) {
+            stepOffFence();
+        }
+    }
+
+    /**
+     * Сойти с забора, если житель на нём оказался.
+     * <p>
+     * Жалоба игрока: строитель шёл по верхам заборов, скатывался с них
+     * и ходил кругами, повиснув насмерть. Поиск пути через забор жителя
+     * не ведёт — ваниль считает забор непроходимым, — но <b>оказаться</b>
+     * на нём он может: у забора коробка столкновений в полтора блока,
+     * и в толкотне у калитки жители выталкивают друг друга наверх.
+     * <p>
+     * Стоя там, житель ломает себе путь: ноги на полуторной высоте, узла
+     * пути в этой точке нет, навигация ведёт вниз, решение гонит к цели,
+     * и он съезжает туда же снова. Со стороны — ходит кругами и висит.
+     * <p>
+     * Поэтому его снимают. Один блок в сторону — на землю, с которой
+     * путь снова считается. Возвращает истину, если сняли: так это
+     * и проверяется тестом, без прогона тиков.
+     */
+    public boolean stepOffFence() {
+        BlockPos under = getBlockPos().down();
+        BlockState support = getWorld().getBlockState(under);
+
+        if (!support.isIn(BlockTags.FENCES)
+                && !support.isIn(BlockTags.WALLS)
+                && !support.isIn(BlockTags.FENCE_GATES)) {
+            return false;
+        }
+
+        for (int radius = 1; radius <= OFF_FENCE_REACH; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                        continue;
+                    }
+
+                    // Своя высота и на блок ниже: с забора сходят вниз —
+                    // его верх и есть та лишняя половина блока, из-за
+                    // которой житель там стоял.
+                    for (int down = 0; down <= 1; down++) {
+                        BlockPos spot = getBlockPos().add(dx, -down, dz);
+                        if (isSafeFooting(spot)) {
+                            getNavigation().stop();
+                            refreshPositionAndAngles(spot.getX() + 0.5, spot.getY(),
+                                    spot.getZ() + 0.5, getYaw(), getPitch());
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Ноги на твёрдом и не на заборе, голова в пустоте. */
+    private boolean isSafeFooting(BlockPos spot) {
+        BlockPos below = spot.down();
+        BlockState ground = getWorld().getBlockState(below);
+
+        if (ground.isIn(BlockTags.FENCES) || ground.isIn(BlockTags.WALLS)
+                || ground.isIn(BlockTags.FENCE_GATES)) {
+            return false;
+        }
+        return ground.isSolidBlock(getWorld(), below)
+                && getWorld().getBlockState(spot).getCollisionShape(getWorld(), spot).isEmpty()
+                && getWorld().getBlockState(spot.up())
+                        .getCollisionShape(getWorld(), spot.up()).isEmpty();
     }
 }

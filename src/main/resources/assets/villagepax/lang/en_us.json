@@ -135,6 +135,6 @@
   "villagepax.tooltip.marker.hint": "Only needed to author your own schematic with a structure block. A finished village has no markers left.",
   "villagepax.greeting.title": "Village Pax: Norman villages stand somewhere in the forests.",
   "villagepax.greeting.how": "Find their elder and do what he asks — he will hand you a town hall blueprint, and your own colony starts from it.",
-  "villagepax.locate.none": "No village sites of any people are anywhere near.",
+  "villagepax.locate.none": "No village sites nearby: peoples settle in biomes %s, and none is around.",
   "villagepax.locate.found": "Nearest village: %s, around %s, %s blocks from here."
 }

@@ -217,15 +217,13 @@ public final class BuildOrders {
             return new Result.TopLevel(building);
         }
 
-        // Ратуша переякоряется, остальные растут от своего угла. Разница
-        // в том, что у ратуши есть точка, которую держать надо: её блок
-        // в середине поселения. Дом такой точки не имеет, и переносить его
-        // при улучшении значило бы отобрать у игрока выбор места.
-        BlockPos anchor = Levels.isTownHallType(building.type())
-                ? centredAnchor(colony.center(), schematic, building.rotation())
-                : building.anchor();
-
-        Building clash = overlapping(colony, anchor, building.rotation(), schematic, buildingId);
+        // Якорь не меняется НИКОГДА. Схема следующего уровня содержит
+        // предыдущий на тех же местах и растёт только вверх, на восток
+        // и на юг — это правило держит сам генератор схем, проверяя его
+        // при сборке. Поэтому улучшение достраивает, а не переносит:
+        // билдер пропускает всё, что уже стоит.
+        Building clash = overlapping(colony, building.anchor(), building.rotation(), schematic,
+                buildingId);
         if (clash != null) {
             return new Result.Overlaps(clash);
         }
@@ -233,7 +231,6 @@ public final class BuildOrders {
         manager.update(colony.id(), settlement -> settlement.building(buildingId)
                 .ifPresent(target -> {
                     target.setLevel(next);
-                    target.moveTo(anchor);
                     target.restartBuilding();
                 }));
 

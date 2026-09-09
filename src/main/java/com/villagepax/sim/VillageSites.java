@@ -4,6 +4,12 @@ import com.villagepax.core.config.Configs;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.server.world.ServerChunkManager;
+import net.minecraft.world.biome.Biome;
+import net.minecraft.world.biome.source.BiomeCoords;
+import net.minecraft.world.gen.chunk.ChunkGenerator;
+import net.minecraft.world.gen.noise.NoiseConfig;
 import net.minecraft.registry.tag.TagKey;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
@@ -42,6 +48,15 @@ public final class VillageSites {
      */
     public static final int ACTIVATE_RANGE = 96;
 
+    /**
+     * Насколько место деревни можно подвинуть, чтобы найти ровную землю.
+     * <p>
+     * Восемь блоков: дерево или валун на самой середине клетки не должны
+     * отменять деревню, к которой поиск уже привёл игрока. Дальше сдвигать
+     * незачем — иначе ратуша уедет от того места, которое было названо.
+     */
+    private static final int NUDGE = 8;
+
     /** Наименьший шаг сетки: клетка мельче этой сделала бы деревни соседями. */
     private static final int MIN_SPACING_CHUNKS = 12;
 
@@ -57,24 +72,32 @@ public final class VillageSites {
     }
 
     /**
-     * Догадка о месте деревни: только координаты клетки, без проверок.
-     * <p>
-     * Отличается от {@link Site} тем, что <b>не</b> смотрит в мир: ни биом,
-     * ни грунт, ни загруженность чанка. Это ответ на вопрос «куда идти»,
-     * а не «можно ли ставить здесь сейчас». Проверить биом и грунт всё
-     * равно нельзя, не сгенерировав чанк, — а генерировать полкарты,
-     * чтобы ответить на вопрос игрока, недопустимо.
+     * Найденное место деревни: то же, что {@link Site}, но проверенное
+     * <b>без генерации чанков</b>.
      */
     public record Guess(Identifier culture, BlockPos where) {
     }
 
     /**
+     * Насколько далеко ищется деревня, в клетках сетки в каждую сторону.
+     * <p>
+     * Шесть клеток — это около четырёх с половиной тысяч блоков. Дальше
+     * искать незачем: столько игрок пешком не пойдёт, а обход стоит
+     * сотни выборок шума.
+     */
+    private static final int SEARCH_CELLS = 6;
+
+    /**
      * Куда идти за ближайшей деревней.
      * <p>
-     * Обходятся клетки сетки вокруг игрока — по кольцу шириной в две клетки
-     * в каждую сторону, этого хватает: клетка сама шириной в семь с половиной
-     * сотен блоков. Высота берётся с потолка мира, потому что настоящую можно
-     * узнать только сгенерировав чанк; игроку нужны X и Z.
+     * <b>Проверяется по-настоящему.</b> Прежняя версия называла середину
+     * клетки, ничего не проверяя, — и уводила игрока за семь сотен блоков
+     * в пустоту: биом не тот, деревня там не встанет никогда. Игрок так
+     * и сказал: «ведёт в неизвестные места где пусто».
+     * <p>
+     * Биом и высота спрашиваются у <b>генератора</b>, а не у мира: тем же
+     * способом ваниль расставляет свои структуры, и чанк для этого
+     * генерировать не надо. Ответ поэтому и дальний, и правдивый.
      */
     public static Guess guessNearest(ServerWorld world, BlockPos from) {
         Guess best = null;
@@ -85,19 +108,71 @@ public final class VillageSites {
             int cellX = Math.floorDiv(new ChunkPos(from).x, spacing);
             int cellZ = Math.floorDiv(new ChunkPos(from).z, spacing);
 
-            for (int dx = -2; dx <= 2; dx++) {
-                for (int dz = -2; dz <= 2; dz++) {
-                    BlockPos where = cellCentre(world, entry.getKey(), entry.getValue(),
-                            cellX + dx, cellZ + dz);
-                    double away = where.getSquaredDistance(from.getX(), where.getY(), from.getZ());
-                    if (away < bestAway) {
-                        bestAway = away;
-                        best = new Guess(entry.getKey(), where);
+            for (int ring = 0; ring <= SEARCH_CELLS; ring++) {
+                for (int dx = -ring; dx <= ring; dx++) {
+                    for (int dz = -ring; dz <= ring; dz++) {
+                        if (Math.max(Math.abs(dx), Math.abs(dz)) != ring) {
+                            continue;
+                        }
+
+                        BlockPos where = plannedSite(world, entry.getKey(), entry.getValue(),
+                                cellX + dx, cellZ + dz);
+                        if (where == null) {
+                            continue;
+                        }
+
+                        double away = where.getSquaredDistance(from.getX(), where.getY(),
+                                from.getZ());
+                        if (away < bestAway) {
+                            bestAway = away;
+                            best = new Guess(entry.getKey(), where);
+                        }
                     }
+                }
+
+                // Нашли в этом кольце — дальше не ищем: следующее кольцо
+                // заведомо дальше по расстоянию.
+                if (best != null) {
+                    break;
                 }
             }
         }
         return best;
+    }
+
+    /**
+     * Место деревни в клетке, проверенное по генератору, или {@code null},
+     * если этой клетке деревня не полагается.
+     * <p>
+     * Ни один чанк при этом не генерируется. Высота берётся расчётом
+     * поверхности, биом — выборкой шума: ровно так ваниль решает, где
+     * поставить деревню или крепость, ещё до того как игрок туда придёт.
+     */
+    public static BlockPos plannedSite(ServerWorld world, Identifier cultureId, Culture culture,
+                                       int cellX, int cellZ) {
+        BlockPos column = cellCentre(world, cultureId, culture, cellX, cellZ);
+
+        ServerChunkManager chunks = world.getChunkManager();
+        ChunkGenerator generator = chunks.getChunkGenerator();
+        NoiseConfig noise = chunks.getNoiseConfig();
+
+        int surface = generator.getHeight(column.getX(), column.getZ(),
+                Heightmap.Type.WORLD_SURFACE_WG, world, noise);
+        if (surface <= world.getBottomY() || surface >= world.getTopY()) {
+            return null;
+        }
+
+        BlockPos where = new BlockPos(column.getX(), surface, column.getZ());
+        if (!matchesBiome(generator.getBiomeSource().getBiome(
+                BiomeCoords.fromBlock(where.getX()),
+                BiomeCoords.fromBlock(where.getY()),
+                BiomeCoords.fromBlock(where.getZ()),
+                noise.getMultiNoiseSampler()), culture)) {
+            return null;
+        }
+
+        // Под водой деревню не ставят: жителям надо где стоять.
+        return surface > world.getSeaLevel() ? where : null;
     }
 
     /**
@@ -162,7 +237,33 @@ public final class VillageSites {
         if (!matchesBiome(world, surface, culture)) {
             return Optional.empty();
         }
-        return ColonyFounder.isBuildable(world, surface) ? Optional.of(surface) : Optional.empty();
+
+        // Место ищется <b>рядом</b>, а не только в самой колонне. Дерево,
+        // валун или высокая трава ровно на середине клетки — не повод
+        // отменить деревню: поиск уже привёл сюда игрока, и «пришёл,
+        // а тут ничего» было бы обманом.
+        for (int radius = 0; radius <= NUDGE; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                        continue;
+                    }
+
+                    BlockPos nearby = column.add(dx, 0, dz);
+                    if (!world.isChunkLoaded(nearby)) {
+                        continue;
+                    }
+                    BlockPos stand = new BlockPos(nearby.getX(),
+                            world.getTopY(Heightmap.Type.WORLD_SURFACE, nearby.getX(),
+                                    nearby.getZ()),
+                            nearby.getZ());
+                    if (ColonyFounder.isBuildable(world, stand)) {
+                        return Optional.of(stand);
+                    }
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     /**
@@ -189,11 +290,19 @@ public final class VillageSites {
         return new ChunkPos(chunkX, chunkZ).getStartPos().add(8, 0, 8);
     }
 
+    private static boolean matchesBiome(ServerWorld world, BlockPos where, Culture culture) {
+        return matchesBiome(world.getBiome(where), culture);
+    }
+
     /**
      * Тот ли биом. Строка культуры — либо тег с решёткой, либо сам биом:
      * тем же языком, каким биомы задаются в ванильных описаниях структур.
+     * <p>
+     * Принимает запись реестра, а не позицию, потому что спрашивают
+     * двое: загруженный мир и генератор. Правило одно, и разойтись ему
+     * негде — иначе поиск указывал бы туда, где деревня не встанет.
      */
-    private static boolean matchesBiome(ServerWorld world, BlockPos where, Culture culture) {
+    private static boolean matchesBiome(RegistryEntry<Biome> biome, Culture culture) {
         String wanted = culture.spawn().biomes();
         if (wanted == null || wanted.isEmpty()) {
             return true;
@@ -201,13 +310,11 @@ public final class VillageSites {
 
         if (wanted.startsWith("#")) {
             Identifier tagId = Identifier.tryParse(wanted.substring(1));
-            if (tagId == null) {
-                return false;
-            }
-            return world.getBiome(where).isIn(TagKey.of(RegistryKeys.BIOME, tagId));
+            return tagId != null && biome.isIn(TagKey.of(RegistryKeys.BIOME, tagId));
         }
 
-        return world.getBiome(where).matchesId(Identifier.tryParse(wanted));
+        Identifier biomeId = Identifier.tryParse(wanted);
+        return biomeId != null && biome.matchesId(biomeId);
     }
 
     private static boolean isNear(BlockPos around, BlockPos site) {

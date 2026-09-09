@@ -40,14 +40,14 @@ public class Building {
     private int level;
 
     /**
-     * Угол следа здания.
+     * Угол следа здания. Неизменяем: улучшение здание не переносит.
      * <p>
-     * Меняется только у ратуши и только при улучшении: её блок стоит
-     * в середине поселения, и след обязан оставаться вокруг него, а не
-     * расти от угла на север-запад. Остальные здания растут от своего
-     * угла, чтобы улучшение не переносило дом с выбранного игроком места.
+     * Схема следующего уровня содержит предыдущий на тех же местах
+     * и растёт только вверх, на восток и на юг — это правило проверяет
+     * генератор схем при сборке. Поэтому улучшению переносить нечего,
+     * а игрок не теряет выбранное им место.
      */
-    private BlockPos anchor;
+    private final BlockPos anchor;
     private final BlockRotation rotation;
     private BuildProgress progress;
     private final List<UUID> workers;
@@ -116,11 +116,6 @@ public class Building {
 
     public BlockPos anchor() {
         return anchor;
-    }
-
-    /** Переехать. Смотри оговорку у {@link #anchor}. */
-    public void moveTo(BlockPos where) {
-        this.anchor = where.toImmutable();
     }
 
     public BlockRotation rotation() {

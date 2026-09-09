@@ -11,6 +11,8 @@ import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import com.villagepax.sim.Citizen;
+import com.villagepax.sim.Hazards;
+import com.villagepax.sim.Hazards;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Villages;
@@ -35,6 +37,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import java.util.HashMap;
@@ -44,6 +47,7 @@ import net.minecraft.world.World;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.entity.ai.pathing.EntityNavigation;
+import net.minecraft.entity.ai.pathing.PathNodeType;
 
 /**
  * Тело жителя.
@@ -77,6 +81,27 @@ public class CitizenEntity extends PathAwareEntity {
     public CitizenEntity(EntityType<? extends PathAwareEntity> type, World world) {
         super(type, world);
         keepTools();
+        avoidFire();
+    }
+
+    /**
+     * Огонь для жителя дороже, чем для ванильного моба.
+     * <p>
+     * У ванили костёр стоит шестнадцать шагов пути — «дорого, но пройти
+     * можно», — и моб идёт прямо через очаг, если обход длиннее. Для
+     * жителя это смертельно: в костре он теряет здоровье, а пути из
+     * огненного узла ваниль почти не строит. Шестьдесят четыре означают
+     * «обойди, даже если крюк через всю деревню».
+     * <p>
+     * Но не запрет: запрет отнял бы у попавшего в огонь последнюю
+     * возможность выйти самому, а рефлекс {@link #stepOutOfTrouble}
+     * срабатывает раз в полсекунды и может не успеть.
+     */
+    private void avoidFire() {
+        setPathfindingPenalty(PathNodeType.DAMAGE_FIRE, 64.0f);
+        setPathfindingPenalty(PathNodeType.DANGER_FIRE, 32.0f);
+        setPathfindingPenalty(PathNodeType.DAMAGE_OTHER, 64.0f);
+        setPathfindingPenalty(PathNodeType.DANGER_OTHER, 32.0f);
     }
 
     public static DefaultAttributeContainer.Builder createAttributes() {
@@ -483,37 +508,69 @@ public class CitizenEntity extends PathAwareEntity {
         super.tick();
 
         if (!getWorld().isClient() && age % OFF_FENCE_EVERY == 0) {
-            stepOffFence();
+            stepOutOfTrouble();
         }
     }
 
     /**
-     * Сойти с забора, если житель на нём оказался.
+     * Выбраться из беды: с забора и из огня.
      * <p>
-     * Жалоба игрока: строитель шёл по верхам заборов, скатывался с них
-     * и ходил кругами, повиснув насмерть. Поиск пути через забор жителя
-     * не ведёт — ваниль считает забор непроходимым, — но <b>оказаться</b>
-     * на нём он может: у забора коробка столкновений в полтора блока,
-     * и в толкотне у калитки жители выталкивают друг друга наверх.
+     * Две беды, а рефлекс один, потому что ловушка у них одна и та же:
+     * <b>из такой точки не строится путь</b>. У забора коробка
+     * столкновений в полтора блока — узла пути на его верхушке нет;
+     * у костра узел непроходим по самой ванильной таблице. И в том, и
+     * в другом случае навигация не может даже начать маршрут, житель
+     * стоит на месте, а решение раз за разом гонит его к цели.
      * <p>
-     * Стоя там, житель ломает себе путь: ноги на полуторной высоте, узла
-     * пути в этой точке нет, навигация ведёт вниз, решение гонит к цели,
-     * и он съезжает туда же снова. Со стороны — ходит кругами и висит.
+     * С забора он от этого ходит кругами — на это жаловался игрок.
+     * В костре — <b>сгорает заживо</b>: ровно так и погиб строитель,
+     * перестраивавший дом. Ни то, ни другое не лечится поиском пути:
+     * лечится тем, что жителя оттуда снимают.
      * <p>
-     * Поэтому его снимают. Один блок в сторону — на землю, с которой
-     * путь снова считается. Возвращает истину, если сняли: так это
-     * и проверяется тестом, без прогона тиков.
+     * Один-два блока в сторону — на землю, с которой путь снова
+     * считается и на которой не жжётся. Возвращает истину, если сняли:
+     * так это и проверяется тестом, без прогона тиков.
      */
-    public boolean stepOffFence() {
+    public boolean stepOutOfTrouble() {
         BlockPos under = getBlockPos().down();
         BlockState support = getWorld().getBlockState(under);
 
-        if (!support.isIn(BlockTags.FENCES)
-                && !support.isIn(BlockTags.WALLS)
-                && !support.isIn(BlockTags.FENCE_GATES)) {
+        boolean onFence = support.isIn(BlockTags.FENCES)
+                || support.isIn(BlockTags.WALLS)
+                || support.isIn(BlockTags.FENCE_GATES);
+        boolean inTrouble = Hazards.standingHurts(getWorld(), getBlockPos());
+
+        if (!onFence && !inTrouble) {
             return false;
         }
 
+        return moveToSafety(null);
+    }
+
+    /**
+     * Отойти с клетки, которую сейчас займёт блок.
+     * <p>
+     * Зовётся стройкой перед установкой: житель, оставшийся в клетке,
+     * оказался бы внутри блока, а если блок ещё и жжётся — внутри огня,
+     * откуда ваниль не строит пути. Отходит только тот, кто действительно
+     * стоит в этой клетке; прочих трогать незачем.
+     */
+    public boolean stepAsideFrom(BlockPos taken) {
+        if (!getBoundingBox().intersects(new Box(taken))) {
+            return false;
+        }
+        return moveToSafety(taken);
+    }
+
+    /**
+     * Ближайшее место, где можно стоять, — и перенос туда.
+     * <p>
+     * Перенос, а не «пойди туда»: житель в беде как раз и не может никуда
+     * пойти — из непроходимого узла пути не строится. Один-два блока
+     * в сторону выглядят как шаг, а не как телепорт, и это честно:
+     * ровно столько он и прошёл бы сам, если бы мог.
+     */
+    private boolean moveToSafety(BlockPos avoid) {
         for (int radius = 1; radius <= OFF_FENCE_REACH; radius++) {
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dz = -radius; dz <= radius; dz++) {
@@ -526,12 +583,13 @@ public class CitizenEntity extends PathAwareEntity {
                     // которой житель там стоял.
                     for (int down = 0; down <= 1; down++) {
                         BlockPos spot = getBlockPos().add(dx, -down, dz);
-                        if (isSafeFooting(spot)) {
-                            getNavigation().stop();
-                            refreshPositionAndAngles(spot.getX() + 0.5, spot.getY(),
-                                    spot.getZ() + 0.5, getYaw(), getPitch());
-                            return true;
+                        if (spot.equals(avoid) || !isSafeFooting(spot)) {
+                            continue;
                         }
+                        getNavigation().stop();
+                        refreshPositionAndAngles(spot.getX() + 0.5, spot.getY(),
+                                spot.getZ() + 0.5, getYaw(), getPitch());
+                        return true;
                     }
                 }
             }
@@ -546,6 +604,11 @@ public class CitizenEntity extends PathAwareEntity {
 
         if (ground.isIn(BlockTags.FENCES) || ground.isIn(BlockTags.WALLS)
                 || ground.isIn(BlockTags.FENCE_GATES)) {
+            return false;
+        }
+        if (Hazards.standingHurts(getWorld(), spot)) {
+            // Из огня да в полымя: снимать жителя в соседний костёр
+            // было бы не помощью.
             return false;
         }
         return ground.isSolidBlock(getWorld(), below)

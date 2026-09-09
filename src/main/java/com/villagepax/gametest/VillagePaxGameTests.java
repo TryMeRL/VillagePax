@@ -22,6 +22,8 @@ import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Gender;
 import com.villagepax.sim.Levels;
 import com.villagepax.sim.Owner;
+import com.villagepax.sim.Hazards;
+import com.villagepax.sim.Ground;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementLevel;
 import com.villagepax.sim.SettlementManager;
@@ -4275,7 +4277,7 @@ public class VillagePaxGameTests implements FabricGameTest {
                         + "а на " + world.getBlockState(body.getBlockPos().down()).getBlock());
             }
 
-            if (!body.stepOffFence()) {
+            if (!body.stepOutOfTrouble()) {
                 context.throwGameTestException("Житель остался стоять на заборе");
             }
             if (world.getBlockState(body.getBlockPos().down()).isOf(Blocks.OAK_FENCE)) {
@@ -4288,7 +4290,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             // И на твёрдой земле его больше не трогают.
-            if (body.stepOffFence()) {
+            if (body.stepOutOfTrouble()) {
                 context.throwGameTestException("Жителя на земле всё равно переносят");
             }
         } finally {
@@ -6835,6 +6837,291 @@ public class VillagePaxGameTests implements FabricGameTest {
         context.complete();
     }
 
+    // --- по следам жалоб из игры: огонь и пустые места ---
+
+    /**
+     * Житель выходит из огня, а не сгорает в нём.
+     * <p>
+     * Из настоящей игры: строитель погиб, перестраивая дом, — сгорел
+     * на очаге. Это не невезение, а ванильная ловушка: узел пути в огне
+     * стоит шестнадцать шагов, но <b>из</b> него путь почти не строится,
+     * и моб, оказавшийся в костре, стоит и горит до смерти.
+     * <p>
+     * Проверяется ровно это: жителя ставят в горящий костёр и дают
+     * рефлексу сработать. Он обязан оказаться <b>не в огне</b> и живым.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "fire")
+    public void citizenStepsOutOfTheFire(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 2, 1));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            for (int x = -2; x <= 4; x++) {
+                for (int z = -2; z <= 4; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            BlockPos hearth = context.getAbsolutePos(new BlockPos(3, 2, 3));
+            world.setBlockState(hearth, Blocks.CAMPFIRE.getDefaultState());
+            floor.add(hearth);
+
+            Citizen citizen = hireWithBody(world, colony, BuildJob.BUILDER, hearth);
+            CitizenEntity body = (CitizenEntity) world
+                    .getEntity(citizen.entityUuid().orElseThrow());
+            body.refreshPositionAndAngles(hearth.getX() + 0.5, hearth.getY(),
+                    hearth.getZ() + 0.5, 0f, 0f);
+
+            if (!Hazards.standingHurts(world, body.getBlockPos())) {
+                context.throwGameTestException("Тест не поставил жителя в огонь: "
+                        + world.getBlockState(body.getBlockPos()));
+                return;
+            }
+
+            if (!body.stepOutOfTrouble()) {
+                context.throwGameTestException("Житель остался в костре: рефлекс не сработал");
+                return;
+            }
+            if (Hazards.standingHurts(world, body.getBlockPos())) {
+                context.throwGameTestException("Житель вышел из огня в огонь: "
+                        + body.getBlockPos().toShortString());
+            }
+            if (!body.isAlive()) {
+                context.throwGameTestException("Житель не пережил собственного очага");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            for (BlockPos at : floor) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Блок не ставится в того, кто в этой клетке стоит.
+     * <p>
+     * Вторая половина той же смерти: костёр из схемы ставится <b>внутрь</b>
+     * жителя, и он оказывается в огне, ничего не сделав. Проверяется, что
+     * стройка сперва отодвигает своего, а если клетка всё равно занята —
+     * ждёт, а не ставит.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "fire")
+    public void nothingIsBuiltInsideTheLiving(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic house = schematic(context, new Identifier("villagepax", "norman/house_lvl1"));
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(7, 2, 7));
+        List<BlockPos> floor = new ArrayList<>();
+
+        try {
+            for (int x = -2; x <= 9; x++) {
+                for (int z = -2; z <= 9; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            Settlement colony = colonyWithBuilder(world, manager, hall);
+            BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 2, 0));
+            Building site = new Building(UUID.randomUUID(), HOUSE_TYPE, 1, anchor,
+                    BlockRotation.NONE, BuildProgress.PLANNED, List.of());
+            colony.addBuilding(site);
+
+            try {
+                stockFor(world, colony, house);
+
+                // Житель встаёт ровно туда, где по плану встанет очаг.
+                BlockPos hearth = hearthOf(house, site);
+                if (hearth == null) {
+                    context.throwGameTestException("В схеме дома нет очага — проверять нечего");
+                    return;
+                }
+
+                Citizen citizen = hireWithBody(world, colony, BuildJob.BUILDER, hearth);
+                CitizenEntity body = (CitizenEntity) world
+                        .getEntity(citizen.entityUuid().orElseThrow());
+                body.refreshPositionAndAngles(hearth.getX() + 0.5, hearth.getY(),
+                        hearth.getZ() + 0.5, 0f, 0f);
+
+                // Стройка гонится целиком, без ограничения вытянутой руки.
+                BuildJob.advance(world, manager, colony.id(), site.id(), 2_000);
+
+                if (world.getBlockState(hearth).isOf(Blocks.CAMPFIRE)
+                        && new net.minecraft.util.math.Box(hearth)
+                                .intersects(body.getBoundingBox())) {
+                    context.throwGameTestException("Костёр поставлен прямо в жителя: "
+                            + hearth.toShortString());
+                }
+                if (!body.isAlive()) {
+                    context.throwGameTestException("Житель не пережил стройку");
+                }
+            } finally {
+                demolish(world, site, house);
+                discardBodies(world, colony);
+                manager.remove(colony.id());
+            }
+        } finally {
+            for (BlockPos at : floor) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Где в этой схеме очаг, в координатах мира. */
+    private static BlockPos hearthOf(Schematic schematic, Building site) {
+        List<BuildStep> steps = schematic.plan().steps();
+        for (BuildStep step : steps) {
+            if (step.placesBlock()
+                    && schematic.blockAt(step.paletteIndex()).isOf(Blocks.CAMPFIRE)) {
+                return BuildJob.worldPos(site, schematic.size(), step.pos());
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Земля под пологом леса находится, а верхушка листвы — не земля.
+     * <p>
+     * Это причина, по которой деревни <b>не появлялись вовсе</b>. Поиск
+     * места считал высоту по генератору, то есть по рельефу без деревьев,
+     * а основание деревни спрашивало у мира карту высот, куда входит
+     * листва. Игрок приходил по указанным координатам, стоял на месте
+     * полминуты — и не видел ничего: опоры на верхушке дерева нет,
+     * и деревня молча отказывалась вставать. Ровно так это и выглядело
+     * в его логе.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "fire")
+    public void groundIsFoundUnderTheCanopy(TestContext context) {
+        ServerWorld world = context.getWorld();
+        List<BlockPos> planted = new ArrayList<>();
+
+        try {
+            BlockPos soil = context.getAbsolutePos(new BlockPos(2, 1, 2));
+            world.setBlockState(soil, Blocks.GRASS_BLOCK.getDefaultState());
+            planted.add(soil);
+
+            // Полог: листва в шести блоках над землёй, как в джунглях.
+            for (int y = 7; y <= 9; y++) {
+                BlockPos leaf = context.getAbsolutePos(new BlockPos(2, y, 2));
+                world.setBlockState(leaf, Blocks.JUNGLE_LEAVES.getDefaultState());
+                planted.add(leaf);
+            }
+
+            BlockPos found = Ground.buildableAt(world, soil.getX(), soil.getZ()).orElse(null);
+            if (found == null) {
+                context.throwGameTestException("Под пологом земля не нашлась вовсе — "
+                        + "деревня в лесу не встанет никогда");
+                return;
+            }
+            if (found.getY() != soil.getY() + 1) {
+                context.throwGameTestException("Землёй сочтено " + found.toShortString()
+                        + " вместо клетки над дёрном " + soil.up().toShortString());
+            }
+
+            // А в стволе строить нельзя: там нет ни воздуха, ни опоры.
+            BlockPos trunk = context.getAbsolutePos(new BlockPos(4, 1, 4));
+            world.setBlockState(trunk, Blocks.GRASS_BLOCK.getDefaultState());
+            planted.add(trunk);
+            for (int y = 2; y <= 6; y++) {
+                BlockPos log = context.getAbsolutePos(new BlockPos(4, y, 4));
+                world.setBlockState(log, Blocks.JUNGLE_LOG.getDefaultState());
+                planted.add(log);
+            }
+            BlockPos onTrunk = Ground.buildableAt(world, trunk.getX(), trunk.getZ())
+                    .orElse(null);
+            if (onTrunk != null && onTrunk.getY() > trunk.getY()) {
+                context.throwGameTestException("В стволе дерева нашлась «земля» выше дёрна: "
+                        + onTrunk.toShortString() + ", там "
+                        + world.getBlockState(onTrunk.down()).getBlock());
+            }
+        } finally {
+            for (BlockPos at : planted) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Деревня встаёт под пологом леса и строит по земле, а не по кронам.
+     * <p>
+     * Это и есть та жалоба целиком: «деревни всё ещё не ищутся». Поиск
+     * звал игрока по координатам, тот приходил, стоял полминуты — и видел
+     * пустое место. Причина была в двух разных ответах на вопрос «где
+     * тут земля»: поиск считал по рельефу без деревьев, а деревня искала
+     * опору по карте высот мира, куда входит листва. Под пологом джунглей
+     * опоры не находилось ни в одной колонне, и деревня молча отказывалась
+     * вставать.
+     * <p>
+     * Проверяется на настоящем пологе: поляна с листвой в шести блоках
+     * над землёй. Деревня обязана встать и разметить здания <b>у земли</b>.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "fire")
+    public void villageRisesUnderTheCanopy(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+
+        try {
+            for (int x = -20; x <= 20; x++) {
+                for (int z = -20; z <= 20; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+
+                    // Полог: сплошная листва в шести блоках над землёй.
+                    BlockPos leaf = context.getAbsolutePos(new BlockPos(x, 15, z));
+                    world.setBlockState(leaf, Blocks.JUNGLE_LEAVES.getDefaultState());
+                    meadow.add(leaf);
+                }
+            }
+
+            village = Villages.found(world, MAYA, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Под пологом деревня не встала — "
+                        + "ровно то, на что жаловался игрок. Помеха="
+                        + whoBlocks(manager, centre));
+                return;
+            }
+
+            int ground = centre.getY();
+            for (Building building : village.buildings()) {
+                int high = building.anchor().getY() - ground;
+                if (high > 2) {
+                    context.throwGameTestException("Здание " + building.type()
+                            + " размечено на " + high + " блоков выше земли — это крона");
+                }
+            }
+            if (village.buildings().size() < 3) {
+                context.throwGameTestException("Под пологом встала неполная деревня: зданий "
+                        + village.buildings().size());
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
     /**
      * Убрать деревню за собой начисто — включая память о месте.
      * <p>
@@ -7135,15 +7422,23 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Дом второго уровня не достроился");
             }
 
-            BlockPos hearth = BuildJob.worldPos(house, bigger.size(), new BlockPos(2, 1, 2));
-            BlockState fire = world.getBlockState(hearth);
+            // Очаг ищется в схеме, а не помнится координатой: он уже
+            // переезжал — из середины комнаты в угол, после того как
+            // на нём сгорел житель.
+            BlockPos hearth = hearthOf(bigger, house);
+            BlockState fire = hearth == null
+                    ? Blocks.AIR.getDefaultState() : world.getBlockState(hearth);
             if (!fire.isOf(Blocks.CAMPFIRE) || !fire.get(CampfireBlock.LIT)) {
                 context.throwGameTestException("Очага в доме нет или он потушен: "
                         + fire.getBlock());
             }
 
-            for (int y = 3; y < bigger.size().getY(); y++) {
-                BlockPos flue = BuildJob.worldPos(house, bigger.size(), new BlockPos(2, y, 2));
+            // Дымоход идёт над очагом, где бы тот ни стоял.
+            BlockPos above = hearth == null ? null
+                    : BuildJob.worldPos(house, bigger.size(), new BlockPos(0, 0, 0));
+            for (int y = 3; hearth != null && y < bigger.size().getY(); y++) {
+                BlockPos flue = new BlockPos(hearth.getX(),
+                        above.getY() + y, hearth.getZ());
                 if (!world.getBlockState(flue).isAir()) {
                     context.throwGameTestException("Дымоход закрыт на высоте " + y + ": там "
                             + world.getBlockState(flue).getBlock());

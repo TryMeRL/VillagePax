@@ -2,7 +2,9 @@ package com.villagepax.sim.build;
 
 import com.villagepax.VillagePax;
 import com.villagepax.sim.BuildProgress;
+import com.villagepax.entity.CitizenEntity;
 import com.villagepax.sim.Building;
+import com.villagepax.sim.Hazards;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
@@ -20,6 +22,8 @@ import net.minecraft.item.Items;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.registry.Registries;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.Vec3i;
@@ -246,7 +250,7 @@ public final class BuildJob {
             if (result == StepResult.BLOCKED) {
                 return Outcome.WAITING_FOR_MATERIALS;
             }
-            if (result == StepResult.TOO_FAR) {
+            if (result == StepResult.TOO_FAR || result == StepResult.OCCUPIED) {
                 // Пусть билдер перейдёт. Если он уже успел поработать —
                 // это обычное продвижение, а не простой.
                 return worked > 0 ? Outcome.ADVANCED : Outcome.OUT_OF_REACH;
@@ -286,7 +290,48 @@ public final class BuildJob {
          * пустых позиций расчистки, и вся выгода от «шагать к участку»
          * пропала бы.
          */
-        TOO_FAR
+        TOO_FAR,
+
+        /**
+         * В клетке кто-то стоит. Обрабатывается как «слишком далеко»:
+         * билдер отойдёт, и следующим решением шаг повторится.
+         */
+        OCCUPIED
+    }
+
+    /**
+     * Освободить клетку от живых, прежде чем что-то в неё ставить.
+     * <p>
+     * Написано по следам смерти строителя. Ставить блок в того, кто в этой
+     * клетке стоит, нельзя никогда, но с костром это ещё и смертельно:
+     * житель оказывается <b>внутри огня</b> и не может выйти — из огненного
+     * узла ваниль не строит пути вовсе.
+     * <p>
+     * Своих жителей отодвигают всегда: стоять в стене им незачем.
+     * А <b>ждёт</b> стройка только опасного — костра, огня, лавы. Ждать
+     * ради обычной стены нельзя: клетка может не освободиться никогда
+     * (житель зажат в углу, игрок смотрит на стройку), и дом не
+     * достроится вовсе. Обычный блок ваниль вытолкнет сама, а костёр
+     * убил бы.
+     *
+     * @return можно ли ставить
+     */
+    private static boolean makeRoomFor(ServerWorld world, BlockPos where, BlockState laid) {
+        if (laid.getCollisionShape(world, where).isEmpty() && !Hazards.hurts(laid)) {
+            return true;
+        }
+
+        Box cell = new Box(where);
+        for (CitizenEntity citizen : world.getEntitiesByClass(CitizenEntity.class, cell,
+                alive -> true)) {
+            citizen.stepAsideFrom(where);
+        }
+
+        if (!Hazards.hurts(laid)) {
+            return true;
+        }
+        return world.getEntitiesByClass(LivingEntity.class, cell,
+                alive -> !alive.isSpectator()).isEmpty();
     }
 
     private static StepResult perform(ServerWorld world, Settlement settlement, Warehouse warehouse,
@@ -362,6 +407,15 @@ public final class BuildJob {
         // уничтожила бы себя досчётом.
         BlockState settled = Block.postProcessState(planned, world, where);
         BlockState laid = settled.isAir() ? planned : settled;
+
+        if (!makeRoomFor(world, where, laid)) {
+            // Материал уже взят со склада — вернём: иначе он пропал бы,
+            // а шаг всё равно повторится следующим решением.
+            material.ifPresent(item -> Warehouse.of(world, settlement)
+                    .addOrScatter(world, where, new ItemStack(item, 1)));
+            return StepResult.OCCUPIED;
+        }
+
         world.setBlockState(where, laid, Block.NOTIFY_ALL);
         Sounds.placed(world, where, laid);
         return StepResult.WORKED;

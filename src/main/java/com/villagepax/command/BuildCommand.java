@@ -16,6 +16,7 @@ import com.villagepax.sim.work.Jobs;
 import com.villagepax.sim.Settlement;
 import java.util.ArrayList;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.Ground;
 import com.villagepax.sim.VillageSites;
 import com.villagepax.sim.VillageSites;
 import com.villagepax.sim.Warehouse;
@@ -86,6 +87,7 @@ public final class BuildCommand {
                                                 .suggestIdentifiers(ProfessionManager.ids(), builder))
                                         .executes(BuildCommand::hire)))
                         .then(literal("locate").executes(BuildCommand::locate))
+                        .then(literal("sites").executes(BuildCommand::sites))
                         .then(literal("status").executes(BuildCommand::status))
                         .then(literal("config").executes(BuildCommand::reloadConfig))));
     }
@@ -239,7 +241,7 @@ public final class BuildCommand {
      */
     private static int locate(CommandContext<ServerCommandSource> context) {
         ServerCommandSource source = context.getSource();
-        ServerWorld world = source.getWorld();
+        ServerWorld world = worldOf(source);
         BlockPos from = BlockPos.ofFloored(source.getPosition());
 
         VillageSites.Guess nearest = VillageSites.guessNearest(world, from);
@@ -265,6 +267,78 @@ public final class BuildCommand {
         List<String> wanted = new ArrayList<>();
         CultureManager.all().values().forEach(culture -> wanted.add(culture.spawn().biomes()));
         return String.join(", ", wanted);
+    }
+
+    /**
+     * Мир источника команды.
+     * <p>
+     * У консольного источника мира может не быть вовсе: команды с консоли
+     * попадают в очередь ещё до того, как сервер создал миры, и источник
+     * у них построен с пустым миром. Игрок такого не увидит никогда, но
+     * падать с исключением из-за этого нельзя — да и разбирать поиск
+     * деревень с консоли иначе невозможно.
+     */
+    private static ServerWorld worldOf(ServerCommandSource source) {
+        ServerWorld world = source.getWorld();
+        return world != null ? world : source.getServer().getOverworld();
+    }
+
+    /**
+     * Разбор мест под деревни: почему тут пусто.
+     * <p>
+     * Написана после того, как игрок пришёл по указанным координатам
+     * и не увидел ничего. Причина была в одной строке — землю искали
+     * по карте высот мира, а она считает поверхностью верхушку листвы, —
+     * но чтобы её найти, пришлось читать лог игрока. Такой команде место
+     * в моде: она отвечает на вопрос «почему деревни нет» за один вызов.
+     * <p>
+     * Показывает по каждому ближайшему месту: чей народ, где, загружен ли
+     * чанк, тот ли биом, нашлась ли земля и не занято ли место.
+     */
+    private static int sites(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource source = context.getSource();
+        ServerWorld world = worldOf(source);
+        BlockPos from = BlockPos.ofFloored(source.getPosition());
+        SettlementManager manager = SettlementManager.get(world);
+
+        VillageSites.Guess nearest = VillageSites.guessNearest(world, from);
+        source.sendFeedback(() -> Text.literal("Ближайшее место по сетке: "
+                + (nearest == null ? "нет в шести клетках"
+                        : nearest.culture() + " " + nearest.where().toShortString())), false);
+
+        for (Map.Entry<Identifier, Culture> entry : CultureManager.all().entrySet()) {
+            BlockPos column = VillageSites.plannedSite(world, entry.getKey(), entry.getValue(),
+                    Math.floorDiv(from.getX() >> 4, VillageSites.spacing(entry.getValue())),
+                    Math.floorDiv(from.getZ() >> 4, VillageSites.spacing(entry.getValue())));
+
+            String about;
+            if (column == null) {
+                about = "в этой клетке места нет (биом или высота)";
+            } else {
+                boolean loaded = world.isChunkLoaded(column);
+                BlockPos ground = loaded
+                        ? Ground.buildableAt(world, column.getX(), column.getZ()).orElse(null)
+                        : null;
+                // Карта высот показывается рядом с землёй намеренно: их
+                // расхождение и есть та ошибка, из-за которой деревни
+                // не появлялись. Под пологом леса эти числа расходятся,
+                // и это видно сразу.
+                int heightmap = loaded
+                        ? world.getTopY(net.minecraft.world.Heightmap.Type.WORLD_SURFACE,
+                                column.getX(), column.getZ())
+                        : -1;
+                about = column.toShortString()
+                        + ", чанк " + (loaded ? "загружен" : "не загружен")
+                        + ", земля " + (ground == null ? "не найдена" : "на " + ground.getY())
+                        + ", карта высот " + heightmap
+                        + ", занято " + manager.isSettled(column);
+            }
+
+            String line = entry.getKey() + ": " + about;
+            source.sendFeedback(() -> Text.literal(line), false);
+        }
+
+        return 1;
     }
 
     private static int status(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {

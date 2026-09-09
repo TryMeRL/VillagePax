@@ -3,6 +3,8 @@ package com.villagepax.sim.work;
 import com.villagepax.VillagePax;
 import com.villagepax.core.culture.Traits;
 import com.villagepax.sim.Building;
+import com.villagepax.sim.Hazards;
+import com.villagepax.sim.Hazards;
 import com.villagepax.sim.Levels;
 import com.villagepax.sim.Sounds;
 import com.villagepax.sim.build.BuildJob;
@@ -446,11 +448,18 @@ public final class BuilderJob implements Job {
         return null;
     }
 
-    /** Ноги на твёрдом, голова в пустоте — и то и другое обязательно. */
+    /**
+     * Ноги на твёрдом, голова в пустоте, и <b>ничего не жжётся</b>.
+     * <p>
+     * Про огонь пришлось добавить после смерти строителя на очаге. Место
+     * работы выбирает стратегия, и если она назовёт клетку с костром,
+     * житель туда пойдёт: он слушается стратегию, а не здравый смысл.
+     */
     private static boolean canStandAt(ServerWorld world, BlockPos spot) {
         return world.getBlockState(spot.down()).isSolidBlock(world, spot.down())
                 && world.getBlockState(spot).getCollisionShape(world, spot).isEmpty()
-                && world.getBlockState(spot.up()).getCollisionShape(world, spot.up()).isEmpty();
+                && world.getBlockState(spot.up()).getCollisionShape(world, spot.up()).isEmpty()
+                && !Hazards.standingHurts(world, spot);
     }
 
     private static boolean footprintContains(Building site, BlockPos pos) {

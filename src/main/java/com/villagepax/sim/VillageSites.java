@@ -108,6 +108,13 @@ public final class VillageSites {
             int cellX = Math.floorDiv(new ChunkPos(from).x, spacing);
             int cellZ = Math.floorDiv(new ChunkPos(from).z, spacing);
 
+            // Своя находка на каждый народ. Общая обрывала поиск второму
+            // народу на первом же кольце, если первый уже что-то нашёл, —
+            // и норманны переставали находиться, стоило майя попасться
+            // хоть где-то в пределах четырёх с половиной тысяч блоков.
+            Guess mine = null;
+            double mineAway = Double.MAX_VALUE;
+
             for (int ring = 0; ring <= SEARCH_CELLS; ring++) {
                 for (int dx = -ring; dx <= ring; dx++) {
                     for (int dz = -ring; dz <= ring; dz++) {
@@ -123,18 +130,23 @@ public final class VillageSites {
 
                         double away = where.getSquaredDistance(from.getX(), where.getY(),
                                 from.getZ());
-                        if (away < bestAway) {
-                            bestAway = away;
-                            best = new Guess(entry.getKey(), where);
+                        if (away < mineAway) {
+                            mineAway = away;
+                            mine = new Guess(entry.getKey(), where);
                         }
                     }
                 }
 
-                // Нашли в этом кольце — дальше не ищем: следующее кольцо
-                // заведомо дальше по расстоянию.
-                if (best != null) {
+                // Нашли в этом кольце — дальше по этому народу не ищем:
+                // следующее кольцо заведомо дальше.
+                if (mine != null) {
                     break;
                 }
+            }
+
+            if (mine != null && mineAway < bestAway) {
+                bestAway = mineAway;
+                best = mine;
             }
         }
         return best;
@@ -230,9 +242,8 @@ public final class VillageSites {
             return Optional.empty();
         }
 
-        BlockPos surface = new BlockPos(column.getX(),
-                world.getTopY(Heightmap.Type.WORLD_SURFACE, column.getX(), column.getZ()),
-                column.getZ());
+        BlockPos surface = Ground.buildableAt(world, column.getX(), column.getZ())
+                .orElse(new BlockPos(column.getX(), world.getSeaLevel(), column.getZ()));
 
         if (!matchesBiome(world, surface, culture)) {
             return Optional.empty();
@@ -242,6 +253,11 @@ public final class VillageSites {
         // валун или высокая трава ровно на середине клетки — не повод
         // отменить деревню: поиск уже привёл сюда игрока, и «пришёл,
         // а тут ничего» было бы обманом.
+        //
+        // Землю ищет {@link Ground}, а не карта высот мира. Карта высот
+        // считает верхушку листвы поверхностью, и под пологом джунглей
+        // опоры не находилось ни в одной из двухсот восьмидесяти девяти
+        // колонн: деревня майя не могла встать нигде.
         for (int radius = 0; radius <= NUDGE; radius++) {
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dz = -radius; dz <= radius; dz++) {
@@ -250,15 +266,10 @@ public final class VillageSites {
                     }
 
                     BlockPos nearby = column.add(dx, 0, dz);
-                    if (!world.isChunkLoaded(nearby)) {
-                        continue;
-                    }
-                    BlockPos stand = new BlockPos(nearby.getX(),
-                            world.getTopY(Heightmap.Type.WORLD_SURFACE, nearby.getX(),
-                                    nearby.getZ()),
+                    Optional<BlockPos> stand = Ground.buildableAt(world, nearby.getX(),
                             nearby.getZ());
-                    if (ColonyFounder.isBuildable(world, stand)) {
-                        return Optional.of(stand);
+                    if (stand.isPresent()) {
+                        return stand;
                     }
                 }
             }

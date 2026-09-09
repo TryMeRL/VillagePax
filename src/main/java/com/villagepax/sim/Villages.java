@@ -26,7 +26,6 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.Vec3i;
-import net.minecraft.world.Heightmap;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -369,13 +368,14 @@ public final class Villages {
         return spots;
     }
 
+    /**
+     * Земля под колонной — та, на которой можно строить.
+     * <p>
+     * Не карта высот мира: она считает поверхностью верхушку листвы, и
+     * деревня в лесу размечала бы дома по кронам деревьев.
+     */
     private static BlockPos surface(ServerWorld world, BlockPos column) {
-        if (!world.isChunkLoaded(column)) {
-            return null;
-        }
-        return new BlockPos(column.getX(),
-                world.getTopY(Heightmap.Type.WORLD_SURFACE, column.getX(), column.getZ()),
-                column.getZ());
+        return Ground.buildableAt(world, column.getX(), column.getZ()).orElse(null);
     }
 
     /**

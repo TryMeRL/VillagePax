@@ -2,6 +2,7 @@ package com.villagepax.sim.build;
 
 import com.villagepax.sim.Building;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.CropBlock;
 import net.minecraft.item.Item;
 import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
@@ -32,6 +33,16 @@ public final class Materials {
      * бессмысленно, а схема с настенным факелом иначе встала бы навсегда.
      */
     public static Optional<Item> itemFor(BlockState state) {
+        if (state.getBlock() instanceof CropBlock) {
+            // Посев приходит вместе с постройкой — это записанное решение
+            // заказчика, и без этой оговорки оно не работало: у морковной
+            // грядки предмет всё-таки есть (морковь — AliasedBlockItem
+            // блока carrots), и ферма требовала со склада сорок семь
+            // морковок, которых у новой колонии взяться негде. Построить
+            // ферму, чтобы получить морковь, можно было только имея морковь.
+            return Optional.empty();
+        }
+
         Item item = state.getBlock().asItem();
         return item == Items.AIR ? Optional.empty() : Optional.of(item);
     }

@@ -1,6 +1,41 @@
 {
-  "parent": "minecraft:block/cross",
+  "parent": "minecraft:block/block",
   "textures": {
-    "cross": "villagepax:block/laundry"
-  }
+    "cloth": "villagepax:block/laundry",
+    "particle": "villagepax:block/laundry"
+  },
+  "elements": [
+    {
+      "from": [
+        1,
+        0,
+        7
+      ],
+      "to": [
+        15,
+        16,
+        9
+      ],
+      "faces": {
+        "north": {
+          "texture": "#cloth"
+        },
+        "south": {
+          "texture": "#cloth"
+        },
+        "east": {
+          "texture": "#cloth"
+        },
+        "west": {
+          "texture": "#cloth"
+        },
+        "up": {
+          "texture": "#cloth"
+        },
+        "down": {
+          "texture": "#cloth"
+        }
+      }
+    }
+  ]
 }

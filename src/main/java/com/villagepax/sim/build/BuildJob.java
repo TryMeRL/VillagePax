@@ -9,6 +9,7 @@ import com.villagepax.sim.Settlement;
 import com.villagepax.sim.Sounds;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Warehouse;
+import com.villagepax.sim.work.Crafting;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -335,7 +336,8 @@ public final class BuildJob {
 
         boolean nearStorage = storageIsNearby(warehouse, building);
         Optional<Item> material = Materials.itemFor(planned);
-        if (material.isPresent() && !takeMaterial(warehouse, building, material.get(), nearStorage)) {
+        if (material.isPresent()
+                && !takeMaterial(world, warehouse, building, material.get(), nearStorage)) {
             return StepResult.BLOCKED;
         }
 
@@ -392,12 +394,21 @@ public final class BuildJob {
      * Откуда билдер берёт материал: сначала из того, что курьер сложил
      * у стройки, и только потом со склада — если тот под боком.
      */
-    private static boolean takeMaterial(Warehouse warehouse, Building building, Item item,
-                                        boolean nearStorage) {
+    private static boolean takeMaterial(ServerWorld world, Warehouse warehouse, Building building,
+                                        Item item, boolean nearStorage) {
         if (building.stock().take(Registries.ITEM.getId(item), 1)) {
             return true;
         }
-        return nearStorage && warehouse.take(item, 1);
+        if (!nearStorage) {
+            return false;
+        }
+        if (warehouse.take(item, 1)) {
+            return true;
+        }
+        // Нет — так сделаем. Колония умеет ровно то, что умеет игрок
+        // за верстаком, и требовать от него принести фахверк руками
+        // незачем.
+        return Crafting.make(world, warehouse, item) && warehouse.take(item, 1);
     }
 
     public static boolean storageIsNearby(Warehouse warehouse, Building building) {

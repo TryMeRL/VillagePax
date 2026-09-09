@@ -4244,6 +4244,124 @@ public class VillagePaxGameTests implements FabricGameTest {
         context.complete();
     }
 
+    // --- колония делает то, чего у неё нет ---
+
+    /**
+     * Ферму можно построить, не имея моркови.
+     * <p>
+     * Игрок сообщил: «они требуют пашни, а собрать их нельзя». Пашня
+     * и правда бесплатна — у неё нет предмета, — а вот у морковной грядки
+     * предмет есть: морковь. Ферма требовала со склада сорок семь морковок,
+     * которых у новой колонии взяться негде. Построить ферму, чтобы
+     * получить морковь, можно было только имея морковь.
+     * <p>
+     * Записанное решение заказчика гласит, что первый посев приходит
+     * вместе с постройкой, — и теперь оно наконец выполняется.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "craft")
+    public void farmCostsNoSeedToBuild(TestContext context) {
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+        Map<Item, Integer> bill = Materials.required(farmPlan);
+
+        if (bill.containsKey(Items.CARROT)) {
+            context.throwGameTestException("Ферма всё ещё требует морковь: "
+                    + bill.get(Items.CARROT) + " штук. Построить ферму, чтобы получить "
+                    + "морковь, можно было бы только имея морковь");
+        }
+        for (Item asked : bill.keySet()) {
+            if (asked == Items.AIR) {
+                context.throwGameTestException("В заявке оказался воздух");
+            }
+        }
+
+        // Но грядки на поле всё-таки есть: посев приходит со схемой,
+        // а не отменяется вовсе.
+        long crops = farmPlan.plan().steps().stream()
+                .filter(BuildStep::placesBlock)
+                .filter(step -> farmPlan.blockAt(step.paletteIndex()).getBlock()
+                        instanceof CropBlock)
+                .count();
+        if (crops == 0) {
+            context.throwGameTestException("На ферме не осталось ни одной грядки");
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Колония сама делает фахверк, доски, ступени и стёкла.
+     * <p>
+     * Просьба игрока. Без крафта схема дома требовала фахверк, ступени,
+     * доски, кровати и стёкла, а колония не умела ничего из этого: всё
+     * это игрок обязан был скрафтить руками и принести в сундук, иначе
+     * стройка стояла. Деревня из шести домов превращалась в двести
+     * походов к верстаку.
+     * <p>
+     * На склад завозится только <b>сырьё</b>: брёвна, глина, песок,
+     * булыжник, стекло и шерсть. Ни одной доски, ни одной ступени, ни
+     * одного фахверка. Дом обязан встать целиком.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "craft")
+    public void colonyCraftsWhatTheHouseNeeds(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            Warehouse warehouse = Warehouse.of(world, colony);
+            raw(world, warehouse, hall, Items.DARK_OAK_LOG, 128);
+            raw(world, warehouse, hall, Items.COBBLESTONE, 64);
+            raw(world, warehouse, hall, Items.CLAY_BALL, 64);
+            raw(world, warehouse, hall, Items.SAND, 64);
+            raw(world, warehouse, hall, Items.GLASS, 16);
+            // Шерсть красная, а не белая: ванильной красной кровати нужна
+            // именно красная шерсть, а перекрасить белую колония не может —
+            // на это нужен краситель, а он растёт в поле, не на складе.
+            raw(world, warehouse, hall, Items.RED_WOOL, 32);
+
+            // Проверка посылки: готового в завозе нет.
+            Warehouse stocked = Warehouse.of(world, colony);
+            for (Item ready : List.of(Items.DARK_OAK_PLANKS, Items.DARK_OAK_STAIRS,
+                    Items.GLASS_PANE, Items.RED_BED, ModBlocks.TIMBER_FRAME.asItem())) {
+                if (stocked.count(ready) > 0) {
+                    context.throwGameTestException("Посылка теста не выполнена: на складе "
+                            + "уже лежит готовое — " + ready);
+                }
+            }
+
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Дом не встал из сырья: шаг " + site.nextStep()
+                        + " из " + housePlan.plan().steps().size() + ", не хватает "
+                        + Materials.shortfall(housePlan, site, 200));
+            }
+        } finally {
+            demolish(world, site, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Завезти сырьё на склад стопками: ручной завоз в один вызов. */
+    private static void raw(ServerWorld world, Warehouse warehouse, BlockPos where,
+                            Item item, int count) {
+        int left = count;
+        while (left > 0) {
+            int chunk = Math.min(left, item.getMaxCount());
+            warehouse.addOrScatter(world, where, new ItemStack(item, chunk));
+            left -= chunk;
+        }
+    }
+
     // --- носильщик со слотами ---
 
     /** Далеко от склада: билдер сам до сундука не дотянется. */

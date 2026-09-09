@@ -223,10 +223,27 @@ public final class Hauling {
                 .orElse(ItemStack.EMPTY));
     }
 
-    /** Что нести: первое из нужного площадке, чего на складе действительно есть. */
+    /**
+     * Что нести: первое из нужного площадке, чего на складе действительно
+     * есть — а если нет ничего, то первое, что колония может <b>сделать</b>.
+     * <p>
+     * Крафт здесь, а не отдельным делом, намеренно: он нужен ровно в тот
+     * миг, когда носильщику нечего взять. Без него стройка вставала на
+     * фахверке и стёклах, а игроку оставалось крафтить их руками и носить
+     * в сундук — деревня из шести домов превращалась в двести походов
+     * к верстаку.
+     */
     public static Optional<Request> wanted(WorkContext context, Building site) {
-        for (Map.Entry<Item, Integer> entry : shortfall(context, site).entrySet()) {
+        Map<Item, Integer> shortfall = shortfall(context, site);
+
+        for (Map.Entry<Item, Integer> entry : shortfall.entrySet()) {
             if (context.warehouse().has(entry.getKey(), 1)) {
+                return Optional.of(new Request(entry.getKey(), entry.getValue()));
+            }
+        }
+
+        for (Map.Entry<Item, Integer> entry : shortfall.entrySet()) {
+            if (Crafting.make(context.world(), context.warehouse(), entry.getKey())) {
                 return Optional.of(new Request(entry.getKey(), entry.getValue()));
             }
         }

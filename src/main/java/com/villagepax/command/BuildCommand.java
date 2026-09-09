@@ -20,6 +20,8 @@ import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
+import com.villagepax.core.config.Config;
+import com.villagepax.core.config.Configs;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.argument.IdentifierArgumentType;
@@ -80,7 +82,8 @@ public final class BuildCommand {
                                         .suggests((context, builder) -> CommandSource
                                                 .suggestIdentifiers(ProfessionManager.ids(), builder))
                                         .executes(BuildCommand::hire)))
-                        .then(literal("status").executes(BuildCommand::status))));
+                        .then(literal("status").executes(BuildCommand::status))
+                        .then(literal("config").executes(BuildCommand::reloadConfig))));
     }
 
     private static int build(CommandContext<ServerCommandSource> context, BlockRotation rotation)
@@ -261,6 +264,24 @@ public final class BuildCommand {
             tell(context, "У тебя нет колонии. Поставь ратушу чертежом.");
         }
         return colony;
+    }
+
+    /**
+     * Перечитать настройки, не перезаходя в мир.
+     * <p>
+     * Правка файла без перезапуска — то, чего игрок ждёт от настроек в первую
+     * очередь. Читает командный поток, а держит значение {@code volatile}
+     * поле: иного общего изменяемого состояния в моде нет, и это названо
+     * прямо в {@code Configs}.
+     */
+    private static int reloadConfig(CommandContext<ServerCommandSource> context) {
+        Config config = Configs.load();
+        tell(context, "Настройки перечитаны: деревни народов "
+                + (config.autonomousVillages() ? "есть" : "выключены")
+                + ", предел жителей x" + config.populationScale()
+                + ", голод " + config.hungerWarnDays() + "/" + config.hungerLeaveDays()
+                + " дней. Файл: " + Configs.path());
+        return 1;
     }
 
     private static void tell(CommandContext<ServerCommandSource> context, String message) {

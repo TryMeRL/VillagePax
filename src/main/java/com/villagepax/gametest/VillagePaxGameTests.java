@@ -50,6 +50,11 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
 import com.villagepax.core.ModTags;
+import com.villagepax.core.config.Config;
+import com.villagepax.core.config.Configs;
+import com.villagepax.screen.ColonyNet;
+import com.villagepax.sim.build.Roads;
+import com.villagepax.sim.work.Needs;
 import com.villagepax.core.quest.Quest;
 import net.minecraft.inventory.SimpleInventory;
 import com.villagepax.core.quest.QuestManager;
@@ -1942,7 +1947,7 @@ public class VillagePaxGameTests implements FabricGameTest {
 
             for (int day = 0; day < 10 && colony.population() > 0; day++) {
                 Needs.newDay(world, manager, colony);
-                if (colony.population() > 0 && victim.discontent() == Needs.WARN_AFTER_DAYS) {
+                if (colony.population() > 0 && victim.discontent() == Needs.warnAfterDays()) {
                     sawWarning = true;
                 }
             }
@@ -4201,6 +4206,95 @@ public class VillagePaxGameTests implements FabricGameTest {
         context.complete();
     }
 
+    // --- задача 1.14: настройки ---
+
+    /**
+     * Выключатель в настройках действительно выключает.
+     * <p>
+     * Приёмка задачи. План называл смертность, но её в моде нет — жители
+     * бессмертны по решению заказчика, — поэтому проверяется то же самое
+     * на том, что есть: подписи, предел жителей, запас на улицы и сроки
+     * голода. Настройка, которая ничего не меняет, хуже отсутствующей:
+     * она обещает то, чего не будет.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "config")
+    public void configSwitchesActuallySwitch(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building house = plan(colony, context.getAbsolutePos(new BlockPos(0, 8, 0)),
+                HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            Citizen worker = hireWithBody(world, colony, BuildJob.BUILDER, hall.up());
+            CitizenEntity body = (CitizenEntity) world.getEntity(worker.entityUuid().orElseThrow());
+
+            // По умолчанию: подпись есть, подпись здания есть.
+            WorkTicker.decide(world, manager, colony, worker, Schedule.MORNING_WORK);
+            if (body.getCustomName() == null) {
+                context.throwGameTestException("По умолчанию подписи над жителем нет");
+            }
+            if (ColonyNet.mapOf(colony).signs().isEmpty()) {
+                context.throwGameTestException("По умолчанию подписей над зданиями нет");
+            }
+
+            int roomByDefault = colony.maxCitizens();
+
+            // Выключаем всё, что выключается.
+            Configs.override(new Config(false, 48, 2.0,
+                    Config.DEFAULT.hungerWarnDays(), 30,
+                    Config.DEFAULT.villageTradePerDay(), 8, 3,
+                    false, false));
+
+            WorkTicker.decide(world, manager, colony, worker, Schedule.MORNING_WORK);
+            if (body.getCustomName() != null || body.isCustomNameVisible()) {
+                context.throwGameTestException("Подпись над жителем выключена, но висит: "
+                        + body.getCustomName());
+            }
+            if (!ColonyNet.mapOf(colony).signs().isEmpty()) {
+                context.throwGameTestException("Подписи над зданиями выключены, но едут клиенту");
+            }
+            if (colony.maxCitizens() != roomByDefault * 2) {
+                context.throwGameTestException("Множитель населения не подействовал: было "
+                        + roomByDefault + ", стало " + colony.maxCitizens());
+            }
+            if (Roads.reserve() != 8) {
+                context.throwGameTestException("Запас на улицы не из настроек: " + Roads.reserve());
+            }
+            if (Needs.leaveAfterDays() != 30) {
+                context.throwGameTestException("Срок ухода не из настроек: "
+                        + Needs.leaveAfterDays());
+            }
+            if (WorkTicker.ticksPerDecision() != 3) {
+                context.throwGameTestException("Темп решений не из настроек: "
+                        + WorkTicker.ticksPerDecision());
+            }
+            if (Villages.tradePerDay() != Config.DEFAULT.villageTradePerDay()) {
+                // Это поле мы не меняли — проверяем, что чтение настроек
+                // не перепутало соседние значения местами.
+                context.throwGameTestException("Привоз деревням поехал вместе с чужой настройкой");
+            }
+
+            // И обратно: подпись возвращается, а не остаётся снятой.
+            Configs.override(Config.DEFAULT);
+            WorkTicker.decide(world, manager, colony, worker, Schedule.MORNING_WORK);
+            if (body.getCustomName() == null) {
+                context.throwGameTestException("Подпись не вернулась после включения");
+            }
+        } finally {
+            Configs.override(Config.DEFAULT);
+            SchematicLoader.get(BuildJob.schematicId(house))
+                    .ifPresent(schematic -> demolish(world, house, schematic));
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
     // --- задача 1.13: квесты и репутация ---
 
     private static final Identifier FOUNDING_1 = new Identifier("villagepax", "norman/founding_1");
@@ -5348,7 +5442,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             raiseHouse(context, world, manager, colony, house, housePlan);
 
             ItemStack over = Warehouse.of(world, colony)
-                    .add(new ItemStack(Items.GRAVEL, Roads.RESERVE + 1));
+                    .add(new ItemStack(Items.GRAVEL, Roads.reserve() + 1));
             if (!over.isEmpty()) {
                 context.throwGameTestException("Склад не принял гравий: " + over);
             }
@@ -5363,9 +5457,9 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             int left = Warehouse.of(world, colony).count(Items.GRAVEL);
-            if (left != Roads.RESERVE) {
+            if (left != Roads.reserve()) {
                 context.throwGameTestException("Запас тронут: гравия осталось " + left
-                        + " вместо " + Roads.RESERVE);
+                        + " вместо " + Roads.reserve());
             }
 
             for (int index = 1; index < STREET.length; index++) {

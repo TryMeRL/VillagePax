@@ -1,6 +1,7 @@
 package com.villagepax.sim;
 
 import com.villagepax.VillagePax;
+import com.villagepax.core.config.Configs;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.entity.CitizenSpawner;
@@ -47,7 +48,7 @@ public final class Villages {
     private static final int EVERY = 100;
 
     /**
-     * Сколько материала деревня получает за игровой день.
+     * Сколько материала деревня получает за игровой день — из настроек.
      * <p>
      * Заглушка вместо торговли, и названа заглушкой честно. Деревня не умеет
      * ни крафтить, ни торговать — а без стекла, кроватей и штукатурки её
@@ -55,7 +56,9 @@ public final class Villages {
      * Пока это «привоз со стороны»; в фазе с караванами он станет настоящим
      * обозом, который можно перехватить или защитить.
      */
-    public static final int TRADE_PER_DAY = 64;
+    public static int tradePerDay() {
+        return Configs.get().villageTradePerDay();
+    }
 
     /** Кольца поиска места для нового здания и шаг между ними, в блоках. */
     private static final int PLACE_RINGS = 5;
@@ -75,6 +78,10 @@ public final class Villages {
     }
 
     private static void tick(ServerWorld world) {
+        if (!Configs.get().autonomousVillages()) {
+            // Кому нужна только своя колония, тот выключает деревни целиком.
+            return;
+        }
         if (world.getTime() % EVERY != 0 || CultureManager.all().isEmpty()) {
             return;
         }
@@ -155,7 +162,7 @@ public final class Villages {
      * Привоз со стороны: докладывает на склад то, чего не хватает стройке.
      * <p>
      * Не «дать всего и сразу»: за день привозят не больше
-     * {@link #TRADE_PER_DAY} штук, поэтому дом растёт несколько дней и это
+     * {@link #tradePerDay()} штук, поэтому дом растёт несколько дней и это
      * видно. И только то, что нужно <b>текущей</b> стройке — склад деревни
      * не превращается в бездонный сундук.
      */
@@ -170,7 +177,7 @@ public final class Villages {
         }
 
         Warehouse warehouse = Warehouse.of(world, village);
-        int left = TRADE_PER_DAY;
+        int left = tradePerDay();
 
         // Окно заявки — весь план: привозят под всю стройку, а не под
         // ближайшие шаги. Integer.MAX_VALUE тут нельзя: в shortfall окно

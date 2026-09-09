@@ -1,5 +1,6 @@
 package com.villagepax.sim;
 
+import com.villagepax.core.config.Configs;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import net.minecraft.registry.RegistryKeys;
@@ -80,9 +81,17 @@ public final class VillageSites {
         return found;
     }
 
-    /** Шаг сетки в чанках: из настроек появления культуры. */
+    /**
+     * Шаг сетки в чанках.
+     * <p>
+     * Настройка игрока перебивает культуру: густоту деревень он хочет
+     * решать сам, а датапак говорит, какой она задумана. Ноль в настройке
+     * значит «как задумано».
+     */
     public static int spacing(Culture culture) {
-        return Math.max(MIN_SPACING_CHUNKS, culture.spawn().minDistanceChunks());
+        int wanted = Configs.get().villageSpacingChunks();
+        return Math.max(MIN_SPACING_CHUNKS,
+                wanted > 0 ? wanted : culture.spawn().minDistanceChunks());
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.villagepax.sim;
 
 import com.mojang.serialization.Codec;
+import com.villagepax.core.config.Configs;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Uuids;
@@ -231,8 +232,21 @@ public class Settlement {
         return citizens.size();
     }
 
+    /**
+     * Предел жителей с учётом настройки.
+     * <p>
+     * Множителем, а не числом на уровень: уровней будет больше, и таблица
+     * из четырёх чисел в настройках устарела бы с первым же новым уровнем.
+     * Хотя бы один житель помещается всегда — колония из нуля человек
+     * не колония, а поломка.
+     */
+    public int maxCitizens() {
+        return Math.max(1, (int) Math.round(level.maxCitizens()
+                * Configs.get().populationScale()));
+    }
+
     public boolean hasRoomForCitizen() {
-        return population() < level.maxCitizens();
+        return population() < maxCitizens();
     }
 
     public ChunkPos centerChunk() {

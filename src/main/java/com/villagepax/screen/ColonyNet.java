@@ -2,6 +2,7 @@ package com.villagepax.screen;
 
 import com.mojang.serialization.DataResult;
 import com.villagepax.VillagePax;
+import com.villagepax.core.config.Configs;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
@@ -106,7 +107,11 @@ public final class ColonyNet {
     public static ColonyMap mapOf(Settlement colony) {
         List<ColonyMap.Sign> signs = new ArrayList<>();
 
-        for (Building building : colony.buildings()) {
+        // Подписи выключаются настройкой на сервере, а не у каждого клиента:
+        // решает тот, кто держит мир, и тогда их не приходится присылать
+        // впустую.
+        for (Building building : Configs.get().buildingLabels()
+                ? colony.buildings() : List.<Building>of()) {
             signAt(building).ifPresent(at -> signs.add(new ColonyMap.Sign(
                     building.type(), building.level(), at, building.isOperational())));
         }

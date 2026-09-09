@@ -1,6 +1,7 @@
 package com.villagepax.sim.build;
 
 import com.villagepax.core.ModTags;
+import com.villagepax.core.config.Configs;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.sim.Building;
@@ -61,8 +62,14 @@ public final class Roads {
      * <p>
      * Улица — украшение, а стройка — дело: пока на складе меньше запаса,
      * булыжник и гравий копятся для стен, а житель топчет тропу.
+     * <p>
+     * Число живёт в настройках, а не константой рядом: это из тех величин,
+     * которые игрок захочет крутить, и двух источников правды у неё быть
+     * не должно.
      */
-    public static final int RESERVE = 16;
+    public static int reserve() {
+        return Configs.get().roadReserve();
+    }
 
     /**
      * Насколько круто улица идёт в гору.
@@ -95,7 +102,7 @@ public final class Roads {
                 Block block = Registries.BLOCK.get(id);
                 Item material = block.asItem();
                 if (block != Blocks.AIR && material != Items.AIR
-                        && warehouse.count(material) > RESERVE) {
+                        && warehouse.count(material) > reserve()) {
                     return block;
                 }
             }

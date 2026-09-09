@@ -1,6 +1,7 @@
 package com.villagepax.entity;
 
 import com.villagepax.VillagePax;
+import com.villagepax.core.config.Configs;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.core.quest.QuestManager;
 import com.villagepax.sim.quest.Quests;
@@ -252,7 +253,7 @@ public class CitizenEntity extends PathAwareEntity {
     }
 
     public void applyFrom(Citizen citizen) {
-        label(citizen);
+        label(citizen, Configs.get().citizenLabels());
         setHealth(citizen.health());
     }
 
@@ -269,7 +270,15 @@ public class CitizenEntity extends PathAwareEntity {
      * Повторная установка того же текста ничего не стоит: отслеживаемые
      * данные сравнивают значения, и в сеть уходят только изменения.
      */
-    public void label(Citizen citizen) {
+    public void label(Citizen citizen, boolean visible) {
+        if (!visible) {
+            // Настройкой выключено: подпись снимается, а не просто
+            // не обновляется — иначе она осталась бы висеть до перезахода.
+            setCustomName(null);
+            setCustomNameVisible(false);
+            return;
+        }
+
         Text name = citizen.profession()
                 .flatMap(ProfessionManager::get)
                 .map(profession -> (Text) Text.translatable("villagepax.citizen.label",

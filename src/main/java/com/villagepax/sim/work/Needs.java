@@ -3,6 +3,7 @@ package com.villagepax.sim.work;
 import com.villagepax.VillagePax;
 import com.villagepax.core.ModTags;
 import com.villagepax.entity.CitizenEntity;
+import com.villagepax.core.config.Configs;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
@@ -36,15 +37,21 @@ public final class Needs {
     /** На второй день недовольства житель жалуется, на третий уходит. */
     /**
      * Сроки удвоены после первой игры (решение заказчика): четыре дня
-     * до предупреждения, шесть до уходa.
+     * до предупреждения, шесть до уходa. Числа живут в настройках —
+     * здесь только чтение, чтобы двух источников правды не было.
      * <p>
      * Прежние два и три выглядели разумно на бумаге, но игрок в это время
      * занят стройкой и не смотрит в чат: житель успевал уйти прежде, чем
      * причину заметили. Последствия те же — предупреждение, работа
      * вполсилы, уход навсегда, — но заметить и исправить теперь успеваешь.
      */
-    public static final int WARN_AFTER_DAYS = 4;
-    public static final int LEAVE_AFTER_DAYS = 6;
+    public static int warnAfterDays() {
+        return Configs.get().hungerWarnDays();
+    }
+
+    public static int leaveAfterDays() {
+        return Configs.get().hungerLeaveDays();
+    }
 
     private static final int HAPPINESS_STARVING = 20;
     private static final int HAPPINESS_HUNGRY = 8;
@@ -124,9 +131,9 @@ public final class Needs {
                 citizen.contented();
             }
 
-            if (citizen.discontent() >= LEAVE_AFTER_DAYS) {
+            if (citizen.discontent() >= leaveAfterDays()) {
                 leaving.add(citizen);
-            } else if (citizen.discontent() == WARN_AFTER_DAYS) {
+            } else if (citizen.discontent() == warnAfterDays()) {
                 tell(world, settlement, "villagepax.citizen.hungry", citizen.fullName());
             }
         }

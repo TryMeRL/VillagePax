@@ -2,6 +2,7 @@ package com.villagepax;
 
 import com.villagepax.block.ModBlocks;
 import com.villagepax.block.entity.ModBlockEntities;
+import com.villagepax.core.config.Configs;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.core.quest.QuestManager;
@@ -28,6 +29,9 @@ public class VillagePax implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        // Первым делом: остальное уже смотрит на настройки.
+        Configs.load();
+
         ModBlocks.init();
         ModBlockEntities.init();
         ModItems.registerBlockItems();
@@ -51,6 +55,6 @@ public class VillagePax implements ModInitializer {
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
                 .registerReloadListener(new QuestManager());
 
-        LOGGER.info("Village Pax: инициализация");
+        LOGGER.info("Village Pax: инициализация, настройки в {}", Configs.path());
     }
 }

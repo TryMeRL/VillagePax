@@ -224,7 +224,7 @@ public record TownHallView(
                     !citizen.isHomeless(),
                     citizen.workplace().flatMap(settlement::building).map(Building::type),
                     moodOf(citizen),
-                    citizen.discontent() >= Needs.WARN_AFTER_DAYS));
+                    citizen.discontent() >= Needs.warnAfterDays()));
         }
         return lines;
     }

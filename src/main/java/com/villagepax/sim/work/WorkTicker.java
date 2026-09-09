@@ -1,5 +1,6 @@
 package com.villagepax.sim.work;
 
+import com.villagepax.core.config.Configs;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
@@ -11,7 +12,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 
 /**
- * Стратегический слой ИИ: раз в {@link #TICKS_PER_DECISION} тиков каждый
+ * Стратегический слой ИИ: раз в {@link #ticksPerDecision()} тиков каждый
  * житель решает, что делать дальше — по времени суток и по своим нуждам.
  * <p>
  * Три вещи, на которых держится производительность, и все три взяты из того,
@@ -28,8 +29,14 @@ import net.minecraft.util.math.BlockPos;
  */
 public final class WorkTicker {
 
-    /** Полсекунды между решениями. Дизайн-документ отводит на это 20–100 тиков. */
-    public static final int TICKS_PER_DECISION = 10;
+    /**
+     * Полсекунды между решениями по умолчанию. Дизайн-документ отводит
+     * на это 20–100 тиков, а число живёт в настройках: это первое, чем
+     * игрок будет расплачиваться за размер колонии.
+     */
+    public static int ticksPerDecision() {
+        return Configs.get().ticksPerDecision();
+    }
 
     private WorkTicker() {
     }
@@ -113,7 +120,7 @@ public final class WorkTicker {
         // Подпись над головой — здесь: это единственное место, куда житель
         // с телом заходит регулярно, и потому единственное, где она не
         // может отстать от смены ремесла.
-        body.label(citizen);
+        body.label(citizen, Configs.get().citizenLabels());
 
         if (part != Schedule.SLEEP && body.isSleeping()) {
             body.wakeUp();
@@ -200,7 +207,7 @@ public final class WorkTicker {
     }
 
     private static boolean isSlacking(WorkContext context) {
-        long decision = context.world().getTime() / TICKS_PER_DECISION;
+        long decision = context.world().getTime() / ticksPerDecision();
         return Math.floorMod(decision + context.citizen().id().hashCode(), 2) == 0;
     }
 
@@ -214,7 +221,8 @@ public final class WorkTicker {
     }
 
     private static boolean isItsTurn(long time, Citizen citizen) {
-        int offset = Math.floorMod(citizen.id().hashCode(), TICKS_PER_DECISION);
-        return Math.floorMod(time + offset, TICKS_PER_DECISION) == 0;
+        int tempo = ticksPerDecision();
+        int offset = Math.floorMod(citizen.id().hashCode(), tempo);
+        return Math.floorMod(time + offset, tempo) == 0;
     }
 }

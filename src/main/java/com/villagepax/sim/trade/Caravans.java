@@ -11,6 +11,7 @@ import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Warehouse;
+import com.villagepax.sim.diplomacy.Relations;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
@@ -249,7 +250,19 @@ public final class Caravans {
 
         manager.update(host.id(), state -> state.seeOff(caravanId));
         if (killer != null) {
-            manager.update(guest.home(), home -> home.addReputation(killer, -ROBBERY_COSTS));
+            // Через поступок, а не правкой доверия на месте: об ограблении
+            // узнают и свои пославшей деревни, и её соседи. Для тех, кто
+            // на этот народ косится, чужая беда — не беда: формула эха
+            // разворачивает знак сама.
+            manager.byId(guest.home()).ifPresent(home -> {
+                List<Relations.Shift> shifts =
+                        Relations.deed(manager, home, killer, -ROBBERY_COSTS);
+                ServerPlayerEntity thief = world.getServer().getPlayerManager()
+                        .getPlayer(killer);
+                if (thief != null) {
+                    Relations.tell(thief, shifts);
+                }
+            });
         }
         VillagePax.LOGGER.info("Обоз из {} разграблен у {}", guest.culture(), host.name());
     }

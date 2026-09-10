@@ -47,7 +47,9 @@ public class Settlement {
             Codec.unboundedMap(Uuids.STRING_CODEC, Identifier.CODEC.listOf())
                     .optionalFieldOf("quests_done", Map.of()).forGetter(Settlement::questsDone),
             Caravan.CODEC.listOf().optionalFieldOf("visitors", List.of())
-                    .forGetter(Settlement::visitors)
+                    .forGetter(Settlement::visitors),
+            Codec.unboundedMap(Uuids.STRING_CODEC, Codec.LONG)
+                    .optionalFieldOf("gift_days", Map.of()).forGetter(Settlement::giftDays)
     ).apply(instance, Settlement::new));
 
     private final UUID id;
@@ -90,6 +92,15 @@ public class Settlement {
      */
     private final List<Caravan> visitors;
 
+    /**
+     * В какой день этот игрок последний раз что-то дарил.
+     * <p>
+     * День, а не счётчик: подарок принимают раз в сутки, и хранить
+     * «сколько уже подарено» значило бы обнулять счётчик на смене дня —
+     * то есть помнить день всё равно, только двумя полями вместо одного.
+     */
+    private final Map<UUID, Long> giftDays;
+
     public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
                       SettlementLevel level, SettlementStats stats,
                       List<Building> buildings, List<Citizen> citizens) {
@@ -100,7 +111,7 @@ public class Settlement {
                       SettlementLevel level, SettlementStats stats,
                       List<Building> buildings, List<Citizen> citizens, long lastDay) {
         this(id, culture, owner, name, center, level, stats, buildings, citizens, lastDay,
-                Map.of(), Map.of(), List.of());
+                Map.of(), Map.of(), List.of(), Map.of());
     }
 
     public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
@@ -108,6 +119,15 @@ public class Settlement {
                       List<Building> buildings, List<Citizen> citizens, long lastDay,
                       Map<UUID, Integer> reputation, Map<UUID, List<Identifier>> questsDone,
                       List<Caravan> visitors) {
+        this(id, culture, owner, name, center, level, stats, buildings, citizens, lastDay,
+                reputation, questsDone, visitors, Map.of());
+    }
+
+    public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
+                      SettlementLevel level, SettlementStats stats,
+                      List<Building> buildings, List<Citizen> citizens, long lastDay,
+                      Map<UUID, Integer> reputation, Map<UUID, List<Identifier>> questsDone,
+                      List<Caravan> visitors, Map<UUID, Long> giftDays) {
         this.id = id;
         this.culture = culture;
         this.owner = owner;
@@ -122,6 +142,7 @@ public class Settlement {
         this.questsDone = new LinkedHashMap<>();
         questsDone.forEach((player, quests) -> this.questsDone.put(player, new ArrayList<>(quests)));
         this.visitors = new ArrayList<>(visitors);
+        this.giftDays = new LinkedHashMap<>(giftDays);
     }
 
     // --- гости ---
@@ -281,6 +302,37 @@ public class Settlement {
 
     public void addReputation(UUID player, int amount) {
         reputation.merge(player, amount, Integer::sum);
+    }
+
+    /**
+     * Есть ли у деревни мнение об этом игроке.
+     * <p>
+     * Отличается от «доверие равно нулю»: у только что познакомившегося
+     * игрока ноль, и у незнакомого ноль, а это разные вещи. Первый
+     * считается в среднем счёте народа, второй — нет: подмешивать мнение
+     * деревни, которой игрок в глаза не видел, значило бы наказывать его
+     * за существование деревень, которых он не встречал.
+     */
+    public boolean knows(UUID player) {
+        return reputation.containsKey(player);
+    }
+
+    // --- подарки ---
+
+    public Map<UUID, Long> giftDays() {
+        return Collections.unmodifiableMap(giftDays);
+    }
+
+    /**
+     * В какой день этот игрок дарил здесь последний раз.
+     * {@link #UNSEEN_DAY} — не дарил никогда.
+     */
+    public long giftedOn(UUID player) {
+        return giftDays.getOrDefault(player, UNSEEN_DAY);
+    }
+
+    public void noteGift(UUID player, long day) {
+        giftDays.put(player, day);
     }
 
     /** Что этот игрок здесь уже сделал. Пустой список — не значит «никогда». */

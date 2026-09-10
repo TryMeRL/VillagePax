@@ -16,6 +16,7 @@ import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Villages;
 import com.villagepax.sim.Warehouse;
+import com.villagepax.sim.work.Schedule;
 import net.minecraft.block.BlockState;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.entity.EntityType;
@@ -366,8 +367,10 @@ public class CitizenEntity extends PathAwareEntity {
         // Чат при этом остаётся: старейшина говорит, а экран показывает.
         Quests.greet(server, citizen);
         citizen.profession()
-                .flatMap(giver -> QuestNet.viewOf(village, server.getUuid(),
-                        server.getInventory(), giver, Warehouse.of(world, village)))
+                .flatMap(giver -> QuestNet.viewOf(manager, village, server.getUuid(),
+                        server.getInventory(), giver, Warehouse.of(world, village),
+                        Optional.empty(), server.getMainHandStack(),
+                        Schedule.dayOf(world.getTimeOfDay())))
                 .ifPresent(view -> QuestNet.send(server, view));
         return ActionResult.SUCCESS;
     }

@@ -58,5 +58,7 @@
   "traits": [
     "villagepax:stone_masonry"
   ],
-  "diplomacy_defaults": {}
+  "diplomacy_defaults": {
+    "villagepax:maya": -10
+  }
 }

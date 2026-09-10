@@ -57,6 +57,30 @@ class PanelMetricsTest {
     }
 
     /**
+     * Три вкладки разговора обязаны влезать в панель по ширине.
+     * <p>
+     * Написано вместе с вкладкой народа. Высота панели проверялась
+     * с первого дня, а ширина — нет, и третья вкладка могла уехать за
+     * край незамеченной: у игровых тестов нет клиента, а глазами это
+     * видно только тому, кто откроет именно этот экран.
+     */
+    @Test
+    void threeElderTabsFitAcross() {
+        assertTrue(PanelMetrics.tabsFit(PanelMetrics.ELDER_WIDTH, 3,
+                        PanelMetrics.ELDER_TAB, PanelMetrics.GAP),
+                "ряд из трёх вкладок не влезает в панель разговора шириной "
+                        + PanelMetrics.ELDER_WIDTH);
+    }
+
+    /** И перестают влезать, когда их становится слишком много. */
+    @Test
+    void tooManyTabsDoNotFit() {
+        assertTrue(!PanelMetrics.tabsFit(PanelMetrics.ELDER_WIDTH, 5,
+                        PanelMetrics.ELDER_TAB, PanelMetrics.GAP),
+                "проверка ширины обязана хоть когда-нибудь говорить «нет»");
+    }
+
+    /**
      * Панель, в которую тело не влезает, отдаёт наименьшую высоту, а не
      * отрицательную: отрицательная означала бы прокрутку наизнанку.
      */

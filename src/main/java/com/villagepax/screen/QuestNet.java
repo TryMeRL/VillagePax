@@ -2,6 +2,8 @@ package com.villagepax.screen;
 
 import com.mojang.serialization.DataResult;
 import com.villagepax.VillagePax;
+import com.villagepax.core.culture.Culture;
+import com.villagepax.core.culture.CultureManager;
 import com.villagepax.core.quest.Quest;
 import com.villagepax.core.quest.QuestManager;
 import com.villagepax.core.trade.Caravan;
@@ -12,9 +14,12 @@ import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Standing;
 import com.villagepax.sim.Warehouse;
+import com.villagepax.sim.diplomacy.Gifts;
+import com.villagepax.sim.diplomacy.Relations;
 import com.villagepax.sim.quest.Quests;
 import com.villagepax.sim.trade.Coins;
 import com.villagepax.sim.trade.Trading;
+import com.villagepax.sim.work.Schedule;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.inventory.Inventory;
@@ -60,6 +65,17 @@ public final class QuestNet {
     public static final Identifier TRADE = new Identifier(VillagePax.MOD_ID, "quest_trade");
 
     /**
+     * «Дарю то, что в руке».
+     * <p>
+     * Ни предмета, ни числа в пакете нет, и это не экономия. Дарится
+     * <b>то, что в руке</b>, а руку сервер видит сам: присланный предмет
+     * пришлось бы искать в инвентаре, проверять, что он там есть, и
+     * решать, какую из двух стопок брать, — три новых способа ошибиться
+     * ради того, чтобы клиент сообщил серверу известное.
+     */
+    public static final Identifier GIFT = new Identifier(VillagePax.MOD_ID, "quest_gift");
+
+    /**
      * Насколько близко надо стоять, чтобы отдать.
      * <p>
      * Чуть больше вытянутой руки: игрок щёлкнул по жителю и мог сделать
@@ -77,6 +93,12 @@ public final class QuestNet {
             UUID village = buf.readUuid();
             Identifier giver = buf.readIdentifier();
             server.execute(() -> handIn(player, village, giver));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(GIFT, (server, player, handler, buf, sender) -> {
+            UUID village = buf.readUuid();
+            Identifier giver = buf.readIdentifier();
+            server.execute(() -> gift(player, village, giver));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(TRADE, (server, player, handler, buf, sender) -> {
@@ -136,8 +158,9 @@ public final class QuestNet {
         }
 
         SimpleInventory cart = cartOf(guest);
-        viewOf(home, player.getUuid(), player.getInventory(), MERCHANT,
-                Warehouse.over(guest.stands(), cart), Optional.of(caravanId))
+        viewOf(manager, home, player.getUuid(), player.getInventory(), MERCHANT,
+                Warehouse.over(guest.stands(), cart), Optional.of(caravanId),
+                ItemStack.EMPTY, Settlement.UNSEEN_DAY)
                 .ifPresent(view -> send(player, view));
     }
 
@@ -174,14 +197,25 @@ public final class QuestNet {
         return guest.withCargo(left, Coins.total(cart));
     }
 
-    public static Optional<QuestView> viewOf(Settlement village, UUID id, Inventory carried,
-                                             Identifier giver, Warehouse wares) {
-        return viewOf(village, id, carried, giver, wares, Optional.empty());
+    public static Optional<QuestView> viewOf(SettlementManager manager, Settlement village,
+                                             UUID id, Inventory carried, Identifier giver,
+                                             Warehouse wares) {
+        return viewOf(manager, village, id, carried, giver, wares, Optional.empty(),
+                ItemStack.EMPTY, Settlement.UNSEEN_DAY);
     }
 
-    public static Optional<QuestView> viewOf(Settlement village, UUID id, Inventory carried,
-                                             Identifier giver, Warehouse wares,
-                                             Optional<UUID> caravan) {
+    /**
+     * Собрать снимок разговора целиком.
+     * <p>
+     * Менеджер нужен затем, что доверие <b>народа</b> считается по всем его
+     * деревням, а не по той, у которой игрок стоит. Рука и день — затем, что
+     * подарок оценивается до того, как его отдали: игрок должен видеть,
+     * сколько возьмут и чего это будет стоить.
+     */
+    public static Optional<QuestView> viewOf(SettlementManager manager, Settlement village,
+                                             UUID id, Inventory carried, Identifier giver,
+                                             Warehouse wares, Optional<UUID> caravan,
+                                             ItemStack held, long today) {
         int reputation = village.reputationOf(id);
         Standing standing = Standing.of(reputation);
 
@@ -191,7 +225,87 @@ public final class QuestNet {
 
         return Optional.of(new QuestView(village.id(), village.name(), giver,
                 standing.displayKey(), reputation, nextThreshold(standing), offer,
-                stalls(village, reputation, carried, wares), Trading.purse(wares), caravan));
+                stalls(village, reputation, carried, wares), Trading.purse(wares), caravan,
+                peopleOf(manager, village, id),
+                // У обоза подарка не берут: дарят в глаза деревне, а торговец
+                // — гость на день, и доверие ему не его.
+                caravan.isPresent() ? Optional.empty() : giftOf(village, id, held, today)));
+    }
+
+    /**
+     * Народ деревни: как он смотрит на игрока и как — на соседей.
+     * <p>
+     * Считается здесь, а не на клиенте, по той же причине, что и цены:
+     * культуры живут в датапаке <b>сервера</b>, и клиент про них не знает
+     * ни имён, ни отношений.
+     */
+    private static QuestView.People peopleOf(SettlementManager manager, Settlement village,
+                                             UUID player) {
+        Identifier home = village.culture();
+        Culture culture = CultureManager.get(home);
+        String name = culture == null ? home.toString() : culture.displayName();
+
+        List<QuestView.Neighbour> neighbours = new ArrayList<>();
+        for (Identifier other : CultureManager.ids()) {
+            Culture theirs = CultureManager.get(other);
+            if (other.equals(home) || theirs == null) {
+                continue;
+            }
+            neighbours.add(new QuestView.Neighbour(theirs.displayName(),
+                    Relations.attitudeLadder(home, other).displayKey()));
+        }
+
+        int trust = Relations.trustOfPeople(manager, home, player);
+        return new QuestView.People(name, Standing.of(trust).displayKey(), trust, neighbours);
+    }
+
+    /** Что выйдет, если подарить то, что в руках, — до того, как отдал. */
+    private static Optional<QuestView.Gift> giftOf(Settlement village, UUID player,
+                                                   ItemStack held, long today) {
+        Gifts.Verdict verdict = Gifts.judge(village, player, held, today);
+        if (verdict == Gifts.Verdict.EMPTY_HANDED) {
+            // Пустая рука — не отказ, а нечего показывать: карточка подарка
+            // в этом случае молчит, а не краснеет.
+            return Optional.empty();
+        }
+        int take = Math.max(1, Gifts.takeableFrom(village, held));
+        int trust = Gifts.trustFor(Gifts.worthOf(village, held.copyWithCount(take)));
+        return Optional.of(new QuestView.Gift(held.getItem(), take, trust, verdict));
+    }
+
+    /**
+     * Подарить то, что в руке.
+     * <p>
+     * Проверка та же, что у сдачи квеста: <b>стоять рядом с выдающим</b>.
+     * Дарят в глаза, а не почтой.
+     */
+    private static void gift(ServerPlayerEntity player, UUID village, Identifier giver) {
+        ServerWorld world = player.getServerWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Settlement home = manager.byId(village).orElse(null);
+        if (home == null) {
+            return;
+        }
+        if (nearbyGiver(player, home, giver) == null) {
+            player.sendMessage(Text.translatable("villagepax.quest.too_far"), true);
+            return;
+        }
+
+        Gifts.Outcome outcome = Gifts.give(manager, home, player.getUuid(),
+                player.getMainHandStack(), Schedule.dayOf(world.getTimeOfDay()));
+
+        if (outcome.accepted()) {
+            player.sendMessage(Text.translatable("villagepax.gift.thanks",
+                    Text.literal(home.name()), outcome.given().getName(),
+                    Text.literal("+" + outcome.trust())), false);
+            world.playSound(null, player.getBlockPos(), SoundEvents.ENTITY_VILLAGER_YES,
+                    SoundCategory.NEUTRAL, 1.0f, 1.0f);
+            Relations.tell(player, outcome.shifts());
+        } else {
+            outcome.verdict().reasonKey().ifPresent(key ->
+                    player.sendMessage(Text.translatable(key), true));
+        }
+        refresh(player, manager, village, giver);
     }
 
     /**
@@ -465,9 +579,11 @@ public final class QuestNet {
      */
     private static void refresh(ServerPlayerEntity player, SettlementManager manager, UUID village,
                                 Identifier giver) {
-        manager.byId(village).ifPresent(fresh -> viewOf(fresh, player.getUuid(),
+        manager.byId(village).ifPresent(fresh -> viewOf(manager, fresh, player.getUuid(),
                         player.getInventory(), giver,
-                        Warehouse.of(player.getServerWorld(), fresh))
+                        Warehouse.of(player.getServerWorld(), fresh), Optional.empty(),
+                        player.getMainHandStack(),
+                        Schedule.dayOf(player.getServerWorld().getTimeOfDay()))
                 .ifPresent(view -> send(player, view)));
     }
 

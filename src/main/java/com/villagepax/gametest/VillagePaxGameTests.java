@@ -70,6 +70,8 @@ import com.villagepax.core.trade.TradeTable;
 import net.minecraft.inventory.SimpleInventory;
 import com.villagepax.core.quest.QuestManager;
 import com.villagepax.sim.Standing;
+import com.villagepax.sim.diplomacy.Gifts;
+import com.villagepax.sim.diplomacy.Relations;
 import com.villagepax.sim.quest.Quests;
 import com.villagepax.sim.trade.Caravans;
 import com.villagepax.sim.trade.Coins;
@@ -5264,7 +5266,8 @@ public class VillagePaxGameTests implements FabricGameTest {
         UUID player = UUID.randomUUID();
         SimpleInventory hands = new SimpleInventory(36);
 
-        QuestView empty = QuestNet.viewOf(village, player, hands, Villages.ELDER,
+        QuestView empty = QuestNet.viewOf(SettlementManager.get(context.getWorld()), village, player, hands,
+                Villages.ELDER,
                 Warehouse.of(context.getWorld(), village)).orElse(null);
         if (empty == null) {
             context.throwGameTestException("Разговор не собрался вовсе");
@@ -5299,7 +5302,8 @@ public class VillagePaxGameTests implements FabricGameTest {
         // Принесли ровно столько, сколько просят: кнопка обязана включиться.
         hands.addStack(new ItemStack(need.item(), need.need()));
 
-        QuestView full = QuestNet.viewOf(village, player, hands, Villages.ELDER,
+        QuestView full = QuestNet.viewOf(SettlementManager.get(context.getWorld()), village, player, hands,
+                Villages.ELDER,
                 Warehouse.of(context.getWorld(), village)).orElseThrow();
         QuestView.Offer ready = full.quest().orElseThrow();
         if (!ready.ready()) {
@@ -6019,7 +6023,7 @@ public class VillagePaxGameTests implements FabricGameTest {
         SimpleInventory hands = new SimpleInventory(36);
 
         try {
-            QuestView view = QuestNet.viewOf(colony, player, hands, Villages.ELDER,
+            QuestView view = QuestNet.viewOf(manager, colony, player, hands, Villages.ELDER,
                     Warehouse.of(world, colony)).orElseThrow();
             if (!view.trades() || view.stalls().isEmpty()) {
                 context.throwGameTestException("Прилавок не доехал до экрана");
@@ -6058,7 +6062,7 @@ public class VillagePaxGameTests implements FabricGameTest {
 
             // Товар на складе есть, монеты у игрока нет: теперь дело в нём.
             Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 12));
-            QuestView stocked = QuestNet.viewOf(colony, player, hands, Villages.ELDER,
+            QuestView stocked = QuestNet.viewOf(manager, colony, player, hands, Villages.ELDER,
                     Warehouse.of(world, colony)).orElseThrow();
             QuestView.Stall bread = stocked.stalls().stream()
                     .filter(stall -> stall.villageSells() && stall.item() == Items.BREAD)
@@ -6069,7 +6073,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             hands.addStack(new ItemStack(ModItems.COIN, 4));
-            QuestView ready = QuestNet.viewOf(colony, player, hands, Villages.ELDER,
+            QuestView ready = QuestNet.viewOf(manager, colony, player, hands, Villages.ELDER,
                     Warehouse.of(world, colony)).orElseThrow();
             QuestView.Stall now = ready.stalls().stream()
                     .filter(stall -> stall.villageSells() && stall.item() == Items.BREAD)
@@ -6086,7 +6090,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             // Колокол по-прежнему заперт доверием, хотя монета уже при игроке:
             // недоверие называется раньше безденежья.
             hands.addStack(new ItemStack(ModItems.COIN, 48));
-            QuestView rich = QuestNet.viewOf(colony, player, hands, Villages.ELDER,
+            QuestView rich = QuestNet.viewOf(manager, colony, player, hands, Villages.ELDER,
                     Warehouse.of(world, colony)).orElseThrow();
             QuestView.Stall bell = rich.stalls().stream()
                     .filter(stall -> stall.item() == Items.BELL)
@@ -7694,8 +7698,12 @@ public class VillagePaxGameTests implements FabricGameTest {
 
         Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", villageAt);
         Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Моя", standsAt);
+        // Сосед по народу: об ограблении обязаны услышать и свои.
+        Settlement kin = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Кан",
+                context.getAbsolutePos(new BlockPos(13, 2, 2)));
         manager.add(village);
         manager.add(colony);
+        manager.add(kin);
         UUID thief = UUID.randomUUID();
 
         try {
@@ -7736,6 +7744,13 @@ public class VillagePaxGameTests implements FabricGameTest {
             if (!loot) {
                 context.throwGameTestException("Товар не рассыпался: грабить нечего");
             }
+
+            // Грабёж — поступок, а поступки слышат не только там, где
+            // случились: свои пославшей деревни обязаны обидеться тоже.
+            if (kin.reputationOf(thief) >= 0) {
+                context.throwGameTestException("Свои ограбленной деревни не услышали: у соседа "
+                        + kin.reputationOf(thief));
+            }
         } finally {
             world.getEntitiesByClass(net.minecraft.entity.ItemEntity.class,
                             new net.minecraft.util.math.Box(standsAt).expand(6), any -> true)
@@ -7745,6 +7760,7 @@ public class VillagePaxGameTests implements FabricGameTest {
                     .forEach(CitizenEntity::discard);
             manager.remove(village.id());
             manager.remove(colony.id());
+            manager.remove(kin.id());
             for (BlockPos at : floor) {
                 world.setBlockState(at, Blocks.AIR.getDefaultState());
             }
@@ -7752,6 +7768,252 @@ public class VillagePaxGameTests implements FabricGameTest {
 
         context.complete();
     }
+
+    // --- фаза 3: отношения ---
+
+    /**
+     * Слух о поступке идёт по всему народу — и к его соседям.
+     * <p>
+     * Дизайн-документ: «каждое действие меняет несколько уровней матрицы
+     * сразу — подарок конкретной деревне слегка поднимает и отношение
+     * всего народа». Проверяется ровно это: услугу одной деревне зачтут
+     * её своим, а тем, кто на этот народ косится, она слегка не по нраву.
+     * <p>
+     * И проверяется <b>на трёх деревнях сразу</b>, потому что двумя это
+     * правило не отличить от «доверие складывается»: нужны и свои, и чужие.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "diplomacy")
+    public void fameSpreadsToKinAndCostsRivals(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        Settlement first = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар",
+                context.getAbsolutePos(new BlockPos(2, 2, 2)));
+        Settlement kin = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Кан",
+                context.getAbsolutePos(new BlockPos(6, 2, 2)));
+        Settlement rival = Settlement.found(MAYA, Owner.AUTONOMOUS, "Ушмаль",
+                context.getAbsolutePos(new BlockPos(10, 2, 2)));
+        manager.add(first);
+        manager.add(kin);
+        manager.add(rival);
+
+        try {
+            List<Relations.Shift> shifts = Relations.deed(manager, first, player, 60);
+
+            if (first.reputationOf(player) != 60) {
+                context.throwGameTestException("Своё деревня не получила: "
+                        + first.reputationOf(player) + " вместо 60");
+            }
+            if (kin.reputationOf(player) != 15) {
+                context.throwGameTestException("Свои не услышали: у соседа по народу "
+                        + kin.reputationOf(player) + " вместо четверти, то есть 15");
+            }
+            if (rival.reputationOf(player) != -6) {
+                context.throwGameTestException("Чужие не заметили: у майя "
+                        + rival.reputationOf(player) + " вместо -6");
+            }
+
+            boolean toldAboutNormans = shifts.stream()
+                    .anyMatch(shift -> shift.culture().equals(NORMAN)
+                            && shift.now() == Standing.KNOWN);
+            if (!toldAboutNormans) {
+                context.throwGameTestException("Народ сменил ступень, а игроку не сказали: "
+                        + shifts);
+            }
+        } finally {
+            manager.remove(first.id());
+            manager.remove(kin.id());
+            manager.remove(rival.id());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Подарок принимают, если он деревне нужен, и берут ровно сколько надо.
+     * <p>
+     * Три правила одним тестом, потому что они об одном подарке: дарить
+     * надо то, что деревня скупает; за сутки благодарят один раз; и лишнего
+     * из рук не забирают. Последнее — не мелочь: молча взять восемь золотых
+     * за те же восемь очков было бы надувательством.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "diplomacy")
+    public void giftsMustBeSomethingTheVillageWants(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар",
+                context.getAbsolutePos(new BlockPos(2, 2, 2)));
+        manager.add(village);
+
+        try {
+            // Своего хлеба норманнам не надо: они его сами продают.
+            ItemStack bread = new ItemStack(Items.BREAD, 64);
+            Gifts.Outcome refused = Gifts.give(manager, village, player, bread, 5L);
+            if (refused.verdict() != Gifts.Verdict.NOT_WANTED) {
+                context.throwGameTestException("Норманнский хлеб норманнам приняли как подарок: "
+                        + refused.verdict());
+            }
+            if (bread.getCount() != 64) {
+                context.throwGameTestException("Отвергнутый подарок всё равно забрали");
+            }
+
+            // А золото деревне нужно всегда — но одной монеты уже довольно.
+            ItemStack gold = new ItemStack(ModItems.GOLD_COIN, 8);
+            Gifts.Outcome taken = Gifts.give(manager, village, player, gold, 5L);
+            if (!taken.accepted()) {
+                context.throwGameTestException("Золото не приняли: " + taken.verdict());
+                return;
+            }
+            if (taken.trust() != Gifts.MOST_PER_DAY) {
+                context.throwGameTestException("За золотой дали " + taken.trust()
+                        + " доверия вместо суточного предела " + Gifts.MOST_PER_DAY);
+            }
+            if (gold.getCount() != 7) {
+                context.throwGameTestException("Из рук взяли лишнее: осталось "
+                        + gold.getCount() + " золотых вместо семи");
+            }
+            if (village.reputationOf(player) != Gifts.MOST_PER_DAY) {
+                context.throwGameTestException("Доверие не выросло: "
+                        + village.reputationOf(player));
+            }
+
+            // Второй раз в тот же день — нет.
+            Gifts.Outcome again = Gifts.give(manager, village, player,
+                    new ItemStack(ModItems.GOLD_COIN, 8), 5L);
+            if (again.verdict() != Gifts.Verdict.ALREADY_TODAY) {
+                context.throwGameTestException("Второй подарок за день приняли: "
+                        + again.verdict());
+            }
+
+            // А назавтра — снова да.
+            Gifts.Outcome tomorrow = Gifts.give(manager, village, player,
+                    new ItemStack(ModItems.GOLD_COIN, 8), 6L);
+            if (!tomorrow.accepted()) {
+                context.throwGameTestException("Назавтра подарок не приняли: "
+                        + tomorrow.verdict());
+            }
+        } finally {
+            manager.remove(village.id());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Народ судит об игроке по всем своим деревням, а не по одной.
+     * <p>
+     * Взвешенно: слово города весит больше слова хутора. И только по тем,
+     * кто игрока знает: деревня, которой он в глаза не видел, мнения не
+     * имеет, и подмешивать её ноль значило бы наказывать игрока за
+     * существование деревень, до которых он не дошёл.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "diplomacy")
+    public void peopleJudgePlayerByAllTheirVillages(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        Settlement hamlet = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Хутор",
+                context.getAbsolutePos(new BlockPos(2, 2, 6)));
+        Settlement town = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Кан",
+                context.getAbsolutePos(new BlockPos(6, 2, 6)));
+        Settlement stranger = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Дальняя",
+                context.getAbsolutePos(new BlockPos(10, 2, 6)));
+        manager.add(hamlet);
+        manager.add(town);
+        manager.add(stranger);
+
+        try {
+            manager.update(town.id(), state -> state.setLevel(SettlementLevel.TOWN));
+            manager.update(hamlet.id(), state -> state.addReputation(player, 0));
+            manager.update(town.id(), state -> state.addReputation(player, 80));
+
+            // Хутор весит один, город — три: (0 + 240) / 4 = 60.
+            int trust = Relations.trustOfPeople(manager, NORMAN, player);
+            if (trust != 60) {
+                context.throwGameTestException("Средний счёт народа " + trust
+                        + " вместо взвешенных 60");
+            }
+            if (Relations.standingOfPeople(manager, NORMAN, player) != Standing.FRIEND) {
+                context.throwGameTestException("Народ, где один город считает другом, "
+                        + "а хутор молчит, не признал друга");
+            }
+            if (stranger.knows(player)) {
+                context.throwGameTestException("Незнакомая деревня откуда-то знает игрока");
+            }
+        } finally {
+            manager.remove(hamlet.id());
+            manager.remove(town.id());
+            manager.remove(stranger.id());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Экран старейшины показывает и народ, и цену подарка в руке.
+     * <p>
+     * И проверяется, что снимок <b>кодируется</b>: он едет на клиент, и
+     * поле, которое не кодируется, роняет разговор целиком. Однажды так
+     * и вышло — с грузом обоза, — и стоило это всех модульных тестов
+     * поселения.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "diplomacy")
+    public void elderScreenShowsThePeopleAndTheGift(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар",
+                context.getAbsolutePos(new BlockPos(2, 2, 10)));
+        manager.add(village);
+
+        try {
+            QuestView view = QuestNet.viewOf(manager, village, player,
+                    new SimpleInventory(36), Villages.ELDER,
+                    Warehouse.of(world, village), Optional.empty(),
+                    new ItemStack(Items.IRON_INGOT, 64), 4L).orElseThrow();
+
+            if (!"villagepax.culture.norman".equals(view.people().name())) {
+                context.throwGameTestException("Народ деревни доехал до экрана как "
+                        + view.people().name());
+            }
+            if (view.people().neighbours().isEmpty()) {
+                context.throwGameTestException("Второй народ в мире есть, а в соседях его нет");
+            }
+
+            QuestView.Gift gift = view.gift().orElse(null);
+            if (gift == null) {
+                context.throwGameTestException("Железо в руке, а карточки подарка нет");
+                return;
+            }
+            if (!gift.ready() || gift.trust() != Gifts.MOST_PER_DAY) {
+                context.throwGameTestException("Стопка железа стоит " + gift.trust()
+                        + " доверия и приговор " + gift.verdict());
+            }
+
+            QuestView back = QuestView.CODEC
+                    .parse(NbtOps.INSTANCE, QuestView.CODEC
+                            .encodeStart(NbtOps.INSTANCE, view).result().orElseThrow())
+                    .result().orElse(null);
+            if (back == null) {
+                context.throwGameTestException("Снимок разговора не пережил кодирования");
+                return;
+            }
+            if (!back.people().standing().equals(view.people().standing())
+                    || back.gift().orElseThrow().trust() != gift.trust()) {
+                context.throwGameTestException("Снимок вернулся из кодека другим");
+            }
+        } finally {
+            manager.remove(village.id());
+        }
+
+        context.complete();
+    }
+
 
     /**
      * Убрать деревню за собой начисто — включая память о месте.

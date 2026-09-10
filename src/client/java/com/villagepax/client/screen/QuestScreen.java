@@ -52,7 +52,8 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
     /** Вкладки. Порядок — порядок в заголовке. */
     private enum Tab {
         TALK("talk"),
-        TRADE("trade");
+        TRADE("trade"),
+        PEOPLE("people");
 
         private final String id;
 
@@ -78,6 +79,12 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
 
     /** Ширина названия товара в строке прилавка. */
     private static final int NAME_WIDTH = 130;
+
+    /** Ширина кнопки-вкладки: проверена {@link PanelMetrics#tabsFit}. */
+    private static final int TAB_WIDTH = PanelMetrics.ELDER_TAB;
+
+    /** Ширина названия народа в строке соседа. */
+    private static final int PEOPLE_WIDTH = 120;
 
     /** Ширина текста внутри карточки: панель без отступов и ползунка. */
     private static final int TEXT_WIDTH = PANEL_WIDTH - 2 * PADDING - 26;
@@ -195,7 +202,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
             if (candidate == Tab.TRADE && !view.trades()) {
                 continue;
             }
-            tabs.child(Look.tab(candidate.title(), candidate == tab, 90, pressed -> {
+            tabs.child(Look.tab(candidate.title(), candidate == tab, TAB_WIDTH, pressed -> {
                 tab = candidate;
                 fill();
             }));
@@ -204,11 +211,97 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
 
     private void fillBody() {
         body.clearChildren();
-        if (tab == Tab.TALK) {
-            fillTalk();
-        } else {
-            fillStalls();
+        switch (tab) {
+            case TALK -> fillTalk();
+            case TRADE -> fillStalls();
+            case PEOPLE -> fillPeople();
         }
+    }
+
+    /**
+     * Вкладка народа: чей это народ, как он смотрит на игрока, как — на
+     * соседей, и что будет, если подарить то, что в руке.
+     * <p>
+     * Одной вкладкой, а не тремя карточками в разговоре: это <b>другой
+     * разговор</b>. С деревней говорят о деле — что принести, что купить;
+     * о народе спрашивают отдельно, и ответ на такой вопрос нужен целиком,
+     * а не строкой между квестом и прилавком.
+     */
+    private void fillPeople() {
+        QuestView.People people = view.people();
+
+        FlowLayout who = Look.card("villagepax.people.screen.people");
+        who.child(Look.stat(Text.translatable(people.name()),
+                Text.translatable("villagepax.people.screen.trust",
+                        Text.translatable(people.standing()),
+                        Text.literal(String.valueOf(people.trust()))),
+                PEOPLE_WIDTH));
+        LabelComponent about = Components.label(
+                Text.translatable("villagepax.people.screen.about"));
+        about.color(Look.MUTED);
+        about.lineHeight(10);
+        who.child(about.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+        body.child(who);
+
+        if (!people.neighbours().isEmpty()) {
+            FlowLayout others = Look.card("villagepax.people.screen.neighbours");
+            for (QuestView.Neighbour neighbour : people.neighbours()) {
+                others.child(Look.stat(Text.translatable(neighbour.name()),
+                        Text.translatable(neighbour.attitude()), PEOPLE_WIDTH));
+            }
+            body.child(others);
+        }
+
+        fillGift();
+    }
+
+    /**
+     * Карточка подарка.
+     * <p>
+     * Показывает <b>что именно возьмут</b>, а не что в руке: если в стопке
+     * больше, чем стоит суточной благодарности, число будет меньше стопки.
+     * Иначе игрок отдал бы шестьдесят четыре железа за те же восемь очков
+     * и справедливо счёл бы это надувательством.
+     */
+    private void fillGift() {
+        FlowLayout card = Look.card("villagepax.people.screen.gift");
+        QuestView.Gift gift = view.gift().orElse(null);
+
+        if (gift == null) {
+            LabelComponent empty = Components.label(
+                    Text.translatable("villagepax.gift.reason.empty_handed"));
+            empty.color(Look.MUTED);
+            empty.lineHeight(10);
+            card.child(empty.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            body.child(card);
+            return;
+        }
+
+        FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        row.gap(4);
+        row.verticalAlignment(VerticalAlignment.CENTER);
+
+        ItemComponent picture = Components.item(new ItemStack(gift.item(), gift.count()));
+        picture.showOverlay(true);
+        picture.setTooltipFromStack(true);
+        row.child(picture);
+
+        LabelComponent name = Components.label(Text.translatable("villagepax.trade.screen.goods",
+                gift.item().getName(), Text.literal(String.valueOf(gift.count()))));
+        name.color(gift.ready() ? Look.INK : Look.MUTED);
+        row.child(name.horizontalSizing(Sizing.fixed(NAME_WIDTH)));
+
+        row.child(Look.pill(Text.translatable("villagepax.people.screen.worth",
+                Text.literal("+" + gift.trust())), gift.ready() ? Look.GOOD : Look.MUTED));
+
+        ButtonComponent give = Look.action(
+                Text.translatable("villagepax.people.screen.give"), 58, button -> gift());
+        give.active(gift.ready());
+        row.child(give);
+
+        gift.verdict().reasonKey().ifPresent(key -> row.tooltip(Text.translatable(key)));
+        card.child(row);
+        body.child(card);
     }
 
     /** Строка доверия: ступень, число и сколько до следующей. */
@@ -353,6 +446,20 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         line.color(need.enough() ? Look.GOOD : Look.BAD);
         row.child(line);
         return row;
+    }
+
+    /**
+     * «Дарю то, что в руке».
+     * <p>
+     * Ни предмета, ни числа не уезжает: руку сервер видит сам. Клиент
+     * сообщает только <b>намерение</b> — и это единственное, что он вообще
+     * знает наверняка.
+     */
+    private void gift() {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeUuid(view.village());
+        buf.writeIdentifier(view.giver());
+        ClientPlayNetworking.send(QuestNet.GIFT, buf);
     }
 
     private void handIn() {

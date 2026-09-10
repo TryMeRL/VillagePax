@@ -6,6 +6,7 @@ import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Standing;
+import com.villagepax.sim.diplomacy.Relations;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -16,6 +17,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -161,7 +163,11 @@ public final class Quests {
         }
 
         UUID id = player.getUuid();
-        Standing before = Standing.of(village.reputationOf(id));
+        int trustBefore = village.reputationOf(id);
+        Standing before = Standing.of(trustBefore);
+        // Снимок народов — до сдачи: доверие поднимется в нескольких
+        // деревнях сразу, и разность по одной из них о среднем не скажет.
+        Map<Identifier, Integer> peopleBefore = Relations.trustByPeople(manager, id);
 
         Handover[] outcome = new Handover[1];
         manager.update(village.id(), state -> outcome[0] = handIn(state, id, profession,
@@ -190,11 +196,29 @@ public final class Quests {
                 player.getWorld().playSound(null, player.getBlockPos(),
                         SoundEvents.ENTITY_VILLAGER_YES, SoundCategory.NEUTRAL, 1.0f, 1.0f);
 
+                // Эхо — здесь, а не в награде: награду выдаёт handIn изнутри
+                // manager.update, где менеджера о других деревнях уже
+                // не спросить. Размер поступка берётся разностью, а не
+                // из данных квеста: так эхо не разойдётся с наградой,
+                // сколько бы наград «доверием» квест ни объявил.
+                int awarded = village.reputationOf(id) - trustBefore;
+                Relations.echo(manager, village, id, awarded);
+
                 Standing now = Standing.of(village.reputationOf(id));
                 if (now != before) {
                     player.sendMessage(Text.translatable("villagepax.quest.standing_up",
                             Text.literal(village.name()), Text.translatable(now.displayKey())), false);
                 }
+
+                // О своём народе игрок только что услышал от самой деревни:
+                // пока других знакомых деревень нет, её слово и есть слово
+                // народа, и повторять то же вторую строку незачем.
+                List<Relations.Shift> shifts = Relations.since(peopleBefore, manager, id);
+                Relations.tell(player, now != before
+                        ? shifts.stream()
+                                .filter(shift -> !shift.culture().equals(village.culture()))
+                                .toList()
+                        : shifts);
             }
         }
     }

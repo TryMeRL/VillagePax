@@ -56,5 +56,7 @@
   "traits": [
     "villagepax:terrace_farming"
   ],
-  "diplomacy_defaults": {}
+  "diplomacy_defaults": {
+    "villagepax:norman": -10
+  }
 }

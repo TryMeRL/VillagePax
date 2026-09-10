@@ -38,7 +38,27 @@ public final class PanelMetrics {
     /** Ниже этого прокрутка бессмысленна: в ней не поместится и строки. */
     public static final int LEAST_BODY = 24;
 
+    /** Ширина кнопки-вкладки в разговоре со старейшиной. */
+    public static final int ELDER_TAB = 90;
+
     private PanelMetrics() {
+    }
+
+    /**
+     * Влезает ли ряд вкладок в панель по ширине.
+     * <p>
+     * Тем же тестом и по той же причине, что и высота тела: вёрстку глазами
+     * проверить нельзя, а «третья вкладка уехала за край» — это арифметика.
+     * Считается по внутренней ширине: отступы панели вкладкам не принадлежат.
+     *
+     * @param panelWidth ширина панели целиком
+     * @param tabs       сколько вкладок в ряду
+     * @param tabWidth   ширина одной
+     * @param gap        промежуток между ними
+     */
+    public static boolean tabsFit(int panelWidth, int tabs, int tabWidth, int gap) {
+        int taken = tabs * tabWidth + Math.max(0, tabs - 1) * gap;
+        return taken <= panelWidth - 2 * PADDING;
     }
 
     /**

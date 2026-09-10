@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.villagepax.core.EnumCodecs;
 import com.villagepax.core.Named;
+import com.villagepax.sim.diplomacy.Gifts;
 import net.minecraft.item.Item;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
@@ -30,10 +31,78 @@ import java.util.UUID;
  * @param stalls     чем деревня торгует, с уже решённым «можно ли сейчас»
  * @param purse      сколько монеты в кошеле деревни
  * @param caravan    обоз, если разговор идёт с ним, а не с деревней
+ * @param people     народ этой деревни: как он смотрит на игрока и на соседей
+ * @param gift       что выйдет, если подарить то, что в руках
  */
 public record QuestView(UUID village, String villageName, Identifier giver, String standing,
                         int reputation, Optional<Integer> nextAt, Optional<Offer> quest,
-                        List<Stall> stalls, int purse, Optional<UUID> caravan) {
+                        List<Stall> stalls, int purse, Optional<UUID> caravan,
+                        People people, Optional<Gift> gift) {
+
+    /**
+     * Народ деревни целиком: как он смотрит на игрока и на соседей.
+     * <p>
+     * Готовыми строками, а не опознавателями культур: культуры живут
+     * в датапаке <b>сервера</b>, и клиент про них не знает ничего —
+     * ни имён, ни отношений. Присылать опознаватель значило бы либо
+     * синхронизировать датапак целиком, либо показать игроку
+     * {@code villagepax:norman}.
+     *
+     * @param name       ключ названия народа
+     * @param standing   ключ ступени доверия народа к игроку
+     * @param trust      само число доверия, средневзвешенное по деревням
+     * @param neighbours как этот народ смотрит на другие
+     */
+    public record People(String name, String standing, int trust, List<Neighbour> neighbours) {
+
+        public static final Codec<People> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.STRING.fieldOf("name").forGetter(People::name),
+                Codec.STRING.fieldOf("standing").forGetter(People::standing),
+                Codec.INT.optionalFieldOf("trust", 0).forGetter(People::trust),
+                Neighbour.CODEC.listOf().optionalFieldOf("neighbours", List.of())
+                        .forGetter(People::neighbours)
+        ).apply(instance, People::new));
+    }
+
+    /**
+     * Сосед: чужой народ и одно слово о нём.
+     *
+     * @param name     ключ названия народа
+     * @param attitude ключ ступени отношения к нему
+     */
+    public record Neighbour(String name, String attitude) {
+
+        public static final Codec<Neighbour> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.STRING.fieldOf("name").forGetter(Neighbour::name),
+                Codec.STRING.fieldOf("attitude").forGetter(Neighbour::attitude)
+        ).apply(instance, Neighbour::new));
+    }
+
+    /**
+     * Подарок: что именно возьмут из рук и чего это будет стоить.
+     * <p>
+     * Сколько взять — решает <b>сервер</b>, и это видно игроку заранее:
+     * если в руках больше, чем стоит суточной благодарности, в строке
+     * будет меньшее число, чем в стопке. Молча забрать всё было бы обманом.
+     *
+     * @param item    что в руках
+     * @param count   сколько из этого возьмут
+     * @param trust   сколько доверия за это дадут
+     * @param verdict примут ли, и если нет — почему
+     */
+    public record Gift(Item item, int count, int trust, Gifts.Verdict verdict) {
+
+        public static final Codec<Gift> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Registries.ITEM.getCodec().fieldOf("item").forGetter(Gift::item),
+                Codec.INT.fieldOf("count").forGetter(Gift::count),
+                Codec.INT.fieldOf("trust").forGetter(Gift::trust),
+                Gifts.Verdict.CODEC.fieldOf("verdict").forGetter(Gift::verdict)
+        ).apply(instance, Gift::new));
+
+        public boolean ready() {
+            return verdict == Gifts.Verdict.YES;
+        }
+    }
 
     /**
      * Предложенный квест.
@@ -150,7 +219,9 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
             Offer.CODEC.optionalFieldOf("quest").forGetter(QuestView::quest),
             Stall.CODEC.listOf().optionalFieldOf("stalls", List.of()).forGetter(QuestView::stalls),
             Codec.INT.optionalFieldOf("purse", 0).forGetter(QuestView::purse),
-            Uuids.STRING_CODEC.optionalFieldOf("caravan").forGetter(QuestView::caravan)
+            Uuids.STRING_CODEC.optionalFieldOf("caravan").forGetter(QuestView::caravan),
+            People.CODEC.fieldOf("people").forGetter(QuestView::people),
+            Gift.CODEC.optionalFieldOf("gift").forGetter(QuestView::gift)
     ).apply(instance, QuestView::new));
 
     /** Торгует ли эта деревня вообще: по этому решается, есть ли вкладка торга. */

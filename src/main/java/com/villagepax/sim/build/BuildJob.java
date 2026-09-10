@@ -22,7 +22,10 @@ import net.minecraft.item.Items;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.registry.Registries;
+import com.villagepax.screen.TownHallNet;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -270,9 +273,33 @@ public final class BuildJob {
             Decor.fill(world, settlement, building, schematic);
 
             returnLeftovers(world, warehouse, building);
+            announceDone(world, settlement, building);
             return Outcome.FINISHED;
         }
         return Outcome.ADVANCED;
+    }
+
+    /**
+     * Сказать хозяину колонии, что здание готово.
+     * <p>
+     * До сих пор об этом сообщал только колокол на площадке — а его слышно
+     * лишь тем, кто стоит рядом. В логе настоящей игры видно, как игрок
+     * размечает дом, завозит материалы и <b>больше ничего не узнаёт</b>:
+     * готово оно или нет, приходится ходить и смотреть.
+     * <p>
+     * Сообщается о своих зданиях. Деревни народов строят сами, и их
+     * стройки игрока не касаются.
+     */
+    private static void announceDone(ServerWorld world, Settlement settlement,
+                                     Building building) {
+        settlement.owner().player().ifPresent(owner -> {
+            ServerPlayerEntity player = world.getServer().getPlayerManager().getPlayer(owner);
+            if (player != null) {
+                player.sendMessage(Text.translatable("villagepax.build.done",
+                        Text.translatable(TownHallNet.buildingKey(building.type())),
+                        Text.literal(String.valueOf(building.level()))), false);
+            }
+        });
     }
 
     /** Чем кончился один шаг. */

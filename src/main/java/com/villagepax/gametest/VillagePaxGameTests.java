@@ -7095,6 +7095,22 @@ public class VillagePaxGameTests implements FabricGameTest {
                 }
             }
 
+            // И стволы: в настоящих джунглях полог держится на деревьях,
+            // а не висит в воздухе. Ствол — твёрдая колонна, в которой
+            // строить нельзя, и её нельзя путать с «здесь нет земли».
+            for (int x = -18; x <= 18; x += 4) {
+                for (int z = -18; z <= 18; z += 4) {
+                    if (Math.abs(x) <= 4 && Math.abs(z) <= 4) {
+                        continue;   // серединку оставляем под ратушу
+                    }
+                    for (int y = 9; y <= 14; y++) {
+                        BlockPos log = context.getAbsolutePos(new BlockPos(x, y, z));
+                        world.setBlockState(log, Blocks.JUNGLE_LOG.getDefaultState());
+                        meadow.add(log);
+                    }
+                }
+            }
+
             village = Villages.found(world, MAYA, centre).orElse(null);
             if (village == null) {
                 context.throwGameTestException("Под пологом деревня не встала — "
@@ -7120,6 +7136,152 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
 
         context.complete();
+    }
+
+    /**
+     * Билдер достраивает <b>каждую</b> схему мода, ни разу не встав в воздух.
+     * <p>
+     * До сих пор досягаемость проверялась на двух зданиях: доме норманнов
+     * второго уровня и храме майя. Обоих я выбирал сам — «самые высокие», —
+     * и это ровно та ошибка, за которую игрок меня отругал: я проверял там,
+     * где смотрел, а не там, где играют. Складов, мастерских и террасных
+     * полей не проверял никто, а схем в моде восемнадцать.
+     * <p>
+     * Проверяется <b>чистый выбор</b> билдера, без тела в мире: у стройки
+     * спрашивается место, где он будет стоять, и оттуда же делается шаг.
+     * Так надо по двум причинам. Тело, созданное в этом же тике, мир ещё
+     * не отдаёт по опознавателю — тест с телами падал бы не по своей вине.
+     * А главное, проверять надо именно решение: «куда стратегия его
+     * послала», а не «дошёл ли он», — иначе тест мигает от чужой ходьбы.
+     * <p>
+     * Проверка нарочно одна на все схемы: добавится девятнадцатая — она
+     * проверится сама, и забыть о ней будет нельзя.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "everything")
+    public void everySchematicIsBuiltFromStandableSpots(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        List<Identifier> all = new ArrayList<>(SchematicLoader.ids());
+        all.sort(java.util.Comparator.comparing(Identifier::toString));
+
+        List<String> complaints = new ArrayList<>();
+        List<BlockPos> ground = new ArrayList<>();
+
+        // Площадка с запасом на самую большую схему: поле второго уровня
+        // девять на девять, а билдеру надо где стоять вокруг.
+        //
+        // Ратуша стоит в десяти блоках от угла стройки и вне её следа.
+        // Ближе двенадцати — потому что дальше билдер не берёт со склада
+        // сам (BuildJob.NEARBY_STORAGE), и проверка досягаемости
+        // выродилась бы в проверку подвоза. Вне следа — чтобы схема
+        // не накрыла ратушу.
+        BlockPos hall = context.getAbsolutePos(new BlockPos(10, 9, 3));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 9, 0));
+
+        try {
+            for (int x = -3; x <= 15; x++) {
+                for (int z = -3; z <= 15; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    ground.add(at);
+                }
+            }
+
+            for (Identifier id : all) {
+                Schematic schematic = SchematicLoader.get(id).orElseThrow();
+                Identifier type = BuildJob.buildingTypeOf(id).orElse(null);
+                if (type == null) {
+                    complaints.add(id + ": тип здания не выводится из имени схемы");
+                    continue;
+                }
+
+                Identifier culture = new Identifier(type.getNamespace(),
+                        type.getPath().split("/")[0]);
+                Settlement colony = colonyWithBuilder(world, manager, hall, culture);
+                Building site = new Building(UUID.randomUUID(), type,
+                        BuildJob.levelOf(id).orElse(1), anchor, BlockRotation.NONE,
+                        BuildProgress.PLANNED, List.of());
+                colony.addBuilding(site);
+
+                try {
+                    stockFor(world, colony, schematic);
+                    complaints.addAll(raiseFromStandableSpots(world, manager, colony, site,
+                            schematic, id));
+                } finally {
+                    demolish(world, site, schematic);
+                    manager.remove(colony.id());
+                }
+            }
+
+            if (!complaints.isEmpty()) {
+                context.throwGameTestException("Схемы, на которых билдер спотыкается:\n  "
+                        + String.join("\n  ", complaints));
+            }
+        } finally {
+            for (BlockPos at : ground) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Построить, делая каждый шаг с того места, которое назвала стратегия,
+     * и жалуясь на всё, что при этом пошло не так.
+     */
+    private static List<String> raiseFromStandableSpots(ServerWorld world,
+                                                        SettlementManager manager,
+                                                        Settlement colony, Building site,
+                                                        Schematic schematic, Identifier id) {
+        List<String> complaints = new ArrayList<>();
+        int steps = schematic.plan().steps().size();
+        int midair = 0;
+        int inFire = 0;
+
+        for (int round = 0; round < steps * 4 + 200 && !site.isOperational(); round++) {
+            BlockPos spot = BuilderJob.standingSpot(world, site).orElse(null);
+            if (spot == null) {
+                complaints.add(id + ": стройка не назвала места, где стоять, на шаге "
+                        + site.nextStep());
+                return complaints;
+            }
+            if (!standable(world, spot)) {
+                midair++;
+            }
+            if (Hazards.standingHurts(world, spot)) {
+                inFire++;
+            }
+
+            BuildJob.Outcome outcome = BuildJob.advance(world, manager, colony.id(), site.id(),
+                    1, Vec3d.ofBottomCenter(spot));
+            if (outcome == BuildJob.Outcome.NO_BUILDER
+                    || outcome == BuildJob.Outcome.NO_SCHEMATIC
+                    || outcome == BuildJob.Outcome.NOT_LOADED
+                    || outcome == BuildJob.Outcome.NOT_FOUND) {
+                complaints.add(id + ": стройка отказала — " + outcome);
+                return complaints;
+            }
+            if (outcome == BuildJob.Outcome.WAITING_FOR_MATERIALS) {
+                complaints.add(id + ": не хватило материалов на шаге " + site.nextStep()
+                        + " из " + steps + ", хотя завезли всё по заявке");
+                return complaints;
+            }
+        }
+
+        if (!site.isOperational()) {
+            complaints.add(id + ": не достроилось, шаг " + site.nextStep() + " из " + steps);
+        }
+        if (midair > 0) {
+            complaints.add(id + ": " + midair + " раз стоять предлагалось там, "
+                    + "где человек стоять не может");
+        }
+        if (inFire > 0) {
+            complaints.add(id + ": " + inFire + " раз стоять предлагалось в огне");
+        }
+        return complaints;
     }
 
     /**

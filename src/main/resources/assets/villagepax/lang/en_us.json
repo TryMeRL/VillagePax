@@ -189,5 +189,6 @@
   "villagepax.building.maya.warehouse": "Maya Storehouse",
   "villagepax.building.maya.builder_hut": "Builder's Yard",
   "villagepax.citizen.died": "%s of %s has died: %s",
-  "villagepax.citizen.died.unknown": "cause unknown"
+  "villagepax.citizen.died.unknown": "cause unknown",
+  "villagepax.build.done": "Finished: %s, level %s"
 }

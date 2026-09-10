@@ -189,5 +189,6 @@
   "villagepax.building.maya.warehouse": "Склад майя",
   "villagepax.building.maya.builder_hut": "Двор строителя",
   "villagepax.citizen.died": "%s из поселения «%s» погиб: %s",
-  "villagepax.citizen.died.unknown": "неизвестно отчего"
+  "villagepax.citizen.died.unknown": "неизвестно отчего",
+  "villagepax.build.done": "Готово: %s, уровень %s"
 }

@@ -82,6 +82,9 @@ public final class HaulJob implements Job {
             return Optional.empty();
         }
 
+        // Здесь называется дело — сундук и угол стройки. Куда встать,
+        // чтобы до них дотянуться, решает WorkTicker: правило одно на все
+        // ремёсла, и повторять его в каждом было бы напрасно.
         return switch (state.phase()) {
             case TO_STORAGE -> Hauling.whereToFetch(context, site);
             case TO_SITE -> Optional.of(site.anchor());

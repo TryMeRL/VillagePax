@@ -190,5 +190,19 @@
   "villagepax.building.maya.builder_hut": "Двор строителя",
   "villagepax.citizen.died": "%s из поселения «%s» погиб: %s",
   "villagepax.citizen.died.unknown": "неизвестно отчего",
-  "villagepax.build.done": "Готово: %s, уровень %s"
+  "villagepax.build.done": "Готово: %s, уровень %s",
+  "villagepax.screen.overview.culture_name": "Народ",
+  "villagepax.screen.overview.beds_name": "Кроватей",
+  "villagepax.screen.overview.beds_value": "%s, свободно %s",
+  "villagepax.screen.overview.food_name": "Еды на складе, порций",
+  "villagepax.screen.overview.days_name": "Хватит еды на дней",
+  "villagepax.screen.overview.containers_name": "Хранилищ",
+  "villagepax.screen.overview.step_name": "Блоков поставлено",
+  "villagepax.screen.overview.step_value": "%s из %s",
+  "villagepax.screen.buildings.line_name": "%s, уровень %s",
+  "villagepax.progress.planned": "размечено",
+  "villagepax.progress.building": "строится",
+  "villagepax.progress.done": "готово",
+  "villagepax.progress.damaged": "повреждено",
+  "villagepax.build.stuck": "Стройка встала: «%s» ждёт %s — не хватает %s шт."
 }

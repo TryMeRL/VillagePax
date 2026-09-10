@@ -2,6 +2,7 @@ package com.villagepax.sim.work;
 
 import com.villagepax.VillagePax;
 import com.villagepax.core.culture.Traits;
+import com.villagepax.screen.TownHallNet;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Hazards;
 import com.villagepax.sim.Hazards;
@@ -17,7 +18,12 @@ import com.villagepax.sim.build.Roads;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
+
+import java.util.Map;
 import net.minecraft.item.Items;
 import com.villagepax.sim.build.SchematicLoader;
 import net.minecraft.server.world.ServerWorld;
@@ -168,6 +174,7 @@ public final class BuilderJob implements Job {
             // несёт брёвна. Носильщика нет вовсе или он не справляется
             // двадцать решений подряд — идём сами.
             case WAITING_FOR_MATERIALS -> {
+                complainOnce(context, site);
                 if (Hauling.shouldFetchItself(context)
                         && Hauling.wanted(context, site).isPresent()) {
                     context.setState(state.withPhase(JobState.Phase.TO_STORAGE));
@@ -356,6 +363,61 @@ public final class BuilderJob implements Job {
     }
 
     /**
+     * После скольких решений подряд без материалов билдер жалуется игроку.
+     * <p>
+     * Сорок решений — около двадцати секунд: столько нужно, чтобы понять,
+     * что это не заминка, а простой. Раньше — и жалоба сыпалась бы каждый
+     * раз, когда курьер задержался на десять шагов.
+     */
+    private static final int COMPLAIN_AFTER = 40;
+
+    /**
+     * Сказать хозяину колонии, что стройка встала, и чего не хватает.
+     * <p>
+     * Написано по логу настоящей игры: там видно, как игрок размечает дом,
+     * завозит материалы и <b>ничего больше не узнаёт</b>. Стоящая стройка
+     * выглядит точно так же, как идущая: житель ходит, ничего не меняется.
+     * Понять, что не хватает трёх булыжников, можно было только открыв
+     * пульт и прочитав список.
+     * <p>
+     * Ровно один раз за простой, а не каждое решение: счётчик терпения
+     * сбрасывается, как только материалы появились, и сравнение идёт
+     * <b>на равенство</b>. Двадцать одинаковых строк в чате — это не
+     * сообщение, а помеха.
+     */
+    private static void complainOnce(WorkContext context, Building site) {
+        // Читаем, а не отмечаем: отметку делает Hauling.shouldFetchItself
+        // в этом же решении, и вторая сбила бы билдеру срок терпения.
+        if (context.body().materialWait() != COMPLAIN_AFTER) {
+            return;
+        }
+
+        Schematic schematic = SchematicLoader.get(BuildJob.schematicId(site)).orElse(null);
+        if (schematic == null) {
+            return;
+        }
+
+        Map<Item, Integer> short_ = Materials.shortfall(schematic, site,
+                schematic.plan().steps().size());
+        Item first = short_.keySet().stream().findFirst().orElse(null);
+        if (first == null) {
+            return;
+        }
+
+        Text notice = Text.translatable("villagepax.build.stuck",
+                Text.translatable(TownHallNet.buildingKey(site.type())),
+                first.getName(), Text.literal(String.valueOf(short_.get(first))));
+
+        context.settlement().owner().player().ifPresent(owner -> {
+            ServerPlayerEntity player = context.world().getServer()
+                    .getPlayerManager().getPlayer(owner);
+            if (player != null) {
+                player.sendMessage(notice, false);
+            }
+        });
+    }
+
+    /**
      * Где стоять: на земле у стройки, а не на самой стройке.
      * <p>
      * Раньше целью был сам блок плана, и билдер лез на недоделанную стену.
@@ -449,17 +511,13 @@ public final class BuilderJob implements Job {
     }
 
     /**
-     * Ноги на твёрдом, голова в пустоте, и <b>ничего не жжётся</b>.
+     * Ноги на твёрдом, голова в пустоте, и ничего не жжётся.
      * <p>
-     * Про огонь пришлось добавить после смерти строителя на очаге. Место
-     * работы выбирает стратегия, и если она назовёт клетку с костром,
-     * житель туда пойдёт: он слушается стратегию, а не здравый смысл.
+     * Спрашивается у общего правила {@link Standing}: билдер был первым,
+     * кому это починили, и его определение стало общим для всех ремёсел.
      */
     private static boolean canStandAt(ServerWorld world, BlockPos spot) {
-        return world.getBlockState(spot.down()).isSolidBlock(world, spot.down())
-                && world.getBlockState(spot).getCollisionShape(world, spot).isEmpty()
-                && world.getBlockState(spot.up()).getCollisionShape(world, spot.up()).isEmpty()
-                && !Hazards.standingHurts(world, spot);
+        return Standing.canStandAt(world, spot);
     }
 
     private static boolean footprintContains(Building site, BlockPos pos) {

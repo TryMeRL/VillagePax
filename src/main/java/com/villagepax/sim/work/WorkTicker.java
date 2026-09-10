@@ -198,7 +198,15 @@ public final class WorkTicker {
         BlockPos[] destination = new BlockPos[1];
         context.manager().update(context.settlement().id(),
                 ignored -> destination[0] = job.tick(context).orElse(null));
-        context.body().setWorkTarget(destination[0]);
+
+        // Ремесло называет <b>дело</b>, а тикер решает, откуда за него
+        // браться. Разделение не украшение: фермер возвращал грядку,
+        // лесоруб — ствол, курьер — сундук, и всех троих посылали
+        // внутрь блока. Работало это только потому, что ванильная
+        // навигация останавливается рядом сама; когда не останавливалась —
+        // житель топтался, и игрок видел, как он «тупит».
+        context.body().setWorkTarget(destination[0] == null
+                ? null : Standing.besideOrAt(context.world(), destination[0]));
 
         // Если житель решение за решением метит в одну и ту же точку и не
         // приближается — он от неё отступится, и следующее решение выберет

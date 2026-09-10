@@ -81,7 +81,8 @@ public final class Needs {
             return false;
         }
 
-        context.body().setWorkTarget(source.pos());
+        // Рядом с сундуком, а не в него: та же оговорка, что у курьера.
+        context.body().setWorkTarget(Standing.besideOrAt(context.world(), source.pos()));
         if (!context.hasArrivedAt(source.pos())) {
             return false;
         }

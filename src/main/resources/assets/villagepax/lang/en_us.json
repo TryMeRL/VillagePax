@@ -190,5 +190,19 @@
   "villagepax.building.maya.builder_hut": "Builder's Yard",
   "villagepax.citizen.died": "%s of %s has died: %s",
   "villagepax.citizen.died.unknown": "cause unknown",
-  "villagepax.build.done": "Finished: %s, level %s"
+  "villagepax.build.done": "Finished: %s, level %s",
+  "villagepax.screen.overview.culture_name": "People",
+  "villagepax.screen.overview.beds_name": "Beds",
+  "villagepax.screen.overview.beds_value": "%s, %s free",
+  "villagepax.screen.overview.food_name": "Food in store, meals",
+  "villagepax.screen.overview.days_name": "Food lasts, days",
+  "villagepax.screen.overview.containers_name": "Containers",
+  "villagepax.screen.overview.step_name": "Blocks laid",
+  "villagepax.screen.overview.step_value": "%s of %s",
+  "villagepax.screen.buildings.line_name": "%s, level %s",
+  "villagepax.progress.planned": "planned",
+  "villagepax.progress.building": "building",
+  "villagepax.progress.done": "done",
+  "villagepax.progress.damaged": "damaged",
+  "villagepax.build.stuck": "Construction halted: %s is waiting for %s — %s short"
 }

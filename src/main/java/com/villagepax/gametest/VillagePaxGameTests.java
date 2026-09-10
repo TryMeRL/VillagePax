@@ -3551,22 +3551,31 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Фермер не выбрал грядку");
             }
 
-            BlockPos later = first;
-            for (int decision = 0; decision < 12 && first.equals(later); decision++) {
+            // Смотрим на память о недостижимом, а не на саму цель: цель
+            // теперь — место, ОТКУДА берутся за грядку, а не сама грядка,
+            // и у двух соседних грядок это место может быть одним и тем же.
+            for (int decision = 0; decision < 12; decision++) {
                 WorkTicker.decide(world, manager, colony, farmer, Schedule.MORNING_WORK);
-                later = body.workTarget();
             }
 
-            if (first.equals(later)) {
+            boolean gaveUp = body.isUnreachable(plots.get(0))
+                    || body.isUnreachable(plots.get(5));
+            if (!gaveUp) {
                 context.throwGameTestException("Фермер двенадцать решений метит в одну "
-                        + "недостижимую грядку " + first.toShortString());
+                        + "недостижимую грядку и не отступается: цель "
+                        + body.workTarget());
             }
-            if (!body.isUnreachable(first)) {
-                context.throwGameTestException("Грядка не отмечена недостижимой");
+
+            BlockPos later = body.workTarget();
+            if (later == null) {
+                context.throwGameTestException("Отступившись, фермер не взялся ни за что");
+                return;
             }
-            if (later == null || !plots.contains(later)) {
-                context.throwGameTestException("Отступившись, фермер взялся не за грядку: "
-                        + later);
+            boolean besidePlot = plots.stream()
+                    .anyMatch(plot -> plot.getSquaredDistance(later) <= 9);
+            if (!besidePlot) {
+                context.throwGameTestException("Отступившись, фермер пошёл не к грядке: "
+                        + later.toShortString());
             }
         } finally {
             demolish(world, farm, farmPlan);
@@ -7282,6 +7291,235 @@ public class VillagePaxGameTests implements FabricGameTest {
             complaints.add(id + ": " + inFire + " раз стоять предлагалось в огне");
         }
         return complaints;
+    }
+
+    // --- по следам жалобы: остальные ремёсла тоже никто не гонял ---
+
+    /**
+     * Фермера посылают только туда, где можно стоять.
+     * <p>
+     * Билдера я после жалобы игрока проверил на всех схемах, а фермера,
+     * лесоруба и курьера — никто. У них та же беда: цель ставит стратегия,
+     * и если она назовёт точку в воздухе или в огне, житель послушно туда
+     * пойдёт. Проверяется тот же инвариант, что у билдера.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trades")
+    public void farmerIsSentOnlyWhereHeCanStand(TestContext context) {
+        checkTradeReach(context, new Identifier("villagepax", "norman/farm_lvl1"),
+                FARM_TYPE, new Identifier("villagepax", "farmer"));
+    }
+
+    /** Лесоруба — тоже: у него роща, и в ствол вставать нельзя. */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trades")
+    public void lumberjackIsSentOnlyWhereHeCanStand(TestContext context) {
+        checkTradeReach(context, new Identifier("villagepax", "norman/lumberjack_lvl1"),
+                new Identifier("villagepax", "norman/lumberjack"),
+                new Identifier("villagepax", "lumberjack"));
+    }
+
+    /**
+     * Курьера — тоже: он ходит между складом и стройкой, и обе точки
+     * выбирает стратегия.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trades")
+    public void courierIsSentOnlyWhereHeCanStand(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic house = schematic(context, new Identifier("villagepax", "norman/house_lvl1"));
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(20, 9, 2));
+        List<BlockPos> ground = new ArrayList<>();
+
+        try {
+            for (int x = -3; x <= 24; x++) {
+                for (int z = -3; z <= 10; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    ground.add(at);
+                }
+            }
+
+            Settlement colony = colonyWithBuilder(world, manager, hall);
+            // Стройка нарочно далеко от склада: ближе двенадцати блоков
+            // билдер носит сам, и курьеру нечего было бы делать.
+            BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 9, 0));
+            Building site = new Building(UUID.randomUUID(), HOUSE_TYPE, 1, anchor,
+                    BlockRotation.NONE, BuildProgress.PLANNED, List.of());
+            colony.addBuilding(site);
+
+            try {
+                stockFor(world, colony, house);
+                Citizen courier = hireWithBody(world, colony,
+                        new Identifier("villagepax", "courier"),
+                        context.getAbsolutePos(new BlockPos(18, 9, 2)));
+
+                List<String> complaints = watchWhereHeIsSent(world, manager, colony, courier,
+                        200, "курьер");
+                if (!complaints.isEmpty()) {
+                    context.throwGameTestException(String.join("\n  ", complaints));
+                }
+            } finally {
+                demolish(world, site, house);
+                discardBodies(world, colony);
+                manager.remove(colony.id());
+            }
+        } finally {
+            for (BlockPos at : ground) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Общая проверка ремесла с мастерской: здание строится целиком,
+     * житель нанимается, и дальше смотрим, куда его посылают.
+     */
+    private static void checkTradeReach(TestContext context, Identifier schematicId,
+                                        Identifier buildingType, Identifier profession) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = schematic(context, schematicId);
+
+        // Ратуша ближе двенадцати блоков к стройке и вне её следа: дальше
+        // билдер не берёт материалы сам (BuildJob.NEARBY_STORAGE), и
+        // мастерская не достроится вовсе. На это я наступил трижды.
+        BlockPos hall = context.getAbsolutePos(new BlockPos(11, 9, 2));
+        List<BlockPos> ground = new ArrayList<>();
+
+        try {
+            for (int x = -3; x <= 18; x++) {
+                for (int z = -3; z <= 12; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    ground.add(at);
+                }
+            }
+
+            Settlement colony = colonyWithBuilder(world, manager, hall);
+            BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 9, 0));
+            Building workplace = new Building(UUID.randomUUID(), buildingType, 1, anchor,
+                    BlockRotation.NONE, BuildProgress.PLANNED, List.of());
+            colony.addBuilding(workplace);
+
+            try {
+                stockFor(world, colony, schematic);
+                BuildJob.Outcome raised = BuildJob.advance(world, manager, colony.id(),
+                        workplace.id(), 20_000);
+                if (!workplace.isOperational()) {
+                    context.throwGameTestException("Мастерская не достроилась (" + raised
+                            + "), проверять нечего: шаг " + workplace.nextStep() + " из "
+                            + schematic.plan().steps().size());
+                    return;
+                }
+
+                // Мастерская, в которой нечего делать, ничего не проверяет:
+                // поле приходит уже засеянным, а роща — саженцами. Дадим
+                // им работу: урожай поспел, дерево выросло.
+                giveWork(world, workplace, schematic);
+
+                Citizen worker = hireWithBody(world, colony, profession,
+                        context.getAbsolutePos(new BlockPos(12, 9, 2)));
+                Workplaces.assign(world, colony);
+
+                List<String> complaints = watchWhereHeIsSent(world, manager, colony, worker,
+                        300, profession.getPath());
+                if (!complaints.isEmpty()) {
+                    context.throwGameTestException(String.join("\n  ", complaints));
+                }
+            } finally {
+                demolish(world, workplace, schematic);
+                discardBodies(world, colony);
+                manager.remove(colony.id());
+            }
+        } finally {
+            for (BlockPos at : ground) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Гонять решения и смотреть, куда жителя посылают.
+     * <p>
+     * Тело переносится только туда, где может стоять человек, — как
+     * в проверке билдера. Считаются два промаха: точка, в которой стоять
+     * нельзя, и точка, в которой жжётся. И третий случай: если жителя
+     * не послали никуда ни разу, проверять было нечего, и об этом надо
+     * сказать, а не молча зачесть.
+     */
+    private static List<String> watchWhereHeIsSent(ServerWorld world, SettlementManager manager,
+                                                   Settlement colony, Citizen worker,
+                                                   int rounds, String who) {
+        CitizenEntity body = (CitizenEntity) world.getEntity(worker.entityUuid().orElseThrow());
+        List<String> complaints = new ArrayList<>();
+        int midair = 0;
+        int inFire = 0;
+        int sent = 0;
+
+        for (int round = 0; round < rounds; round++) {
+            WorkTicker.decide(world, manager, colony, worker, Schedule.MORNING_WORK);
+
+            BlockPos target = body.workTarget();
+            if (target == null) {
+                continue;
+            }
+            sent++;
+
+            if (Hazards.standingHurts(world, target)) {
+                inFire++;
+            }
+            if (standable(world, target)) {
+                body.refreshPositionAndAngles(target.getX() + 0.5, target.getY(),
+                        target.getZ() + 0.5, 0f, 0f);
+            } else {
+                midair++;
+            }
+        }
+
+        if (sent == 0) {
+            complaints.add(who + ": не послан никуда ни разу — проверка ничего не проверила");
+        }
+        if (midair > 0) {
+            complaints.add(who + ": " + midair + " раз из " + sent
+                    + " послан туда, где человек стоять не может");
+        }
+        if (inFire > 0) {
+            complaints.add(who + ": " + inFire + " раз из " + sent + " послан в огонь");
+        }
+        return complaints;
+    }
+
+    /**
+     * Дать ремеслу работу: поспевший урожай фермеру, выросшее дерево
+     * лесорубу.
+     * <p>
+     * Без этого проверка ничего не проверяет: и поле, и роща приходят
+     * из схемы в том состоянии, в котором делать нечего, — грядки уже
+     * вскопаны и засеяны, саженцы уже посажены.
+     */
+    private static void giveWork(ServerWorld world, Building workplace, Schematic schematic) {
+        for (BuildStep step : schematic.plan().steps()) {
+            if (!step.placesBlock()) {
+                continue;
+            }
+            BlockState planned = schematic.blockAt(step.paletteIndex());
+            BlockPos where = BuildJob.worldPos(workplace, schematic.size(), step.pos());
+
+            if (planned.getBlock() instanceof net.minecraft.block.CropBlock crop) {
+                world.setBlockState(where, crop.withAge(crop.getMaxAge()));
+            } else if (planned.isOf(Blocks.OAK_SAPLING)) {
+                for (int up = 0; up < 4; up++) {
+                    world.setBlockState(where.up(up), Blocks.OAK_LOG.getDefaultState());
+                }
+                world.setBlockState(where.up(4), Blocks.OAK_LEAVES.getDefaultState());
+            }
+        }
     }
 
     /**

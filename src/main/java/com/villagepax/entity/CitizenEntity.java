@@ -12,7 +12,6 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Hazards;
-import com.villagepax.sim.Hazards;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Villages;
@@ -168,6 +167,18 @@ public class CitizenEntity extends PathAwareEntity {
      */
     public int noteMaterialWait() {
         return ++waitedForMaterials;
+    }
+
+    /**
+     * Сколько решений подряд простоял — <b>не отмечая</b> ещё одно.
+     * <p>
+     * Разведено с {@link #noteMaterialWait} намеренно: то отмечает и
+     * возвращает, и позвать его дважды за одно решение значит удвоить
+     * счёт. Я на этом уже споткнулся — билдер начинал носить материалы
+     * сам вдвое раньше срока.
+     */
+    public int materialWait() {
+        return waitedForMaterials;
     }
 
     /** Материалы появились: терпение отсчитывается заново. */

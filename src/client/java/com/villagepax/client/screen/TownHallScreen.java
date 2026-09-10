@@ -2,16 +2,17 @@ package com.villagepax.client.screen;
 
 import com.villagepax.client.hologram.Placement;
 import com.villagepax.screen.Mood;
+import com.villagepax.screen.PanelMetrics;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.screen.TownHallNet;
 import com.villagepax.screen.TownHallScreenHandler;
 import com.villagepax.screen.TownHallView;
 import io.wispforest.owo.ui.base.BaseOwoHandledScreen;
-import io.wispforest.owo.ui.component.BoxComponent;
-import io.wispforest.owo.ui.component.ButtonComponent;
 import io.wispforest.owo.ui.component.Components;
+import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.container.FlowLayout;
+import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Component;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
@@ -24,8 +25,8 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
@@ -49,6 +50,14 @@ import java.util.UUID;
  * <b>только тело вкладки</b>. Полная пересборка сбрасывала бы прокрутку,
  * и список жителей прыгал бы под курсором каждый раз, когда кто-то
  * проголодался.
+ * <p>
+ * <b>Почему тело мерится числом.</b> Жалоба игрока: «меню не листается».
+ * Причина была в моей вёрстке: {@code Sizing.fill(100)} в owo — это
+ * процент <b>всего</b> места контейнера, а не остатка после соседей.
+ * Прокрутка стояла в панели рядом с заголовком и вкладками и получала
+ * высоту всей панели: содержимое «влезало», листать было нечего, а лишнее
+ * рисовалось за краем панели. Теперь высота тела вычитается явно
+ * ({@link Look#bodyHeight}), и прокрутка знает своё место.
  */
 public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScreenHandler> {
 
@@ -70,10 +79,24 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         }
     }
 
-    private static final int PANEL_WIDTH = 330;
-    private static final int PANEL_HEIGHT = 210;
+    // Размеры лежат в общем коде: их проверяет модульный тест, потому
+    // что «меню не листается» было ошибкой арифметики, а не рисования.
+    private static final int PANEL_WIDTH = PanelMetrics.TOWN_HALL_WIDTH;
+    private static final int PANEL_HEIGHT = PanelMetrics.TOWN_HALL_HEIGHT;
+    private static final int PADDING = PanelMetrics.PADDING;
+    private static final int GAP = PanelMetrics.GAP;
+
+    private static final int HEADER_HEIGHT = PanelMetrics.HEADER;
+    private static final int TABS_HEIGHT = PanelMetrics.TABS;
+
+    private static final int BODY_HEIGHT =
+            PanelMetrics.bodyHeight(PANEL_HEIGHT, HEADER_HEIGHT, TABS_HEIGHT);
+
+    /** Ширина подписи в строках «подпись — значение». */
+    private static final int CAPTION = 150;
 
     private Tab tab = Tab.OVERVIEW;
+    private FlowLayout head;
     private FlowLayout body;
     private FlowLayout tabs;
 
@@ -92,26 +115,30 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         root.horizontalAlignment(HorizontalAlignment.CENTER);
         root.verticalAlignment(VerticalAlignment.CENTER);
 
-        FlowLayout panel = Containers.verticalFlow(Sizing.fixed(PANEL_WIDTH), Sizing.fixed(PANEL_HEIGHT));
-        panel.surface(Surface.DARK_PANEL);
-        panel.padding(Insets.of(8));
-        panel.gap(6);
+        FlowLayout panel = Look.panel(PANEL_WIDTH, PANEL_HEIGHT, PADDING, GAP);
 
-        panel.child(header());
+        head = Containers.verticalFlow(Sizing.fill(100), Sizing.fixed(HEADER_HEIGHT));
+        head.gap(3);
+        panel.child(head);
 
-        tabs = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
-        tabs.gap(4);
+        tabs = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(TABS_HEIGHT));
+        tabs.gap(3);
         panel.child(tabs);
 
         body = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
-        body.gap(3);
+        body.gap(4);
 
-        FlowLayout scroll = Containers.verticalFlow(Sizing.fill(100), Sizing.fill(100));
-        scroll.child(Containers.verticalScroll(Sizing.fill(100), Sizing.fill(100), body));
+        // Высота — числом, ширина — с запасом под ползунок, чтобы он
+        // не наезжал на строки.
+        ScrollContainer<FlowLayout> scroll = Containers.verticalScroll(
+                Sizing.fill(100), Sizing.fixed(BODY_HEIGHT), body);
+        scroll.scrollbarThiccness(4);
+        scroll.padding(Insets.right(6));
         panel.child(scroll);
 
         root.child(panel);
 
+        fillHead();
         fillTabs();
         fillBody();
     }
@@ -120,31 +147,58 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         return getScreenHandler().view();
     }
 
-    /** Новый снимок с сервера: заголовки вкладок и тело заново. */
+    /** Новый снимок с сервера: заголовок, вкладки и тело заново. */
     public void refresh(TownHallView fresh) {
         getScreenHandler().acceptView(fresh);
         if (body != null) {
+            fillHead();
             fillTabs();
             fillBody();
         }
     }
 
+    /**
+     * Заголовок: имя колонии, уровень и население — одной строкой.
+     * <p>
+     * Одной строкой намеренно: это то, что игрок хочет знать, не читая.
+     * Уровень и население раньше лежали в списке наравне с числом
+     * сундуков, и найти их глазами было не быстрее, чем прочитать всё.
+     * Теперь они пилюлями: число на подложке видно, не разбирая строку.
+     */
+    private void fillHead() {
+        head.clearChildren();
+        TownHallView view = view();
+
+        FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        row.verticalAlignment(VerticalAlignment.CENTER);
+        row.gap(5);
+
+        LabelComponent name = Components.label(Text.literal(view.name()));
+        name.color(Look.GOLD);
+        name.shadow(true);
+        row.child(name);
+
+        row.child(Look.pill(Text.translatable("villagepax.settlement.level." + view.level()),
+                Look.INK));
+        row.child(Look.pill(new ItemStack(Items.RED_BED),
+                Text.literal(view.population() + "/" + view.maxCitizens()),
+                view.freeBeds() > 0 ? Look.INK : Look.BAD));
+        row.child(Look.pill(new ItemStack(Items.BREAD),
+                Text.literal(String.valueOf(view.meals())),
+                view.meals() > 0 ? Look.INK : Look.BAD));
+
+        head.child(row);
+        head.child(Look.rule());
+    }
+
     private void fillTabs() {
         tabs.clearChildren();
         for (Tab candidate : Tab.values()) {
-            Text label = candidate == tab
-                    ? candidate.title().copy().formatted(Formatting.YELLOW)
-                    : candidate.title();
-            ButtonComponent button = Components.button(label, pressed -> {
+            tabs.child(Look.tab(candidate.title(), candidate == tab, 80, pressed -> {
                 tab = candidate;
                 fillTabs();
                 fillBody();
-            });
-            button.horizontalSizing(Sizing.fixed(74));
-            // Выключенная кнопка и есть выбранная вкладка: по ней видно,
-            // где ты, и на неё незачем нажимать повторно.
-            button.active(candidate != tab);
-            tabs.child(button);
+            }));
         }
     }
 
@@ -163,141 +217,188 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
     // --- вкладки ---
 
     private void overview(TownHallView view) {
-        body.child(heading("villagepax.screen.overview.section_colony"));
-        line("villagepax.screen.overview.culture",
-                Text.translatable("villagepax.culture." + view.culture().getPath()));
-        line("villagepax.screen.overview.level", Text.literal(view.level()));
-        line("villagepax.screen.overview.population",
-                number(view.population()), number(view.maxCitizens()));
-        line("villagepax.screen.overview.beds", number(view.beds()), number(view.freeBeds()));
-        line("villagepax.screen.overview.food", number(view.meals()));
+        FlowLayout colony = Look.card("villagepax.screen.overview.section_colony");
+        colony.child(Look.stat(Text.translatable("villagepax.screen.overview.culture_name"),
+                Text.translatable("villagepax.culture." + view.culture().getPath()), CAPTION));
+        colony.child(Look.stat(Text.translatable("villagepax.screen.overview.beds_name"),
+                Text.translatable("villagepax.screen.overview.beds_value",
+                        number(view.beds()), number(view.freeBeds())), CAPTION));
+        colony.child(Look.stat(Text.translatable("villagepax.screen.overview.food_name"),
+                number(view.meals()), CAPTION));
 
         if (view.daysOfFood() > 0) {
-            line("villagepax.screen.overview.days", number(view.daysOfFood()));
+            colony.child(Look.stat(Text.translatable("villagepax.screen.overview.days_name"),
+                    number(view.daysOfFood()), CAPTION));
         } else {
-            body.child(Components.label(Text.translatable("villagepax.screen.overview.days_none"))
-                    .color(Color.RED));
+            LabelComponent hungry = Components.label(
+                    Text.translatable("villagepax.screen.overview.days_none"));
+            hungry.color(Look.BAD);
+            colony.child(hungry);
         }
-        line("villagepax.screen.overview.containers", number(view.containers()));
-        body.child(rule());
+        colony.child(Look.stat(Text.translatable("villagepax.screen.overview.containers_name"),
+                number(view.containers()), CAPTION));
+        body.child(colony);
 
         TownHallView.Construction construction = view.construction().orElse(null);
         if (construction == null) {
-            body.child(Components.label(Text.translatable("villagepax.screen.overview.idle")));
+            FlowLayout idle = Look.card("villagepax.screen.overview.section_build");
+            LabelComponent nothing = Components.label(
+                    Text.translatable("villagepax.screen.overview.idle"));
+            nothing.color(Look.MUTED);
+            idle.child(nothing);
+            body.child(idle);
             return;
         }
 
-        body.child(heading("villagepax.screen.overview.section_build"));
-        line("villagepax.screen.overview.construction", building(construction.type()),
-                number(construction.step()), number(construction.steps()));
-        body.child(progress(construction.step(), construction.steps()));
+        FlowLayout site = Look.card("villagepax.screen.overview.section_build");
+        LabelComponent what = Components.label(building(construction.type()));
+        what.color(Look.INK);
+        site.child(what);
+        site.child(Look.stat(Text.translatable("villagepax.screen.overview.step_name"),
+                Text.translatable("villagepax.screen.overview.step_value",
+                        number(construction.step()), number(construction.steps())), CAPTION));
+        site.child(Look.bar(construction.step(), construction.steps(),
+                PANEL_WIDTH - 2 * PADDING - 24));
 
         if (construction.missing().isEmpty()) {
-            body.child(Components.label(Text.translatable("villagepax.screen.overview.missing_none")));
-            return;
+            LabelComponent enough = Components.label(
+                    Text.translatable("villagepax.screen.overview.missing_none"));
+            enough.color(Look.GOOD);
+            site.child(enough);
+        } else {
+            LabelComponent lacking = Components.label(
+                    Text.translatable("villagepax.screen.overview.missing"));
+            lacking.color(Look.BAD);
+            site.child(lacking);
+            for (Map.Entry<Identifier, Integer> lack : construction.missing().contents().entrySet()) {
+                site.child(Look.itemRow(stackOf(lack.getKey()), lack.getValue()));
+            }
         }
-        body.child(Components.label(Text.translatable("villagepax.screen.overview.missing"))
-                .color(Color.RED));
-        for (Map.Entry<Identifier, Integer> lack : construction.missing().contents().entrySet()) {
-            body.child(itemLine(lack.getKey(), lack.getValue()));
-        }
+        body.child(site);
     }
 
     private void buildings(TownHallView view) {
         if (view.buildings().isEmpty()) {
-            body.child(Components.label(Text.translatable("villagepax.screen.buildings.none")));
+            body.child(muted("villagepax.screen.buildings.none"));
         }
-        for (TownHallView.BuildingLine line : view.buildings()) {
-            FlowLayout built = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
-            built.verticalAlignment(VerticalAlignment.CENTER);
-            built.gap(4);
 
+        for (TownHallView.BuildingLine line : view.buildings()) {
+            FlowLayout card = Look.card(null);
+
+            FlowLayout title = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+            title.verticalAlignment(VerticalAlignment.CENTER);
+            title.gap(4);
+
+            LabelComponent what = Components.label(
+                    Text.translatable("villagepax.screen.buildings.line_name",
+                            building(line.type()), number(line.level())));
+            what.color(Look.INK);
+            what.shadow(true);
+            title.child(what.horizontalSizing(Sizing.fixed(190)));
+            title.child(Look.pill(Text.translatable("villagepax.progress." + line.progress().id()),
+                    line.progress() == BuildProgress.DONE ? Look.GOOD : Look.GOLD));
+            card.child(title);
+
+            FlowLayout controls = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+            controls.verticalAlignment(VerticalAlignment.CENTER);
+            controls.gap(3);
             if (line.canUpgrade()) {
-                built.child(Components.button(Text.translatable("villagepax.screen.buildings.upgrade"),
-                        button -> upgrade(line.id())).horizontalSizing(Sizing.fixed(70)));
+                controls.child(Look.action(
+                        Text.translatable("villagepax.screen.buildings.upgrade"), 76,
+                        button -> upgrade(line.id())));
             }
             // Очередь двигается только у стройки: у готового здания
             // двигать нечего, и кнопки там были бы обманом.
             if (line.progress() != BuildProgress.DONE) {
-                built.child(Components.button(Text.literal("▲"),
-                        button -> reorder(line.id(), 1)).horizontalSizing(Sizing.fixed(16)));
-                built.child(Components.button(Text.literal("▼"),
-                        button -> reorder(line.id(), -1)).horizontalSizing(Sizing.fixed(16)));
+                controls.child(Look.action(Text.literal("▲"), 18,
+                        button -> reorder(line.id(), 1)));
+                controls.child(Look.action(Text.literal("▼"), 18,
+                        button -> reorder(line.id(), -1)));
             }
-            built.child(Components.label(Text.translatable("villagepax.screen.buildings.line",
-                    building(line.type()), number(line.level()),
-                    Text.literal(line.progress().id()))));
-            body.child(built);
+            if (!controls.children().isEmpty()) {
+                card.child(controls);
+            }
+            body.child(card);
         }
 
-        body.child(Components.label(Text.translatable("villagepax.screen.buildings.offers"))
-                .shadow(true).margins(Insets.top(6)));
-        body.child(Components.label(Text.translatable("villagepax.screen.buildings.order_hint"))
-                .color(Color.ofRgb(0xA0A0A0)));
-
+        FlowLayout offers = Look.card("villagepax.screen.buildings.offers");
+        offers.child(muted("villagepax.screen.buildings.order_hint"));
         for (Identifier schematic : view.offers()) {
             FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
             row.verticalAlignment(VerticalAlignment.CENTER);
             row.gap(4);
-            row.child(Components.button(Text.translatable("villagepax.screen.buildings.order"),
-                    button -> order(schematic)).horizontalSizing(Sizing.fixed(70)));
-            row.child(Components.label(building(typeOf(schematic))));
-            body.child(row);
+
+            LabelComponent what = Components.label(building(typeOf(schematic)));
+            what.color(Look.INK);
+            row.child(what.horizontalSizing(Sizing.fixed(190)));
+            row.child(Look.action(Text.translatable("villagepax.screen.buildings.order"), 76,
+                    button -> order(schematic)));
+            offers.child(row);
         }
+        body.child(offers);
     }
 
     private void citizens(TownHallView view) {
         if (view.citizens().isEmpty()) {
-            body.child(Components.label(Text.translatable("villagepax.screen.citizens.none")));
+            body.child(muted("villagepax.screen.citizens.none"));
         }
 
         for (TownHallView.CitizenLine citizen : view.citizens()) {
-            FlowLayout row = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
-            row.surface(Surface.PANEL_INSET);
-            row.padding(Insets.of(3));
-            row.gap(2);
+            FlowLayout card = Look.card(null);
 
-            row.child(Components.label(Text.literal(citizen.name()).formatted(Formatting.WHITE))
-                    .shadow(true));
+            FlowLayout title = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+            title.verticalAlignment(VerticalAlignment.CENTER);
+            title.gap(4);
 
-            List<Text> marks = new ArrayList<>();
-            marks.add(Text.translatable(citizen.mood().translationKey()));
+            LabelComponent name = Components.label(Text.literal(citizen.name()));
+            name.color(Look.INK);
+            name.shadow(true);
+            title.child(name.horizontalSizing(Sizing.fixed(150)));
+            title.child(Look.pill(Text.translatable(citizen.mood().translationKey()),
+                    colorOf(citizen)));
+            card.child(title);
+
+            List<Text> troubles = new ArrayList<>();
             if (!citizen.housed()) {
-                marks.add(Text.translatable("villagepax.screen.citizens.homeless"));
+                troubles.add(Text.translatable("villagepax.screen.citizens.homeless"));
             }
             if (citizen.workplace().isEmpty()) {
-                marks.add(Text.translatable("villagepax.screen.citizens.no_workplace"));
+                troubles.add(Text.translatable("villagepax.screen.citizens.no_workplace"));
             }
             if (citizen.leavingSoon()) {
-                marks.add(Text.translatable("villagepax.screen.citizens.leaving"));
+                troubles.add(Text.translatable("villagepax.screen.citizens.leaving"));
             }
-            row.child(Components.label(join(marks)).color(colorOf(citizen)));
+            if (!troubles.isEmpty()) {
+                LabelComponent line = Components.label(join(troubles));
+                line.color(Look.BAD);
+                card.child(line);
+            }
 
             FlowLayout controls = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
             controls.verticalAlignment(VerticalAlignment.CENTER);
             controls.gap(4);
-            controls.child(Components.button(professionName(view, citizen.profession()),
-                    button -> assign(citizen.id(), nextProfession(view, citizen.profession())))
-                    .horizontalSizing(Sizing.fixed(100)));
-            controls.child(Components.label(Text.translatable("villagepax.screen.citizens.change"))
-                    .color(Color.ofRgb(0xA0A0A0)));
-            row.child(controls);
+            controls.child(Look.action(professionName(view, citizen.profession()), 120,
+                    button -> assign(citizen.id(), nextProfession(view, citizen.profession()))));
+            controls.child(muted("villagepax.screen.citizens.change"));
+            card.child(controls);
 
-            body.child(row);
+            body.child(card);
         }
     }
 
     private void stock(TownHallView view) {
-        body.child(Components.label(Text.translatable("villagepax.screen.stock.hint"))
-                .color(Color.ofRgb(0xA0A0A0)));
+        FlowLayout card = Look.card(null);
+        card.child(muted("villagepax.screen.stock.hint"));
 
         if (view.stock().isEmpty()) {
-            body.child(Components.label(Text.translatable("villagepax.screen.stock.empty")));
+            card.child(muted("villagepax.screen.stock.empty"));
+            body.child(card);
             return;
         }
         for (Map.Entry<Identifier, Integer> entry : view.stock().contents().entrySet()) {
-            body.child(itemLine(entry.getKey(), entry.getValue()));
+            card.child(Look.itemRow(stackOf(entry.getKey()), entry.getValue()));
         }
+        body.child(card);
     }
 
     // --- намерения ---
@@ -311,11 +412,6 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         close();
     }
 
-    /**
-     * Улучшение заказывается кнопкой, а не голограммой: место уже выбрано,
-     * здание растёт от своего угла. Экран остаётся открытым — по нему сразу
-     * видно, что стройка началась.
-     */
     /** Подвинуть стройку в очереди: вверх — раньше, вниз — позже. */
     private void reorder(UUID building, int shift) {
         PacketByteBuf buf = PacketByteBufs.create();
@@ -324,6 +420,11 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         ClientPlayNetworking.send(TownHallNet.PRIORITY, buf);
     }
 
+    /**
+     * Улучшение заказывается кнопкой, а не голограммой: место уже выбрано,
+     * здание растёт от своего угла. Экран остаётся открытым — по нему сразу
+     * видно, что стройка началась.
+     */
     private void upgrade(UUID building) {
         PacketByteBuf buf = PacketByteBufs.create();
         buf.writeUuid(building);
@@ -369,79 +470,14 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
 
     // --- мелочи вёрстки ---
 
-    private void line(String key, Text... args) {
-        body.child(Components.label(Text.translatable(key, (Object[]) args)));
+    private static Component muted(String key) {
+        LabelComponent label = Components.label(Text.translatable(key));
+        label.color(Look.MUTED);
+        return label;
     }
 
-    /**
-     * Заголовок пульта: имя колонии, уровень и население одной строкой,
-     * и черта под ними.
-     * <p>
-     * Одной строкой намеренно: это то, что игрок хочет знать, не читая.
-     * Уровень и население раньше лежали в списке наравне с числом
-     * сундуков, и найти их глазами было не быстрее, чем прочитать всё.
-     */
-    private Component header() {
-        FlowLayout head = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
-        head.gap(3);
-
-        FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
-        row.verticalAlignment(VerticalAlignment.CENTER);
-        row.gap(6);
-        row.child(Components.label(Text.literal(view().name())
-                .formatted(Formatting.GOLD, Formatting.BOLD)).shadow(true));
-        row.child(Components.label(Text.translatable("villagepax.settlement.level." + view().level())
-                .formatted(Formatting.GRAY)));
-        row.child(Components.label(Text.literal(view().population() + "/" + view().maxCitizens())
-                .formatted(Formatting.GRAY)));
-        head.child(row);
-        head.child(rule());
-        return head;
-    }
-
-    /** Черта: делит пульт на части, чтобы список не читался одной кашей. */
-    private static Component rule() {
-        BoxComponent line = new BoxComponent(Sizing.fill(100), Sizing.fixed(1));
-        line.fill(true);
-        line.color(Color.ofArgb(0x40FFFFFF));
-        return line;
-    }
-
-    /** Подзаголовок раздела. */
-    private static Component heading(String key) {
-        return Components.label(Text.translatable(key).formatted(Formatting.YELLOW));
-    }
-
-    /**
-     * Полоса стройки.
-     * <p>
-     * Числами «шаг сорок из ста девяноста шести» доля не читается: чтобы
-     * понять, много ли осталось, приходится делить в голове. Полоса
-     * отвечает на это взглядом.
-     */
-    private static Component progress(int done, int total) {
-        int width = PANEL_WIDTH - 40;
-        int filled = total <= 0 ? 0 : Math.max(1, Math.min(width, width * done / total));
-
-        FlowLayout bar = Containers.horizontalFlow(Sizing.fixed(width), Sizing.fixed(6));
-        bar.surface(Surface.flat(0x60000000));
-
-        BoxComponent grown = new BoxComponent(Sizing.fixed(filled), Sizing.fixed(6));
-        grown.fill(true);
-        grown.color(Color.ofArgb(0xFF6ADE6A));
-        bar.child(grown);
-        return bar;
-    }
-
-    private Component itemLine(Identifier item, int count) {
-        FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
-        row.verticalAlignment(VerticalAlignment.CENTER);
-        row.gap(4);
-
-        Item known = Registries.ITEM.get(item);
-        row.child(Components.item(new ItemStack(known)));
-        row.child(Components.label(known.getName().copy().append(" × " + count)));
-        return row;
+    private static ItemStack stackOf(Identifier item) {
+        return new ItemStack(Registries.ITEM.get(item));
     }
 
     private static Text professionName(TownHallView view, Optional<Identifier> profession) {
@@ -470,9 +506,9 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
 
     private static Color colorOf(TownHallView.CitizenLine citizen) {
         if (citizen.leavingSoon() || citizen.mood() == Mood.STARVING) {
-            return Color.RED;
+            return Look.BAD;
         }
-        return citizen.mood() == Mood.CONTENT ? Color.ofRgb(0x90C090) : Color.ofRgb(0xD0C070);
+        return citizen.mood() == Mood.CONTENT ? Look.GOOD : Color.ofRgb(0xD0C070);
     }
 
     private static Text number(int value) {
@@ -483,7 +519,7 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         Text joined = Text.empty();
         for (int index = 0; index < parts.size(); index++) {
             if (index > 0) {
-                joined = joined.copy().append(", ");
+                joined = joined.copy().append(Text.literal(", ").formatted(Formatting.DARK_GRAY));
             }
             joined = joined.copy().append(parts.get(index));
         }

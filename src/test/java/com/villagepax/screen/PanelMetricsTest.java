@@ -1,0 +1,67 @@
+package com.villagepax.screen;
+
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Панель обязана сходиться по высоте.
+ * <p>
+ * Проверка написана по жалобе «меню не листается». Причина была не
+ * в прокрутке, а в арифметике: телу экрана дали {@code Sizing.fill(100)},
+ * а в owo это процент <b>всего</b> места контейнера, а не остатка после
+ * заголовка и вкладок. Прокрутка получала высоту всей панели, считала,
+ * что содержимое влезло, и листать было нечего.
+ * <p>
+ * Вёрстку глазами тест не проверит — у него нет клиента. А вот это —
+ * проверит, и ровно это и было сломано.
+ */
+class PanelMetricsTest {
+
+    @Test
+    void townHallPanelAddsUp() {
+        assertTrue(PanelMetrics.addsUp(PanelMetrics.TOWN_HALL_HEIGHT,
+                        PanelMetrics.HEADER, PanelMetrics.TABS),
+                "пульт колонии не сходится по высоте: тело либо вылезает за край, "
+                        + "либо не добирает до него");
+    }
+
+    @Test
+    void elderPanelAddsUp() {
+        assertTrue(PanelMetrics.addsUp(PanelMetrics.ELDER_HEIGHT,
+                        PanelMetrics.HEADER, PanelMetrics.TABS),
+                "разговор со старейшиной не сходится по высоте");
+    }
+
+    /** Тело обязано быть больше строки: иначе прокрутка бессмысленна. */
+    @Test
+    void bodyIsWorthScrolling() {
+        int townHall = PanelMetrics.bodyHeight(PanelMetrics.TOWN_HALL_HEIGHT,
+                PanelMetrics.HEADER, PanelMetrics.TABS);
+        int elder = PanelMetrics.bodyHeight(PanelMetrics.ELDER_HEIGHT,
+                PanelMetrics.HEADER, PanelMetrics.TABS);
+
+        assertTrue(townHall >= 120, "тело пульта всего " + townHall + " пикселей");
+        assertTrue(elder >= 120, "тело разговора всего " + elder + " пикселей");
+    }
+
+    /**
+     * Счёт вычитанием, а не на глаз: 236 − 16 отступов − 12 промежутков
+     * − 32 заголовка − 16 вкладок.
+     */
+    @Test
+    void heightIsSubtractedNotGuessed() {
+        assertEquals(160, PanelMetrics.bodyHeight(236, 32, 16));
+        assertEquals(94, PanelMetrics.bodyHeight(150, 20, 8));
+    }
+
+    /**
+     * Панель, в которую тело не влезает, отдаёт наименьшую высоту, а не
+     * отрицательную: отрицательная означала бы прокрутку наизнанку.
+     */
+    @Test
+    void tinyPanelClampsInsteadOfGoingNegative() {
+        assertEquals(PanelMetrics.LEAST_BODY, PanelMetrics.bodyHeight(40, 32, 16));
+    }
+}

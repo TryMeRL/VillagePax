@@ -377,6 +377,9 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         buf.writeBoolean(stall.villageSells());
         buf.writeIdentifier(Registries.ITEM.getId(stall.item()));
         buf.writeVarInt(stall.count());
+        // Опознаватель обоза, если торг идёт с ним: у обоза свой товар,
+        // и сервер должен знать, из чьей телеги брать.
+        buf.writeOptional(view.caravan(), PacketByteBuf::writeUuid);
         ClientPlayNetworking.send(QuestNet.TRADE, buf);
     }
 }

@@ -204,5 +204,9 @@
   "villagepax.progress.building": "строится",
   "villagepax.progress.done": "готово",
   "villagepax.progress.damaged": "повреждено",
-  "villagepax.build.stuck": "Стройка встала: «%s» ждёт %s — не хватает %s шт."
+  "villagepax.build.stuck": "Стройка встала: «%s» ждёт %s — не хватает %s шт.",
+  "villagepax.caravan.merchant": "Торговец (%s)",
+  "villagepax.caravan.arrived": "К колонии пришёл обоз из «%s» — %s. Уйдёт завтра.",
+  "villagepax.caravan.homeless": "Деревни, пославшей обоз, больше нет",
+  "villagepax.caravan.left": "Обоз уже ушёл"
 }

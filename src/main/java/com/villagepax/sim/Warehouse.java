@@ -81,6 +81,17 @@ public final class Warehouse {
         return new Warehouse(found);
     }
 
+    /**
+     * Склад поверх одного хранилища — телеги обоза.
+     * <p>
+     * Обоз торгует своим товаром, а не деревенским: у него телега,
+     * и она здесь. Торг при этом работает тем же кодом, что и с деревней,
+     * — ему всё равно, чей это склад.
+     */
+    public static Warehouse over(BlockPos where, Inventory cart) {
+        return new Warehouse(List.of(new Container(where, cart)));
+    }
+
     private static boolean holds(List<Container> containers, BlockPos pos) {
         for (Container container : containers) {
             if (container.pos().equals(pos)) {

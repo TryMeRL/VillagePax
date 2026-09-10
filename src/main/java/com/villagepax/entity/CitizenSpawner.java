@@ -114,6 +114,32 @@ public final class CitizenSpawner {
      * не получил бы тела — он остался бы записью в данных, занимающей место
      * в населении, но невидимой и недостижимой.
      */
+    /**
+     * Тело без поселения: кукла.
+     * <p>
+     * Нужна обозу. Житель принадлежит поселению — его кормят, ему дают
+     * кровать, его тикает стратегия и тянет домой привязь. Торговец
+     * пришёл на день из деревни за пятьсот блоков: всё это ему не нужно
+     * и всё это его бы утащило. Поэтому у куклы нет ни записи жителя,
+     * ни привязи, и стратегия её не видит вовсе — она не в списке
+     * жителей ни одного поселения.
+     */
+    public static CitizenEntity spawnPuppet(ServerWorld world, BlockPos where) {
+        CitizenEntity body = ModEntities.CITIZEN.create(world);
+        if (body == null) {
+            VillagePax.LOGGER.error("Не удалось создать тело торговца");
+            return null;
+        }
+
+        body.refreshPositionAndAngles(where.getX() + 0.5, where.getY(), where.getZ() + 0.5,
+                world.random.nextFloat() * 360f, 0f);
+        if (!world.spawnEntity(body)) {
+            VillagePax.LOGGER.error("Мир отказался принять тело торговца");
+            return null;
+        }
+        return body;
+    }
+
     private static void tether(CitizenEntity body, Settlement settlement) {
         int radiusBlocks = settlement.level().claimRadiusChunks() * 16;
         body.setPositionTarget(settlement.center(), radiusBlocks);

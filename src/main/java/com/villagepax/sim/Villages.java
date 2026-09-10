@@ -13,6 +13,7 @@ import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
+import com.villagepax.sim.trade.Caravans;
 import com.villagepax.sim.trade.Coins;
 import com.villagepax.sim.trade.Trading;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -185,6 +186,11 @@ public final class Villages {
         Warehouse warehouse = Warehouse.of(world, village);
         earn(world, village, warehouse);
         deliver(world, village, warehouse);
+
+        // И обоз к колонии игрока, если ей есть что предложить. Это та
+        // половина обещания про караваны, которую игрок может встретить.
+        Caravans.newDay(world, manager, village);
+
         planNext(world, manager, village, culture);
     }
 

@@ -29,10 +29,11 @@ import java.util.UUID;
  * @param quest      предложенный квест, если он есть
  * @param stalls     чем деревня торгует, с уже решённым «можно ли сейчас»
  * @param purse      сколько монеты в кошеле деревни
+ * @param caravan    обоз, если разговор идёт с ним, а не с деревней
  */
 public record QuestView(UUID village, String villageName, Identifier giver, String standing,
                         int reputation, Optional<Integer> nextAt, Optional<Offer> quest,
-                        List<Stall> stalls, int purse) {
+                        List<Stall> stalls, int purse, Optional<UUID> caravan) {
 
     /**
      * Предложенный квест.
@@ -148,7 +149,8 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
             Codec.INT.optionalFieldOf("next_at").forGetter(QuestView::nextAt),
             Offer.CODEC.optionalFieldOf("quest").forGetter(QuestView::quest),
             Stall.CODEC.listOf().optionalFieldOf("stalls", List.of()).forGetter(QuestView::stalls),
-            Codec.INT.optionalFieldOf("purse", 0).forGetter(QuestView::purse)
+            Codec.INT.optionalFieldOf("purse", 0).forGetter(QuestView::purse),
+            Uuids.STRING_CODEC.optionalFieldOf("caravan").forGetter(QuestView::caravan)
     ).apply(instance, QuestView::new));
 
     /** Торгует ли эта деревня вообще: по этому решается, есть ли вкладка торга. */

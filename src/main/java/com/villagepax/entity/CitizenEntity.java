@@ -77,6 +77,16 @@ public class CitizenEntity extends PathAwareEntity {
      */
     private BlockPos workTarget;
 
+    /**
+     * Обоз, которому принадлежит это тело, и поселение, где он гостит.
+     * <p>
+     * Не сохраняется, как и всё в теле: запись обоза лежит у принимающего
+     * поселения, а тело для неё — только кукла на день. После перезахода
+     * {@link com.villagepax.sim.trade.Caravans} поставит его заново.
+     */
+    private UUID caravanId;
+    private UUID caravanHost;
+
     public CitizenEntity(EntityType<? extends PathAwareEntity> type, World world) {
         super(type, world);
         keepTools();
@@ -280,6 +290,20 @@ public class CitizenEntity extends PathAwareEntity {
     }
 
     /** Запись жителя, к которой привязано это тело. */
+    /** Обоз этого тела, если это торговец, а не житель. */
+    public UUID caravanId() {
+        return caravanId;
+    }
+
+    public Optional<UUID> caravanHost() {
+        return Optional.ofNullable(caravanHost);
+    }
+
+    public void linkCaravan(UUID host, UUID caravan) {
+        this.caravanHost = host;
+        this.caravanId = caravan;
+    }
+
     public Optional<Citizen> data(ServerWorld world) {
         if (settlementId == null || citizenId == null) {
             return Optional.empty();
@@ -303,6 +327,14 @@ public class CitizenEntity extends PathAwareEntity {
         }
 
         ServerWorld world = (ServerWorld) getWorld();
+
+        // Торговец обоза — не житель: у него нет ни записи, ни поселения,
+        // и разговор у него свой.
+        if (caravanId != null) {
+            QuestNet.openCaravan(server, world, caravanHost, caravanId);
+            return ActionResult.SUCCESS;
+        }
+
         Citizen citizen = data(world).orElse(null);
         if (citizen == null || citizen.profession().isEmpty()) {
             return ActionResult.PASS;
@@ -439,7 +471,13 @@ public class CitizenEntity extends PathAwareEntity {
     @Override
     public void remove(RemovalReason reason) {
         if (getWorld() instanceof ServerWorld serverWorld) {
-            if (reason == RemovalReason.KILLED) {
+            if (caravanId != null) {
+                // Торговец обоза — кукла: возвращать в данные нечего.
+                // А вот убитого надо разграбить: в этом весь смысл.
+                if (reason == RemovalReason.KILLED) {
+                    robCaravan(serverWorld, getRecentDamageSource());
+                }
+            } else if (reason == RemovalReason.KILLED) {
                 buryCitizen(serverWorld);
             } else {
                 writeBackTo(serverWorld);
@@ -453,6 +491,17 @@ public class CitizenEntity extends PathAwareEntity {
      * позицию было бы хуже, чем ничего: на следующей загрузке чанка он
      * возродился бы целым, и смерть перестала бы что-то значить.
      */
+    /**
+     * Торговца убили: товар рассыпается, деревня запоминает.
+     * <p>
+     * Это «перехватить» из плана про караваны: грабёж возможен и наказуем.
+     */
+    private void robCaravan(ServerWorld world, DamageSource cause) {
+        UUID killer = cause != null && cause.getAttacker() instanceof PlayerEntity thief
+                ? thief.getUuid() : null;
+        com.villagepax.sim.trade.Caravans.robbed(world, this, killer);
+    }
+
     private void buryCitizen(ServerWorld world) {
         if (settlementId == null || citizenId == null) {
             return;

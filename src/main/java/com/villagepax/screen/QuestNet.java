@@ -4,8 +4,10 @@ import com.mojang.serialization.DataResult;
 import com.villagepax.VillagePax;
 import com.villagepax.core.quest.Quest;
 import com.villagepax.core.quest.QuestManager;
+import com.villagepax.core.trade.Caravan;
 import com.villagepax.core.trade.TradeTable;
 import com.villagepax.sim.Citizen;
+import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Standing;
@@ -16,6 +18,9 @@ import com.villagepax.sim.trade.Trading;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.inventory.Inventory;
+import net.minecraft.inventory.SimpleInventory;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.PacketByteBuf;
@@ -80,7 +85,14 @@ public final class QuestNet {
             boolean villageSells = buf.readBoolean();
             Identifier goods = buf.readIdentifier();
             int count = buf.readVarInt();
-            server.execute(() -> trade(player, village, giver, villageSells, goods, count));
+            Optional<UUID> caravan = buf.readOptional(PacketByteBuf::readUuid);
+            server.execute(() -> {
+                if (caravan.isPresent()) {
+                    tradeWithCaravan(player, caravan.get(), village, villageSells, goods, count);
+                } else {
+                    trade(player, village, giver, villageSells, goods, count);
+                }
+            });
         });
     }
 
@@ -90,8 +102,86 @@ public final class QuestNet {
      * Пусто, если у этой деревни нет ни выдающего, ни доверия к игроку, —
      * то есть говорить не о чем и экран открывать незачем.
      */
+    /**
+     * Профессия, от имени которой говорит обоз.
+     * <p>
+     * Квестов у неё нет и быть не должно: обоз пришёл торговать, а не
+     * просить. Опознаватель нужен только затем, что снимок разговора
+     * устроен вокруг «выдающего», и обозу тоже надо кем-то быть.
+     */
+    public static final Identifier MERCHANT = new Identifier(VillagePax.MOD_ID, "merchant");
+
+    /**
+     * Открыть торг с обозом.
+     * <p>
+     * Доверие и цены берутся у <b>пославшей деревни</b>: торговец её
+     * человек, и грабить его — портить отношения с ней. А товар и монета
+     * — у самой телеги: у обоза можно скупить всё, и тогда торговать
+     * станет нечем до следующего раза.
+     */
+    public static void openCaravan(ServerPlayerEntity player, ServerWorld world,
+                                   UUID hostId, UUID caravanId) {
+        SettlementManager manager = SettlementManager.get(world);
+        Settlement host = hostId == null ? null : manager.byId(hostId).orElse(null);
+        Caravan guest = host == null ? null : host.visitor(caravanId).orElse(null);
+        if (guest == null) {
+            return;
+        }
+
+        Settlement home = manager.byId(guest.home()).orElse(null);
+        if (home == null) {
+            // Деревню снесли, пока обоз гостил. Торговать не с кем.
+            player.sendMessage(Text.translatable("villagepax.caravan.homeless"), true);
+            return;
+        }
+
+        SimpleInventory cart = cartOf(guest);
+        viewOf(home, player.getUuid(), player.getInventory(), MERCHANT,
+                Warehouse.over(guest.stands(), cart), Optional.of(caravanId))
+                .ifPresent(view -> send(player, view));
+    }
+
+    /**
+     * Телега обоза как обычное хранилище: товар и монета вместе.
+     * <p>
+     * Монета кладётся стопками, а не числом, чтобы торг работал тем же
+     * кодом, что и с деревней: ему всё равно, чей это склад.
+     */
+    private static SimpleInventory cartOf(Caravan guest) {
+        SimpleInventory cart = new SimpleInventory(27);
+        guest.cargo().contents().forEach((item, count) -> {
+            net.minecraft.item.Item what = Registries.ITEM.get(item);
+            int left = count;
+            while (left > 0) {
+                int chunk = Math.min(left, what.getMaxCount());
+                cart.addStack(new ItemStack(what, chunk));
+                left -= chunk;
+            }
+        });
+        Coins.earn(cart, guest.purse());
+        return cart;
+    }
+
+    /** И обратно: что осталось в телеге после сделки. */
+    private static Caravan restocked(Caravan guest, SimpleInventory cart) {
+        ItemTally left = new ItemTally();
+        for (int slot = 0; slot < cart.size(); slot++) {
+            ItemStack stack = cart.getStack(slot);
+            if (!stack.isEmpty() && !Coins.isCoin(stack.getItem())) {
+                left.add(Registries.ITEM.getId(stack.getItem()), stack.getCount());
+            }
+        }
+        return guest.withCargo(left, Coins.total(cart));
+    }
+
     public static Optional<QuestView> viewOf(Settlement village, UUID id, Inventory carried,
                                              Identifier giver, Warehouse wares) {
+        return viewOf(village, id, carried, giver, wares, Optional.empty());
+    }
+
+    public static Optional<QuestView> viewOf(Settlement village, UUID id, Inventory carried,
+                                             Identifier giver, Warehouse wares,
+                                             Optional<UUID> caravan) {
         int reputation = village.reputationOf(id);
         Standing standing = Standing.of(reputation);
 
@@ -101,7 +191,7 @@ public final class QuestNet {
 
         return Optional.of(new QuestView(village.id(), village.name(), giver,
                 standing.displayKey(), reputation, nextThreshold(standing), offer,
-                stalls(village, reputation, carried, wares), Trading.purse(wares)));
+                stalls(village, reputation, carried, wares), Trading.purse(wares), caravan));
     }
 
     /**
@@ -295,6 +385,75 @@ public final class QuestNet {
                     + outcome[0].id()), true);
         }
         refresh(player, manager, village, giver);
+    }
+
+    /**
+     * Сделка с обозом.
+     * <p>
+     * Проверка близости здесь своя: у обоза нет жителя, к которому можно
+     * подойти, — есть телега на земле. Расстояние до неё подделать
+     * так же нельзя, как и расстояние до старейшины.
+     */
+    private static void tradeWithCaravan(ServerPlayerEntity player, UUID caravanId,
+                                         UUID homeId, boolean villageSells, Identifier goods,
+                                         int count) {
+        ServerWorld world = player.getServerWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        Settlement foundHost = null;
+        Caravan foundGuest = null;
+        for (Settlement candidate : manager.all()) {
+            Caravan found = candidate.visitor(caravanId).orElse(null);
+            if (found != null) {
+                foundHost = candidate;
+                foundGuest = found;
+                break;
+            }
+        }
+        // Дальше — только неизменяемые: их читают лямбды.
+        final Settlement host = foundHost;
+        final Caravan guest = foundGuest;
+        if (guest == null) {
+            player.sendMessage(Text.translatable("villagepax.caravan.left"), true);
+            return;
+        }
+        if (player.squaredDistanceTo(Vec3d.ofCenter(guest.stands())) > TALK_RANGE * TALK_RANGE) {
+            player.sendMessage(Text.translatable("villagepax.quest.too_far"), true);
+            return;
+        }
+
+        Settlement home = manager.byId(homeId).orElse(null);
+        if (home == null) {
+            player.sendMessage(Text.translatable("villagepax.caravan.homeless"), true);
+            return;
+        }
+
+        Trading.Side side = villageSells
+                ? Trading.Side.VILLAGE_SELLS : Trading.Side.VILLAGE_BUYS;
+        TradeTable.Deal deal = Trading
+                .find(home, side, Registries.ITEM.get(goods), count).orElse(null);
+        if (deal == null) {
+            player.sendMessage(Text.translatable("villagepax.trade.gone"), true);
+            return;
+        }
+
+        SimpleInventory cart = cartOf(guest);
+        Trading.Outcome[] outcome = new Trading.Outcome[1];
+        manager.update(homeId, state -> outcome[0] = Trading.trade(state, player.getUuid(),
+                player.getInventory(), Warehouse.over(guest.stands(), cart), side, deal,
+                left -> player.getInventory().offerOrDrop(left)));
+
+        if (outcome[0] == Trading.Outcome.DONE) {
+            Caravan fresh = restocked(guest, cart);
+            manager.update(host.id(), state -> state.restock(fresh));
+            world.playSound(null, player.getBlockPos(), SoundEvents.ENTITY_VILLAGER_TRADE,
+                    SoundCategory.NEUTRAL, 1.0f, 1.0f);
+        } else {
+            player.sendMessage(Text.translatable("villagepax.trade.refused."
+                    + outcome[0].id()), true);
+        }
+
+        openCaravan(player, world, host.id(), caravanId);
     }
 
     /**

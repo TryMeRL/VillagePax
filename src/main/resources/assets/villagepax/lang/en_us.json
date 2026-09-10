@@ -204,5 +204,9 @@
   "villagepax.progress.building": "building",
   "villagepax.progress.done": "done",
   "villagepax.progress.damaged": "damaged",
-  "villagepax.build.stuck": "Construction halted: %s is waiting for %s — %s short"
+  "villagepax.build.stuck": "Construction halted: %s is waiting for %s — %s short",
+  "villagepax.caravan.merchant": "Trader (%s)",
+  "villagepax.caravan.arrived": "A caravan from %s has arrived — %s. It leaves tomorrow.",
+  "villagepax.caravan.homeless": "The village that sent the caravan is gone",
+  "villagepax.caravan.left": "The caravan has already left"
 }

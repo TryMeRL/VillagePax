@@ -3,6 +3,7 @@ package com.villagepax.sim;
 import com.mojang.serialization.Codec;
 import com.villagepax.core.config.Configs;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.villagepax.core.trade.Caravan;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Uuids;
 import net.minecraft.util.math.BlockPos;
@@ -44,7 +45,9 @@ public class Settlement {
             Codec.unboundedMap(Uuids.STRING_CODEC, Codec.INT)
                     .optionalFieldOf("reputation", Map.of()).forGetter(Settlement::reputation),
             Codec.unboundedMap(Uuids.STRING_CODEC, Identifier.CODEC.listOf())
-                    .optionalFieldOf("quests_done", Map.of()).forGetter(Settlement::questsDone)
+                    .optionalFieldOf("quests_done", Map.of()).forGetter(Settlement::questsDone),
+            Caravan.CODEC.listOf().optionalFieldOf("visitors", List.of())
+                    .forGetter(Settlement::visitors)
     ).apply(instance, Settlement::new));
 
     private final UUID id;
@@ -77,6 +80,16 @@ public class Settlement {
     private final Map<UUID, Integer> reputation;
     private final Map<UUID, List<Identifier>> questsDone;
 
+    /**
+     * Обозы, стоящие у этого поселения прямо сейчас.
+     * <p>
+     * Гости, а не свои: чужой торговец приходит на день, торгует и уходит.
+     * Хранятся <b>у принимающего</b>, а не у пославшего, потому что
+     * спрашивают о них здесь: игрок подошёл к своей колонии — есть ли
+     * кто в гостях.
+     */
+    private final List<Caravan> visitors;
+
     public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
                       SettlementLevel level, SettlementStats stats,
                       List<Building> buildings, List<Citizen> citizens) {
@@ -87,13 +100,14 @@ public class Settlement {
                       SettlementLevel level, SettlementStats stats,
                       List<Building> buildings, List<Citizen> citizens, long lastDay) {
         this(id, culture, owner, name, center, level, stats, buildings, citizens, lastDay,
-                Map.of(), Map.of());
+                Map.of(), Map.of(), List.of());
     }
 
     public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
                       SettlementLevel level, SettlementStats stats,
                       List<Building> buildings, List<Citizen> citizens, long lastDay,
-                      Map<UUID, Integer> reputation, Map<UUID, List<Identifier>> questsDone) {
+                      Map<UUID, Integer> reputation, Map<UUID, List<Identifier>> questsDone,
+                      List<Caravan> visitors) {
         this.id = id;
         this.culture = culture;
         this.owner = owner;
@@ -107,6 +121,42 @@ public class Settlement {
         this.reputation = new LinkedHashMap<>(reputation);
         this.questsDone = new LinkedHashMap<>();
         questsDone.forEach((player, quests) -> this.questsDone.put(player, new ArrayList<>(quests)));
+        this.visitors = new ArrayList<>(visitors);
+    }
+
+    // --- гости ---
+
+    public List<Caravan> visitors() {
+        return java.util.Collections.unmodifiableList(visitors);
+    }
+
+    public void welcome(Caravan caravan) {
+        visitors.add(caravan);
+    }
+
+    public java.util.Optional<Caravan> visitor(UUID caravanId) {
+        return visitors.stream().filter(guest -> guest.id().equals(caravanId)).findFirst();
+    }
+
+    /** Обоз уехал или разорился: запись уходит вместе с ним. */
+    public boolean seeOff(UUID caravanId) {
+        return visitors.removeIf(guest -> guest.id().equals(caravanId));
+    }
+
+    /**
+     * Заменить запись обоза: у него убыл товар или монета.
+     * <p>
+     * Заменой, а не правкой на месте: {@link Caravan} — запись, и это
+     * то же решение, что у здания и жителя. Менять неизменяемое нельзя,
+     * а пересобрать дешевле, чем однажды разойтись с сохранением.
+     */
+    public void restock(Caravan fresh) {
+        for (int index = 0; index < visitors.size(); index++) {
+            if (visitors.get(index).id().equals(fresh.id())) {
+                visitors.set(index, fresh);
+                return;
+            }
+        }
     }
 
     public static Settlement found(Identifier culture, Owner owner, String name, BlockPos center) {

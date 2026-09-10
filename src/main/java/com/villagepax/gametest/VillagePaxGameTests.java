@@ -24,6 +24,7 @@ import com.villagepax.sim.Levels;
 import com.villagepax.sim.Owner;
 import com.villagepax.sim.Hazards;
 import com.villagepax.sim.Ground;
+import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementLevel;
 import com.villagepax.sim.SettlementManager;
@@ -64,11 +65,13 @@ import com.villagepax.screen.ColonyNet;
 import com.villagepax.sim.build.Roads;
 import com.villagepax.sim.work.Needs;
 import com.villagepax.core.quest.Quest;
+import com.villagepax.core.trade.Caravan;
 import com.villagepax.core.trade.TradeTable;
 import net.minecraft.inventory.SimpleInventory;
 import com.villagepax.core.quest.QuestManager;
 import com.villagepax.sim.Standing;
 import com.villagepax.sim.quest.Quests;
+import com.villagepax.sim.trade.Caravans;
 import com.villagepax.sim.trade.Coins;
 import com.villagepax.sim.trade.Trading;
 import com.villagepax.item.ModItems;
@@ -7520,6 +7523,234 @@ public class VillagePaxGameTests implements FabricGameTest {
                 world.setBlockState(where.up(4), Blocks.OAK_LEAVES.getDefaultState());
             }
         }
+    }
+
+    // --- фаза 0.2: обозы ---
+
+    /**
+     * Обоз приходит к колонии игрока и привозит настоящий товар деревни.
+     * <p>
+     * Исполнение обещания из плана: «привоз станет настоящим обозом,
+     * который можно перехватить». Заодно это <b>единственная торговля
+     * колонии игрока</b>: своего старейшины у неё нет, и до сих пор
+     * продать ей было некому.
+     * <p>
+     * Проверяется главное: товар обоз берёт <b>со склада деревни</b>,
+     * а не из воздуха. Иначе торговля печатала бы вещи, и деревня стала
+     * бы бездонным сундуком с ногами.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "caravan")
+    public void caravanBringsTheVillageGoodsNotThinAir(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        BlockPos colonyAt = context.getAbsolutePos(new BlockPos(20, 2, 2));
+        List<BlockPos> floor = new ArrayList<>();
+
+        try {
+            for (int x = -2; x <= 26; x++) {
+                for (int z = -4; z <= 8; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", villageAt);
+            world.setBlockState(villageAt, ModBlocks.TOWN_HALL.getDefaultState());
+            manager.add(village);
+
+            Settlement colony = colonyWithBuilder(world, manager, colonyAt);
+
+            // У деревни есть чем торговать: хлеб и монета.
+            Warehouse store = Warehouse.of(world, village);
+            store.add(new ItemStack(Items.BREAD, 40));
+            Coins.earn(store.coins(), 64);
+
+            int breadBefore = Warehouse.of(world, village).count(Items.BREAD);
+            int coinBefore = Coins.total(Warehouse.of(world, village).coins());
+
+            // Обоз ходит не каждый день, и у каждой деревни свой день:
+            // перебираем дни числом, потому что шесть вызовов в одном тике
+            // для мода — один и тот же день.
+            Caravan guest = null;
+            for (long day = 0; day < 6 && guest == null; day++) {
+                Caravans.sendIfDue(world, manager, village, day);
+                guest = manager.byId(colony.id()).orElseThrow().visitors()
+                        .stream().findFirst().orElse(null);
+            }
+
+            if (guest == null) {
+                context.throwGameTestException("Деревня с хлебом и монетой не послала обоз "
+                        + "ни за шесть дней");
+                return;
+            }
+
+            if (guest.cargo().isEmpty()) {
+                context.throwGameTestException("Обоз пришёл пустым");
+            }
+            int breadAfter = Warehouse.of(world, village).count(Items.BREAD);
+            int coinAfter = Coins.total(Warehouse.of(world, village).coins());
+            if (breadAfter >= breadBefore || coinAfter >= coinBefore) {
+                context.throwGameTestException("Обоз гружён из воздуха: хлеба на складе было "
+                        + breadBefore + ", стало " + breadAfter + "; монеты было " + coinBefore
+                        + ", стало " + coinAfter);
+            }
+            if (guest.purse() <= 0) {
+                context.throwGameTestException("Обоз без монеты: покупать ему нечем");
+            }
+            if (!guest.home().equals(village.id())) {
+                context.throwGameTestException("Обоз не помнит, кто его послал");
+            }
+        } finally {
+            manager.all().stream().map(Settlement::id).toList().forEach(manager::remove);
+            for (BlockPos at : floor) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(villageAt, Blocks.AIR.getDefaultState());
+            world.setBlockState(colonyAt, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * У обоза покупают из его телеги, а не со склада деревни.
+     * <p>
+     * Это то, ради чего обоз и нужен: у него можно скупить всё, и тогда
+     * торговать станет нечем до следующего раза. Проверяется, что после
+     * сделки товар убыл <b>из телеги</b>.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "caravan")
+    public void caravanSellsFromItsOwnCart(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 2, 2));
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", villageAt);
+        manager.add(village);
+        UUID player = UUID.randomUUID();
+        SimpleInventory hands = new SimpleInventory(36);
+        List<ItemStack> spilled = new ArrayList<>();
+
+        try {
+            TradeTable.Deal bread = Trading.find(village, Trading.Side.VILLAGE_SELLS,
+                    Items.BREAD, 6).orElse(null);
+            if (bread == null) {
+                context.throwGameTestException("Стол торга норманнов не загрузился");
+                return;
+            }
+
+            // Телега: хлеб и ничего больше. Склад деревни при этом пуст.
+            SimpleInventory cart = new SimpleInventory(27);
+            cart.addStack(new ItemStack(Items.BREAD, 12));
+            Coins.earn(hands, 8);
+
+            Trading.Outcome bought = Trading.trade(village, player, hands,
+                    Warehouse.over(villageAt, cart), Trading.Side.VILLAGE_SELLS, bread,
+                    spilled::add);
+
+            if (bought != Trading.Outcome.DONE) {
+                context.throwGameTestException("Покупка у обоза отказана: " + bought);
+                return;
+            }
+            if (cart.count(Items.BREAD) != 6) {
+                context.throwGameTestException("Из телеги убыло не то: хлеба осталось "
+                        + cart.count(Items.BREAD) + " из 12, ожидалось 6");
+            }
+            if (hands.count(Items.BREAD) != 6) {
+                context.throwGameTestException("Игрок не получил хлеба: "
+                        + hands.count(Items.BREAD));
+            }
+            if (Coins.total(cart) <= 0) {
+                context.throwGameTestException("Монета за хлеб не легла в телегу");
+            }
+            if (!spilled.isEmpty()) {
+                context.throwGameTestException("Сдача просыпалась: " + spilled);
+            }
+        } finally {
+            manager.remove(village.id());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Убитый торговец рассыпает товар, и деревня это помнит.
+     * <p>
+     * Это «перехватить» из плана. Грабёж возможен и наказуем: товар
+     * достаётся грабителю, но доверие пославшей деревни падает — и её
+     * старейшина перестанет и говорить, и торговать.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "caravan")
+    public void robbingTheCaravanCostsTrust(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        BlockPos standsAt = context.getAbsolutePos(new BlockPos(10, 2, 2));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", villageAt);
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Моя", standsAt);
+        manager.add(village);
+        manager.add(colony);
+        UUID thief = UUID.randomUUID();
+
+        try {
+            for (int x = 0; x <= 14; x++) {
+                for (int z = 0; z <= 4; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            ItemTally cart = new ItemTally();
+            cart.add(Registries.ITEM.getId(Items.BREAD), 8);
+            Caravan guest = new Caravan(UUID.randomUUID(), village.id(), NORMAN, standsAt,
+                    cart, 27, 999);
+            manager.update(colony.id(), state -> state.welcome(guest));
+
+            CitizenEntity merchant = CitizenSpawner.spawnPuppet(world, standsAt);
+            if (merchant == null) {
+                context.throwGameTestException("Торговец не появился");
+                return;
+            }
+            merchant.linkCaravan(colony.id(), guest.id());
+
+            int trustBefore = village.reputationOf(thief);
+            Caravans.robbed(world, merchant, thief);
+
+            if (!manager.byId(colony.id()).orElseThrow().visitors().isEmpty()) {
+                context.throwGameTestException("Разграбленный обоз всё ещё гостит");
+            }
+            if (village.reputationOf(thief) >= trustBefore) {
+                context.throwGameTestException("Грабёж не стоил доверия: было " + trustBefore
+                        + ", стало " + village.reputationOf(thief));
+            }
+
+            boolean loot = !world.getEntitiesByClass(net.minecraft.entity.ItemEntity.class,
+                    new net.minecraft.util.math.Box(standsAt).expand(4), any -> true).isEmpty();
+            if (!loot) {
+                context.throwGameTestException("Товар не рассыпался: грабить нечего");
+            }
+        } finally {
+            world.getEntitiesByClass(net.minecraft.entity.ItemEntity.class,
+                            new net.minecraft.util.math.Box(standsAt).expand(6), any -> true)
+                    .forEach(net.minecraft.entity.ItemEntity::discard);
+            world.getEntitiesByClass(CitizenEntity.class,
+                            new net.minecraft.util.math.Box(standsAt).expand(6), any -> true)
+                    .forEach(CitizenEntity::discard);
+            manager.remove(village.id());
+            manager.remove(colony.id());
+            for (BlockPos at : floor) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+        }
+
+        context.complete();
     }
 
     /**

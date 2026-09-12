@@ -93,6 +93,12 @@ public final class Villages {
     private static final int PLACE_RINGS = 5;
     private static final int PLACE_STEP = 7;
 
+    /** Сколько шагов в сторону стоит один блок подъёма: круче не ходят. */
+    private static final int CLIMB_PER_STEP = 3;
+
+    /** Холмик у самой ратуши деревню не портит. */
+    private static final int MIN_CLIMB = 3;
+
 
 
     /** Профессия, с которой игрок разговаривает. Данными задан только её файл. */
@@ -380,7 +386,8 @@ public final class Villages {
                         continue;
                     }
                     BlockPos anchor = surface(world, centre.add(dx, 0, dz));
-                    if (anchor != null && isFlatEnough(world, village, anchor, schematic)) {
+                    if (anchor != null && isWalkableFrom(centre, anchor)
+                            && isFlatEnough(world, village, anchor, schematic)) {
                         spots.add(anchor);
                     }
                 }
@@ -406,6 +413,28 @@ public final class Villages {
      * Насколько неровно — дело народа: у майя есть черта террасного
      * земледелия, и они берутся за склоны, на которые норманны не пойдут.
      */
+    /**
+     * Можно ли дойти от середины деревни до этого места пешком.
+     * <p>
+     * Написано по настоящей деревне из игры заказчика: дом и ферма встали
+     * <b>на восемнадцать блоков выше</b> ратуши, в десяти шагах от неё.
+     * Ровности следа это не нарушало — полка на скале ровная, — и место
+     * проходило проверку. А билдер до него не добирался, стройка вставала
+     * на середине, и игрок сказал прямо: «строится высоко и не пройти».
+     * <p>
+     * Правило простое и человеческое: <b>подъём не круче одного блока
+     * на три шага</b>. Столько поднимается лестница, столько одолевает
+     * житель, и ровно на столько ляжет улица. Ближний край деревни при
+     * этом всё равно вправе быть на три блока выше: холмик у дома —
+     * не скала.
+     */
+    public static boolean isWalkableFrom(BlockPos centre, BlockPos anchor) {
+        int away = (int) Math.sqrt(centre.getSquaredDistance(anchor.getX(), centre.getY(),
+                anchor.getZ()));
+        int climb = Math.abs(anchor.getY() - centre.getY());
+        return climb <= Math.max(MIN_CLIMB, away / CLIMB_PER_STEP);
+    }
+
     private static boolean isFlatEnough(ServerWorld world, Settlement village, BlockPos anchor,
                                         Schematic schematic) {
         Vec3i size = schematic.size();

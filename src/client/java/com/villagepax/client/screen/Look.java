@@ -9,13 +9,14 @@ import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Component;
+import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.VerticalAlignment;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
 
 /**
  * Общий язык обоих экранов мода: цвета, карточки, пилюли, строки.
@@ -25,6 +26,20 @@ import net.minecraft.util.Formatting;
  * Расходились они мелочами: где-то отступ три, где-то четыре, серый цвет
  * подписи в одном месте {@code 0xA0A0A0}, в другом {@code 0xB0B0B0}.
  * По отдельности это незаметно, вместе — выглядит как два мода.
+ * <p>
+ * <b>Светлая панель, а не тёмное стекло.</b> Первый вид был чёрной
+ * полупрозрачной подложкой со светлым текстом: строго, дёшево и —
+ * как сказал заказчик — «чисто тёмное». Мод про деревни, дерево и
+ * пергамент, и место ему рядом с ванильным сундуком, а не рядом с
+ * консолью. Поэтому панель теперь ванильная ({@link Surface#PANEL}),
+ * разделы — вдавленные ({@link Surface#PANEL_INSET}), заголовок лежит
+ * на доске из настоящей текстуры дерева, а текст тёмный, как во всех
+ * ванильных окнах.
+ * <p>
+ * <b>Тень у текста выключена.</b> На тёмном фоне тень отделяла букву от
+ * подложки, на светлом она превращается в грязь под каждой буквой. Это
+ * та мелочь, по которой самодельный интерфейс отличается от ванильного
+ * с первого взгляда.
  * <p>
  * Здесь же записано и <b>несущее правило вёрстки owo</b>, на котором я
  * споткнулся: {@code Sizing.fill(100)} — это процент <b>всего</b> места
@@ -38,60 +53,105 @@ public final class Look {
 
     // --- цвета ---
 
-    /** Обычный текст. Не белый: чистый белый на тёмной панели режет глаз. */
-    public static final Color INK = Color.ofRgb(0xE8E4DA);
+    /**
+     * Обычный текст. Тёмно-коричневый, а не чёрный: чистый чёрный на
+     * светлой панели выглядит дырой, а коричневый читается как чернила.
+     */
+    public static final Color INK = Color.ofRgb(0x33291B);
 
     /** Подпись, пояснение, единицы измерения. */
-    public static final Color MUTED = Color.ofRgb(0x9A958C);
+    public static final Color MUTED = Color.ofRgb(0x6B5E49);
 
     /** Золото: имя поселения, заголовки разделов, выбранная вкладка. */
-    public static final Color GOLD = Color.ofRgb(0xE0B030);
+    public static final Color GOLD = Color.ofRgb(0x8A5A12);
 
     /** Хорошо и плохо. Одна пара на весь мод. */
-    public static final Color GOOD = Color.ofRgb(0x7BD07B);
-    public static final Color BAD = Color.ofRgb(0xE07A6A);
+    public static final Color GOOD = Color.ofRgb(0x2F6B2A);
+    public static final Color BAD = Color.ofRgb(0xA33021);
 
-    /** Карточка: тёмная подложка и еле заметная рамка. */
-    private static final int CARD_FILL = 0x30000000;
-    private static final int CARD_EDGE = 0x24FFFFFF;
+    /** Светлый текст — только на тёмном: на доске заголовка и на золоте. */
+    public static final Color LIGHT = Color.ofRgb(0xF3E6C8);
 
-    /** Пилюля: то же, но плотнее — на ней лежит число. */
-    private static final int PILL_FILL = 0x50000000;
-    private static final int PILL_EDGE = 0x2CFFFFFF;
+    /** Доска заголовка: настоящая текстура дерева, а не крашеный прямоугольник. */
+    private static final Identifier BOARD =
+            new Identifier("minecraft", "textures/block/stripped_dark_oak_log.png");
+
+    /** Пилюля: вдавленное гнездо под число. */
+    private static final int PILL_FILL = 0x22000000;
+    private static final int PILL_EDGE = 0x50FFFFFF;
 
     /** Кнопка вкладки: обычная, наведённая, выбранная. */
-    private static final int TAB_FILL = 0x40000000;
-    private static final int TAB_HOVER = 0x60FFFFFF;
-    private static final int TAB_CHOSEN = 0x60E0B030;
+    private static final int TAB_FILL = 0x30000000;
+    private static final int TAB_HOVER = 0x40FFFFFF;
+    private static final int TAB_CHOSEN = 0xC0C08A30;
+
+    /** Черта: тёмная линия и светлый подбой под ней — гравировкой. */
+    private static final int RULE_DARK = 0x60000000;
+    private static final int RULE_LIGHT = 0x50FFFFFF;
 
     private Look() {
     }
 
-    /** Панель экрана: тёмная, с отступом и промежутками. */
+    /** Панель экрана: ванильная, с отступом и промежутками. */
     public static FlowLayout panel(int width, int height, int padding, int gap) {
         FlowLayout panel = Containers.verticalFlow(Sizing.fixed(width), Sizing.fixed(height));
         // По отдельности, а не цепочкой: surface возвращает общий тип
         // родителя, и gap на нём уже не найти.
-        panel.surface(Surface.DARK_PANEL);
+        panel.surface(Surface.PANEL);
         panel.padding(Insets.of(padding));
         panel.gap(gap);
         return panel;
     }
 
     /**
-     * Карточка раздела: подложка, рамка, заголовок.
+     * Доска заголовка: тёмное дерево с золотой надписью.
+     * <p>
+     * Чтобы окно начиналось с чего-то, а не сразу с текста. Имя поселения
+     * на доске читается как вывеска над входом — и это ровно то, чем оно
+     * и является.
+     */
+    public static FlowLayout board(int height) {
+        FlowLayout board = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(height));
+        board.surface(Surface.tiled(BOARD, 16, 16).and(Surface.outline(0x80000000)));
+        board.padding(Insets.both(6, 3));
+        board.gap(5);
+        board.verticalAlignment(VerticalAlignment.CENTER);
+        return board;
+    }
+
+    /**
+     * Карточка раздела: вдавленное гнездо с заголовком.
      * <p>
      * Карточками, а не сплошным списком строк. Пульт показывает разом
      * население, еду, стройку и нехватку материалов, и одним списком это
      * читается кашей: глаз не знает, где кончилось одно и началось другое.
      */
     public static FlowLayout card(String headingKey) {
+        return card(headingKey, null);
+    }
+
+    /**
+     * То же со значком у заголовка: кровать у жилья, хлеб у еды, кайло
+     * у стройки. Значок находится глазом раньше, чем прочитано слово.
+     */
+    public static FlowLayout card(String headingKey, ItemStack icon) {
         FlowLayout card = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
-        card.surface(Surface.flat(CARD_FILL).and(Surface.outline(CARD_EDGE)));
-        card.padding(Insets.of(5));
-        card.gap(3);
+        card.surface(Surface.PANEL_INSET);
+        card.padding(Insets.of(6));
+        card.gap(4);
+
         if (headingKey != null) {
-            card.child(heading(headingKey));
+            FlowLayout title = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+            title.verticalAlignment(VerticalAlignment.CENTER);
+            title.gap(4);
+            if (icon != null) {
+                ItemComponent picture = Components.item(icon);
+                picture.sizing(Sizing.fixed(10));
+                title.child(picture);
+            }
+            title.child(heading(headingKey));
+            card.child(title);
+            card.child(rule());
         }
         return card;
     }
@@ -100,70 +160,87 @@ public final class Look {
     public static Component heading(String key) {
         LabelComponent label = Components.label(Text.translatable(key));
         label.color(GOLD);
-        label.shadow(true);
+        label.shadow(false);
         return label;
     }
 
     /**
      * Строка «подпись — значение».
      * <p>
-     * Подпись серая и слева, значение белое и на своём месте: так столбец
+     * Подпись серая и слева, значение тёмное и на своём месте: так столбец
      * значений выравнивается сам, и число находится глазом, а не чтением.
      */
     public static Component stat(Text name, Text value, int nameWidth) {
+        return stat(null, name, value, nameWidth, INK);
+    }
+
+    /** То же со значком и своим цветом значения: голод красным, достаток зелёным. */
+    public static Component stat(ItemStack icon, Text name, Text value, int nameWidth,
+                                 Color colour) {
         FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         row.verticalAlignment(VerticalAlignment.CENTER);
         row.gap(4);
 
+        if (icon != null) {
+            ItemComponent picture = Components.item(icon);
+            picture.sizing(Sizing.fixed(10));
+            picture.setTooltipFromStack(true);
+            row.child(picture);
+        }
+
         LabelComponent caption = Components.label(name);
         caption.color(MUTED);
+        caption.shadow(false);
         row.child(caption.horizontalSizing(Sizing.fixed(nameWidth)));
 
         LabelComponent number = Components.label(value);
-        number.color(INK);
+        number.color(colour);
+        number.shadow(false);
         row.child(number);
         return row;
     }
 
     /** Пилюля с числом: уровень, население, монета. */
     public static Component pill(Text text, Color colour) {
-        FlowLayout pill = Containers.horizontalFlow(Sizing.content(), Sizing.content());
-        pill.surface(Surface.flat(PILL_FILL).and(Surface.outline(PILL_EDGE)));
-        pill.padding(Insets.both(4, 2));
-        pill.verticalAlignment(VerticalAlignment.CENTER);
-        pill.gap(3);
-
+        FlowLayout pill = nest();
         LabelComponent label = Components.label(text);
         label.color(colour);
+        label.shadow(false);
         pill.child(label);
         return pill;
     }
 
     /** Пилюля со значком предмета: население кроватью, монета медяком. */
     public static Component pill(ItemStack icon, Text text, Color colour) {
-        FlowLayout pill = Containers.horizontalFlow(Sizing.content(), Sizing.content());
-        pill.surface(Surface.flat(PILL_FILL).and(Surface.outline(PILL_EDGE)));
-        pill.padding(Insets.both(4, 1));
-        pill.verticalAlignment(VerticalAlignment.CENTER);
-        pill.gap(3);
-
+        FlowLayout pill = nest();
         ItemComponent picture = Components.item(icon);
+        picture.sizing(Sizing.fixed(10));
         picture.setTooltipFromStack(true);
         pill.child(picture);
 
         LabelComponent label = Components.label(text);
         label.color(colour);
+        label.shadow(false);
         pill.child(label);
+        return pill;
+    }
+
+    /** Гнездо пилюли: общая подложка для обоих её видов. */
+    private static FlowLayout nest() {
+        FlowLayout pill = Containers.horizontalFlow(Sizing.content(), Sizing.content());
+        pill.surface(Surface.flat(PILL_FILL).and(Surface.outline(PILL_EDGE)));
+        pill.padding(Insets.both(4, 2));
+        pill.verticalAlignment(VerticalAlignment.CENTER);
+        pill.gap(3);
         return pill;
     }
 
     /** Кнопка вкладки. Выбранная — золотая и выключенная: нажимать нечего. */
     public static ButtonComponent tab(Text title, boolean chosen, int width,
                                       java.util.function.Consumer<ButtonComponent> press) {
-        ButtonComponent button = Components.button(
-                chosen ? title.copy().formatted(Formatting.BLACK) : title, press);
+        ButtonComponent button = Components.button(title, press);
         button.renderer(ButtonComponent.Renderer.flat(TAB_FILL, TAB_HOVER, TAB_CHOSEN));
-        button.textShadow(!chosen);
+        button.textShadow(false);
         button.active(!chosen);
         button.horizontalSizing(Sizing.fixed(width));
         button.verticalSizing(Sizing.fixed(16));
@@ -175,17 +252,32 @@ public final class Look {
                                          java.util.function.Consumer<ButtonComponent> press) {
         ButtonComponent button = Components.button(title, press);
         button.renderer(ButtonComponent.Renderer.flat(TAB_FILL, TAB_HOVER, 0x30000000));
+        button.textShadow(false);
         button.horizontalSizing(Sizing.fixed(width));
         button.verticalSizing(Sizing.fixed(14));
         return button;
     }
 
-    /** Черта: делит панель на части, чтобы она не читалась одной кашей. */
+    /**
+     * Черта: делит панель на части, чтобы она не читалась одной кашей.
+     * <p>
+     * В две линии — тёмная и светлая под ней. Так черта выглядит
+     * вырезанной в доске, а не нарисованной поверх неё; тем же приёмом
+     * нарисованы все ванильные рамки.
+     */
     public static Component rule() {
-        BoxComponent line = new BoxComponent(Sizing.fill(100), Sizing.fixed(1));
-        line.fill(true);
-        line.color(Color.ofArgb(0x30FFFFFF));
-        return line;
+        FlowLayout engraved = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
+
+        BoxComponent dark = new BoxComponent(Sizing.fill(100), Sizing.fixed(1));
+        dark.fill(true);
+        dark.color(Color.ofArgb(RULE_DARK));
+        engraved.child(dark);
+
+        BoxComponent light = new BoxComponent(Sizing.fill(100), Sizing.fixed(1));
+        light.fill(true);
+        light.color(Color.ofArgb(RULE_LIGHT));
+        engraved.child(light);
+        return engraved;
     }
 
     /**
@@ -193,17 +285,21 @@ public final class Look {
      * <p>
      * Числами «шаг сорок из ста девяноста шести» доля не читается: чтобы
      * понять, много ли осталось, приходится делить в голове. Полоса
-     * отвечает на это взглядом.
+     * отвечает на это взглядом, а цветом — на «скоро ли»: начатое
+     * янтарное, доведённое до половины зелёное.
      */
     public static Component bar(int done, int total, int width) {
         int filled = total <= 0 ? 0 : Math.max(1, Math.min(width, width * done / total));
+        boolean halfway = total > 0 && done * 2 >= total;
 
-        FlowLayout track = Containers.horizontalFlow(Sizing.fixed(width), Sizing.fixed(5));
-        track.surface(Surface.flat(0x60000000).and(Surface.outline(0x20FFFFFF)));
+        FlowLayout track = Containers.horizontalFlow(Sizing.fixed(width), Sizing.fixed(6));
+        track.surface(Surface.flat(0x40000000).and(Surface.outline(0x60FFFFFF)));
+        track.padding(Insets.of(1));
 
-        BoxComponent grown = new BoxComponent(Sizing.fixed(filled), Sizing.fixed(5));
+        BoxComponent grown = new BoxComponent(Sizing.fixed(Math.max(1, filled - 2)),
+                Sizing.fixed(4));
         grown.fill(true);
-        grown.color(GOOD);
+        grown.color(halfway ? GOOD : GOLD);
         track.child(grown);
         return track;
     }
@@ -220,11 +316,45 @@ public final class Look {
 
         LabelComponent name = Components.label(stack.getName());
         name.color(INK);
+        name.shadow(false);
         row.child(name.horizontalSizing(Sizing.fixed(170)));
 
         LabelComponent many = Components.label(Text.literal("× " + count));
         many.color(MUTED);
+        many.shadow(false);
         row.child(many);
         return row;
+    }
+
+    /**
+     * Пояснение мелким шрифтом под разделом.
+     * <p>
+     * То, что игрок прочитает один раз и больше не будет, — но этот
+     * один раз решает, понял он экран или закрыл его.
+     */
+    public static Component hint(Text text, int width) {
+        LabelComponent label = Components.label(text);
+        label.color(MUTED);
+        label.shadow(false);
+        label.lineHeight(9);
+        return label.horizontalSizing(Sizing.fixed(width));
+    }
+
+    /**
+     * Пустой раздел: строка посреди карточки вместо списка.
+     * <p>
+     * «Ничего не строится» в середине пустого гнезда читается как ответ,
+     * а прижатое к левому краю — как забытая подпись.
+     */
+    public static Component nothing(Text text, int width) {
+        FlowLayout centred = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
+        centred.horizontalAlignment(HorizontalAlignment.CENTER);
+        centred.padding(Insets.vertical(4));
+
+        LabelComponent label = Components.label(text);
+        label.color(MUTED);
+        label.shadow(false);
+        centred.child(label.horizontalSizing(Sizing.fixed(width)));
+        return centred;
     }
 }

@@ -23,6 +23,7 @@ import io.wispforest.owo.ui.core.VerticalAlignment;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.item.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.registry.Registries;
@@ -173,27 +174,25 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
     private void fillHead() {
         head.clearChildren();
 
-        FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
-        row.gap(5);
-        row.verticalAlignment(VerticalAlignment.CENTER);
+        // Имя деревни — на доске, как вывеска над входом.
+        FlowLayout row = Look.board(HEADER_HEIGHT - 8);
 
         LabelComponent name = Components.label(Text.literal(view.villageName()));
-        name.color(Look.GOLD);
+        name.color(Look.LIGHT);
         name.shadow(true);
         row.child(name);
 
-        row.child(Look.pill(standingLine(), Look.INK));
+        row.child(Look.pill(standingLine(), Look.LIGHT));
 
         if (view.trades()) {
             // Кошель деревни в заголовке, а не во вкладке торга: по нему
             // видно, есть ли смысл нести товар на продажу, ещё до того,
             // как игрок туда заглянул.
             row.child(Look.pill(new ItemStack(ModItems.COIN), Coins.spell(view.purse()),
-                    view.purse() > 0 ? Look.INK : Look.MUTED));
+                    view.purse() > 0 ? Look.LIGHT : Look.MUTED));
         }
 
         head.child(row);
-        head.child(Look.rule());
     }
 
     private void fillTabs() {
@@ -230,7 +229,8 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
     private void fillPeople() {
         QuestView.People people = view.people();
 
-        FlowLayout who = Look.card("villagepax.people.screen.people");
+        FlowLayout who = Look.card("villagepax.people.screen.people",
+                new ItemStack(Items.BELL));
         who.child(Look.stat(Text.translatable(people.name()),
                 Text.translatable("villagepax.people.screen.trust",
                         Text.translatable(people.standing()),
@@ -244,7 +244,8 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         body.child(who);
 
         if (!people.neighbours().isEmpty()) {
-            FlowLayout others = Look.card("villagepax.people.screen.neighbours");
+            FlowLayout others = Look.card("villagepax.people.screen.neighbours",
+                    new ItemStack(Items.MAP));
             for (QuestView.Neighbour neighbour : people.neighbours()) {
                 others.child(Look.stat(Text.translatable(neighbour.name()),
                         Text.translatable(neighbour.attitude()), PEOPLE_WIDTH));
@@ -264,7 +265,8 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
      * и справедливо счёл бы это надувательством.
      */
     private void fillGift() {
-        FlowLayout card = Look.card("villagepax.people.screen.gift");
+        FlowLayout card = Look.card("villagepax.people.screen.gift",
+                new ItemStack(Items.SUNFLOWER));
         QuestView.Gift gift = view.gift().orElse(null);
 
         if (gift == null) {
@@ -319,11 +321,8 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         QuestView.Offer offer = view.quest().orElse(null);
         if (offer == null) {
             FlowLayout card = Look.card(null);
-            LabelComponent nothing = Components.label(
-                    Text.translatable("villagepax.quest.screen.nothing"));
-            nothing.color(Look.MUTED);
-            nothing.lineHeight(10);
-            card.child(nothing.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            card.child(Look.nothing(Text.translatable("villagepax.quest.screen.nothing"),
+                    TEXT_WIDTH));
             body.child(card);
             return;
         }
@@ -335,14 +334,16 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         words.child(said.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
         body.child(words);
 
-        FlowLayout asks = Look.card("villagepax.quest.screen.asks");
+        FlowLayout asks = Look.card("villagepax.quest.screen.asks",
+                new ItemStack(Items.CHEST));
         for (QuestView.Need need : offer.objectives()) {
             asks.child(needRow(need));
         }
         body.child(asks);
 
         if (!offer.rewards().isEmpty()) {
-            FlowLayout gives = Look.card("villagepax.quest.screen.gives");
+            FlowLayout gives = Look.card("villagepax.quest.screen.gives",
+                    new ItemStack(ModItems.COIN));
             for (String reward : offer.rewards()) {
                 LabelComponent line = Components.label(Text.literal(reward));
                 line.color(Look.GOOD);

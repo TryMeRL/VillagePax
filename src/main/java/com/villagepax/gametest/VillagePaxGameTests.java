@@ -8780,6 +8780,238 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    // --- проходимость ---
+
+    /**
+     * Деревня не лезет на скалу: место выбирается там, куда можно дойти.
+     * <p>
+     * Написано по настоящей деревне из игры заказчика: дом и ферма встали
+     * <b>на восемнадцать блоков выше</b> ратуши в десяти шагах от неё.
+     * Стройка встала на середине, потому что билдер туда не добирался,
+     * а игрок сказал: «строится высоко и не пройти».
+     * <p>
+     * Проверяется само правило, а не расстановка: правило — это одна
+     * дробь, и ошибиться в ней можно молча, а поймать за руку расстановку
+     * нельзя без настоящего рельефа.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "playable")
+    public void villageDoesNotClimbCliffs(TestContext context) {
+        BlockPos centre = new BlockPos(0, 69, 0);
+
+        if (Villages.isWalkableFrom(centre, new BlockPos(7, 87, -7))) {
+            context.throwGameTestException("Полка на восемнадцать блоков выше в десяти шагах "
+                    + "считается годной — это та самая деревня на скале");
+        }
+        if (!Villages.isWalkableFrom(centre, new BlockPos(7, 71, 0))) {
+            context.throwGameTestException("Холмик в два блока у самой ратуши объявлен "
+                    + "непроходимым: так деревню не построить нигде");
+        }
+        if (!Villages.isWalkableFrom(centre, new BlockPos(35, 78, 0))) {
+            context.throwGameTestException("Пологий склон — блок подъёма на три шага — "
+                    + "должен считаться проходимым");
+        }
+        if (Villages.isWalkableFrom(centre, new BlockPos(35, 88, 0))) {
+            context.throwGameTestException("Подъём круче одного блока на три шага "
+                    + "проходимым не считается");
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Готовый дом стоит на земле, а не на сваях из воздуха.
+     * <p>
+     * Схема кладётся от своего пола, и на склоне у дома с одной стороны
+     * оставалась пустота: ни зайти, ни подойти. Теперь билдер подводит
+     * опору — из излишков и не глубже склона.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "playable")
+    public void finishedBuildingStandsOnTheGround(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 2, 6));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+
+        try {
+            // Земля под зданием — но с провалом под одним углом: ровно то,
+            // что бывает на склоне.
+            Vec3i size = schematic.size();
+            for (int dx = 0; dx < size.getX(); dx++) {
+                for (int dz = 0; dz < size.getZ(); dz++) {
+                    BlockPos under = anchor.add(dx, -1, dz);
+                    boolean hole = dx >= size.getX() - 2;
+                    world.setBlockState(under, hole ? Blocks.AIR.getDefaultState()
+                            : Blocks.STONE.getDefaultState());
+                    floor.add(under);
+                    if (hole) {
+                        BlockPos bottom = under.down(2);
+                        world.setBlockState(bottom, Blocks.STONE.getDefaultState());
+                        floor.add(bottom);
+                    }
+                }
+            }
+
+            // Вдвое больше плана: подсыпка идёт только из излишков.
+            stockFor(world, colony, schematic);
+            stockFor(world, colony, schematic);
+
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Здание не достроилось");
+                return;
+            }
+
+            int propped = 0;
+            for (int dx = size.getX() - 2; dx < size.getX(); dx++) {
+                for (int dz = 0; dz < size.getZ(); dz++) {
+                    if (!world.getBlockState(anchor.add(dx, -1, dz)).isAir()) {
+                        propped++;
+                    }
+                }
+            }
+            if (propped == 0) {
+                context.throwGameTestException("Под домом всё ещё пусто: он висит на воздухе");
+            }
+        } finally {
+            demolish(world, site, schematic);
+            for (BlockPos at : floor) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Улица спускается с уступа ступенью, а не обрывается на нём.
+     * <p>
+     * До этой правки дорожка шла только по существующей земле и на любом
+     * уступе выше двух блоков просто кончалась: дом на полке оставался
+     * без подхода. Игрок сказал про это «не пройти ни к зданиям, ни
+     * к фермам».
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "playable")
+    public void streetStepsDownALedge(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 1, 2));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(10, 4, 2));
+        List<BlockPos> ground = new ArrayList<>();
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            // Нижняя площадка у ратуши и верхняя полка под домом: между
+            // ними уступ в три блока — ровно тот, на котором улица рвалась.
+            for (int x = 0; x <= 18; x++) {
+                for (int z = 0; z <= 10; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, x < 8 ? 0 : 3, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    ground.add(at);
+                }
+            }
+            stockFor(world, colony, schematic);
+            stockFor(world, colony, schematic);
+            BuildJob.advance(world, manager, colony.id(), site.id(), 10_000);
+
+            List<BlockPos> route = Roads.route(world, colony, site);
+            if (route.isEmpty()) {
+                context.throwGameTestException("Улицы нет вовсе");
+                return;
+            }
+
+            int drops = 0;
+            for (int step = 1; step < route.size(); step++) {
+                int fall = route.get(step - 1).getY() - route.get(step).getY();
+                if (fall > 1) {
+                    context.throwGameTestException("Улица падает на " + fall
+                            + " блока разом: по такой лестнице не спуститься");
+                }
+                if (fall == 1) {
+                    drops++;
+                }
+            }
+            if (drops == 0) {
+                context.throwGameTestException("Уступ в три блока улица не заметила: "
+                        + "она идёт по одной высоте и обрывается");
+            }
+        } finally {
+            demolish(world, site, schematic);
+            for (BlockPos at : ground) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * Опустевшая колония оживает, а не остаётся руиной навсегда.
+     * <p>
+     * Найдено в сохранениях заказчика: колонии с <b>нулём жителей</b>
+     * и вечно недостроенным домом. Умерли все — кровать строить стало
+     * некому, а без кровати никто не приходил. Выхода не было ни одного,
+     * и игрок сказал про это «строить здания не могу».
+     * <p>
+     * Теперь первому кровать не нужна — он ночует в ратуше, как и самый
+     * первый житель при основании. А второму нужна: иначе колония росла бы
+     * в чистом поле, и дома были бы не нужны вовсе.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "playable")
+    public void desertedColonyComesBackToLife(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 2, 2));
+
+        world.setBlockState(hall, ModBlocks.TOWN_HALL.getDefaultState());
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Пустая", hall);
+        manager.add(colony);
+
+        try {
+            Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 16));
+
+            Citizen first = Housing.welcomeNewcomer(world, colony, new java.util.Random(7))
+                    .orElse(null);
+            if (first == null) {
+                context.throwGameTestException("В пустую колонию с едой никто не пришёл — "
+                        + "это тупик без выхода");
+                return;
+            }
+            if (first.profession().isEmpty()) {
+                context.throwGameTestException("Пришедший без ремесла: строить снова некому");
+            }
+
+            // А второму кровать уже нужна: домов в колонии нет.
+            if (Housing.welcomeNewcomer(world, colony, new java.util.Random(7)).isPresent()) {
+                context.throwGameTestException("Второй пришёл в колонию без кроватей — "
+                        + "тогда дома не нужны вовсе");
+            }
+        } finally {
+            world.getEntitiesByClass(CitizenEntity.class,
+                            new net.minecraft.util.math.Box(hall).expand(16), any -> true)
+                    .forEach(CitizenEntity::discard);
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
     /** Сколько хранилищ стоит в следе здания прямо сейчас. */
     private static int containersIn(ServerWorld world, Building building, Schematic schematic) {
         int found = 0;

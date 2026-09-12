@@ -74,11 +74,28 @@ public final class Roads {
     /**
      * Насколько круто улица идёт в гору.
      * <p>
+     * <b>Один блок</b>, а не два, и это не придирка к виду. Через ступень
+     * в два блока житель не перелезет вовсе: прыжок берёт один. Вниз
+     * такая лестница ещё вела, наверх — уже нет, и дом на полке оставался
+     * недоступным ровно наполовину. Игрок сказал об этом прямо: «не пройти
+     * ни к зданиям, ни к фермам».
+     * <p>
+     * Всё, что круче, теперь досыпается ступенями — см. {@link #step}.
+     * <p>
      * Дорожка следует рельефу шаг за шагом от предыдущего тайла, а не по
      * высоте поверхности: иначе она забралась бы на скалу или на крышу,
      * и житель полез бы за ней.
      */
-    private static final int CLIMB = 2;
+    private static final int CLIMB = 1;
+
+    /**
+     * Насколько глубоко улица досыпает ступень.
+     * <p>
+     * Два блока — это уступ, три и больше — обрыв. Дорожка, ныряющая
+     * в пропасть насыпью, перестала бы быть дорожкой и стала бы мостом,
+     * а мост — отдельная работа и отдельное решение.
+     */
+    private static final int FILL_DEPTH = 2;
 
     /** Порядок поиска опоры: сначала ровно, потом вниз, потом вверх. */
     private static final int[] LEVELS = {0, -1, 1, -2, 2};
@@ -160,7 +177,40 @@ public final class Roads {
         BlockState laid = paving.getDefaultState();
         world.setBlockState(ground, laid, Block.NOTIFY_ALL);
         Sounds.placed(world, ground, laid);
+
+        // Ступень на уступе кладётся в пустоту, и под ней тоже пусто:
+        // досыпаем опору, иначе по такой улице не пройти — под ней дыра.
+        fillUnder(world, warehouse, ground, paving);
         return true;
+    }
+
+    /**
+     * Досыпать опору под только что положенной клеткой улицы.
+     * <p>
+     * Молча и не глубже {@link #FILL_DEPTH}: клетку назначал {@link #step},
+     * и он уже убедился, что твёрдое дно близко. Кончился материал —
+     * останавливаемся: незаконченная насыпь лучше, чем улица, съевшая
+     * весь склад.
+     */
+    private static void fillUnder(ServerWorld world, Warehouse warehouse, BlockPos ground,
+                                  Block paving) {
+        Item material = paving.asItem();
+        for (int depth = 1; depth <= FILL_DEPTH; depth++) {
+            BlockPos under = ground.down(depth);
+            if (world.getBlockState(under).isSolidBlock(world, under)) {
+                return;
+            }
+            // Запас неприкосновенен и здесь: ступень — та же улица,
+            // а улица ждёт излишков.
+            if (paving != Blocks.DIRT_PATH
+                    && (material == Items.AIR || warehouse.count(material) <= reserve()
+                    || !warehouse.take(material, 1))) {
+                return;
+            }
+            BlockState laid = paving == Blocks.DIRT_PATH
+                    ? Blocks.DIRT.getDefaultState() : paving.getDefaultState();
+            world.setBlockState(under, laid, Block.NOTIFY_ALL);
+        }
     }
 
     private static void salvage(ServerWorld world, Warehouse warehouse, BlockPos ground) {
@@ -185,11 +235,19 @@ public final class Roads {
         if (state.isOf(paving)) {
             return false;
         }
+        // Пустая клетка — это назначенная ступень: её не перекладывают,
+        // а досыпают. Для тропы такого не бывает: воздух не вытопчешь.
+        if (state.isAir() || state.isReplaceable()) {
+            return paving != Blocks.DIRT_PATH;
+        }
         return state.isIn(ModTags.PAVABLE) || state.isOf(Blocks.DIRT_PATH);
     }
 
     /** Тропу топчут только по настоящей земле: из песка тропинки не выйдет. */
     private static boolean canPave(BlockState ground, Block paving) {
+        if (ground.isAir() || ground.isReplaceable()) {
+            return paving != Blocks.DIRT_PATH;
+        }
         return paving != Blocks.DIRT_PATH || ground.isIn(BlockTags.DIRT);
     }
 
@@ -230,13 +288,59 @@ public final class Roads {
 
             BlockPos ground = ground(world, column.getX(), column.getZ(), height);
             if (ground == null) {
-                // Стена, вода, обрыв — улица здесь прерывается и идёт дальше.
+                // Земли на ходовой высоте нет — значит уступ. Не бросаем
+                // улицу, а назначаем ступень на блок ниже: её билдер
+                // досыплет. Так дорожка спускается с холма лестницей,
+                // а не обрывается на полпути, оставляя дом недоступным.
+                ground = step(world, column.getX(), column.getZ(), height);
+            }
+            if (ground == null) {
+                // Стена, вода, пропасть — улица здесь прерывается и идёт дальше.
                 continue;
             }
             height = ground.getY();
             tiles.add(ground);
         }
         return tiles;
+    }
+
+    /**
+     * Ступень на уступе: клетка, которую надо досыпать, чтобы улица
+     * не оборвалась.
+     * <p>
+     * Написано по жалобе из игры: «не пройти ни к зданиям, ни к фермам».
+     * Улица шла по существующей земле и на любом уступе выше двух блоков
+     * просто прерывалась — дом на полке оставался без подхода, а житель
+     * искал обход, которого нет.
+     * <p>
+     * Ступень берётся <b>на блок ниже</b> хода улицы: лестница вниз по
+     * одному блоку — то, что проходит и житель, и игрок. Под ступенью
+     * должна быть опора не глубже {@link #FILL_DEPTH}: досыпать пропасть
+     * улица не станет, мост — это не дорожка, а отдельная работа.
+     * И над ступенью должно быть пусто: иначе улица полезет в стену.
+     */
+    private static BlockPos step(ServerWorld world, int x, int z, int height) {
+        BlockPos at = new BlockPos(x, height - 1, z);
+        if (!isFree(world, at) || !isFree(world, at.up())) {
+            return null;
+        }
+
+        for (int depth = 1; depth <= FILL_DEPTH; depth++) {
+            BlockPos under = at.down(depth);
+            if (world.getBlockState(under).isSolidBlock(world, under)) {
+                return at;
+            }
+            if (!isFree(world, under)) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /** Свободно ли: воздух, трава или снег — всё, что улице не помеха. */
+    private static boolean isFree(ServerWorld world, BlockPos at) {
+        BlockState state = world.getBlockState(at);
+        return state.getFluidState().isEmpty() && (state.isAir() || state.isReplaceable());
     }
 
     /**

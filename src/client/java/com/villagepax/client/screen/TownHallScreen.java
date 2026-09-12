@@ -2,6 +2,7 @@ package com.villagepax.client.screen;
 
 import com.villagepax.client.hologram.Placement;
 import com.villagepax.screen.Mood;
+import com.villagepax.block.ModBlocks;
 import com.villagepax.screen.PanelMetrics;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.screen.TownHallNet;
@@ -9,6 +10,7 @@ import com.villagepax.screen.TownHallScreenHandler;
 import com.villagepax.screen.TownHallView;
 import io.wispforest.owo.ui.base.BaseOwoHandledScreen;
 import io.wispforest.owo.ui.component.Components;
+import io.wispforest.owo.ui.component.ItemComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.container.FlowLayout;
@@ -93,6 +95,9 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
             PanelMetrics.bodyHeight(PANEL_HEIGHT, HEADER_HEIGHT, TABS_HEIGHT);
 
     /** Ширина подписи в строках «подпись — значение». */
+    /** Ширина текста внутри карточки: панель без отступов и ползунка. */
+    private static final int TEXT_WIDTH = PanelMetrics.TOWN_HALL_WIDTH - 2 * PanelMetrics.PADDING - 26;
+
     private static final int CAPTION = 150;
 
     private Tab tab = Tab.OVERVIEW;
@@ -169,26 +174,24 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         head.clearChildren();
         TownHallView view = view();
 
-        FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
-        row.verticalAlignment(VerticalAlignment.CENTER);
-        row.gap(5);
+        // Имя колонии — на доске: окно начинается вывеской, а не строкой.
+        FlowLayout row = Look.board(HEADER_HEIGHT - 8);
 
         LabelComponent name = Components.label(Text.literal(view.name()));
-        name.color(Look.GOLD);
+        name.color(Look.LIGHT);
         name.shadow(true);
         row.child(name);
 
         row.child(Look.pill(Text.translatable("villagepax.settlement.level." + view.level()),
-                Look.INK));
+                Look.LIGHT));
         row.child(Look.pill(new ItemStack(Items.RED_BED),
                 Text.literal(view.population() + "/" + view.maxCitizens()),
-                view.freeBeds() > 0 ? Look.INK : Look.BAD));
+                view.freeBeds() > 0 ? Look.LIGHT : Look.BAD));
         row.child(Look.pill(new ItemStack(Items.BREAD),
                 Text.literal(String.valueOf(view.meals())),
-                view.meals() > 0 ? Look.INK : Look.BAD));
+                view.meals() > 0 ? Look.LIGHT : Look.BAD));
 
         head.child(row);
-        head.child(Look.rule());
     }
 
     private void fillTabs() {
@@ -217,40 +220,65 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
     // --- вкладки ---
 
     private void overview(TownHallView view) {
-        FlowLayout colony = Look.card("villagepax.screen.overview.section_colony");
-        colony.child(Look.stat(Text.translatable("villagepax.screen.overview.culture_name"),
-                Text.translatable("villagepax.culture." + view.culture().getPath()), CAPTION));
-        colony.child(Look.stat(Text.translatable("villagepax.screen.overview.beds_name"),
+        FlowLayout colony = Look.card("villagepax.screen.overview.section_colony",
+                new ItemStack(ModBlocks.TOWN_HALL));
+        colony.child(Look.stat(new ItemStack(Items.WHEAT),
+                Text.translatable("villagepax.screen.overview.culture_name"),
+                Text.translatable("villagepax.culture." + view.culture().getPath()),
+                CAPTION, Look.INK));
+        colony.child(Look.stat(new ItemStack(Items.RED_BED),
+                Text.translatable("villagepax.screen.overview.beds_name"),
                 Text.translatable("villagepax.screen.overview.beds_value",
-                        number(view.beds()), number(view.freeBeds())), CAPTION));
-        colony.child(Look.stat(Text.translatable("villagepax.screen.overview.food_name"),
-                number(view.meals()), CAPTION));
+                        number(view.beds()), number(view.freeBeds())),
+                CAPTION, view.freeBeds() > 0 ? Look.INK : Look.BAD));
+        colony.child(Look.stat(new ItemStack(Items.BREAD),
+                Text.translatable("villagepax.screen.overview.food_name"),
+                number(view.meals()), CAPTION,
+                view.meals() > 0 ? Look.INK : Look.BAD));
 
         if (view.daysOfFood() > 0) {
-            colony.child(Look.stat(Text.translatable("villagepax.screen.overview.days_name"),
-                    number(view.daysOfFood()), CAPTION));
+            colony.child(Look.stat(new ItemStack(Items.CLOCK),
+                    Text.translatable("villagepax.screen.overview.days_name"),
+                    number(view.daysOfFood()), CAPTION,
+                    view.daysOfFood() > 1 ? Look.INK : Look.BAD));
         } else {
             LabelComponent hungry = Components.label(
                     Text.translatable("villagepax.screen.overview.days_none"));
             hungry.color(Look.BAD);
             colony.child(hungry);
         }
-        colony.child(Look.stat(Text.translatable("villagepax.screen.overview.containers_name"),
-                number(view.containers()), CAPTION));
+        colony.child(Look.stat(new ItemStack(Items.CHEST),
+                Text.translatable("villagepax.screen.overview.containers_name"),
+                number(view.containers()), CAPTION,
+                view.containers() > 0 ? Look.INK : Look.BAD));
+
+        // Пустая колония — не руина: об этом надо сказать прямо, иначе
+        // игрок будет сидеть над недостроенным домом и не понимать,
+        // почему никто не строит.
+        if (view.population() == 0) {
+            LabelComponent deserted = Components.label(
+                    Text.translatable("villagepax.screen.overview.deserted"));
+            deserted.color(Look.BAD);
+            deserted.shadow(false);
+            deserted.lineHeight(9);
+            colony.child(deserted.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+        }
         body.child(colony);
 
         TownHallView.Construction construction = view.construction().orElse(null);
         if (construction == null) {
-            FlowLayout idle = Look.card("villagepax.screen.overview.section_build");
-            LabelComponent nothing = Components.label(
-                    Text.translatable("villagepax.screen.overview.idle"));
-            nothing.color(Look.MUTED);
-            idle.child(nothing);
+            FlowLayout idle = Look.card("villagepax.screen.overview.section_build",
+                    new ItemStack(Items.IRON_PICKAXE));
+            idle.child(Look.nothing(Text.translatable("villagepax.screen.overview.idle"),
+                    TEXT_WIDTH));
+            idle.child(Look.hint(Text.translatable("villagepax.screen.overview.idle_hint"),
+                    TEXT_WIDTH));
             body.child(idle);
             return;
         }
 
-        FlowLayout site = Look.card("villagepax.screen.overview.section_build");
+        FlowLayout site = Look.card("villagepax.screen.overview.section_build",
+                new ItemStack(Items.IRON_PICKAXE));
         LabelComponent what = Components.label(building(construction.type()));
         what.color(Look.INK);
         site.child(what);
@@ -338,6 +366,27 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         body.child(offers);
     }
 
+    /**
+     * Чем этот житель работает — значком.
+     * <p>
+     * Предмет выбирается кодом, а не данными, и это осознанно: профессий
+     * в датапаке может быть сколько угодно, но значок — это <b>вид</b>,
+     * и у незнакомого ремесла он всё равно будет общим. Общий — хлебная
+     * корка: человек, который просто живёт.
+     */
+    private static ItemStack toolOf(Optional<Identifier> profession) {
+        String craft = profession.map(Identifier::getPath).orElse("");
+        return new ItemStack(switch (craft) {
+            case "builder" -> Items.IRON_PICKAXE;
+            case "courier" -> Items.CHEST;
+            case "farmer" -> Items.WHEAT;
+            case "lumberjack" -> Items.IRON_AXE;
+            case "guard" -> Items.IRON_SWORD;
+            case "elder" -> Items.BELL;
+            default -> Items.BREAD;
+        });
+    }
+
     private void citizens(TownHallView view) {
         if (view.citizens().isEmpty()) {
             body.child(muted("villagepax.screen.citizens.none"));
@@ -350,13 +399,22 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
             title.verticalAlignment(VerticalAlignment.CENTER);
             title.gap(4);
 
+            // Значок ремесла: топор у лесоруба, меч у стражи, кайло
+            // у строителя. Ремесло видно раньше, чем прочитано имя, —
+            // а в колонии на четырнадцать человек именно ремесло и ищут.
+            ItemComponent craft = Components.item(toolOf(citizen.profession()));
+            craft.sizing(Sizing.fixed(12));
+            craft.tooltip(professionName(view, citizen.profession()));
+            title.child(craft);
+
             LabelComponent name = Components.label(Text.literal(citizen.name()));
             name.color(Look.INK);
-            name.shadow(true);
-            title.child(name.horizontalSizing(Sizing.fixed(150)));
+            name.shadow(false);
+            title.child(name.horizontalSizing(Sizing.fixed(136)));
             title.child(Look.pill(Text.translatable(citizen.mood().translationKey()),
                     colorOf(citizen)));
             card.child(title);
+            card.child(Look.rule());
 
             List<Text> troubles = new ArrayList<>();
             if (!citizen.housed()) {

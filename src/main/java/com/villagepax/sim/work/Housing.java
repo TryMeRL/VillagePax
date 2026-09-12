@@ -152,10 +152,21 @@ public final class Housing {
      * Решение заказчика. Еда в условии не для строгости, а чтобы колония
      * не росла в голод: приходящий житель сразу начал бы голодать и уходить,
      * и игрок видел бы вереницу людей, приходящих умирать.
+     * <p>
+     * <b>Первому кровать не нужна.</b> Это не поблажка, а выход из тупика,
+     * в который попал заказчик: в его сохранении нашлись колонии с нулём
+     * жителей и вечно недостроенным домом. Умерли все — строить кровать
+     * стало некому, а без кровати никто не приходил. Колония превращалась
+     * в руину навсегда, и игрок сказал про это «строить здания не могу».
+     * <p>
+     * Тот же случай, что и при основании: первый житель приходит на пустое
+     * место и ночует в ратуше. Дальше правило прежнее — кровать нужна.
      */
     public static Optional<Citizen> welcomeNewcomer(ServerWorld world, Settlement settlement,
                                                     Random random) {
-        if (!settlement.hasRoomForCitizen() || freeSpots(world, settlement) <= 0) {
+        boolean deserted = settlement.citizens().isEmpty();
+        if (!settlement.hasRoomForCitizen()
+                || (!deserted && freeSpots(world, settlement) <= 0)) {
             return Optional.empty();
         }
         if (!Warehouse.of(world, settlement).hasAny(ModTags.CITIZEN_FOOD)) {

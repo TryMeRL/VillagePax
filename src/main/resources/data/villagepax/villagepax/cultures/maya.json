@@ -4,7 +4,7 @@
   "spawn": {
     "biomes": "#minecraft:is_jungle",
     "weight": 10,
-    "min_distance_chunks": 48
+    "min_distance_chunks": 32
   },
   "name_pools": {
     "male": [

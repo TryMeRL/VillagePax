@@ -11,6 +11,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
@@ -34,6 +35,7 @@ public class TownHallBlueprintItem extends Item {
     public static final String CULTURE_KEY = "Culture";
     public static final Identifier DEFAULT_CULTURE = new Identifier("villagepax", "norman");
     public static final String KEY_SUCCESS = "villagepax.found.success";
+    public static final String KEY_NEXT = "villagepax.found.next";
 
     public TownHallBlueprintItem(Settings settings) {
         super(settings);
@@ -88,6 +90,10 @@ public class TownHallBlueprintItem extends Item {
         serverWorld.playSound(null, target, SoundEvents.BLOCK_WOOD_PLACE, SoundCategory.BLOCKS, 1.0f, 1.0f);
         player.sendMessage(Text.translatable(KEY_SUCCESS,
                 ((FoundingOutcome.Founded) outcome).settlement().name()), false);
+        // Второе место, где новичок теряется: колония есть, а что делать —
+        // непонятно. Ратуша молчит, пока по ней не щёлкнут, и первый дом
+        // сам себя не разметит. Одна строка закрывает этот провал целиком.
+        player.sendMessage(Text.translatable(KEY_NEXT).formatted(Formatting.GRAY), false);
         return ActionResult.CONSUME;
     }
 }

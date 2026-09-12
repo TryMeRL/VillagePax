@@ -24,6 +24,7 @@ import com.villagepax.sim.Gender;
 import com.villagepax.sim.Levels;
 import com.villagepax.sim.Owner;
 import com.villagepax.sim.Hazards;
+import com.villagepax.sim.Guide;
 import com.villagepax.sim.Ground;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
@@ -48,6 +49,9 @@ import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.CropBlock;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.registry.Registry;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.tag.TagKey;
 import net.minecraft.registry.Registries;
 import net.minecraft.test.GameTest;
 import net.minecraft.test.TestContext;
@@ -135,6 +139,7 @@ import com.villagepax.sim.work.BuilderJob;
 import net.minecraft.state.property.Properties;
 import net.minecraft.util.math.Direction;
 import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtOps;
 
 import java.util.ArrayList;
@@ -8619,6 +8624,104 @@ public class VillagePaxGameTests implements FabricGameTest {
             cleanUpVillage(world, manager, colony, hall, floor);
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
             world.setBlockState(village, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
+    // --- играбельность ---
+
+    /**
+     * Норманны селятся и на открытой земле, и это правда мира, а не файла.
+     * <p>
+     * Написано по следам первой настоящей игры: деревня встала в двух
+     * с лишним тысячах блоков от спавна, потому что вокруг не было леса.
+     * Мод, который начинается с «найди деревню», не может начинаться
+     * с двухчасовой прогулки.
+     * <p>
+     * Проверяется <b>тег из датапака</b>, а не строка в json культуры:
+     * ошибка в пути файла тега (а он лежит не там, где все остальные —
+     * в {@code tags/worldgen/biome}) не ломает ничего заметно. Тег просто
+     * оказывается пустым, и народ молча перестаёт селиться где бы то ни было.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "playable")
+    public void normanHomeTagIsLoadedAndOpen(TestContext context) {
+        ServerWorld world = context.getWorld();
+        Registry<net.minecraft.world.biome.Biome> biomes =
+                world.getRegistryManager().get(RegistryKeys.BIOME);
+
+        TagKey<net.minecraft.world.biome.Biome> home = TagKey.of(RegistryKeys.BIOME,
+                new Identifier("villagepax", "norman_home"));
+        var listed = biomes.getEntryList(home).orElse(null);
+
+        if (listed == null || listed.size() == 0) {
+            context.throwGameTestException("Тег биомов норманнов не загрузился: "
+                    + "деревни этого народа не встанут нигде");
+            return;
+        }
+
+        boolean plains = false;
+        boolean forest = false;
+        for (var entry : listed) {
+            plains = plains || entry.matchesId(new Identifier("minecraft", "plains"));
+            forest = forest || entry.matchesId(new Identifier("minecraft", "forest"));
+        }
+        if (!plains) {
+            context.throwGameTestException("Равнины не в списке: норманн на открытой земле "
+                    + "не поселится, а именно там чаще всего стоит игрок");
+        }
+        if (!forest) {
+            context.throwGameTestException("Лес выпал из списка: у норманнов он основной");
+        }
+
+        // И культура смотрит именно на этот тег.
+        Culture norman = CultureManager.get(NORMAN);
+        if (norman == null || !"#villagepax:norman_home".equals(norman.spawn().biomes())) {
+            context.throwGameTestException("Культура норманнов не смотрит на свой тег: "
+                    + (norman == null ? "культуры нет" : norman.spawn().biomes()));
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Путевые записки — настоящая книга, а не пустой предмет.
+     * <p>
+     * Книга собирается кодом, и собрать её неправильно легко: страница —
+     * это JSON текстового компонента, и строка, которая им не является,
+     * не покажет ничего. Проверяется то, что увидит игрок: подписанная
+     * книга, все страницы на месте, каждая читается обратно.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "playable")
+    public void wayfarerNotesAreARealBook(TestContext context) {
+        ItemStack book = Guide.book();
+
+        if (!book.isOf(Items.WRITTEN_BOOK)) {
+            context.throwGameTestException("Записки — не подписанная книга: " + book);
+            return;
+        }
+        NbtCompound nbt = book.getNbt();
+        if (nbt == null || !nbt.contains("pages")) {
+            context.throwGameTestException("У книги нет страниц вовсе");
+            return;
+        }
+
+        NbtList pages = nbt.getList("pages", NbtElement.STRING_TYPE);
+        if (pages.size() != Guide.pageCount()) {
+            context.throwGameTestException("Страниц " + pages.size() + " вместо "
+                    + Guide.pageCount());
+        }
+        for (int page = 0; page < pages.size(); page++) {
+            Text read = Text.Serializer.fromJson(pages.getString(page));
+            if (read == null) {
+                context.throwGameTestException("Страница " + (page + 1) + " не читается");
+                return;
+            }
+            if (!(read.getContent() instanceof net.minecraft.text.TranslatableTextContent)) {
+                context.throwGameTestException("Страница " + (page + 1)
+                        + " не переводится: в книге окажется английский текст навсегда");
+            }
         }
 
         context.complete();

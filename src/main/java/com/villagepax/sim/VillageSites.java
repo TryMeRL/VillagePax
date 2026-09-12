@@ -18,6 +18,7 @@ import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.Heightmap;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,6 +60,24 @@ public final class VillageSites {
 
     /** Наименьший шаг сетки: клетка мельче этой сделала бы деревни соседями. */
     private static final int MIN_SPACING_CHUNKS = 12;
+
+    /**
+     * Сколько мест пробуют в одной клетке сетки.
+     * <p>
+     * Одного было мало, и это была <b>главная причина</b>, по которой мод
+     * начинался с часовой прогулки. Клетка — это пятьсот блоков в стороне,
+     * биомы в ней разные, а годилась она или нет решала <b>одна точка</b>:
+     * попала в реку или в холм не того биома — и деревни в клетке нет
+     * вовсе. На настоящем мире до ближайшей деревни выходило больше
+     * километра, и первый игрок так её и не нашёл.
+     * <p>
+     * Восемь точек — это восемь выборок шума вместо одной там, где клетка
+     * пустая, и почти всегда одна там, где деревня есть: перебор
+     * прекращается на первом же годном месте. Поиск при этом стал
+     * <b>быстрее</b>, а не медленнее: он находит деревню в ближнем кольце
+     * и не обходит все шесть.
+     */
+    private static final int TRIES = 8;
 
     /** Смешивание координат клетки — те же множители, что берёт ваниль. */
     private static final long MIX_X = 341873128712L;
@@ -103,6 +122,27 @@ public final class VillageSites {
         Guess best = null;
         double bestAway = Double.MAX_VALUE;
 
+        for (Guess guess : guessEach(world, from)) {
+            double away = guess.where().getSquaredDistance(from.getX(), guess.where().getY(),
+                    from.getZ());
+            if (away < bestAway) {
+                bestAway = away;
+                best = guess;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Ближайшая деревня <b>каждого</b> народа.
+     * <p>
+     * Игроку нужен не один ответ, а выбор: норманны дают чертёж ратуши
+     * и торгуют камнем, майя — своим. Сказать только про ближайших значит
+     * скрыть половину мира, а идти к ним обоим игрок волен сам.
+     */
+    public static List<Guess> guessEach(ServerWorld world, BlockPos from) {
+        List<Guess> found = new ArrayList<>();
+
         for (Map.Entry<Identifier, Culture> entry : CultureManager.all().entrySet()) {
             int spacing = spacing(entry.getValue());
             int cellX = Math.floorDiv(new ChunkPos(from).x, spacing);
@@ -144,12 +184,15 @@ public final class VillageSites {
                 }
             }
 
-            if (mine != null && mineAway < bestAway) {
-                bestAway = mineAway;
-                best = mine;
+            if (mine != null) {
+                found.add(mine);
             }
         }
-        return best;
+
+        // По удалённости: первым называют того, до кого ближе идти.
+        found.sort(Comparator.comparingDouble(guess -> guess.where()
+                .getSquaredDistance(from.getX(), guess.where().getY(), from.getZ())));
+        return found;
     }
 
     /**
@@ -162,8 +205,22 @@ public final class VillageSites {
      */
     public static BlockPos plannedSite(ServerWorld world, Identifier cultureId, Culture culture,
                                        int cellX, int cellZ) {
-        BlockPos column = cellCentre(world, cultureId, culture, cellX, cellZ);
+        for (BlockPos column : tries(world, cultureId, culture, cellX, cellZ)) {
+            BlockPos fits = fitsByGenerator(world, culture, column);
+            if (fits != null) {
+                return fits;
+            }
+        }
+        return null;
+    }
 
+    /**
+     * Годится ли эта колонна: высота и биом — по генератору, без загрузки чанка.
+     * <p>
+     * Ровно так ваниль решает, где поставить деревню или крепость, ещё до
+     * того как игрок туда придёт.
+     */
+    private static BlockPos fitsByGenerator(ServerWorld world, Culture culture, BlockPos column) {
         ServerChunkManager chunks = world.getChunkManager();
         ChunkGenerator generator = chunks.getChunkGenerator();
         NoiseConfig noise = chunks.getNoiseConfig();
@@ -234,18 +291,19 @@ public final class VillageSites {
      */
     public static Optional<BlockPos> candidate(ServerWorld world, Identifier cultureId,
                                                Culture culture, int cellX, int cellZ) {
-        BlockPos column = cellCentre(world, cultureId, culture, cellX, cellZ);
+        // Где именно в клетке — решает генератор, и решает один раз на всех:
+        // и для «куда идти», и для «где встанет». Мир после этого только
+        // подтверждает, что тут есть на что встать <b>сейчас</b>. Спрашивать
+        // биом дважды, у генератора и у мира, значило бы завести два ответа
+        // на один вопрос.
+        BlockPos column = plannedSite(world, cultureId, culture, cellX, cellZ);
+        if (column == null) {
+            return Optional.empty();
+        }
 
         if (!world.isChunkLoaded(column)) {
             // Высоту поверхности в незагруженном чанке спрашивать нельзя:
             // это заставило бы мир его сгенерировать здесь и сейчас.
-            return Optional.empty();
-        }
-
-        BlockPos surface = Ground.buildableAt(world, column.getX(), column.getZ())
-                .orElse(new BlockPos(column.getX(), world.getSeaLevel(), column.getZ()));
-
-        if (!matchesBiome(world, surface, culture)) {
             return Optional.empty();
         }
 
@@ -286,8 +344,8 @@ public final class VillageSites {
      * Кандидат держится в середине клетки: у краёв две соседние деревни
      * могли бы оказаться вплотную, и обе отказались бы возникать.
      */
-    private static BlockPos cellCentre(ServerWorld world, Identifier cultureId, Culture culture,
-                                       int cellX, int cellZ) {
+    private static List<BlockPos> tries(ServerWorld world, Identifier cultureId, Culture culture,
+                                        int cellX, int cellZ) {
         int spacing = spacing(culture);
         int inset = Math.max(1, spacing / 4);
         int room = Math.max(1, spacing - 2 * inset);
@@ -296,9 +354,13 @@ public final class VillageSites {
                 ^ (cellX * MIX_X + cellZ * MIX_Z)
                 ^ cultureId.toString().hashCode());
 
-        int chunkX = cellX * spacing + inset + random.nextInt(room);
-        int chunkZ = cellZ * spacing + inset + random.nextInt(room);
-        return new ChunkPos(chunkX, chunkZ).getStartPos().add(8, 0, 8);
+        List<BlockPos> spots = new ArrayList<>(TRIES);
+        for (int attempt = 0; attempt < TRIES; attempt++) {
+            int chunkX = cellX * spacing + inset + random.nextInt(room);
+            int chunkZ = cellZ * spacing + inset + random.nextInt(room);
+            spots.add(new ChunkPos(chunkX, chunkZ).getStartPos().add(8, 0, 8));
+        }
+        return spots;
     }
 
     private static boolean matchesBiome(ServerWorld world, BlockPos where, Culture culture) {

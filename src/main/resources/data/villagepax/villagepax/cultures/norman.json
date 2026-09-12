@@ -2,9 +2,9 @@
   "display_name": "villagepax.culture.norman",
   "kind": "historical",
   "spawn": {
-    "biomes": "#minecraft:is_forest",
+    "biomes": "#villagepax:norman_home",
     "weight": 10,
-    "min_distance_chunks": 48
+    "min_distance_chunks": 32
   },
   "name_pools": {
     "male": [

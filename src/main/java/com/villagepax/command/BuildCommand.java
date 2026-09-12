@@ -10,6 +10,7 @@ import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Founding;
+import com.villagepax.sim.Guide;
 import com.villagepax.sim.Gender;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.sim.work.Jobs;
@@ -64,8 +65,13 @@ public final class BuildCommand {
     public static void register() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
                 dispatcher.register(literal("villagepax")
-                        .requires(source -> source.hasPermissionLevel(2))
+                        // Права спрашиваются у каждой ветки отдельно, а не
+                        // у корня. Смотреть — всем: без «где деревня» и «что
+                        // с колонией» в мод нельзя играть вовсе, а в одиночной
+                        // игре без читов корневое ограничение закрывало и это.
+                        // Менять мир командой — по-прежнему оператору.
                         .then(literal("build")
+                                .requires(source -> source.hasPermissionLevel(2))
                                 .then(argument("schematic", IdentifierArgumentType.identifier())
                                         .suggests((context, builder) -> CommandSource
                                                 .suggestIdentifiers(SchematicLoader.ids(), builder))
@@ -77,11 +83,13 @@ public final class BuildCommand {
                                                         BuildOrders.rotation(StringArgumentType.getString(context, "rotation"))))))
                         )
                         .then(literal("supply")
+                                .requires(source -> source.hasPermissionLevel(2))
                                 .then(argument("schematic", IdentifierArgumentType.identifier())
                                         .suggests((context, builder) -> CommandSource
                                                 .suggestIdentifiers(SchematicLoader.ids(), builder))
                                         .executes(BuildCommand::supply)))
                         .then(literal("hire")
+                                .requires(source -> source.hasPermissionLevel(2))
                                 .then(argument("profession", IdentifierArgumentType.identifier())
                                         .suggests((context, builder) -> CommandSource
                                                 .suggestIdentifiers(ProfessionManager.ids(), builder))
@@ -89,7 +97,10 @@ public final class BuildCommand {
                         .then(literal("locate").executes(BuildCommand::locate))
                         .then(literal("sites").executes(BuildCommand::sites))
                         .then(literal("status").executes(BuildCommand::status))
-                        .then(literal("config").executes(BuildCommand::reloadConfig))));
+                        .then(literal("guide").executes(BuildCommand::guide))
+                        .then(literal("config")
+                                .requires(source -> source.hasPermissionLevel(2))
+                                .executes(BuildCommand::reloadConfig))));
     }
 
     private static int build(CommandContext<ServerCommandSource> context, BlockRotation rotation)
@@ -239,13 +250,29 @@ public final class BuildCommand {
      * Считается по сетке, а не по загруженным чанкам: ответ нужен и про
      * те места, до которых игрок ещё не доходил.
      */
+    /**
+     * Выдать путевые записки.
+     * <p>
+     * Всем, а не оператору: это руководство, а не власть. Если руки
+     * заняты — падает под ноги, потому что молча съесть книгу хуже,
+     * чем уронить её.
+     */
+    private static int guide(CommandContext<ServerCommandSource> context)
+            throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        player.getInventory().offerOrDrop(Guide.book());
+        context.getSource().sendFeedback(
+                () -> Text.translatable("villagepax.guide.given"), false);
+        return 1;
+    }
+
     private static int locate(CommandContext<ServerCommandSource> context) {
         ServerCommandSource source = context.getSource();
         ServerWorld world = worldOf(source);
         BlockPos from = BlockPos.ofFloored(source.getPosition());
 
-        VillageSites.Guess nearest = VillageSites.guessNearest(world, from);
-        if (nearest == null) {
+        List<VillageSites.Guess> found = VillageSites.guessEach(world, from);
+        if (found.isEmpty()) {
             // Причину назвать обязательно. «Ничего нет» без объяснения
             // выглядит поломкой, а на деле это ответ: рядом нет биома,
             // в котором этот народ ставит деревни.
@@ -254,12 +281,15 @@ public final class BuildCommand {
             return 0;
         }
 
-        int away = (int) Math.sqrt(nearest.where().getSquaredDistance(from));
-        source.sendFeedback(() -> Text.translatable("villagepax.locate.found",
-                Text.translatable("villagepax.culture." + nearest.culture().getPath()),
-                Text.literal(nearest.where().getX() + ", " + nearest.where().getZ()),
-                Text.literal(String.valueOf(away))), false);
-        return 1;
+        // Строка на каждый народ: игроку нужен выбор, а не один ответ.
+        for (VillageSites.Guess guess : found) {
+            int away = (int) Math.sqrt(guess.where().getSquaredDistance(from));
+            source.sendFeedback(() -> Text.translatable("villagepax.locate.found",
+                    Text.translatable("villagepax.culture." + guess.culture().getPath()),
+                    Text.literal(guess.where().getX() + ", " + guess.where().getZ()),
+                    Text.literal(String.valueOf(away))), false);
+        }
+        return found.size();
     }
 
     /** В каких биомах народы ставят деревни — для объяснения отказа. */

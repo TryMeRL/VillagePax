@@ -19,6 +19,7 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.PacketByteBuf;
+import net.minecraft.item.Item;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -30,6 +31,7 @@ import net.minecraft.util.math.Vec3i;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -172,6 +174,17 @@ public final class TownHallNet {
                     Text.translatable(buildingKey(placed.site().type())),
                     Text.literal(footprint.getX() + "x" + footprint.getZ()),
                     Text.literal(String.valueOf(placed.blocks())));
+
+            // И сразу — что нести. Без этой строки игрок уходил в шахту
+            // наугад: список материалов пульт показывал только той стройке,
+            // за которую уже взялся билдер.
+            Map<Item, Integer> missing = BuildOrders.stillNeeded(world, colony, placed.site());
+            if (missing.isEmpty()) {
+                tell(player, "villagepax.screen.order.needs_none");
+            } else {
+                tell(player, "villagepax.screen.order.needs",
+                        BuildOrders.shoppingLine(missing, 5));
+            }
         } else if (result instanceof BuildOrders.Result.NoSchematic missing) {
             tell(player, "villagepax.screen.order.no_schematic",
                     Text.literal(missing.schematic().toString()));

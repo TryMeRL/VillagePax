@@ -8728,6 +8728,58 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    /**
+     * Разметил здание — узнал, что нести.
+     * <p>
+     * До этой строки список материалов игрок узнавал только от билдера,
+     * который уже взялся за стройку и встал без камня. То есть он размечал
+     * дом и уходил в шахту наугад — а это ровно та жалоба, с которой
+     * у модов этого жанра и начинается «непонятно, что делать».
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "playable")
+    public void markingABuildingSaysWhatToBring(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+
+        try {
+            Map<Item, Integer> empty = BuildOrders.stillNeeded(world, colony, site);
+            if (empty.isEmpty()) {
+                context.throwGameTestException("На пустом складе не нужно ничего — "
+                        + "значит список считается не оттуда");
+                return;
+            }
+            if (!empty.containsKey(Items.COBBLESTONE)) {
+                context.throwGameTestException("В списке нет булыжника, а цоколь из него: "
+                        + empty.keySet());
+            }
+
+            Text line = BuildOrders.shoppingLine(empty, 2);
+            if (line.getString().isBlank()) {
+                context.throwGameTestException("Список пуст строкой, хотя не пуст числом");
+            }
+
+            // Завезли всё — и нести больше нечего.
+            stockFor(world, colony, schematic);
+            Map<Item, Integer> stocked = BuildOrders.stillNeeded(world, colony, site);
+            if (!stocked.isEmpty()) {
+                context.throwGameTestException("Склад полон, а список всё просит: " + stocked);
+            }
+        } finally {
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
     /** Сколько хранилищ стоит в следе здания прямо сейчас. */
     private static int containersIn(ServerWorld world, Building building, Schematic schematic) {
         int found = 0;

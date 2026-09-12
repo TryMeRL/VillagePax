@@ -255,5 +255,8 @@
   "villagepax.guide.caravan": "Caravans\n\nA village that counts you a friend sends a merchant with a cart.\n\nHe stands a day by your hall. You may rob him — but everyone will know.",
   "villagepax.guide.raid": "The sword\n\nA killed villager and a robbed caravan cost trust.\n\nLet it fall too low and they will come armed. You get a day's warning. Hand someone the guard's craft before that.",
   "villagepax.guide.peace": "Peace\n\nYou can cut down those who come, but it does not make peace.\n\nOnly what broke it can mend it: gifts and deeds.",
-  "villagepax.found.next": "Click the town hall: crafts and building are there. Mark a house first — nobody moves into an empty field."
+  "villagepax.found.next": "Click the town hall: crafts and building are there. Mark a house first — nobody moves into an empty field.",
+  "villagepax.screen.order.needs": "Bring to storage: %s",
+  "villagepax.screen.order.needs_more": " and %s more kinds",
+  "villagepax.screen.order.needs_none": "The stock is already there — the builder will start on his own."
 }

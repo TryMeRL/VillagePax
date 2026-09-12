@@ -8,13 +8,21 @@ import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Schematic;
+import com.villagepax.sim.Warehouse;
+import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.SchematicLoader;
+import net.minecraft.item.Item;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.MutableText;
+import net.minecraft.text.Text;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3i;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -30,6 +38,67 @@ import java.util.UUID;
  * подробности. Строку собирает вызывающий, а не источник отказа.
  */
 public final class BuildOrders {
+
+    /**
+     * Чего не хватает на складе для этой стройки.
+     * <p>
+     * Считается <b>в момент разметки</b> и говорится игроку сразу. До этого
+     * список материалов узнать было негде: пульт называет нехватку только
+     * той стройки, за которую уже взялся билдер, — то есть игрок размечал
+     * дом и уходил в шахту наугад. Это самая частая жалоба на моды этого
+     * жанра: не сложность, а непонятно, что нести.
+     * <p>
+     * Возвращается то, чего <b>нет</b>, а не вся заявка: булыжник, который
+     * уже лежит на складе, игроку нести незачем, и в списке он только мешал
+     * бы увидеть недостающее.
+     */
+    public static Map<Item, Integer> stillNeeded(ServerWorld world, Settlement colony,
+                                                 Building site) {
+        Schematic schematic = SchematicLoader.get(BuildJob.schematicId(site)).orElse(null);
+        if (schematic == null) {
+            return Map.of();
+        }
+
+        Warehouse warehouse = Warehouse.of(world, colony);
+        Map<Item, Integer> missing = new LinkedHashMap<>();
+        Materials.required(schematic).forEach((item, count) -> {
+            int short_ = count - warehouse.count(item);
+            if (short_ > 0) {
+                missing.put(item, short_);
+            }
+        });
+        return missing;
+    }
+
+    /**
+     * Список покупок строкой: «булыжник ×34, брёвна ×12, и ещё 3 вида».
+     * <p>
+     * С хвостом, а не целиком: у большого здания видов бывает полтора
+     * десятка, и стена текста в чате — это то же самое, что молчание.
+     */
+    public static Text shoppingLine(Map<Item, Integer> missing, int show) {
+        MutableText line = Text.empty();
+        int named = 0;
+
+        for (Map.Entry<Item, Integer> kind : missing.entrySet()) {
+            if (named >= show) {
+                break;
+            }
+            if (named > 0) {
+                line.append(Text.literal(", "));
+            }
+            line.append(Text.translatable(kind.getKey().getTranslationKey()))
+                    .append(Text.literal(" \u00d7" + kind.getValue()));
+            named++;
+        }
+
+        int rest = missing.size() - named;
+        if (rest > 0) {
+            line.append(Text.translatable("villagepax.screen.order.needs_more",
+                    Text.literal(String.valueOf(rest))));
+        }
+        return line;
+    }
 
     /** Имена поворотов — общий словарь команды, экрана и сети. */
     public static final List<String> ROTATIONS = List.of("none", "cw90", "cw180", "ccw90");

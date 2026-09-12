@@ -31,11 +31,18 @@ import java.util.UUID;
  * @param culture   её народ — на случай, если деревню снесли
  * @param musters   где отряд собирается: там и появляются тела
  * @param fighters  сколько бойцов ещё живо
+ * @param wrecked   сколько зданий уже разорено: по одному на бойца
  * @param arrivesOn день, в который они придут: о набеге предупреждают заранее
  * @param leavesOn  день, в который уйдут ни с чем
  */
 public record WarParty(UUID id, UUID home, Identifier culture, BlockPos musters,
-                       int fighters, long arrivesOn, long leavesOn) {
+                       int fighters, int wrecked, long arrivesOn, long leavesOn) {
+
+    /** Отряд, ещё ничего не разоривший. */
+    public WarParty(UUID id, UUID home, Identifier culture, BlockPos musters,
+                    int fighters, long arrivesOn, long leavesOn) {
+        this(id, home, culture, musters, fighters, 0, arrivesOn, leavesOn);
+    }
 
     public static final Codec<WarParty> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Uuids.STRING_CODEC.fieldOf("id").forGetter(WarParty::id),
@@ -43,13 +50,31 @@ public record WarParty(UUID id, UUID home, Identifier culture, BlockPos musters,
             Identifier.CODEC.fieldOf("culture").forGetter(WarParty::culture),
             BlockPos.CODEC.fieldOf("musters").forGetter(WarParty::musters),
             Codec.INT.optionalFieldOf("fighters", 0).forGetter(WarParty::fighters),
+            Codec.INT.optionalFieldOf("wrecked", 0).forGetter(WarParty::wrecked),
             Codec.LONG.fieldOf("arrives_on").forGetter(WarParty::arrivesOn),
             Codec.LONG.fieldOf("leaves_on").forGetter(WarParty::leavesOn)
     ).apply(instance, WarParty::new));
 
     /** Тот же отряд, поредевший. Заменой, а не правкой: запись неизменяема. */
     public WarParty withFighters(int left) {
-        return new WarParty(id, home, culture, musters, Math.max(0, left), arrivesOn, leavesOn);
+        return new WarParty(id, home, culture, musters, Math.max(0, left), wrecked,
+                arrivesOn, leavesOn);
+    }
+
+    /** Тот же отряд, разоривший ещё один дом. */
+    public WarParty withWrecked(int done) {
+        return new WarParty(id, home, culture, musters, fighters, done, arrivesOn, leavesOn);
+    }
+
+    /**
+     * Есть ли ещё кому разорять.
+     * <p>
+     * По дому на живого бойца — и счёт живых падает вместе с ними. Отсюда
+     * простая цена спешки: чем быстрее игрок перебьёт пришедших, тем
+     * меньше домов будет разорено.
+     */
+    public boolean canWreck() {
+        return wrecked < fighters;
     }
 
     /** Пришли ли уже. До этого дня отряд — только предупреждение в чате. */

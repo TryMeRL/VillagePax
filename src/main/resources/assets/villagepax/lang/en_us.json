@@ -233,5 +233,7 @@
   "villagepax.raid.repelled": "The raid on \"%s\" is beaten off: none of them are left.",
   "villagepax.raid.left": "The war band has withdrawn from \"%s\" — the grudge has not.",
   "villagepax.raid.fighter": "Fighter (%s)",
-  "villagepax.citizen.murder_costs": "\"%s\" will not forget this: trust down by %s."
+  "villagepax.citizen.murder_costs": "\"%s\" will not forget this: trust down by %s.",
+  "villagepax.raid.wrecked": "The war band wrecked your %s. The builder will mend it — if there is stock.",
+  "villagepax.raid.plundered": "Looted from your storage: %s items."
 }

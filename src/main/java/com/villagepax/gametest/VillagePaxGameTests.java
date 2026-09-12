@@ -60,6 +60,7 @@ import com.villagepax.core.ModTags;
 import com.villagepax.screen.QuestView;
 import com.villagepax.screen.QuestNet;
 import com.villagepax.sim.war.Raids;
+import com.villagepax.sim.war.Siege;
 import com.villagepax.sim.work.Hauling;
 import com.villagepax.core.config.Config;
 import com.villagepax.core.config.Configs;
@@ -8443,6 +8444,201 @@ public class VillagePaxGameTests implements FabricGameTest {
         world.setBlockState(hall, Blocks.AIR.getDefaultState());
     }
 
+
+    /**
+     * Набег бьёт стены — и разорённое чинится тем же билдером.
+     * <p>
+     * Проверяется вся дуга обещания разом: отряд выбивает блоки, здание
+     * становится повреждённым, билдер восстанавливает его по той же схеме
+     * и <b>за материалы со склада</b>. Ломать выгодно ровно тем, что
+     * чинить платно.
+     * <p>
+     * И проверяется, чего не ломают: блок ратуши с его хранилищем стоит
+     * как стоял. Сломанный сундук высыпал бы игроку под ноги то, что
+     * отряд пришёл унести, а снос ратуши — это уже захват поселения,
+     * которого мод не умеет.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "siege")
+    public void raidWrecksTheWallsAndTheBuilderMendsThem(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic schematic = loadedTownHall(context);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+        BlockPos musters = context.getAbsolutePos(new BlockPos(3, 9, 3));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, BlockRotation.NONE);
+        WarParty party = new WarParty(UUID.randomUUID(), UUID.randomUUID(), NORMAN,
+                musters, 1, 40L, 41L);
+
+        try {
+            stockFor(world, colony, schematic);
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Здание не построилось до набега");
+                return;
+            }
+
+            // Сундуки склада считаем до набега: их обязано остаться столько же.
+            int chestsBefore = containersIn(world, site, schematic);
+            if (chestsBefore == 0) {
+                context.throwGameTestException("В схеме ратуши не оказалось сундуков — "
+                        + "проверять «чего не ломают» не на чем");
+            }
+
+            manager.update(colony.id(), state -> state.besiege(party, 39L));
+            Raids.watch(world, manager, 40L);
+
+            // И спрашиваем правило прямо: в списке «что можно выбить»
+            // хранилищ быть не должно. Шесть блоков из сотни почти никогда
+            // не попадут именно в сундук, и снятый запрет иначе прошёл бы
+            // незамеченным.
+            for (BlockPos spot : Siege.breakable(world, site, schematic)) {
+                if (world.getBlockEntity(spot) != null) {
+                    context.throwGameTestException("Сундук попал в список того, что ломают: "
+                            + spot.toShortString());
+                    break;
+                }
+            }
+
+            if (containersIn(world, site, schematic) != chestsBefore) {
+                context.throwGameTestException("Отряд разбил сундук: было " + chestsBefore
+                        + ", стало " + containersIn(world, site, schematic)
+                        + ". Содержимое высыпалось бы игроку под ноги");
+            }
+
+            Building after = manager.byId(colony.id()).orElseThrow()
+                    .building(site.id()).orElseThrow();
+            if (after.progress() != BuildProgress.DAMAGED) {
+                context.throwGameTestException("Набег прошёл мимо здания: " + after.progress());
+            }
+            if (!world.getBlockState(hall).isOf(ModBlocks.TOWN_HALL)) {
+                context.throwGameTestException("Отряд сломал ратушу — это уже захват, "
+                        + "а не разорение");
+            }
+
+            int holes = 0;
+            for (BuildStep step : schematic.plan().steps()) {
+                if (step.placesBlock() && world.getBlockState(
+                        BuildJob.worldPos(site, schematic.size(), step.pos())).isAir()) {
+                    holes++;
+                }
+            }
+            if (holes == 0) {
+                context.throwGameTestException("Здание помечено разорённым, а стены целы");
+            }
+
+            // Чинится тем же билдером и за материалы: завозим ровно на пробоины.
+            stockFor(world, colony, schematic);
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Разорённое не починилось");
+            }
+            for (BuildStep step : schematic.plan().steps()) {
+                if (step.placesBlock() && world.getBlockState(
+                        BuildJob.worldPos(site, schematic.size(), step.pos())).isAir()) {
+                    context.throwGameTestException("После ремонта осталась пробоина");
+                    break;
+                }
+            }
+        } finally {
+            Raids.bodiesOf(world, party).forEach(CitizenEntity::discard);
+            demolish(world, site, schematic);
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Уцелевшие уходят с добычей, и добыча доезжает до дома.
+     * <p>
+     * Иначе набег был бы чистым уроном без приобретения — а деревня
+     * посылает людей не затем, чтобы сжечь чужое, и не в последнюю
+     * очередь затем, чтобы взять своё.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "siege")
+    public void survivorsCarryTheLootHome(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        BlockPos village = context.getAbsolutePos(new BlockPos(10, 2, 2));
+        BlockPos musters = context.getAbsolutePos(new BlockPos(5, 2, 2));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        world.setBlockState(village, ModBlocks.TOWN_HALL.getDefaultState());
+        Settlement home = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", village);
+        manager.add(home);
+
+        WarParty party = new WarParty(UUID.randomUUID(), home.id(), NORMAN, musters,
+                1, 50L, 51L);
+
+        try {
+            for (int x = 0; x <= 12; x++) {
+                for (int z = 0; z <= 4; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 64));
+            int before = Warehouse.of(world, colony).count(Items.BREAD);
+
+            manager.update(colony.id(), state -> state.besiege(party, 49L));
+            Raids.watch(world, manager, 50L);
+            if (Raids.bodiesOf(world, party).isEmpty()) {
+                context.throwGameTestException("Отряд не встал — некому уносить");
+                return;
+            }
+
+            // Срок вышел: уцелевшие уходят.
+            Raids.watch(world, manager, 52L);
+
+            int after = Warehouse.of(world, colony).count(Items.BREAD);
+            if (after >= before) {
+                context.throwGameTestException("Со склада не унесли ничего: было " + before
+                        + ", стало " + after);
+            }
+            if (Warehouse.of(world, home).count(Items.BREAD) != before - after) {
+                context.throwGameTestException("Добыча не доехала до деревни: у неё "
+                        + Warehouse.of(world, home).count(Items.BREAD) + ", а унесли "
+                        + (before - after));
+            }
+            if (manager.byId(colony.id()).orElseThrow().siege().isPresent()) {
+                context.throwGameTestException("Отряд ушёл, а осада осталась");
+            }
+        } finally {
+            Raids.bodiesOf(world, party).forEach(CitizenEntity::discard);
+            manager.remove(home.id());
+            cleanUpVillage(world, manager, colony, hall, floor);
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            world.setBlockState(village, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
+    /** Сколько хранилищ стоит в следе здания прямо сейчас. */
+    private static int containersIn(ServerWorld world, Building building, Schematic schematic) {
+        int found = 0;
+        for (BuildStep step : schematic.plan().steps()) {
+            if (!step.placesBlock()) {
+                continue;
+            }
+            BlockPos where = BuildJob.worldPos(building, schematic.size(), step.pos());
+            if (world.getBlockEntity(where) instanceof net.minecraft.inventory.Inventory) {
+                found++;
+            }
+        }
+        return found;
+    }
 
     /** Убрать за набегом: свои тела, запись колонии и пол. */
     private static void cleanUpRaid(ServerWorld world, SettlementManager manager,

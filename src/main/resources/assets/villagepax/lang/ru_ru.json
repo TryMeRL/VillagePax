@@ -233,5 +233,7 @@
   "villagepax.raid.repelled": "Набег на «%s» отбит: пришедших больше нет.",
   "villagepax.raid.left": "Отряд отступил от «%s» — но обида осталась.",
   "villagepax.raid.fighter": "Боец (%s)",
-  "villagepax.citizen.murder_costs": "«%s» этого не забудет: доверие ниже на %s."
+  "villagepax.citizen.murder_costs": "«%s» этого не забудет: доверие ниже на %s.",
+  "villagepax.raid.wrecked": "Набег разорил: %s. Строитель починит, если будет из чего.",
+  "villagepax.raid.plundered": "Со склада унесли: %s шт."
 }

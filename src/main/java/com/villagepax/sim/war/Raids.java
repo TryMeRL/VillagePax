@@ -45,10 +45,14 @@ import java.util.UUID;
  * чем и завоёвывалось. Насилие в этом моде не заменяет дипломатии, и это
  * решение по игре, а не следствие кода.
  * <p>
- * <b>Чего здесь нет.</b> Ни осады зданий, ни разграбления склада: ставка
- * набега — люди. Житель нанимается днями, а гибнет за секунды, и этой
- * ставки довольно, чтобы игрок вышел его защищать. Здания приедут вместе
- * с {@code DAMAGED}-состоянием и починкой стен, которых у мода пока нет.
+ * <b>Люди важнее стен.</b> Боец, которому есть кого бить, дерётся; ломать
+ * и уносить идёт тот, кому драться не с кем — см. {@link Siege}. Так набег
+ * и читается: сперва за людьми, потом за добром.
+ * <p>
+ * <b>Чего здесь нет.</b> Захвата поселения: ни дани, ни смены владельца.
+ * Это другой исход с другими последствиями, и подменять его разорением
+ * было бы обманом — колония после набега остаётся колонией игрока,
+ * разорённой, но своей.
  */
 public final class Raids {
 
@@ -198,6 +202,7 @@ public final class Raids {
             }
             if (party.hasArrived(today) && world.isChunkLoaded(party.musters())) {
                 muster(world, manager, settlement, party);
+                ruin(world, manager, settlement, party);
             }
         }
     }
@@ -233,6 +238,31 @@ public final class Raids {
 
         if (first) {
             announce(world, colony, "villagepax.raid.here", Formatting.RED);
+        }
+    }
+
+    /**
+     * Разорить дом, если бойцу некого бить.
+     * <p>
+     * Люди <b>важнее стен</b>: боец, у которого есть цель, дерётся, а
+     * ломать идёт тот, кому драться не с кем. Так набег и читается —
+     * сперва за людьми, потом за добром.
+     */
+    private static void ruin(ServerWorld world, SettlementManager manager, Settlement colony,
+                             WarParty party) {
+        WarParty current = party;
+        for (CitizenEntity fighter : bodiesOf(world, current)) {
+            if (!current.canWreck()) {
+                return;
+            }
+            if (fighter.getTarget() != null && fighter.getTarget().isAlive()) {
+                continue;
+            }
+            if (Siege.wreck(world, manager, colony, fighter)) {
+                current = current.withWrecked(current.wrecked() + 1);
+                WarParty saved = current;
+                manager.update(colony.id(), state -> state.updateSiege(saved));
+            }
         }
     }
 
@@ -275,6 +305,14 @@ public final class Raids {
     private static void withdraw(ServerWorld world, SettlementManager manager, Settlement colony,
                                  WarParty party) {
         List<CitizenEntity> left = bodiesOf(world, party);
+
+        if (!left.isEmpty()) {
+            // Уцелевшие уходят не с пустыми руками — и увозят добычу
+            // домой, если дом загружен. Перебитый отряд не уносит ничего.
+            List<ItemStack> loot = Siege.plunder(world, colony, left.size());
+            manager.byId(party.home()).ifPresent(home -> Siege.bringHome(world, home, loot));
+        }
+
         left.forEach(CitizenEntity::discard);
         manager.update(colony.id(), Settlement::liftSiege);
 

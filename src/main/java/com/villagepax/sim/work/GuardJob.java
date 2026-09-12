@@ -3,7 +3,6 @@ package com.villagepax.sim.work;
 import com.villagepax.VillagePax;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.sim.Building;
-import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.util.Identifier;
@@ -126,8 +125,4 @@ public class GuardJob implements Job {
                 ? Optional.empty() : Optional.ofNullable(best);
     }
 
-    /** Цель боя, если она ещё жива: нужно проверке. */
-    public static Optional<LivingEntity> fighting(CitizenEntity guard) {
-        return Optional.ofNullable(guard.getTarget()).filter(LivingEntity::isAlive);
-    }
 }

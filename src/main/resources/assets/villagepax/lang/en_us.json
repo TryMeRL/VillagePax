@@ -226,5 +226,12 @@
   "villagepax.gift.reason.empty_handed": "Hold the gift in your hand.",
   "villagepax.gift.reason.not_wanted": "They have no use for this. Look at what the village buys.",
   "villagepax.gift.reason.too_little": "Too little even for a polite nod.",
-  "villagepax.gift.reason.already_today": "You gave already today. Come back tomorrow."
+  "villagepax.gift.reason.already_today": "You gave already today. Come back tomorrow.",
+  "villagepax.profession.guard": "Guard",
+  "villagepax.raid.coming": "A war band left \"%s\": %s under arms. They will be here by morning.",
+  "villagepax.raid.here": "A war band stands at the gates of \"%s\". Defend your people.",
+  "villagepax.raid.repelled": "The raid on \"%s\" is beaten off: none of them are left.",
+  "villagepax.raid.left": "The war band has withdrawn from \"%s\" — the grudge has not.",
+  "villagepax.raid.fighter": "Fighter (%s)",
+  "villagepax.citizen.murder_costs": "\"%s\" will not forget this: trust down by %s."
 }

@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.villagepax.core.config.Configs;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.villagepax.core.trade.Caravan;
+import com.villagepax.core.war.WarParty;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Uuids;
 import net.minecraft.util.math.BlockPos;
@@ -49,7 +50,9 @@ public class Settlement {
             Caravan.CODEC.listOf().optionalFieldOf("visitors", List.of())
                     .forGetter(Settlement::visitors),
             Codec.unboundedMap(Uuids.STRING_CODEC, Codec.LONG)
-                    .optionalFieldOf("gift_days", Map.of()).forGetter(Settlement::giftDays)
+                    .optionalFieldOf("gift_days", Map.of()).forGetter(Settlement::giftDays),
+            WarParty.CODEC.optionalFieldOf("siege").forGetter(Settlement::siege),
+            Codec.LONG.optionalFieldOf("last_raid", UNSEEN_DAY).forGetter(Settlement::lastRaid)
     ).apply(instance, Settlement::new));
 
     private final UUID id;
@@ -101,6 +104,25 @@ public class Settlement {
      */
     private final Map<UUID, Long> giftDays;
 
+    /**
+     * Отряд, стоящий у этого поселения прямо сейчас.
+     * <p>
+     * Один, а не список: беда приходит по одной. Пока отряд не ушёл,
+     * второго не пошлют — и это не упрощение, а решение по игре. Две
+     * осады сразу превратили бы наказание за разбой в неиграбельную
+     * лавину, из которой нет выхода.
+     */
+    private Optional<WarParty> siege = Optional.empty();
+
+    /**
+     * День последнего набега на это поселение.
+     * <p>
+     * Здесь, а не у пославшей деревни: остыть должна <b>осаждаемая</b>
+     * сторона. Иначе три обиженные деревни присылали бы отряды в три дня
+     * подряд, каждая по своему счёту.
+     */
+    private long lastRaid = UNSEEN_DAY;
+
     public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
                       SettlementLevel level, SettlementStats stats,
                       List<Building> buildings, List<Citizen> citizens) {
@@ -128,6 +150,16 @@ public class Settlement {
                       List<Building> buildings, List<Citizen> citizens, long lastDay,
                       Map<UUID, Integer> reputation, Map<UUID, List<Identifier>> questsDone,
                       List<Caravan> visitors, Map<UUID, Long> giftDays) {
+        this(id, culture, owner, name, center, level, stats, buildings, citizens, lastDay,
+                reputation, questsDone, visitors, giftDays, Optional.empty(), UNSEEN_DAY);
+    }
+
+    public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
+                      SettlementLevel level, SettlementStats stats,
+                      List<Building> buildings, List<Citizen> citizens, long lastDay,
+                      Map<UUID, Integer> reputation, Map<UUID, List<Identifier>> questsDone,
+                      List<Caravan> visitors, Map<UUID, Long> giftDays,
+                      Optional<WarParty> siege, long lastRaid) {
         this.id = id;
         this.culture = culture;
         this.owner = owner;
@@ -143,6 +175,33 @@ public class Settlement {
         questsDone.forEach((player, quests) -> this.questsDone.put(player, new ArrayList<>(quests)));
         this.visitors = new ArrayList<>(visitors);
         this.giftDays = new LinkedHashMap<>(giftDays);
+        this.siege = siege;
+        this.lastRaid = lastRaid;
+    }
+
+    // --- осада ---
+
+    public Optional<WarParty> siege() {
+        return siege;
+    }
+
+    public long lastRaid() {
+        return lastRaid;
+    }
+
+    /** Отряд встал у ворот. День запоминается сразу: остывать начинают с прихода. */
+    public void besiege(WarParty party, long today) {
+        this.siege = Optional.of(party);
+        this.lastRaid = today;
+    }
+
+    /** Отряд поредел или ушёл: пустой отряд снимается с поселения. */
+    public void updateSiege(WarParty party) {
+        this.siege = party.fighters() <= 0 ? Optional.empty() : Optional.of(party);
+    }
+
+    public void liftSiege() {
+        this.siege = Optional.empty();
     }
 
     // --- гости ---

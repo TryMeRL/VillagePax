@@ -17,6 +17,7 @@ import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.entity.ModEntities;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Vec3d;
+import com.villagepax.core.war.WarParty;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Gender;
@@ -58,6 +59,7 @@ import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.ModTags;
 import com.villagepax.screen.QuestView;
 import com.villagepax.screen.QuestNet;
+import com.villagepax.sim.war.Raids;
 import com.villagepax.sim.work.Hauling;
 import com.villagepax.core.config.Config;
 import com.villagepax.core.config.Configs;
@@ -105,6 +107,7 @@ import com.villagepax.core.profession.Profession;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.sim.work.FarmJob;
 import com.villagepax.sim.work.GatherJob;
+import com.villagepax.sim.work.GuardJob;
 import com.villagepax.sim.work.Housing;
 import com.villagepax.sim.work.Jobs;
 import com.villagepax.screen.BuildOrders;
@@ -112,6 +115,7 @@ import com.villagepax.screen.GhostPlan;
 import com.villagepax.screen.Mood;
 import com.villagepax.screen.TownHallView;
 import com.villagepax.sim.work.Assignments;
+import com.villagepax.sim.work.WorkContext;
 import com.villagepax.sim.work.Workplaces;
 import com.villagepax.sim.work.Needs;
 import com.villagepax.sim.work.Schedule;
@@ -8012,6 +8016,443 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
 
         context.complete();
+    }
+
+
+    // --- фаза 3: набеги и стража ---
+
+    /**
+     * Разбой кончается отрядом у ворот — и не сразу, и не каждый день.
+     * <p>
+     * Три правила одной проверкой, потому что они об одном решении:
+     * терпение у деревни кончается на определённом счёте, второй отряд
+     * не посылают, пока стоит первый, и после набега колония отдыхает.
+     * Последнее — не поблажка, а условие играбельности: без остывания
+     * разбойник получил бы отряд каждое утро и не смог бы ни отстроиться,
+     * ни помириться.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid")
+    public void patienceEndsAndAWarBandIsSent(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(16, 2, 16));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар",
+                context.getAbsolutePos(new BlockPos(1, 2, 1)));
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", centre);
+        manager.add(village);
+        manager.add(colony);
+
+        try {
+            // Земля по кругу: отряд собирается у края колонии, и ему нужно,
+            // на чём стоять.
+            for (int x = 2; x <= 30; x++) {
+                for (int z = 2; z <= 30; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            // Пока доверие терпимое, никто не идёт.
+            manager.update(village.id(), state -> state.addReputation(player, -20));
+            Raids.sendIfDue(world, manager, village, 10L);
+            if (manager.byId(colony.id()).orElseThrow().siege().isPresent()) {
+                context.throwGameTestException("Отряд вышел на доверии -20: терпения нет вовсе");
+            }
+
+            // А ниже предела — идут, и числом по обиде.
+            manager.update(village.id(), state -> state.addReputation(player, -40));
+            Raids.sendIfDue(world, manager, village, 10L);
+
+            WarParty party = manager.byId(colony.id()).orElseThrow().siege().orElse(null);
+            if (party == null) {
+                context.throwGameTestException("Доверие -60, а отряда нет");
+                return;
+            }
+            if (party.fighters() != Raids.fightersFor(-60)) {
+                context.throwGameTestException("Бойцов " + party.fighters() + " вместо "
+                        + Raids.fightersFor(-60));
+            }
+            if (party.arrivesOn() != 11L) {
+                context.throwGameTestException("Отряд приходит в день " + party.arrivesOn()
+                        + " вместо назавтра: о набеге предупреждают заранее");
+            }
+            if (!party.home().equals(village.id())) {
+                context.throwGameTestException("Отряд не помнит, кто его послал");
+            }
+
+            // Второго отряда, пока стоит первый, не бывает.
+            Raids.sendIfDue(world, manager, village, 11L);
+            if (!manager.byId(colony.id()).orElseThrow().siege().orElseThrow().id()
+                    .equals(party.id())) {
+                context.throwGameTestException("Пока стоял один отряд, послали второй");
+            }
+
+            // И после набега колония отдыхает.
+            manager.update(colony.id(), Settlement::liftSiege);
+            Raids.sendIfDue(world, manager, village, 12L);
+            if (manager.byId(colony.id()).orElseThrow().siege().isPresent()) {
+                context.throwGameTestException("Набег на следующий же день после набега: "
+                        + "колония не успевает ни отстроиться, ни помириться");
+            }
+
+            Raids.sendIfDue(world, manager, village, 10L + Raids.COOLDOWN_DAYS);
+            if (manager.byId(colony.id()).orElseThrow().siege().isEmpty()) {
+                context.throwGameTestException("Отдых кончился, а обида осталась — "
+                        + "отряд должен был выйти снова");
+            }
+        } finally {
+            manager.byId(colony.id()).flatMap(Settlement::siege)
+                    .ifPresent(one -> Raids.bodiesOf(world, one)
+                            .forEach(CitizenEntity::discard));
+            manager.remove(village.id());
+            manager.remove(colony.id());
+            for (BlockPos at : floor) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(centre, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Отряд встаёт телами в обещанный день — вооружённый и подписанный.
+     * <p>
+     * До этого дня он только предупреждение в чате, и это то же правило,
+     * на котором стоят обозы: нет тела — нет события. Проверяется и то,
+     * что тела <b>не</b> появляются раньше срока: иначе предупреждение
+     * теряло бы смысл, а игрок просыпался бы уже в бою.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid")
+    public void warBandStandsUpOnTheDayItPromised(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(6, 2, 6));
+        BlockPos musters = context.getAbsolutePos(new BlockPos(10, 2, 6));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", centre);
+        manager.add(colony);
+        // Отряд объявляется до try: за своими телами убирать надо и тогда,
+        // когда проверка упала на первом же утверждении.
+        WarParty party = new WarParty(UUID.randomUUID(), UUID.randomUUID(), NORMAN,
+                musters, 2, 20L, 21L);
+
+        try {
+            for (int x = 2; x <= 14; x++) {
+                for (int z = 2; z <= 10; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            manager.update(colony.id(), state -> state.besiege(party, 19L));
+
+            // Осада обязана пережить сохранение: она лежит в поселении,
+            // а поселение читается с диска. Кодек, который её теряет,
+            // проявился бы только у игрока и только после перезахода —
+            // отряд исчезал бы за ночь, и никто бы не понял почему.
+            Settlement reread = Settlement.CODEC.parse(NbtOps.INSTANCE,
+                            Settlement.CODEC.encodeStart(NbtOps.INSTANCE, colony)
+                                    .result().orElseThrow())
+                    .result().orElse(null);
+            WarParty saved = reread == null ? null : reread.siege().orElse(null);
+            if (saved == null || !saved.id().equals(party.id())
+                    || saved.fighters() != party.fighters()
+                    || saved.arrivesOn() != party.arrivesOn()
+                    || !saved.musters().equals(party.musters())) {
+                context.throwGameTestException("Осада не пережила запись на диск: " + saved);
+            }
+            if (reread != null && reread.lastRaid() != 19L) {
+                context.throwGameTestException("День набега не сохранился: " + reread.lastRaid());
+            }
+
+            // Днём раньше — только слово.
+            Raids.watch(world, manager, 19L);
+            if (!Raids.bodiesOf(world, party).isEmpty()) {
+                context.throwGameTestException("Отряд встал раньше обещанного дня");
+            }
+
+            Raids.watch(world, manager, 20L);
+            List<CitizenEntity> fighters = Raids.bodiesOf(world, party);
+            if (fighters.size() != 2) {
+                context.throwGameTestException("Тел у отряда " + fighters.size() + " вместо двух");
+                return;
+            }
+            for (CitizenEntity fighter : fighters) {
+                if (!fighter.isRaider() || !fighter.isFighter()) {
+                    context.throwGameTestException("Боец не считает себя налётчиком");
+                }
+                if (!fighter.raidHost().filter(colony.id()::equals).isPresent()) {
+                    context.throwGameTestException("Боец не знает, к кому пришёл");
+                }
+                if (fighter.getMainHandStack().isEmpty()) {
+                    context.throwGameTestException("Боец пришёл с пустыми руками");
+                }
+            }
+
+            // Второй осмотр в тот же день новых не поднимает.
+            Raids.watch(world, manager, 20L);
+            if (Raids.bodiesOf(world, party).size() != 2) {
+                context.throwGameTestException("Отряд удвоился на втором осмотре: "
+                        + Raids.bodiesOf(world, party).size());
+            }
+
+            // А когда срок вышел — уходят, и запись снимается.
+            Raids.watch(world, manager, 22L);
+            if (!Raids.bodiesOf(world, party).isEmpty()
+                    || manager.byId(colony.id()).orElseThrow().siege().isPresent()) {
+                context.throwGameTestException("Отряд не ушёл, когда вышел срок");
+            }
+        } finally {
+            Raids.bodiesOf(world, party).forEach(CitizenEntity::discard);
+            manager.remove(colony.id());
+            for (BlockPos at : floor) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(centre, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Павший боец убывает из отряда, а последний снимает осаду.
+     * <p>
+     * Проверяется <b>настоящей смертью</b>, а не вызовом учёта: тело
+     * убирается из мира не там, где его убили, — смерть моба идёт через
+     * анимацию, — и весь смысл проверки в том, что путь от удара до
+     * записи отряда действительно связан.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid", tickLimit = 200)
+    public void fallenFighterThinsTheBand(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(6, 2, 6));
+        BlockPos musters = context.getAbsolutePos(new BlockPos(9, 2, 6));
+        List<BlockPos> floor = new ArrayList<>();
+        for (int x = 2; x <= 12; x++) {
+            for (int z = 2; z <= 10; z++) {
+                BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                world.setBlockState(at, Blocks.STONE.getDefaultState());
+                floor.add(at);
+            }
+        }
+
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Моя", centre);
+        manager.add(colony);
+
+        WarParty party = new WarParty(UUID.randomUUID(), UUID.randomUUID(), NORMAN,
+                musters, 1, 30L, 31L);
+        manager.update(colony.id(), state -> state.besiege(party, 29L));
+        Raids.watch(world, manager, 30L);
+
+        List<CitizenEntity> fighters = Raids.bodiesOf(world, party);
+        if (fighters.size() != 1) {
+            cleanUpRaid(world, manager, colony, party, floor);
+            context.throwGameTestException("Отряд не встал: тел " + fighters.size());
+            return;
+        }
+        fighters.get(0).kill();
+
+        context.runAtTick(100, () -> {
+            try {
+                if (manager.byId(colony.id()).orElseThrow().siege().isPresent()) {
+                    context.throwGameTestException("Последний боец пал, а осада всё стоит");
+                }
+            } finally {
+                cleanUpRaid(world, manager, colony, party, floor);
+            }
+            context.complete();
+        });
+    }
+
+    /**
+     * Страж идёт на налётчика, а без него обходит колонию.
+     * <p>
+     * Обе половины разом, потому что вторая без первой — просто гуляющий
+     * житель с мечом, а первая без второй — часовой, стоящий на месте.
+     * И проверяется <b>решение стратегии</b>, а не бой: драться умеет
+     * ванильная тактика, и проверять её заново незачем.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "guard")
+    public void guardGoesForTheRaiderAndPatrolsOtherwise(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        BlockPos far = context.getAbsolutePos(new BlockPos(12, 2, 2));
+        List<BlockPos> floor = new ArrayList<>();
+        for (int x = 0; x <= 16; x++) {
+            for (int z = 0; z <= 6; z++) {
+                BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                world.setBlockState(at, Blocks.STONE.getDefaultState());
+                floor.add(at);
+            }
+        }
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Citizen watchman = Citizen.newborn("Turold", "le Veilleur", NORMAN, Gender.MALE);
+        watchman.setProfession(Villages.GUARD);
+        manager.update(colony.id(), state -> state.addCitizen(watchman));
+
+        CitizenEntity body = CitizenSpawner.spawnBody(world, colony, watchman);
+        CitizenEntity raider = CitizenSpawner.spawnPuppet(world,
+                context.getAbsolutePos(new BlockPos(5, 2, 2)));
+
+        try {
+            if (body == null || raider == null) {
+                context.throwGameTestException("Тела не появились");
+                return;
+            }
+            raider.linkRaid(colony.id(), UUID.randomUUID());
+
+            GuardJob guard = new GuardJob();
+            WorkContext seen = new WorkContext(world, manager, colony, watchman, body);
+            BlockPos goes = guard.tick(seen).orElse(null);
+
+            if (body.getTarget() != raider) {
+                context.throwGameTestException("Страж не взял налётчика на прицел: "
+                        + body.getTarget());
+            }
+            if (goes == null || goes.getSquaredDistance(raider.getBlockPos()) > 1) {
+                context.throwGameTestException("Страж пошёл не на врага, а в " + goes);
+            }
+            if (body.getMainHandStack().isEmpty()) {
+                context.throwGameTestException("Страж без оружия");
+            }
+
+            // Врага убрали — страж отпускает цель и идёт в обход,
+            // к самому дальнему зданию колонии.
+            raider.discard();
+            manager.update(colony.id(), state -> state.addBuilding(
+                    Building.planned(TOWN_HALL_TYPE, far, BlockRotation.NONE)));
+
+            BlockPos patrol = guard.tick(seen).orElse(null);
+            if (body.getTarget() != null) {
+                context.throwGameTestException("Страж гонится за тем, кого нет");
+            }
+            if (patrol == null || patrol.getSquaredDistance(far) > 1) {
+                context.throwGameTestException("Обход ведёт не к дальнему краю, а в " + patrol);
+            }
+        } finally {
+            // Только свои тела, и по ссылке, а не по радиусу. Проверки
+            // одного батча делят один мир, и уборка «всё живое в тридцати
+            // блоках» однажды уже убрала <b>чужого</b> бойца — того, что
+            // умирал в соседней проверке, — и та упала на ровном месте.
+            if (body != null) {
+                body.discard();
+            }
+            if (raider != null) {
+                raider.discard();
+            }
+            cleanUpVillage(world, manager, colony, hall, floor);
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Налётчик берёт на прицел жителя осаждённой колонии — и только его.
+     * <p>
+     * Самая важная проверка всего набега: в ней вся его ставка. Отряд,
+     * который приходит и стоит, — это декорация, а отряд, который бьёт
+     * кого попало, включая своих, — это поломка. Проверяется на живой
+     * тактике, прогоном тиков: цели ставит ванильный поиск врага, и
+     * убедиться надо именно в том, что <b>предикат</b> в нём написан
+     * верно, а не в том, что предикат существует.
+     * <p>
+     * Своим батчем, а не вместе с остальными набегами: проверки одного
+     * батча идут в одном мире одновременно и в десятках блоков друг от
+     * друга, а страж чует налётчика на сорок восемь блоков. Соседняя
+     * проверка так однажды и увела чужого бойца.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid_fight", tickLimit = 200)
+    public void raiderGoesForTheColonysPeople(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        List<BlockPos> floor = new ArrayList<>();
+        for (int x = 0; x <= 12; x++) {
+            for (int z = 0; z <= 6; z++) {
+                BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                world.setBlockState(at, Blocks.STONE.getDefaultState());
+                floor.add(at);
+            }
+        }
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Citizen townsman = colony.citizens().get(0);
+        CitizenEntity peaceful = CitizenSpawner.spawnBody(world, colony, townsman);
+        CitizenEntity raider = CitizenSpawner.spawnPuppet(world,
+                context.getAbsolutePos(new BlockPos(6, 2, 3)));
+        CitizenEntity brother = CitizenSpawner.spawnPuppet(world,
+                context.getAbsolutePos(new BlockPos(7, 2, 3)));
+
+        if (peaceful == null || raider == null || brother == null) {
+            cleanUpFight(world, manager, colony, hall, floor, peaceful, raider, brother);
+            context.throwGameTestException("Тела не появились");
+            return;
+        }
+        UUID party = UUID.randomUUID();
+        raider.linkRaid(colony.id(), party);
+        brother.linkRaid(colony.id(), party);
+
+        context.runAtTick(100, () -> {
+            try {
+                if (raider.getTarget() != peaceful) {
+                    context.throwGameTestException("Налётчик не взял жителя на прицел, а взял "
+                            + raider.getTarget());
+                }
+                if (brother.getTarget() == raider) {
+                    context.throwGameTestException("Отряд перерезал сам себя: боец пошёл "
+                            + "на своего");
+                }
+                if (!peaceful.isFighter() && peaceful.getTarget() != null) {
+                    context.throwGameTestException("Мирный житель полез в драку: "
+                            + peaceful.getTarget());
+                }
+            } finally {
+                cleanUpFight(world, manager, colony, hall, floor, peaceful, raider, brother);
+            }
+            context.complete();
+        });
+    }
+
+    /** Убрать за схваткой: только свои тела, запись колонии и пол. */
+    private static void cleanUpFight(ServerWorld world, SettlementManager manager,
+                                     Settlement colony, BlockPos hall, List<BlockPos> floor,
+                                     CitizenEntity... bodies) {
+        for (CitizenEntity body : bodies) {
+            if (body != null) {
+                body.discard();
+            }
+        }
+        cleanUpVillage(world, manager, colony, hall, floor);
+        world.setBlockState(hall, Blocks.AIR.getDefaultState());
+    }
+
+
+    /** Убрать за набегом: свои тела, запись колонии и пол. */
+    private static void cleanUpRaid(ServerWorld world, SettlementManager manager,
+                                    Settlement colony, WarParty party, List<BlockPos> floor) {
+        Raids.bodiesOf(world, party).forEach(CitizenEntity::discard);
+        manager.remove(colony.id());
+        for (BlockPos at : floor) {
+            world.setBlockState(at, Blocks.AIR.getDefaultState());
+        }
+        world.setBlockState(colony.center(), Blocks.AIR.getDefaultState());
     }
 
 

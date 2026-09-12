@@ -16,13 +16,18 @@ import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Villages;
 import com.villagepax.sim.Warehouse;
+import com.villagepax.sim.diplomacy.Relations;
 import com.villagepax.sim.work.Schedule;
 import net.minecraft.block.BlockState;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.entity.ai.goal.ActiveTargetGoal;
+import net.minecraft.entity.ai.goal.FleeEntityGoal;
 import net.minecraft.entity.ai.goal.LookAroundGoal;
 import net.minecraft.entity.ai.goal.LookAtEntityGoal;
+import net.minecraft.entity.ai.goal.MeleeAttackGoal;
+import net.minecraft.entity.ai.goal.RevengeGoal;
 import net.minecraft.entity.ai.goal.SwimGoal;
 import net.minecraft.entity.ai.goal.WanderAroundFarGoal;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
@@ -37,6 +42,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -44,6 +50,7 @@ import java.util.HashMap;
 import java.util.Map;
 import net.minecraft.world.World;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import net.minecraft.entity.ai.pathing.EntityNavigation;
@@ -118,7 +125,12 @@ public class CitizenEntity extends PathAwareEntity {
         return MobEntity.createMobAttributes()
                 .add(EntityAttributes.GENERIC_MAX_HEALTH, 20.0)
                 .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.5)
-                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 32.0);
+                .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 32.0)
+                // Кулак. Всё остальное приносит оружие: модификатор меча
+                // считается в силу удара, как у любого моба с мечом, —
+                // поэтому стража с железом бьёт всерьёз, а пахарь,
+                // схватившийся за вилы, почти никак.
+                .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 1.0);
     }
 
     /**
@@ -262,11 +274,93 @@ public class CitizenEntity extends PathAwareEntity {
         // и работа обязана быть выше — иначе житель уходил бы бродить
         // посреди дела.
         goalSelector.add(0, new SwimGoal(this));
-        goalSelector.add(1, new CitizenWorkGoal(this));
-        goalSelector.add(2, new WanderAroundFarGoal(this, 0.5));
-        goalSelector.add(3, new LookAtEntityGoal(this, PlayerEntity.class, 6.0f));
-        goalSelector.add(4, new LookAroundGoal(this));
+        // Драка выше дела: боец, у которого есть цель, бросает работу.
+        // У мирного жителя цели не бывает — её ставят только тем, кто
+        // воюет, — и потому эта цель для пахаря всё равно что нет её.
+        goalSelector.add(1, new MeleeAttackGoal(this, 1.0, false));
+        // А мирный житель от бойца бежит. Бегство важнее работы по той же
+        // причине, по которой драка важнее: и то и другое про жизнь.
+        goalSelector.add(2, new FleeEntityGoal<>(this, CitizenEntity.class, 10.0f, 0.7, 0.9,
+                who -> who instanceof CitizenEntity fighter && fighter.isRaider()
+                        && !isFighter()));
+        goalSelector.add(3, new CitizenWorkGoal(this));
+        goalSelector.add(4, new WanderAroundFarGoal(this, 0.5));
+        goalSelector.add(5, new LookAtEntityGoal(this, PlayerEntity.class, 6.0f));
+        goalSelector.add(6, new LookAroundGoal(this));
+
+        // Кого искать глазами. Предикаты спрашивают состояние, а не тип:
+        // список целей строится один раз при появлении тела, а кем это
+        // тело окажется — жителем, стражником, налётчиком — выясняется
+        // потом. Один список на всех, поведение в состоянии.
+        // Сдачи даёт только налётчик, и это не мелочь. Ванильная месть
+        // не спрашивает, кто ты: с ней избитый пахарь получал цель, а
+        // цель важнее бегства — и он оставался драться с мечником,
+        // вооружённый кулаком. Поймано мерцающей проверкой: житель,
+        // которого успели ударить, «полез в драку».
+        //
+        // Стражу месть не нужна: цель ей ставит собственное ремесло
+        // каждое решение. А налётчику нужна — иначе он прошёл бы мимо
+        // стрелка, обстреливающего его с холма, к первому попавшемуся
+        // жителю.
+        targetSelector.add(0, new RevengeGoal(this) {
+            @Override
+            public boolean canStart() {
+                return isRaider() && super.canStart();
+            }
+        });
+        // Врага среди жителей ищет только налётчик. Страже такая цель
+        // не нужна вовсе: ей цель ставит собственное ремесло каждое
+        // решение — и ставит осмысленнее, выбирая ближайшего к себе,
+        // а не первого попавшегося в кольце обзора.
+        targetSelector.add(1, new ActiveTargetGoal<>(this, CitizenEntity.class, 10, true, false,
+                who -> isRaider() && who instanceof CitizenEntity other && isEnemyOf(other)));
+        targetSelector.add(2, new ActiveTargetGoal<>(this, PlayerEntity.class, 10, true, false,
+                who -> isRaider() && who instanceof PlayerEntity target
+                        && ownsWhatWeCameFor(target)));
     }
+
+    /**
+     * Враг ли это тело для налётчика.
+     * <p>
+     * Враг — всякий, кто держится осаждённой колонии: и её пахарь, и её
+     * стражник. <b>Своих не бьёт никто</b>, и это не украшение: проверка,
+     * которой позволили сказать «враг всегда», показала, чем это кончается,
+     * — отряд взял на прицел сам себя, не дойдя до ворот.
+     */
+    private boolean isEnemyOf(CitizenEntity other) {
+        return !other.isRaider()
+                && other.settlementId().filter(host -> host.equals(raidHost)).isPresent();
+    }
+
+    /** Тот ли это игрок, к чьей колонии пришли. */
+    private boolean ownsWhatWeCameFor(PlayerEntity player) {
+        if (raidHost == null || !(getWorld() instanceof ServerWorld serverWorld)) {
+            return false;
+        }
+        return SettlementManager.get(serverWorld).byId(raidHost)
+                .filter(colony -> colony.owner().isOwnedBy(player.getUuid()))
+                .isPresent();
+    }
+
+    /**
+     * На сколько падает доверие деревни за убитого жителя.
+     * <p>
+     * Тридцать — дороже ограбленного обоза (двадцать пять) и заметно
+     * ближе к тому пределу, за которым деревня посылает людей. Двух
+     * убитых довольно, чтобы за игроком пришли, и это соразмерно:
+     * житель у деревни один из шести.
+     */
+    private static final int MURDER_COSTS = 30;
+
+    /** Опознаватели набега, если это боец, а не житель. */
+    private UUID raidId;
+    private UUID raidHost;
+
+    /** Стража ли это тело: перечитывается раз в секунду, см. {@link #isGuard}. */
+    private boolean guard;
+
+    /** Как часто тело перечитывает своё ремесло, в тиках. */
+    private static final int ROLE_EVERY = 20;
 
     /** Точка, к которой житель идёт по работе, или {@code null}. */
     public BlockPos workTarget() {
@@ -291,6 +385,71 @@ public class CitizenEntity extends PathAwareEntity {
     }
 
     /** Запись жителя, к которой привязано это тело. */
+    /**
+     * Привязать тело к набегу: оно кукла, и воюет за пославшую деревню.
+     *
+     * @param colony осаждаемая колония: её жителей он и пришёл бить
+     * @param party  отряд, чтобы отряд мог узнать о его смерти
+     */
+    public void linkRaid(UUID colony, UUID party) {
+        this.raidHost = colony;
+        this.raidId = party;
+    }
+
+    public UUID raidId() {
+        return raidId;
+    }
+
+    public Optional<UUID> raidHost() {
+        return Optional.ofNullable(raidHost);
+    }
+
+    /** Налётчик ли это. */
+    public boolean isRaider() {
+        return raidId != null;
+    }
+
+    /**
+     * Воюет ли это тело вообще: налётчик или стража.
+     * <p>
+     * Спрашивается предикатами целей. Мирный житель не ищет врага
+     * и не бьёт: у него не бывает цели, и потому боевая цель для него
+     * всё равно что не добавлена.
+     */
+    public boolean isFighter() {
+        return isRaider() || isGuard();
+    }
+
+    /**
+     * Стража ли это.
+     * <p>
+     * Из <b>записи</b> жителя, но не каждый раз: ремесло меняет игрок
+     * в пульте колонии, и знать об этом надо телу, — но спрашивают это
+     * поле предикаты боевых целей, а они срабатывают каждый тик и на
+     * каждого соседа. Обход поселения ради каждого такого вопроса — это
+     * та самая мелочь, на которой моды с работниками и садятся.
+     * <p>
+     * Поэтому раз в секунду, в {@link #tick}. Отставание в двадцать тиков
+     * незаметно и не опаснее отставания подписи над головой, которая
+     * обновляется реже.
+     */
+    public boolean isGuard() {
+        return guard;
+    }
+
+    /** Перечитать ремесло с записи: зовётся из тика, не из предикатов. */
+    private void refreshRole() {
+        if (settlementId == null || citizenId == null
+                || !(getWorld() instanceof ServerWorld serverWorld)) {
+            guard = false;
+            return;
+        }
+        guard = data(serverWorld)
+                .flatMap(Citizen::profession)
+                .filter(Villages.GUARD::equals)
+                .isPresent();
+    }
+
     /** Обоз этого тела, если это торговец, а не житель. */
     public UUID caravanId() {
         return caravanId;
@@ -378,6 +537,11 @@ public class CitizenEntity extends PathAwareEntity {
     public void applyFrom(Citizen citizen) {
         label(citizen, Configs.get().citizenLabels());
         setHealth(citizen.health());
+        // И ремесло сразу, раз запись всё равно в руках: иначе у только
+        // что появившегося стража была бы секунда, в которую он считает
+        // себя мирным и бежит от налётчика вместо того, чтобы выйти
+        // ему навстречу.
+        guard = citizen.profession().filter(Villages.GUARD::equals).isPresent();
     }
 
     /**
@@ -480,6 +644,12 @@ public class CitizenEntity extends PathAwareEntity {
                 if (reason == RemovalReason.KILLED) {
                     robCaravan(serverWorld, getRecentDamageSource());
                 }
+            } else if (raidId != null) {
+                // Боец набега — тоже кукла: в данные возвращать нечего,
+                // но отряд обязан узнать, что его стало меньше.
+                if (reason == RemovalReason.KILLED) {
+                    com.villagepax.sim.war.Raids.fell(serverWorld, this);
+                }
             } else if (reason == RemovalReason.KILLED) {
                 buryCitizen(serverWorld);
             } else {
@@ -509,13 +679,50 @@ public class CitizenEntity extends PathAwareEntity {
         if (settlementId == null || citizenId == null) {
             return;
         }
-        SettlementManager.get(world).update(settlementId, settlement ->
+        SettlementManager manager = SettlementManager.get(world);
+        manager.update(settlementId, settlement ->
                 settlement.citizen(citizenId).ifPresent(citizen -> {
                     settlement.removeCitizen(citizenId);
                     VillagePax.LOGGER.info("Житель {} из поселения {} погиб от {}",
                             citizen.fullName(), settlement.name(), lastCause());
                     mourn(world, settlement, citizen);
                 }));
+        answerFor(world, manager);
+    }
+
+    /**
+     * Убийство жителя деревни стоит игроку доверия — и стоит дорого.
+     * <p>
+     * До этого убить человека в деревне было <b>бесплатно</b>: старейшина
+     * говорил с убийцей так же приветливо, как и до, а разбойник платил
+     * только за ограбленный обоз. Это ровно та «агрессия игрока», которую
+     * дизайн-документ называет причиной войны, — и первая, которую мод
+     * теперь считает.
+     * <p>
+     * Через {@link Relations#deed}: об убитом узнают и свои деревни,
+     * и её соседи. Считается только у деревни народа — у колонии игрока
+     * мнения о хозяине нет, и «убил своего» наказывается иначе и само:
+     * колония теряет работника, которого нанимала днями.
+     */
+    private void answerFor(ServerWorld world, SettlementManager manager) {
+        DamageSource cause = getRecentDamageSource();
+        if (cause == null || !(cause.getAttacker() instanceof PlayerEntity killer)) {
+            return;
+        }
+        Settlement settlement = manager.byId(settlementId).orElse(null);
+        if (settlement == null || !settlement.owner().isAutonomous()) {
+            return;
+        }
+
+        List<Relations.Shift> shifts =
+                Relations.deed(manager, settlement, killer.getUuid(), -MURDER_COSTS);
+        if (killer instanceof ServerPlayerEntity server) {
+            server.sendMessage(Text.translatable("villagepax.citizen.murder_costs",
+                            Text.literal(settlement.name()),
+                            Text.literal(String.valueOf(MURDER_COSTS)))
+                    .formatted(Formatting.RED), false);
+            Relations.tell(server, shifts);
+        }
     }
 
     /**
@@ -613,6 +820,9 @@ public class CitizenEntity extends PathAwareEntity {
 
         if (!getWorld().isClient() && age % OFF_FENCE_EVERY == 0) {
             stepOutOfTrouble();
+        }
+        if (!getWorld().isClient() && age % ROLE_EVERY == 0) {
+            refreshRole();
         }
     }
 

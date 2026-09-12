@@ -14,6 +14,7 @@ import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.trade.Caravans;
+import com.villagepax.sim.war.Raids;
 import com.villagepax.sim.trade.Coins;
 import com.villagepax.sim.trade.Trading;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -96,6 +97,15 @@ public final class Villages {
 
     /** Профессия, с которой игрок разговаривает. Данными задан только её файл. */
     public static final Identifier ELDER = new Identifier(VillagePax.MOD_ID, "elder");
+
+    /**
+     * Профессия, которая дерётся.
+     * <p>
+     * Названа в коде затем же, зачем и старейшина: по ней тело узнаёт,
+     * кому ставить боевую цель. Данными задан её файл, а не сам факт
+     * существования стражи — драться умеет только логика в коде.
+     */
+    public static final Identifier GUARD = new Identifier(VillagePax.MOD_ID, "guard");
 
     private Villages() {
     }
@@ -190,6 +200,11 @@ public final class Villages {
         // И обоз к колонии игрока, если ей есть что предложить. Это та
         // половина обещания про караваны, которую игрок может встретить.
         Caravans.newDay(world, manager, village);
+
+        // А если терпение вышло — не обоз, а отряд. Порядок тут ничего
+        // не решает: деревня, которая игрока ненавидит, с ним и не торгует,
+        // потому что старейшина с ним не разговаривает.
+        Raids.newDay(world, manager, village);
 
         planNext(world, manager, village, culture);
     }

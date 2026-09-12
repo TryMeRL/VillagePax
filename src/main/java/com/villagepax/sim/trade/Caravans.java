@@ -12,6 +12,7 @@ import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.diplomacy.Relations;
+import com.villagepax.sim.work.Schedule;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
@@ -87,7 +88,7 @@ public final class Caravans {
      * и ровно один раз за день.
      */
     public static void newDay(ServerWorld world, SettlementManager manager, Settlement village) {
-        sendIfDue(world, manager, village, world.getTime() / 24_000L);
+        sendIfDue(world, manager, village, Schedule.dayOf(world.getTimeOfDay()));
     }
 
     /**
@@ -149,7 +150,10 @@ public final class Caravans {
         }
 
         SettlementManager manager = SettlementManager.get(world);
-        long today = world.getTime() / 24_000L;
+        // Тем же счётом дней, что и суточные нужды, и набеги: часы в моде
+        // должны быть одни. Иначе «сегодня» у обоза и «сегодня» у деревни
+        // разойдутся после первой же команды /time set.
+        long today = Schedule.dayOf(world.getTimeOfDay());
 
         for (Settlement settlement : List.copyOf(manager.all())) {
             for (Caravan guest : List.copyOf(settlement.visitors())) {
@@ -336,25 +340,12 @@ public final class Caravans {
      * Где обоз встанет: у ратуши, но не в ней.
      * <p>
      * Кольцами от середины колонии, первое место, где может стоять
-     * человек. В самой ратуше торговцу стоять негде — там блок.
+     * человек. В самой ратуше торговцу стоять негде — там блок. Поиск
+     * общий с отрядами набега: правило «где может встать человек»
+     * должно быть одно, иначе однажды разойдётся.
      */
     private static BlockPos standSpot(ServerWorld world, Settlement colony) {
-        for (int radius = 2; radius <= 5; radius++) {
-            for (int dx = -radius; dx <= radius; dx++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
-                        continue;
-                    }
-                    BlockPos column = colony.center().add(dx, 0, dz);
-                    BlockPos spot = Ground.buildableAt(world, column.getX(), column.getZ())
-                            .orElse(null);
-                    if (spot != null && Math.abs(spot.getY() - colony.center().getY()) <= 3) {
-                        return spot;
-                    }
-                }
-            }
-        }
-        return null;
+        return Ground.spotNear(world, colony.center(), 2, 5);
     }
 
     private static void announce(ServerWorld world, Settlement colony, Settlement village) {

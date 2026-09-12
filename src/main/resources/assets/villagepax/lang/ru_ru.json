@@ -226,5 +226,12 @@
   "villagepax.gift.reason.empty_handed": "Возьми подарок в руку.",
   "villagepax.gift.reason.not_wanted": "Этого здесь не ждут: своего хватает. Посмотри, что деревня скупает.",
   "villagepax.gift.reason.too_little": "Этого мало даже на вежливый кивок.",
-  "villagepax.gift.reason.already_today": "Сегодня ты уже дарил. Приходи завтра."
+  "villagepax.gift.reason.already_today": "Сегодня ты уже дарил. Приходи завтра.",
+  "villagepax.profession.guard": "Стража",
+  "villagepax.raid.coming": "Из «%s» вышел отряд: %s к оружию. Будут здесь к утру.",
+  "villagepax.raid.here": "Отряд у ворот «%s». Защищай своих.",
+  "villagepax.raid.repelled": "Набег на «%s» отбит: пришедших больше нет.",
+  "villagepax.raid.left": "Отряд отступил от «%s» — но обида осталась.",
+  "villagepax.raid.fighter": "Боец (%s)",
+  "villagepax.citizen.murder_costs": "«%s» этого не забудет: доверие ниже на %s."
 }

@@ -1,0 +1,331 @@
+package com.villagepax.sim.war;
+
+import com.villagepax.VillagePax;
+import com.villagepax.core.war.WarParty;
+import com.villagepax.entity.CitizenEntity;
+import com.villagepax.entity.CitizenSpawner;
+import com.villagepax.sim.Ground;
+import com.villagepax.sim.Settlement;
+import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.work.Schedule;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Набеги: кто их посылает, когда приходят и чем кончаются.
+ * <p>
+ * Первая половина обещания фазы 3 — «{@code WarParty}, отряды с целью;
+ * отряд это данные, энтити спавнятся при подходе к загруженной зоне».
+ * Устроено тем же способом, что и обозы, и по той же причине: между
+ * деревней и колонией лежат сотни незагруженных чанков, и вести по ним
+ * живых мобов нельзя ни дёшево, ни честно.
+ * <p>
+ * <b>Набег — это ответ, а не погода.</b> Деревня посылает людей не по
+ * броску кубика, а когда доверие к игроку упало ниже всякого терпения:
+ * ограбленные обозы, убитые жители. Из списка причин войны в
+ * дизайн-документе это «агрессия игрока» — единственная, которую мод уже
+ * умеет считать честно, потому что считает её сам игрок своими руками.
+ * Спор за границу и требование дани приедут вместе с остальной дипломатией.
+ * <p>
+ * <b>И набег — это выход, а не тупик.</b> Убить пришедших можно, но
+ * отношения этим не лечатся: пока доверие ниже терпения, придут снова.
+ * Лечится оно единственным способом — подарками и делом, то есть тем же,
+ * чем и завоёвывалось. Насилие в этом моде не заменяет дипломатии, и это
+ * решение по игре, а не следствие кода.
+ * <p>
+ * <b>Чего здесь нет.</b> Ни осады зданий, ни разграбления склада: ставка
+ * набега — люди. Житель нанимается днями, а гибнет за секунды, и этой
+ * ставки довольно, чтобы игрок вышел его защищать. Здания приедут вместе
+ * с {@code DAMAGED}-состоянием и починкой стен, которых у мода пока нет.
+ */
+public final class Raids {
+
+    /** Как часто осматриваются осады. Пять раз в секунду не нужно. */
+    private static final int EVERY = 100;
+
+    /**
+     * Доверие, ниже которого деревня перестаёт терпеть.
+     * <p>
+     * Минус сорок — это два ограбленных обоза или один убитый житель
+     * с добавкой. Случайно столько не набрать: доверие падает только за
+     * то, что игрок сделал руками, и каждый раз ему об этом говорят
+     * в чат. Набег не должен быть для игрока новостью о самом себе.
+     */
+    public static final int PATIENCE_ENDS = -40;
+
+    /**
+     * Как далеко деревня посылает отряд.
+     * <p>
+     * Вдвое дальше, чем обоз: за обидой ходят охотнее, чем за выручкой.
+     * Но не бесконечно — деревня с другого конца карты, которую игрок
+     * обидел однажды и забыл, не должна присылать людей к его дому:
+     * он не свяжет набег ни с чем, а необъяснимое наказание хуже,
+     * чем никакое.
+     */
+    private static final int REACH = 1024;
+
+    /** Сколько дней колония отдыхает между набегами. */
+    public static final int COOLDOWN_DAYS = 5;
+
+    /** Больше этого числа бойцов не приходит никогда. */
+    public static final int MOST_FIGHTERS = 4;
+
+    /** На сколько ещё падает доверие за каждого следующего бойца. */
+    private static final int PER_FIGHTER = 20;
+
+    private Raids() {
+    }
+
+    public static void register() {
+        ServerTickEvents.END_WORLD_TICK.register(Raids::tick);
+    }
+
+    /**
+     * Сколько бойцов пошлёт деревня при таком доверии.
+     * <p>
+     * Чистая функция: чем глубже обида, тем больше отряд. Проверяется без
+     * запущенной игры, потому что это и есть кривая наказания — единственное
+     * в набеге, что можно посчитать неправильно молча.
+     */
+    public static int fightersFor(int trust) {
+        if (trust > PATIENCE_ENDS) {
+            return 0;
+        }
+        int over = PATIENCE_ENDS - trust;
+        return Math.min(MOST_FIGHTERS, 1 + over / PER_FIGHTER);
+    }
+
+    /**
+     * Суточное решение деревни: не пора ли послать людей.
+     * <p>
+     * Зовётся оттуда же, откуда деревня решает всё остальное, — на смене
+     * дня и ровно один раз за день.
+     */
+    public static void newDay(ServerWorld world, SettlementManager manager, Settlement village) {
+        sendIfDue(world, manager, village, Schedule.dayOf(world.getTimeOfDay()));
+    }
+
+    /**
+     * То же, но с днём числом: иначе «раз в пять дней» не проверить.
+     * <p>
+     * Тот же урок, что с обозами: тест не может прождать пятеро игровых
+     * суток, а несколько вызовов в одном тике — это один и тот же день.
+     */
+    public static void sendIfDue(ServerWorld world, SettlementManager manager,
+                                 Settlement village, long today) {
+        if (!village.owner().isAutonomous()) {
+            // Колония игрока набегов не устраивает: за неё решает он сам,
+            // а «пошли своих на соседа» — это уже приказ, которого в моде нет.
+            return;
+        }
+
+        for (UUID player : List.copyOf(village.reputation().keySet())) {
+            int trust = village.reputationOf(player);
+            int fighters = fightersFor(trust);
+            if (fighters <= 0) {
+                continue;
+            }
+
+            Settlement colony = colonyOf(manager, player);
+            if (colony == null || colony.siege().isPresent()) {
+                continue;
+            }
+            if (colony.center().getSquaredDistance(village.center()) > (double) REACH * REACH) {
+                continue;
+            }
+            if (colony.lastRaid() != Settlement.UNSEEN_DAY
+                    && today - colony.lastRaid() < COOLDOWN_DAYS) {
+                continue;
+            }
+
+            BlockPos musters = musterSpot(world, colony);
+            if (musters == null) {
+                // Некуда встать: чанк не загружен или у колонии нет твёрдой
+                // земли по кругу. Придут в другой раз — обида не проходит.
+                continue;
+            }
+
+            WarParty party = new WarParty(UUID.randomUUID(), village.id(), village.culture(),
+                    musters, fighters, today + 1, today + 2);
+            manager.update(colony.id(), state -> state.besiege(party, today));
+
+            warn(world, colony, village, fighters);
+            VillagePax.LOGGER.info("Деревня {} посылает {} бойцов к {}: доверие {}",
+                    village.name(), fighters, colony.name(), trust);
+            return;
+        }
+    }
+
+    /**
+     * Каждые сто тиков: поставить телом тех, кого видно, и проводить
+     * тех, чей срок вышел.
+     */
+    static void tick(ServerWorld world) {
+        if (world.getTime() % EVERY != 0) {
+            return;
+        }
+        watch(world, SettlementManager.get(world), Schedule.dayOf(world.getTimeOfDay()));
+    }
+
+    /**
+     * То же, но с днём числом — и потому проверяемое.
+     * <p>
+     * Третий раз тот же приём (обозы, набеги, подарки), и он себя оправдал:
+     * всё, что решается «в такой-то день», принимает день снаружи. Иначе
+     * проверка вынуждена ждать смены суток, а игровой тест ждать не умеет.
+     */
+    public static void watch(ServerWorld world, SettlementManager manager, long today) {
+        for (Settlement settlement : List.copyOf(manager.all())) {
+            WarParty party = settlement.siege().orElse(null);
+            if (party == null) {
+                continue;
+            }
+            if (party.isOver(today)) {
+                withdraw(world, manager, settlement, party);
+                continue;
+            }
+            if (party.hasArrived(today) && world.isChunkLoaded(party.musters())) {
+                muster(world, manager, settlement, party);
+            }
+        }
+    }
+
+    /**
+     * Поставить телами тех, кого ещё нет.
+     * <p>
+     * По одному телу на живого бойца. Тела — куклы, как и торговец обоза:
+     * у них нет ни записи жителя, ни поселения, и стратегия их не видит.
+     * Разница одна и вся в ней: этих послали воевать.
+     */
+    private static void muster(ServerWorld world, SettlementManager manager, Settlement colony,
+                               WarParty party) {
+        List<CitizenEntity> standing = bodiesOf(world, party);
+        boolean first = standing.isEmpty();
+
+        for (int number = standing.size(); number < party.fighters(); number++) {
+            BlockPos where = Ground.spotNear(world, party.musters(), 0, 3);
+            CitizenEntity fighter = CitizenSpawner.spawnPuppet(world,
+                    where == null ? party.musters() : where);
+            if (fighter == null) {
+                return;
+            }
+
+            fighter.linkRaid(colony.id(), party.id());
+            fighter.setCustomName(Text.translatable("villagepax.raid.fighter",
+                    Text.translatable("villagepax.culture." + party.culture().getPath())));
+            fighter.setCustomNameVisible(true);
+            // Оружие в руках — и это не только вид: модификатор меча
+            // считается в силу удара, как у любого моба с мечом.
+            fighter.equipStack(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
+        }
+
+        if (first) {
+            announce(world, colony, "villagepax.raid.here", Formatting.RED);
+        }
+    }
+
+    /** Тела этого отряда, какие есть в мире. */
+    public static List<CitizenEntity> bodiesOf(ServerWorld world, WarParty party) {
+        Box around = new Box(party.musters()).expand(64);
+        return new ArrayList<>(world.getEntitiesByClass(CitizenEntity.class, around,
+                alive -> party.id().equals(alive.raidId())));
+    }
+
+    /**
+     * Боец пал.
+     * <p>
+     * Отношений это не меняет, и это осознанно: пришедшие пришли по делу,
+     * и то, что они его не сделали, деревню не примиряет. Мириться игроку
+     * придётся тем же, чем ссорился, — своими руками.
+     */
+    public static void fell(ServerWorld world, CitizenEntity body) {
+        SettlementManager manager = SettlementManager.get(world);
+        Settlement colony = body.raidHost().flatMap(manager::byId).orElse(null);
+        UUID raidId = body.raidId();
+        if (colony == null || raidId == null) {
+            return;
+        }
+
+        WarParty party = colony.siege().filter(one -> one.id().equals(raidId)).orElse(null);
+        if (party == null) {
+            return;
+        }
+
+        WarParty thinner = party.withFighters(party.fighters() - 1);
+        manager.update(colony.id(), state -> state.updateSiege(thinner));
+        if (thinner.fighters() <= 0) {
+            announce(world, colony, "villagepax.raid.repelled", Formatting.GREEN);
+            VillagePax.LOGGER.info("Набег на {} отбит", colony.name());
+        }
+    }
+
+    /** Отряд уходит: тела убрать, запись снять. */
+    private static void withdraw(ServerWorld world, SettlementManager manager, Settlement colony,
+                                 WarParty party) {
+        List<CitizenEntity> left = bodiesOf(world, party);
+        left.forEach(CitizenEntity::discard);
+        manager.update(colony.id(), Settlement::liftSiege);
+
+        if (!left.isEmpty()) {
+            // Молча уходят только те, кого уже перебили: об этом игроку
+            // сказали, когда пал последний.
+            announce(world, colony, "villagepax.raid.left", Formatting.GRAY);
+        }
+    }
+
+    /** Колония этого игрока — та, к которой и пойдут. */
+    private static Settlement colonyOf(SettlementManager manager, UUID player) {
+        for (Settlement candidate : manager.all()) {
+            if (candidate.owner().isOwnedBy(player)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Где отряд соберётся: у края колонии, а не посреди неё.
+     * <p>
+     * Десять шагов от ратуши — это «пришли и встали», а не «возникли
+     * в спальне». Игрок должен успеть их увидеть и выйти навстречу.
+     */
+    private static BlockPos musterSpot(ServerWorld world, Settlement colony) {
+        return Ground.spotNear(world, colony.center(), 10, 16);
+    }
+
+    private static void warn(ServerWorld world, Settlement colony, Settlement village,
+                             int fighters) {
+        colony.owner().player().ifPresent(owner -> {
+            ServerPlayerEntity player = world.getServer().getPlayerManager().getPlayer(owner);
+            if (player != null) {
+                player.sendMessage(Text.translatable("villagepax.raid.coming",
+                                Text.literal(village.name()),
+                                Text.literal(String.valueOf(fighters)))
+                        .formatted(Formatting.RED), false);
+            }
+        });
+    }
+
+    private static void announce(ServerWorld world, Settlement colony, String key,
+                                 Formatting colour) {
+        colony.owner().player().ifPresent(owner -> {
+            ServerPlayerEntity player = world.getServer().getPlayerManager().getPlayer(owner);
+            if (player != null) {
+                player.sendMessage(Text.translatable(key,
+                        Text.literal(colony.name())).formatted(colour), false);
+            }
+        });
+    }
+}

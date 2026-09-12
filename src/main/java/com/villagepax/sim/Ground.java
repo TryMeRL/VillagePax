@@ -35,6 +35,9 @@ public final class Ground {
      */
     private static final int DIG = 32;
 
+    /** Насколько выше или ниже точки может лежать «место рядом». */
+    private static final int NEAR_ENOUGH = 3;
+
     private Ground() {
     }
 
@@ -74,6 +77,39 @@ public final class Ground {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Место, где может встать человек, — кольцами вокруг точки.
+     * <p>
+     * Одно на весь мод: этим ищут, где поставить телегу обоза и где
+     * собраться отряду. Кольцами от близких к далёким, потому что
+     * «рядом с ратушей» и значит рядом; и с ограничением по высоте,
+     * потому что место на скале в двадцати блоках над деревней
+     * формально годится, а на деле игрок туда не пойдёт.
+     *
+     * @param centre от чего мерить
+     * @param from   с какого кольца начинать: ноль — сама точка
+     * @param to     до какого искать
+     * @return место или {@code null}, если рядом негде встать
+     */
+    public static BlockPos spotNear(ServerWorld world, BlockPos centre, int from, int to) {
+        for (int radius = from; radius <= to; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                        continue;
+                    }
+                    BlockPos column = centre.add(dx, 0, dz);
+                    BlockPos spot = buildableAt(world, column.getX(), column.getZ())
+                            .orElse(null);
+                    if (spot != null && Math.abs(spot.getY() - centre.getY()) <= NEAR_ENOUGH) {
+                        return spot;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /**

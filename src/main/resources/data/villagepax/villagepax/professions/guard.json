@@ -1,0 +1,6 @@
+{
+  "display_name": "villagepax.profession.guard",
+  "job": "villagepax:guard",
+  "needs_workplace": false,
+  "hiring_priority": 20
+}

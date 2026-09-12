@@ -6,6 +6,7 @@ import com.villagepax.core.config.Configs;
 import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.trade.TradeTables;
 import com.villagepax.sim.trade.Caravans;
+import com.villagepax.sim.war.Raids;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.core.quest.QuestManager;
@@ -55,6 +56,7 @@ public class VillagePax implements ModInitializer {
         ColonyNet.register();
         QuestNet.registerServer();
         Caravans.register();
+        Raids.register();
 
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
                 .registerReloadListener(new BuildingTypes());

@@ -7,6 +7,7 @@ import com.villagepax.sim.Building;
 import com.villagepax.sim.Hazards;
 import com.villagepax.sim.Hazards;
 import com.villagepax.sim.Levels;
+import com.villagepax.sim.Settlement;
 import com.villagepax.sim.Sounds;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.BuildStep;
@@ -413,6 +414,38 @@ public final class BuilderJob implements Job {
                     .getPlayerManager().getPlayer(owner);
             if (player != null) {
                 player.sendMessage(notice, false);
+            }
+        });
+    }
+
+    /**
+     * Некому строить: стройка есть, а строителя в колонии нет.
+     * <p>
+     * Чистая проверка, и она нужна вслух. Мод молчал об этом целиком:
+     * сообщение «стройка встала» умеет писать только сам билдер, когда
+     * ему не хватает материала, — а если билдера нет, писать некому.
+     * Игрок видел недостроенный дом, пустой пульт и никакого объяснения.
+     * Ровно это он и сказал: «строить здания не могу».
+     */
+    public static boolean nobodyBuilds(Settlement colony) {
+        boolean waiting = colony.buildings().stream().anyMatch(BuildJob::isUnderConstruction);
+        if (!waiting) {
+            return false;
+        }
+        return colony.citizens().stream()
+                .noneMatch(citizen -> citizen.profession().filter(BuildJob.BUILDER::equals).isPresent());
+    }
+
+    /** Сказать хозяину колонии, что строить некому. Раз в игровой день. */
+    public static void remindIfNobodyBuilds(ServerWorld world, Settlement colony) {
+        if (!nobodyBuilds(colony)) {
+            return;
+        }
+        colony.owner().player().ifPresent(owner -> {
+            ServerPlayerEntity player = world.getServer().getPlayerManager().getPlayer(owner);
+            if (player != null) {
+                player.sendMessage(Text.translatable("villagepax.build.no_builder")
+                        .formatted(net.minecraft.util.Formatting.RED), false);
             }
         });
     }

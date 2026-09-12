@@ -260,5 +260,6 @@
   "villagepax.screen.order.needs_more": " and %s more kinds",
   "villagepax.screen.order.needs_none": "The stock is already there — the builder will start on his own.",
   "villagepax.screen.overview.idle_hint": "The Buildings tab: pick what to raise, then stand where you want it.",
-  "villagepax.screen.overview.deserted": "Nobody is left in the colony. Put food in the town hall chest — a settler will come by morning."
+  "villagepax.screen.overview.deserted": "Nobody is left in the colony. Put food in the town hall chest — a settler will come by morning.",
+  "villagepax.build.no_builder": "Building has stalled: the colony has no builder. Hand someone that craft in the town hall console."
 }

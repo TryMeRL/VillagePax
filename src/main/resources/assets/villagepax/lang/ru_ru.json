@@ -260,5 +260,6 @@
   "villagepax.screen.order.needs_more": " и ещё %s видов",
   "villagepax.screen.order.needs_none": "Материалы на складе уже есть — строитель начнёт сам.",
   "villagepax.screen.overview.idle_hint": "Вкладка «Здания» — выбери, что поставить, и встань там, где хочешь его видеть.",
-  "villagepax.screen.overview.deserted": "В колонии никого не осталось. Положи еду в сундук ратуши — к утру придёт новый житель."
+  "villagepax.screen.overview.deserted": "В колонии никого не осталось. Положи еду в сундук ратуши — к утру придёт новый житель.",
+  "villagepax.build.no_builder": "Стройка стоит: в колонии нет строителя. Дай кому-нибудь это ремесло в пульте ратуши."
 }

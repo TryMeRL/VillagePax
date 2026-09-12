@@ -9012,6 +9012,51 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    /**
+     * Колония без строителя говорит об этом, а не молчит.
+     * <p>
+     * Мод умел жаловаться только устами самого билдера — «не хватает
+     * камня». Если билдера нет, жаловаться было некому, и игрок сидел
+     * над недостроенным домом без единого объяснения. Это и есть его
+     * «строить здания не могу», вид второй.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "playable")
+    public void colonyWithoutABuilderSaysSo(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 2, 2));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, context.getAbsolutePos(new BlockPos(8, 2, 2)),
+                BlockRotation.NONE);
+
+        try {
+            if (BuilderJob.nobodyBuilds(colony)) {
+                context.throwGameTestException("Строитель на месте, а мод считает, "
+                        + "что строить некому");
+            }
+
+            // Сняли ремесло — и теперь стройка действительно брошена.
+            colony.citizens().forEach(citizen -> citizen.setProfession(null));
+            if (!BuilderJob.nobodyBuilds(colony)) {
+                context.throwGameTestException("Строителя нет, стройка стоит, "
+                        + "а мод молчит — ровно на это и жаловался игрок");
+            }
+
+            // А без стройки и жаловаться не на что.
+            site.setProgress(BuildProgress.DONE);
+            if (BuilderJob.nobodyBuilds(colony)) {
+                context.throwGameTestException("Всё достроено, а мод всё равно зовёт строителя");
+            }
+        } finally {
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
     /** Сколько хранилищ стоит в следе здания прямо сейчас. */
     private static int containersIn(ServerWorld world, Building building, Schematic schematic) {
         int found = 0;

@@ -92,6 +92,10 @@ public final class WorkTicker {
                 Workplaces.assign(world, state);
             } else {
                 Needs.newDay(world, manager, state);
+                // Молчание — худшее, что мод может ответить на «почему
+                // ничего не строится». Раз в день, и только когда стройка
+                // действительно ждёт.
+                BuilderJob.remindIfNobodyBuilds(world, state);
                 if (state.owner().isAutonomous()) {
                     // Деревня решает за себя сама: игрока, который разметил
                     // бы ей здание, у неё нет.

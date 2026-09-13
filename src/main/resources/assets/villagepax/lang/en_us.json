@@ -261,5 +261,13 @@
   "villagepax.screen.order.needs_none": "The stock is already there — the builder will start on his own.",
   "villagepax.screen.overview.idle_hint": "The Buildings tab: pick what to raise, then stand where you want it.",
   "villagepax.screen.overview.deserted": "Nobody is left in the colony. Put food in the town hall chest — a settler will come by morning.",
-  "villagepax.build.no_builder": "Building has stalled: the colony has no builder. Hand someone that craft in the town hall console."
+  "villagepax.build.no_builder": "Building has stalled: the colony has no builder. Hand someone that craft in the town hall console.",
+  "villagepax.screen.overview.section_advice": "What next",
+  "villagepax.advice.deserted": "Nobody is left. Put food in the town hall chest — a settler comes by morning.",
+  "villagepax.advice.no_storage": "Nowhere to store: place a chest by the hall, or finish the warehouse.",
+  "villagepax.advice.no_food": "No food. Bring bread or carrots to the town hall chest, or your people will leave.",
+  "villagepax.advice.no_builder": "Nobody can build. Hand someone the builder's craft on the Citizens tab.",
+  "villagepax.advice.no_beds": "Every bed is taken. Mark another house — nobody comes without a free bed.",
+  "villagepax.advice.no_farm": "You are the food supply. Mark a farm and hand someone the farmer's craft.",
+  "villagepax.advice.nothing_building": "Nothing is being built. Open the Buildings tab and mark what to raise next."
 }

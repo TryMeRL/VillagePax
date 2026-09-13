@@ -220,6 +220,20 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
     // --- вкладки ---
 
     private void overview(TownHallView view) {
+        // Совет — самой первой строкой, до всех чисел. Числа правдивы,
+        // но ни одно из них не говорит, что делать дальше, а это и есть
+        // единственный вопрос новичка.
+        view.advice().ifPresent(key -> {
+            FlowLayout hint = Look.card("villagepax.screen.overview.section_advice",
+                    new ItemStack(Items.WRITABLE_BOOK));
+            LabelComponent line = Components.label(Text.translatable(key));
+            line.color(Look.GOLD);
+            line.shadow(false);
+            line.lineHeight(9);
+            hint.child(line.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            body.child(hint);
+        });
+
         FlowLayout colony = Look.card("villagepax.screen.overview.section_colony",
                 new ItemStack(ModBlocks.TOWN_HALL));
         colony.child(Look.stat(new ItemStack(Items.WHEAT),

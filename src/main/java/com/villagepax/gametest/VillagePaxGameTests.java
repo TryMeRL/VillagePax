@@ -115,6 +115,7 @@ import com.villagepax.sim.work.GatherJob;
 import com.villagepax.sim.work.GuardJob;
 import com.villagepax.sim.work.Housing;
 import com.villagepax.sim.work.Jobs;
+import com.villagepax.screen.Advice;
 import com.villagepax.screen.BuildOrders;
 import com.villagepax.screen.GhostPlan;
 import com.villagepax.screen.Mood;
@@ -9252,6 +9253,71 @@ public class VillagePaxGameTests implements FabricGameTest {
             manager.remove(near.id());
             manager.remove(far.id());
             world.setBlockState(here, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * Пульт говорит, что делать дальше, и говорит самое срочное.
+     * <p>
+     * Главная жалоба на моды этого жанра — и своя, слово в слово:
+     * непонятен не механизм, а следующий шаг. Пульт показывает десяток
+     * правдивых чисел, и ни одно не отвечает на единственный вопрос
+     * новичка. Проверяется лестница срочности: пустая колония важнее
+     * голода, голод важнее строителя, строитель важнее кроватей.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "playable")
+    public void consoleSaysWhatToDoNext(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 2, 2));
+
+        world.setBlockState(hall, ModBlocks.TOWN_HALL.getDefaultState());
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Совет", hall);
+        manager.add(colony);
+
+        try {
+            // Пусто — и это важнее всего остального.
+            if (!"villagepax.advice.deserted".equals(
+                    Advice.nextStep(world, colony).orElse(null))) {
+                context.throwGameTestException("Пустая колония не названа первой бедой: "
+                        + Advice.nextStep(world, colony));
+            }
+
+            Citizen builder = Citizen.newborn("Rollo", "", NORMAN, Gender.MALE);
+            builder.setProfession(BuildJob.BUILDER);
+            colony.addCitizen(builder);
+
+            // Жители есть, еды нет.
+            if (!"villagepax.advice.no_food".equals(
+                    Advice.nextStep(world, colony).orElse(null))) {
+                context.throwGameTestException("Голод не назван: "
+                        + Advice.nextStep(world, colony));
+            }
+
+            Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 8));
+
+            // Еда есть, строителя нет.
+            builder.setProfession(null);
+            if (!"villagepax.advice.no_builder".equals(
+                    Advice.nextStep(world, colony).orElse(null))) {
+                context.throwGameTestException("Отсутствие строителя не названо: "
+                        + Advice.nextStep(world, colony));
+            }
+
+            // Строитель есть, а спать негде: дом важнее поля, потому что
+            // без кровати колония не вырастет вовсе, а еду пока носит игрок.
+            builder.setProfession(BuildJob.BUILDER);
+            if (!"villagepax.advice.no_beds".equals(
+                    Advice.nextStep(world, colony).orElse(null))) {
+                context.throwGameTestException("Совет поставить дом не дан: "
+                        + Advice.nextStep(world, colony));
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
 
         context.complete();

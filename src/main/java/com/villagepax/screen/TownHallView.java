@@ -60,17 +60,14 @@ public record TownHallView(
         String level,
         int population,
         int maxCitizens,
-        int beds,
-        int freeBeds,
-        int meals,
-        int daysOfFood,
-        int containers,
+        Household household,
         Optional<Construction> construction,
         List<BuildingLine> buildings,
         List<CitizenLine> citizens,
         ItemTally stock,
         List<Identifier> offers,
-        List<ProfessionLine> professions) {
+        List<ProfessionLine> professions,
+        Optional<String> advice) {
 
     /** Здание, которое строится прямо сейчас, и чего ему не хватает. */
     public record Construction(Identifier type, int level, int step, int steps, ItemTally missing) {
@@ -140,18 +137,66 @@ public record TownHallView(
             Codec.STRING.fieldOf("level").forGetter(TownHallView::level),
             Codec.INT.fieldOf("population").forGetter(TownHallView::population),
             Codec.INT.fieldOf("max_citizens").forGetter(TownHallView::maxCitizens),
-            Codec.INT.fieldOf("beds").forGetter(TownHallView::beds),
-            Codec.INT.fieldOf("free_beds").forGetter(TownHallView::freeBeds),
-            Codec.INT.fieldOf("meals").forGetter(TownHallView::meals),
-            Codec.INT.fieldOf("days_of_food").forGetter(TownHallView::daysOfFood),
-            Codec.INT.fieldOf("containers").forGetter(TownHallView::containers),
+            Household.CODEC.fieldOf("household").forGetter(TownHallView::household),
             Construction.CODEC.optionalFieldOf("construction").forGetter(TownHallView::construction),
             BuildingLine.CODEC.listOf().fieldOf("buildings").forGetter(TownHallView::buildings),
             CitizenLine.CODEC.listOf().fieldOf("citizens").forGetter(TownHallView::citizens),
             ItemTally.CODEC.fieldOf("stock").forGetter(TownHallView::stock),
             Identifier.CODEC.listOf().fieldOf("offers").forGetter(TownHallView::offers),
-            ProfessionLine.CODEC.listOf().fieldOf("professions").forGetter(TownHallView::professions)
+            ProfessionLine.CODEC.listOf().fieldOf("professions").forGetter(TownHallView::professions),
+            Codec.STRING.optionalFieldOf("advice").forGetter(TownHallView::advice)
     ).apply(instance, TownHallView::new));
+
+    /**
+     * Быт колонии одной записью: кровати, еда, хранилища.
+     * <p>
+     * Сгруппировано не для красоты. У кодека Mojang ровно шестнадцать
+     * полей в группе, и семнадцатое — совет «что дальше» — в неё
+     * не поместилось. Выбор был между хитростью со склейкой кодеков
+     * и честной записью; запись вдобавок объясняет, что эти пять чисел
+     * об одном: сколько колония может прокормить и уложить спать.
+     * <p>
+     * Снаружи ничего не изменилось: {@link TownHallView} по-прежнему
+     * отвечает на {@code beds()} и {@code meals()} — просто переспрашивает
+     * их у быта. Тридцать мест, где экран и проверки зовут эти числа,
+     * переписывать ради устройства кодека было бы не улучшением.
+     *
+     * @param beds       спальных мест всего
+     * @param freeBeds   из них свободных
+     * @param meals      порций еды на складе
+     * @param daysOfFood на сколько дней их хватит
+     * @param containers сколько хранилищ у колонии
+     */
+    public record Household(int beds, int freeBeds, int meals, int daysOfFood, int containers) {
+
+        public static final Codec<Household> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.INT.fieldOf("beds").forGetter(Household::beds),
+                Codec.INT.fieldOf("free_beds").forGetter(Household::freeBeds),
+                Codec.INT.fieldOf("meals").forGetter(Household::meals),
+                Codec.INT.fieldOf("days_of_food").forGetter(Household::daysOfFood),
+                Codec.INT.fieldOf("containers").forGetter(Household::containers)
+        ).apply(instance, Household::new));
+    }
+
+    public int beds() {
+        return household.beds();
+    }
+
+    public int freeBeds() {
+        return household.freeBeds();
+    }
+
+    public int meals() {
+        return household.meals();
+    }
+
+    public int daysOfFood() {
+        return household.daysOfFood();
+    }
+
+    public int containers() {
+        return household.containers();
+    }
 
     /** Списки копируются: снимок обязан быть неизменяемым, его сравнивают. */
     public TownHallView {
@@ -177,17 +222,21 @@ public record TownHallView(
                 settlement.level().id(),
                 settlement.population(),
                 settlement.level().maxCitizens(),
-                Housing.sleepingSpots(world, settlement).size(),
-                Housing.freeSpots(world, settlement),
-                meals(stock),
-                daysOfFood(stock, settlement.population()),
-                warehouse.containerCount(),
+                new Household(
+                        Housing.sleepingSpots(world, settlement).size(),
+                        Housing.freeSpots(world, settlement),
+                        meals(stock),
+                        daysOfFood(stock, settlement.population()),
+                        warehouse.containerCount()),
                 construction(world, settlement, warehouse),
                 buildings(settlement),
                 citizens(settlement),
                 stock,
                 offers(settlement),
-                knownProfessions());
+                knownProfessions(),
+                // Совет считается здесь же: ему нужны и склад, и здания,
+                // и жители — всё то, что уже собрано этим снимком.
+                Advice.nextStep(world, settlement));
     }
 
     /**

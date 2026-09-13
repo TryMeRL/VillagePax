@@ -69,8 +69,8 @@ public final class TownHallNet {
 
     /** Снимок, который ничего не утверждает: показывать нечего, но экран жив. */
     public static final TownHallView EMPTY = new TownHallView("", UNKNOWN, "hamlet",
-            0, 0, 0, 0, 0, 0, 0, Optional.empty(), List.of(), List.of(), new ItemTally(),
-            List.of(), List.of());
+            0, 0, new TownHallView.Household(0, 0, 0, 0, 0), Optional.empty(),
+            List.of(), List.of(), new ItemTally(), List.of(), List.of(), Optional.empty());
 
     private TownHallNet() {
     }

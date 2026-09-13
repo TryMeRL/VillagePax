@@ -281,7 +281,7 @@ public final class Caravans {
      * незачем — у неё и так всё есть.
      */
     private static ItemTally loadUp(ServerWorld world, Settlement village) {
-        Warehouse warehouse = Warehouse.of(world, village);
+        Warehouse warehouse = Warehouse.reach(world, village);
         ItemTally cargo = new ItemTally();
         int kinds = 0;
 
@@ -305,7 +305,7 @@ public final class Caravans {
 
     /** И сколько монеты: тоже настоящей, из её кошеля. */
     private static int takePurse(ServerWorld world, Settlement village) {
-        Warehouse warehouse = Warehouse.of(world, village);
+        Warehouse warehouse = Warehouse.reach(world, village);
         int purse = Math.min(PURSE, Coins.total(warehouse.coins()) / 2);
         if (purse <= 0) {
             return 0;

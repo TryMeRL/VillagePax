@@ -197,11 +197,19 @@ public final class Villages {
             return;
         }
 
-        // Сперва выручка, потом покупки: деревня тратит заработанное
-        // сегодня, а не ждёт следующего утра, чтобы им распорядиться.
-        Warehouse warehouse = Warehouse.of(world, village);
-        earn(world, village, warehouse);
-        deliver(world, village, warehouse);
+        // Хозяйство — только под присмотром. Не потому что деревня без
+        // игрока не работает, а потому что работать ей нечем: и выручка,
+        // и покупки, и разметка следующего дома идут через блоки, а
+        // спрашивать их в выгруженном чанке — значит заставлять мир
+        // грузить его здесь и сейчас, каждый день и у каждой деревни.
+        boolean seen = world.isChunkLoaded(village.center());
+        if (seen) {
+            // Сперва выручка, потом покупки: деревня тратит заработанное
+            // сегодня, а не ждёт следующего утра, чтобы им распорядиться.
+            Warehouse warehouse = Warehouse.of(world, village);
+            earn(world, village, warehouse);
+            deliver(world, village, warehouse);
+        }
 
         // И обоз к колонии игрока, если ей есть что предложить. Это та
         // половина обещания про караваны, которую игрок может встретить.
@@ -212,7 +220,9 @@ public final class Villages {
         // потому что старейшина с ним не разговаривает.
         Raids.newDay(world, manager, village);
 
-        planNext(world, manager, village, culture);
+        if (seen) {
+            planNext(world, manager, village, culture);
+        }
     }
 
     /**

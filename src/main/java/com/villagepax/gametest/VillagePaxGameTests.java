@@ -9607,6 +9607,61 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    /**
+     * Деревня за горизонтом не затягивает в память свои чанки.
+     * <p>
+     * Правило мода «спрашивать блоки в незагруженном чанке нельзя» до сих
+     * пор соблюдалось везде, кроме одного места — склада. А суточная смена
+     * зовёт склад у <b>каждого</b> поселения мира, включая те, до которых
+     * игрок за всю игру не дошёл: каждая деревня раз в игровой день
+     * заставляла мир загрузить свои чанки, и все разом в один тик.
+     * <p>
+     * Проверяется не «быстро ли», а <b>случилось ли</b>: чанк, которого
+     * не было в памяти, после суточной смены не должен там оказаться.
+     * Это тот редкий случай, когда производительность проверяется точным
+     * условием, а не секундомером.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "playable")
+    public void farVillageDoesNotDragItsChunksIn(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        // Далеко за пределами прогона: чанк туда никто не загружал.
+        BlockPos away = new BlockPos(220_000, 64, 220_000);
+        ChunkPos chunk = new ChunkPos(away);
+        if (world.isChunkLoaded(chunk.x, chunk.z)) {
+            context.throwGameTestException("Чанк за 220 тысяч блоков уже загружен: "
+                    + "проверять нечего");
+            return;
+        }
+
+        Settlement far = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Дальняя", away);
+        manager.add(far);
+
+        try {
+            Villages.newDay(world, manager, far);
+            if (world.isChunkLoaded(chunk.x, chunk.z)) {
+                context.throwGameTestException("Суточная смена загрузила чанк дальней "
+                        + "деревни: так каждая деревня мира тянет в память свои чанки "
+                        + "раз в игровой день, все разом в один тик");
+            }
+
+            // И склад её тоже не дотягивается — того же правила ради.
+            if (Warehouse.of(world, far).containerCount() != 0) {
+                context.throwGameTestException("У невидимой деревни нашёлся склад");
+            }
+            if (world.isChunkLoaded(chunk.x, chunk.z)) {
+                context.throwGameTestException("Склад дотянулся до незагруженного чанка "
+                        + "и заставил мир его поднять");
+            }
+        } finally {
+            manager.remove(far.id());
+        }
+
+        context.complete();
+    }
+
+
     /** Сколько хранилищ стоит в следе здания прямо сейчас. */
     private static int containersIn(ServerWorld world, Building building, Schematic schematic) {
         int found = 0;

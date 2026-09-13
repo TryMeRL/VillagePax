@@ -56,7 +56,39 @@ public final class Warehouse {
      * {@code WorkContext} ровно на столько его и запоминает.
      */
     public static Warehouse of(ServerWorld world, Settlement settlement) {
+        return gather(world, settlement, false);
+    }
+
+    /**
+     * Дотянуться до склада, даже если чанк выгружен.
+     * <p>
+     * Мир загрузит его здесь и сейчас — и это <b>осознанная плата</b>, а не
+     * оплошность. Зовётся из одного места: обоз, который уже решил выйти
+     * к загруженной колонии, обязан открыть свой сундук, иначе никакой
+     * торговли между дальними деревнями не бывает вовсе. Раз в несколько
+     * дней и только у деревень по соседству с колонией игрока — это
+     * посильно; то же самое каждый день у каждой деревни мира — нет.
+     */
+    public static Warehouse reach(ServerWorld world, Settlement settlement) {
+        return gather(world, settlement, true);
+    }
+
+    /**
+     * Собрать список контейнеров.
+     * <p>
+     * <b>Склада, которого не видно, нет.</b> Спрашивать блок-энтити
+     * в незагруженном чанке нельзя по той же причине, по которой нельзя
+     * спрашивать высоту: мир загрузит чанк здесь и сейчас. Раньше это
+     * молчаливо и происходило — суточная смена звала склад у каждого
+     * поселения, включая те, до которых игрок за всю игру не дошёл, и
+     * каждая деревня мира затягивала в память свои чанки раз в игровой
+     * день, все разом в один тик.
+     */
+    private static Warehouse gather(ServerWorld world, Settlement settlement, boolean anyway) {
         List<Container> found = new ArrayList<>();
+        if (!anyway && !world.isChunkLoaded(settlement.center())) {
+            return new Warehouse(found);
+        }
 
         // Ратуша стоит в центре поселения — там её поставил чертёж.
         if (world.getBlockEntity(settlement.center()) instanceof TownHallBlockEntity hall) {
@@ -72,6 +104,9 @@ public final class Warehouse {
                 continue;
             }
             for (BlockPos spot : BuildJob.pointsOfInterest(building, schematic, MarkerKind.STORAGE)) {
+                if (!anyway && !world.isChunkLoaded(spot)) {
+                    continue;
+                }
                 if (world.getBlockEntity(spot) instanceof Inventory chest && !holds(found, spot)) {
                     found.add(new Container(spot, chest));
                 }

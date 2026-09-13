@@ -50,7 +50,6 @@
   "villagepax.screen.buildings.offers": "Можно заказать",
   "villagepax.screen.buildings.order": "Разметить",
   "villagepax.screen.buildings.order_hint": "Встанет там, где ты стоишь, фасадом к тебе",
-  "villagepax.screen.buildings.line": "%s ур. %s — %s",
   "villagepax.screen.citizens.none": "В колонии никого",
   "villagepax.screen.citizens.homeless": "без дома",
   "villagepax.screen.citizens.no_workplace": "без места работы",

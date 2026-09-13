@@ -50,7 +50,6 @@
   "villagepax.screen.buildings.offers": "Available to order",
   "villagepax.screen.buildings.order": "Place",
   "villagepax.screen.buildings.order_hint": "Goes where you stand, facing you",
-  "villagepax.screen.buildings.line": "%s lvl %s — %s",
   "villagepax.screen.citizens.none": "Nobody lives here",
   "villagepax.screen.citizens.homeless": "homeless",
   "villagepax.screen.citizens.no_workplace": "no workplace",

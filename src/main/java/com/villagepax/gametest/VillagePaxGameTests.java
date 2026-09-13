@@ -9057,6 +9057,207 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    /**
+     * Колония живёт неделю сама: растёт, кормится и не вымирает.
+     * <p>
+     * Написано после разбора сохранений заказчика, где нашлись колонии
+     * с <b>нулём жителей</b> и вечно недостроенным домом. Каждая отдельная
+     * механика — еда, кровати, приток, ферма — была проверена и работала;
+     * не был проверен только <b>ход времени в целом</b>, а рушится именно он.
+     * <p>
+     * Это не проверка одного правила, а лакмус: семь суточных смен подряд
+     * с работой фермера между ними. Если хоть одно звено цепи «поле →
+     * склад → еда → новый житель» порвётся, колония не вырастет — и здесь
+     * это будет видно сразу, а не через неделю у игрока.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "week", tickLimit = 400)
+    public void colonyLivesAWeekOnItsOwn(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos houseAt = context.getAbsolutePos(new BlockPos(0, 8, 0));
+        BlockPos farmAt = context.getAbsolutePos(new BlockPos(0, 8, 8));
+
+        BlockPos secondAt = context.getAbsolutePos(new BlockPos(10, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building house = plan(colony, houseAt, HOUSE_TYPE, BlockRotation.NONE);
+        Building second = plan(colony, secondAt, HOUSE_TYPE, BlockRotation.NONE);
+        Building farm = plan(colony, farmAt, FARM_TYPE, BlockRotation.NONE);
+
+        try {
+            // Дом и ферма уже стоят: проверяется жизнь колонии, а не стройка.
+            stockFor(world, colony, housePlan);
+            if (BuildJob.advance(world, manager, colony.id(), house.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Дом не встал: проверять неделю не на чем");
+                return;
+            }
+            // Второй дом — чтобы колонии было куда расти: в одном доме
+            // две кровати, а жителей и так двое.
+            stockFor(world, colony, housePlan);
+            if (BuildJob.advance(world, manager, colony.id(), second.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Второй дом не встал");
+                return;
+            }
+
+            stockFor(world, colony, farmPlan);
+            BuildJob.Outcome raised = BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000);
+            if (raised != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Ферма не встала: " + raised + ", шаг "
+                        + farm.nextStep() + " из " + farmPlan.plan().steps().size()
+                        + ", не хватает " + Materials.shortfall(farmPlan, farm,
+                        farmPlan.plan().steps().size())
+                        + ", на складе " + Warehouse.of(world, colony).tally().contents());
+                return;
+            }
+
+            // Начальный запас еды — как у игрока, который принёс мешок
+            // моркови и ушёл по делам.
+            Warehouse.of(world, colony).add(new ItemStack(Items.CARROT, 8));
+            Housing.assignBeds(world, colony);
+            Workplaces.assign(world, colony);
+
+            Citizen farmer = hireWithBody(world, colony, FarmJob.FARMER, farmAt.up());
+            // Телом обзаводятся все: у кого его нет, тот не ест и не работает.
+            for (Citizen citizen : colony.citizens()) {
+                if (bodyOf(world, colony, citizen) == null) {
+                    citizen.setPosition(Vec3d.ofBottomCenter(hall.up()));
+                    CitizenSpawner.spawnBody(world, colony, citizen);
+                }
+            }
+            Workplaces.assign(world, colony);
+            int before = colony.population();
+
+            for (int day = 0; day < 7; day++) {
+                // Поле поспевает к утру: солнце в проверке не светит.
+                for (BlockPos plot : FarmJob.plots(farm)) {
+                    if (world.getBlockState(plot).getBlock() instanceof CropBlock crop) {
+                        world.setBlockState(plot, crop.withAge(crop.getMaxAge()));
+                    }
+                }
+                runWork(world, manager, colony, farmer, 6, Schedule.MORNING_WORK);
+
+                // Обедают все: житель ест решением, а решение бывает
+                // только у того, кого тикают. Без этого колония голодает
+                // при полном складе — и первая же неделя это показала.
+                for (Citizen citizen : List.copyOf(colony.citizens())) {
+                    if (bodyOf(world, colony, citizen) != null) {
+                        runWork(world, manager, colony, citizen, 3, Schedule.MEAL);
+                    }
+                }
+                Needs.newDay(world, manager, colony);
+            }
+
+            if (colony.population() <= before) {
+                context.throwGameTestException("За неделю в колонию с кроватями, полем "
+                        + "и едой никто не пришёл: жителей было " + before + ", стало "
+                        + colony.population());
+            }
+            if (!Warehouse.of(world, colony).hasAny(ModTags.CITIZEN_FOOD)) {
+                context.throwGameTestException("Склад пуст за неделю при работающей ферме: "
+                        + "колония кормиться сама не умеет");
+            }
+            // Один голодный день за неделю — не беда: суточная убыль
+            // списывается раньше обеда, и житель встречает утро голодным.
+            // А вот три подряд означают, что цепь «поле — склад — еда»
+            // где-то порвалась: после четырёх житель жалуется, после
+            // шести уходит насовсем.
+            for (Citizen citizen : colony.citizens()) {
+                if (citizen.discontent() >= 3) {
+                    context.throwGameTestException("Житель " + citizen.fullName()
+                            + " голодает при работающей ферме: недовольство "
+                            + citizen.discontent() + ", на складе "
+                            + Warehouse.of(world, colony).tally().contents());
+                }
+            }
+        } finally {
+            discardBodies(world, colony);
+            demolish(world, house, housePlan);
+            demolish(world, second, housePlan);
+            demolish(world, farm, farmPlan);
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * Колония, которой никто не видит, не голодает.
+     * <p>
+     * <b>Это и было причиной вымерших колоний заказчика.</b> Сутки шли
+     * везде, включая незагруженные чанки: сытость убывала каждый день,
+     * а поесть житель может только решением, решение бывает только
+     * у тела, а тела в выгруженном чанке нет. Игрок уходил исследовать
+     * мир на неделю и возвращался к пустой колонии, не сделав ничего
+     * плохого — и нашёл это не он, а проверка «живёт ли колония неделю»,
+     * когда у неё за ту же неделю жителей стало меньше.
+     * <p>
+     * Правило парное к несущему правилу мода: нет тела — нет работы,
+     * нет мира — нет суток.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "week")
+    public void unseenColonyDoesNotStarve(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        long today = Schedule.dayOf(world.getTimeOfDay());
+
+        // Одно поселение здесь, второе — за сто тысяч блоков, где мира нет.
+        BlockPos here = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        Settlement near = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Рядом", here);
+        Settlement far = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Далёкая",
+                new BlockPos(150_000, 64, 150_000));
+
+        Citizen watched = Citizen.newborn("Видимый", "", NORMAN, Gender.MALE);
+        Citizen forgotten = Citizen.newborn("Забытый", "", NORMAN, Gender.MALE);
+        watched.setSaturation(30);
+        forgotten.setSaturation(30);
+        near.addCitizen(watched);
+        far.addCitizen(forgotten);
+
+        manager.add(near);
+        manager.add(far);
+
+        try {
+            // «Вчера видели»: иначе смена суток не наступит вовсе.
+            near.setLastDay(today - 1);
+            far.setLastDay(today - 1);
+
+            WorkTicker.tick(world);
+
+            if (forgotten.saturation() != 30) {
+                context.throwGameTestException("У забытой колонии убыла сытость: "
+                        + forgotten.saturation() + " вместо 30. Игрок ушёл за горизонт — "
+                        + "и вернулся к пустой колонии");
+            }
+            if (watched.saturation() >= 30) {
+                context.throwGameTestException("У колонии под боком сутки не прошли: "
+                        + "сытость " + watched.saturation()
+                        + ". Тогда колония не голодает никогда, и еда не нужна вовсе");
+            }
+            // День забытой колонии засчитан — иначе вернувшийся игрок
+            // получил бы голод задним числом за всю неделю разом.
+            if (far.lastDay() != today) {
+                context.throwGameTestException("Забытая колония осталась во вчера: "
+                        + far.lastDay() + ". Тогда голод придёт задним числом");
+            }
+        } finally {
+            discardBodies(world, near);
+            manager.remove(near.id());
+            manager.remove(far.id());
+            world.setBlockState(here, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
     /** Сколько хранилищ стоит в следе здания прямо сейчас. */
     private static int containersIn(ServerWorld world, Building building, Schematic schematic) {
         int found = 0;

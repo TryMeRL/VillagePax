@@ -281,5 +281,6 @@
   "villagepax.peace.reason.no_coin": "Столько монеты у тебя с собой нет.",
   "villagepax.peace.reason.no_room": "Деревне некуда положить плату.",
   "villagepax.raid.mourning": "%s хоронят своих: %s дней будет тихо.",
-  "villagepax.raid.bought_off": "Отряд уходит от %s: за мир заплачено."
+  "villagepax.raid.bought_off": "Отряд уходит от %s: за мир заплачено.",
+  "villagepax.advice.under_siege": "У ворот чужой отряд. Защищай своих — или иди к их старейшине и откупись, пока есть чем."
 }

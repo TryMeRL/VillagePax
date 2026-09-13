@@ -9280,6 +9280,18 @@ public class VillagePaxGameTests implements FabricGameTest {
         manager.add(colony);
 
         try {
+            // Отряд у ворот важнее даже пустой колонии: у этой беды есть
+            // срок, а у остальных — нет.
+            WarParty band = new WarParty(UUID.randomUUID(), UUID.randomUUID(), NORMAN,
+                    hall, 2, 1L, 2L);
+            colony.besiege(band, 0L);
+            if (!"villagepax.advice.under_siege".equals(
+                    Advice.nextStep(world, colony).orElse(null))) {
+                context.throwGameTestException("Отряд у ворот не назван первой бедой: "
+                        + Advice.nextStep(world, colony));
+            }
+            colony.liftSiege();
+
             // Пусто — и это важнее всего остального.
             if (!"villagepax.advice.deserted".equals(
                     Advice.nextStep(world, colony).orElse(null))) {

@@ -281,5 +281,6 @@
   "villagepax.peace.reason.no_coin": "You are not carrying that much coin.",
   "villagepax.peace.reason.no_room": "The village has nowhere to put the payment.",
   "villagepax.raid.mourning": "%s are burying their dead: %s quiet days.",
-  "villagepax.raid.bought_off": "The band leaves %s: peace is paid for."
+  "villagepax.raid.bought_off": "The band leaves %s: peace is paid for.",
+  "villagepax.advice.under_siege": "A war band is at the gates. Defend your people — or reach their elder and pay them off while you still can."
 }

@@ -33,11 +33,40 @@ import java.util.UUID;
  * @param caravan    обоз, если разговор идёт с ним, а не с деревней
  * @param people     народ этой деревни: как он смотрит на игрока и на соседей
  * @param gift       что выйдет, если подарить то, что в руках
+ * @param truce      война с этим народом: сколько бойцов и чего стоит мир
  */
 public record QuestView(UUID village, String villageName, Identifier giver, String standing,
                         int reputation, Optional<Integer> nextAt, Optional<Offer> quest,
                         List<Stall> stalls, int purse, Optional<UUID> caravan,
-                        People people, Optional<Gift> gift) {
+                        People people, Optional<Gift> gift, Optional<Truce> truce) {
+
+    /**
+     * Война и цена мира.
+     * <p>
+     * Карточки нет вовсе, пока народ не воюет: строка «война: нет» была бы
+     * шумом в каждом разговоре с каждым старейшиной. Зато когда она есть,
+     * в ней сразу и <b>сколько мечей придёт</b>, и во сколько обойдётся,
+     * чтобы они не пришли, — цена и есть плата за этих самых людей.
+     *
+     * @param price    сколько монеты просят за перемирие
+     * @param canPay   хватает ли её у игрока при себе
+     * @param daysLeft сколько дней перемирия ещё идёт: ноль, если война
+     * @param fighters сколько бойцов пошлют, если не откупиться
+     */
+    public record Truce(int price, boolean canPay, int daysLeft, int fighters) {
+
+        public static final Codec<Truce> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.INT.fieldOf("price").forGetter(Truce::price),
+                Codec.BOOL.fieldOf("can_pay").forGetter(Truce::canPay),
+                Codec.INT.optionalFieldOf("days_left", 0).forGetter(Truce::daysLeft),
+                Codec.INT.optionalFieldOf("fighters", 0).forGetter(Truce::fighters)
+        ).apply(instance, Truce::new));
+
+        /** Идёт ли перемирие прямо сейчас. */
+        public boolean resting() {
+            return daysLeft > 0;
+        }
+    }
 
     /**
      * Народ деревни целиком: как он смотрит на игрока и на соседей.
@@ -221,7 +250,8 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
             Codec.INT.optionalFieldOf("purse", 0).forGetter(QuestView::purse),
             Uuids.STRING_CODEC.optionalFieldOf("caravan").forGetter(QuestView::caravan),
             People.CODEC.fieldOf("people").forGetter(QuestView::people),
-            Gift.CODEC.optionalFieldOf("gift").forGetter(QuestView::gift)
+            Gift.CODEC.optionalFieldOf("gift").forGetter(QuestView::gift),
+            Truce.CODEC.optionalFieldOf("truce").forGetter(QuestView::truce)
     ).apply(instance, QuestView::new));
 
     /** Торгует ли эта деревня вообще: по этому решается, есть ли вкладка торга. */

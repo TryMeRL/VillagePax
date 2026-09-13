@@ -253,7 +253,61 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
             body.child(others);
         }
 
+        fillWar();
         fillGift();
+    }
+
+    /**
+     * Карточка войны: сколько мечей придёт и сколько стоит, чтобы не пришли.
+     * <p>
+     * Стоит <b>перед подарком</b>, и это не про порядок карточек. Игрок,
+     * к которому ходят отряды, пришёл говорить не о подарках: если война
+     * есть, она и есть разговор.
+     */
+    private void fillWar() {
+        QuestView.Truce truce = view.truce().orElse(null);
+        if (truce == null) {
+            return;
+        }
+
+        FlowLayout card = Look.card("villagepax.people.screen.war",
+                new ItemStack(Items.IRON_SWORD));
+
+        if (truce.resting()) {
+            card.child(Look.stat(Text.translatable("villagepax.people.screen.truce"),
+                    Text.translatable("villagepax.people.screen.truce_days",
+                            Text.literal(String.valueOf(truce.daysLeft()))), PEOPLE_WIDTH));
+            LabelComponent why = Components.label(
+                    Text.translatable("villagepax.people.screen.truce_about"));
+            why.color(Look.MUTED);
+            why.lineHeight(10);
+            card.child(why.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            body.child(card);
+            return;
+        }
+
+        LabelComponent threat = Components.label(
+                Text.translatable("villagepax.people.screen.war_threat",
+                        Text.literal(String.valueOf(truce.fighters()))));
+        threat.color(Look.BAD);
+        threat.lineHeight(10);
+        card.child(threat.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+
+        FlowLayout row = Containers.horizontalFlow(Sizing.content(), Sizing.content());
+        row.verticalAlignment(VerticalAlignment.CENTER);
+        row.gap(6);
+        row.child(Look.pill(new ItemStack(ModItems.COIN), Coins.spell(truce.price()),
+                truce.canPay() ? Look.INK : Look.MUTED));
+
+        ButtonComponent buy = Look.action(
+                Text.translatable("villagepax.people.screen.buy_peace"), 92, button -> peace());
+        buy.active(truce.canPay());
+        row.child(buy);
+        if (!truce.canPay()) {
+            row.tooltip(Text.translatable("villagepax.peace.reason.no_coin"));
+        }
+        card.child(row);
+        body.child(card);
     }
 
     /**
@@ -461,6 +515,14 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         buf.writeUuid(view.village());
         buf.writeIdentifier(view.giver());
         ClientPlayNetworking.send(QuestNet.GIFT, buf);
+    }
+
+    /** «Плачу за мир»: сумму называет сервер, клиент — только намерение. */
+    private void peace() {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeUuid(view.village());
+        buf.writeIdentifier(view.giver());
+        ClientPlayNetworking.send(QuestNet.PEACE, buf);
     }
 
     private void handIn() {

@@ -134,6 +134,11 @@ public final class Raids {
             // а «пошли своих на соседа» — это уже приказ, которого в моде нет.
             return;
         }
+        if (village.atTruce(today)) {
+            // Деревня хоронит своих или взяла откуп. Обида при этом никуда
+            // не делась — просто эти дни она никуда не идёт (см. Peace).
+            return;
+        }
 
         for (UUID player : List.copyOf(village.reputation().keySet())) {
             int trust = village.reputationOf(player);
@@ -276,11 +281,23 @@ public final class Raids {
     /**
      * Боец пал.
      * <p>
-     * Отношений это не меняет, и это осознанно: пришедшие пришли по делу,
-     * и то, что они его не сделали, деревню не примиряет. Мириться игроку
-     * придётся тем же, чем ссорился, — своими руками.
+     * <b>Отношений это не меняет</b>, и это осознанно: пришедшие пришли
+     * по делу, и то, что они его не сделали, деревню не примиряет. Мириться
+     * игроку придётся тем же, чем ссорился, — своими руками.
+     * <p>
+     * Но воевать ей какое-то время нечем. Каждый павший стоит деревне
+     * дней траура, и отбитый набег в четыре меча — это две недели тишины.
+     * Разница с примирением та, что тишина кончается, а обида — нет:
+     * доверие как было ниже терпения, так и осталось. Это и есть ответ
+     * на «я отбился, и что изменилось»: изменилось время, которое у игрока
+     * теперь есть.
      */
     public static void fell(ServerWorld world, CitizenEntity body) {
+        fell(world, body, Schedule.dayOf(world.getTimeOfDay()));
+    }
+
+    /** То же, но с днём числом: траур считается в днях, а тест их не ждёт. */
+    public static void fell(ServerWorld world, CitizenEntity body, long today) {
         SettlementManager manager = SettlementManager.get(world);
         Settlement colony = body.raidHost().flatMap(manager::byId).orElse(null);
         UUID raidId = body.raidId();
@@ -295,10 +312,40 @@ public final class Raids {
 
         WarParty thinner = party.withFighters(party.fighters() - 1);
         manager.update(colony.id(), state -> state.updateSiege(thinner));
+        manager.update(party.home(), state -> state.restFor(today, Peace.MOURNING_DAYS));
+
         if (thinner.fighters() <= 0) {
             announce(world, colony, "villagepax.raid.repelled", Formatting.GREEN);
+            manager.byId(party.home()).ifPresent(home -> tell(world, colony,
+                    Text.translatable("villagepax.raid.mourning", Text.literal(home.name()),
+                                    Text.literal(String.valueOf(home.truceDaysLeft(today))))
+                            .formatted(Formatting.GRAY)));
             VillagePax.LOGGER.info("Набег на {} отбит", colony.name());
         }
+    }
+
+    /**
+     * Отряд уходит без добычи: за него заплатили.
+     * <p>
+     * Пришедшие не грабят и не гибнут — они разворачиваются. Добыча
+     * не берётся намеренно: плата и есть их добыча, и брать дважды
+     * значило бы, что откуп ничего не стоит.
+     */
+    public static boolean callOff(ServerWorld world, SettlementManager manager, UUID player,
+                                  UUID village) {
+        Settlement colony = colonyOf(manager, player);
+        if (colony == null) {
+            return false;
+        }
+        WarParty party = colony.siege().filter(one -> one.home().equals(village)).orElse(null);
+        if (party == null) {
+            return false;
+        }
+
+        bodiesOf(world, party).forEach(CitizenEntity::discard);
+        manager.update(colony.id(), Settlement::liftSiege);
+        announce(world, colony, "villagepax.raid.bought_off", Formatting.GREEN);
+        return true;
     }
 
     /** Отряд уходит: тела убрать, запись снять. */
@@ -358,11 +405,15 @@ public final class Raids {
 
     private static void announce(ServerWorld world, Settlement colony, String key,
                                  Formatting colour) {
+        tell(world, colony, Text.translatable(key, Text.literal(colony.name())).formatted(colour));
+    }
+
+    /** Сказать хозяину колонии, если он в сети. */
+    private static void tell(ServerWorld world, Settlement colony, Text message) {
         colony.owner().player().ifPresent(owner -> {
             ServerPlayerEntity player = world.getServer().getPlayerManager().getPlayer(owner);
             if (player != null) {
-                player.sendMessage(Text.translatable(key,
-                        Text.literal(colony.name())).formatted(colour), false);
+                player.sendMessage(message, false);
             }
         });
     }

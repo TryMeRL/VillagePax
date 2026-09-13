@@ -51,9 +51,36 @@ public class Settlement {
                     .forGetter(Settlement::visitors),
             Codec.unboundedMap(Uuids.STRING_CODEC, Codec.LONG)
                     .optionalFieldOf("gift_days", Map.of()).forGetter(Settlement::giftDays),
-            WarParty.CODEC.optionalFieldOf("siege").forGetter(Settlement::siege),
-            Codec.LONG.optionalFieldOf("last_raid", UNSEEN_DAY).forGetter(Settlement::lastRaid)
+            War.CODEC.optionalFieldOf("war", War.NONE).forGetter(Settlement::war)
     ).apply(instance, Settlement::new));
+
+    /**
+     * Война, какой её помнит поселение: кто у ворот, когда приходили
+     * и до какого дня не придут.
+     * <p>
+     * Сгруппировано по той же причине, что и быт в пульте: у кодека Mojang
+     * ровно шестнадцать полей в группе, и семнадцатое — перемирие — в неё
+     * не поместилось. Запись вдобавок честно называет то, что и так было
+     * тремя половинами одного: военное положение поселения.
+     * <p>
+     * Снаружи ничего не изменилось: поселение по-прежнему отвечает на
+     * {@code siege()} и {@code lastRaid()}, просто переспрашивает их у войны.
+     *
+     * @param siege      отряд, стоящий у ворот прямо сейчас
+     * @param lastRaid   день последнего набега <b>на это</b> поселение
+     * @param truceUntil до какого дня это поселение никого не посылает
+     */
+    public record War(Optional<WarParty> siege, long lastRaid, long truceUntil) {
+
+        /** Мир: никто не стоит у ворот, никто никуда не идёт. */
+        public static final War NONE = new War(Optional.empty(), UNSEEN_DAY, UNSEEN_DAY);
+
+        public static final Codec<War> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                WarParty.CODEC.optionalFieldOf("siege").forGetter(War::siege),
+                Codec.LONG.optionalFieldOf("last_raid", UNSEEN_DAY).forGetter(War::lastRaid),
+                Codec.LONG.optionalFieldOf("truce_until", UNSEEN_DAY).forGetter(War::truceUntil)
+        ).apply(instance, War::new));
+    }
 
     private final UUID id;
     private final Identifier culture;
@@ -111,17 +138,15 @@ public class Settlement {
      * второго не пошлют — и это не упрощение, а решение по игре. Две
      * осады сразу превратили бы наказание за разбой в неиграбельную
      * лавину, из которой нет выхода.
-     */
-    private Optional<WarParty> siege = Optional.empty();
-
-    /**
-     * День последнего набега на это поселение.
      * <p>
-     * Здесь, а не у пославшей деревни: остыть должна <b>осаждаемая</b>
-     * сторона. Иначе три обиженные деревни присылали бы отряды в три дня
-     * подряд, каждая по своему счёту.
+     * День последнего набега хранится здесь же, а не у пославшей деревни:
+     * остыть должна <b>осаждаемая</b> сторона. Иначе три обиженные деревни
+     * присылали бы отряды в три дня подряд, каждая по своему счёту.
+     * <p>
+     * А перемирие — наоборот, у <b>посылающей</b>: это её решение не идти,
+     * а не чужая защита.
      */
-    private long lastRaid = UNSEEN_DAY;
+    private War war = War.NONE;
 
     public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
                       SettlementLevel level, SettlementStats stats,
@@ -151,15 +176,25 @@ public class Settlement {
                       Map<UUID, Integer> reputation, Map<UUID, List<Identifier>> questsDone,
                       List<Caravan> visitors, Map<UUID, Long> giftDays) {
         this(id, culture, owner, name, center, level, stats, buildings, citizens, lastDay,
-                reputation, questsDone, visitors, giftDays, Optional.empty(), UNSEEN_DAY);
+                reputation, questsDone, visitors, giftDays, War.NONE);
     }
 
+    /** Совместимость: осада и день набега по отдельности, без перемирия. */
     public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
                       SettlementLevel level, SettlementStats stats,
                       List<Building> buildings, List<Citizen> citizens, long lastDay,
                       Map<UUID, Integer> reputation, Map<UUID, List<Identifier>> questsDone,
                       List<Caravan> visitors, Map<UUID, Long> giftDays,
                       Optional<WarParty> siege, long lastRaid) {
+        this(id, culture, owner, name, center, level, stats, buildings, citizens, lastDay,
+                reputation, questsDone, visitors, giftDays, new War(siege, lastRaid, UNSEEN_DAY));
+    }
+
+    public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
+                      SettlementLevel level, SettlementStats stats,
+                      List<Building> buildings, List<Citizen> citizens, long lastDay,
+                      Map<UUID, Integer> reputation, Map<UUID, List<Identifier>> questsDone,
+                      List<Caravan> visitors, Map<UUID, Long> giftDays, War war) {
         this.id = id;
         this.culture = culture;
         this.owner = owner;
@@ -175,33 +210,71 @@ public class Settlement {
         questsDone.forEach((player, quests) -> this.questsDone.put(player, new ArrayList<>(quests)));
         this.visitors = new ArrayList<>(visitors);
         this.giftDays = new LinkedHashMap<>(giftDays);
-        this.siege = siege;
-        this.lastRaid = lastRaid;
+        this.war = war;
     }
 
     // --- осада ---
 
+    public War war() {
+        return war;
+    }
+
     public Optional<WarParty> siege() {
-        return siege;
+        return war.siege();
     }
 
     public long lastRaid() {
-        return lastRaid;
+        return war.lastRaid();
+    }
+
+    /** До какого дня поселение никого не посылает. */
+    public long truceUntil() {
+        return war.truceUntil();
+    }
+
+    /**
+     * Держит ли деревня перемирие в этот день.
+     * <p>
+     * Перемирие — это <b>время</b>, а не прощение: доверие оно не меняет
+     * ни на очко. Куплено оно кровью своих или чужой монетой — в числе
+     * не различить, и различать незачем: деревня просто никуда не идёт.
+     */
+    public boolean atTruce(long today) {
+        return war.truceUntil() != UNSEEN_DAY && today < war.truceUntil();
+    }
+
+    /** Сколько дней тишины ещё осталось: ноль, если перемирия нет. */
+    public int truceDaysLeft(long today) {
+        return atTruce(today) ? (int) Math.min(Integer.MAX_VALUE, war.truceUntil() - today) : 0;
+    }
+
+    /**
+     * Не воевать ещё столько дней.
+     * <p>
+     * От <b>сегодня</b> или от конца уже идущего перемирия, смотря что
+     * дальше: второй павший боец должен добавлять тишины, а не заново
+     * отсчитывать её от полудня.
+     */
+    public void restFor(long today, int days) {
+        // UNSEEN_DAY — это «давно прошло», и max с ним возвращает сегодня:
+        // отдельной проверки «перемирия ещё не было» не нужно.
+        this.war = new War(war.siege(), war.lastRaid(),
+                Math.max(today, war.truceUntil()) + days);
     }
 
     /** Отряд встал у ворот. День запоминается сразу: остывать начинают с прихода. */
     public void besiege(WarParty party, long today) {
-        this.siege = Optional.of(party);
-        this.lastRaid = today;
+        this.war = new War(Optional.of(party), today, war.truceUntil());
     }
 
     /** Отряд поредел или ушёл: пустой отряд снимается с поселения. */
     public void updateSiege(WarParty party) {
-        this.siege = party.fighters() <= 0 ? Optional.empty() : Optional.of(party);
+        Optional<WarParty> left = party.fighters() <= 0 ? Optional.empty() : Optional.of(party);
+        this.war = new War(left, war.lastRaid(), war.truceUntil());
     }
 
     public void liftSiege() {
-        this.siege = Optional.empty();
+        this.war = new War(Optional.empty(), war.lastRaid(), war.truceUntil());
     }
 
     // --- гости ---

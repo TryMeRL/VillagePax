@@ -227,7 +227,7 @@
   "villagepax.gift.reason.too_little": "Too little even for a polite nod.",
   "villagepax.gift.reason.already_today": "You gave already today. Come back tomorrow.",
   "villagepax.profession.guard": "Guard",
-  "villagepax.raid.coming": "A war band left \"%s\": %s under arms. They will be here by morning.",
+  "villagepax.raid.coming": "A war band left \"%s\": %s under arms. They will be here by morning. You can still reach their elder and pay them off.",
   "villagepax.raid.here": "A war band stands at the gates of \"%s\". Defend your people.",
   "villagepax.raid.repelled": "The raid on \"%s\" is beaten off: none of them are left.",
   "villagepax.raid.left": "The war band has withdrawn from \"%s\" — the grudge has not.",
@@ -268,5 +268,18 @@
   "villagepax.advice.no_builder": "Nobody can build. Hand someone the builder's craft on the Citizens tab.",
   "villagepax.advice.no_beds": "Every bed is taken. Mark another house — nobody comes without a free bed.",
   "villagepax.advice.no_farm": "You are the food supply. Mark a farm and hand someone the farmer's craft.",
-  "villagepax.advice.nothing_building": "Nothing is being built. Open the Buildings tab and mark what to raise next."
+  "villagepax.advice.nothing_building": "Nothing is being built. Open the Buildings tab and mark what to raise next.",
+  "villagepax.people.screen.war": "War",
+  "villagepax.people.screen.war_threat": "Their patience is spent: next time %s will come with swords.",
+  "villagepax.people.screen.buy_peace": "Sue for peace",
+  "villagepax.people.screen.truce": "Truce",
+  "villagepax.people.screen.truce_days": "%s days left",
+  "villagepax.people.screen.truce_about": "They will not march for now, but nothing is forgiven. Make amends while it lasts.",
+  "villagepax.peace.bought": "%s take the payment: %s. No raids for %s days — but no trust is returned.",
+  "villagepax.peace.reason.not_at_war": "These people are not at war with you.",
+  "villagepax.peace.reason.already": "A truce is already running.",
+  "villagepax.peace.reason.no_coin": "You are not carrying that much coin.",
+  "villagepax.peace.reason.no_room": "The village has nowhere to put the payment.",
+  "villagepax.raid.mourning": "%s are burying their dead: %s quiet days.",
+  "villagepax.raid.bought_off": "The band leaves %s: peace is paid for."
 }

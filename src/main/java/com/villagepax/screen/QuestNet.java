@@ -18,6 +18,8 @@ import com.villagepax.sim.diplomacy.Gifts;
 import com.villagepax.sim.diplomacy.Relations;
 import com.villagepax.sim.quest.Quests;
 import com.villagepax.sim.trade.Coins;
+import com.villagepax.sim.war.Peace;
+import com.villagepax.sim.war.Raids;
 import com.villagepax.sim.trade.Trading;
 import com.villagepax.sim.work.Schedule;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
@@ -76,6 +78,15 @@ public final class QuestNet {
     public static final Identifier GIFT = new Identifier(VillagePax.MOD_ID, "quest_gift");
 
     /**
+     * «Плачу за мир».
+     * <p>
+     * Цены в пакете нет: её считает сервер по своей же формуле. Прислать
+     * её значило бы дать клиенту назвать сумму — а это ровно тот случай,
+     * когда доверять клиенту нельзя ни в одной игре.
+     */
+    public static final Identifier PEACE = new Identifier(VillagePax.MOD_ID, "quest_peace");
+
+    /**
      * Насколько близко надо стоять, чтобы отдать.
      * <p>
      * Чуть больше вытянутой руки: игрок щёлкнул по жителю и мог сделать
@@ -99,6 +110,12 @@ public final class QuestNet {
             UUID village = buf.readUuid();
             Identifier giver = buf.readIdentifier();
             server.execute(() -> gift(player, village, giver));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(PEACE, (server, player, handler, buf, sender) -> {
+            UUID village = buf.readUuid();
+            Identifier giver = buf.readIdentifier();
+            server.execute(() -> peace(player, village, giver));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(TRADE, (server, player, handler, buf, sender) -> {
@@ -229,7 +246,10 @@ public final class QuestNet {
                 peopleOf(manager, village, id),
                 // У обоза подарка не берут: дарят в глаза деревне, а торговец
                 // — гость на день, и доверие ему не его.
-                caravan.isPresent() ? Optional.empty() : giftOf(village, id, held, today)));
+                caravan.isPresent() ? Optional.empty() : giftOf(village, id, held, today),
+                // У обоза мира не просят по той же причине, что не дарят:
+                // торговец пришёл торговать, а воюет деревня.
+                caravan.isPresent() ? Optional.empty() : truceOf(village, id, carried, today)));
     }
 
     /**
@@ -271,6 +291,67 @@ public final class QuestNet {
         int take = Math.max(1, Gifts.takeableFrom(village, held));
         int trust = Gifts.trustFor(Gifts.worthOf(village, held.copyWithCount(take)));
         return Optional.of(new QuestView.Gift(held.getItem(), take, trust, verdict));
+    }
+
+    /**
+     * Война с этим народом, какой её видит игрок, — или пусто, если её нет.
+     * <p>
+     * Пусто — это и «мы не воюем», и «деревня не воюет ни с кем»: карточка
+     * должна появляться <b>только когда есть о чём говорить</b>.
+     */
+    private static Optional<QuestView.Truce> truceOf(Settlement village, UUID player,
+                                                     Inventory carried, long today) {
+        if (!village.owner().isAutonomous()) {
+            return Optional.empty();
+        }
+        int trust = village.reputationOf(player);
+        int fighters = Raids.fightersFor(trust);
+        int left = village.truceDaysLeft(today);
+        if (fighters <= 0 && left <= 0) {
+            return Optional.empty();
+        }
+        int price = Peace.price(trust);
+        return Optional.of(new QuestView.Truce(price, Coins.has(carried, price), left, fighters));
+    }
+
+    /**
+     * Заплатить за мир.
+     * <p>
+     * Проверка та же, что у подарка и у квеста: <b>стоять рядом</b>.
+     * Мириться приходят в деревню, и дорога туда под набегом — часть цены.
+     */
+    private static void peace(ServerPlayerEntity player, UUID village, Identifier giver) {
+        ServerWorld world = player.getServerWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Settlement home = manager.byId(village).orElse(null);
+        if (home == null) {
+            return;
+        }
+        if (nearbyGiver(player, home, giver) == null) {
+            player.sendMessage(Text.translatable("villagepax.quest.too_far"), true);
+            return;
+        }
+
+        Peace.Outcome outcome = Peace.buy(world, manager, home, player.getUuid(),
+                player.getInventory(), Schedule.dayOf(world.getTimeOfDay()),
+                // Сдача, которой не нашлось места, падает под ноги: терять
+                // деньги игрока молча нельзя.
+                left -> player.getInventory().offerOrDrop(left));
+
+        if (outcome.bought()) {
+            player.sendMessage(Text.translatable("villagepax.peace.bought",
+                    Text.literal(home.name()), Coins.spell(outcome.price()),
+                    Text.literal(String.valueOf(outcome.days()))), false);
+            world.playSound(null, player.getBlockPos(), SoundEvents.ENTITY_VILLAGER_YES,
+                    SoundCategory.NEUTRAL, 1.0f, 1.0f);
+            // Отряд, если он уже под воротами, разворачивается сейчас же:
+            // «мир куплен, а эти пусть добьют» было бы издевательством.
+            Raids.callOff(world, manager, player.getUuid(), village);
+        } else {
+            outcome.verdict().reasonKey().ifPresent(key ->
+                    player.sendMessage(Text.translatable(key), true));
+        }
+        refresh(player, manager, village, giver);
     }
 
     /**

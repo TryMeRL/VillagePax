@@ -63,6 +63,7 @@ import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.ModTags;
 import com.villagepax.screen.QuestView;
 import com.villagepax.screen.QuestNet;
+import com.villagepax.sim.war.Peace;
 import com.villagepax.sim.war.Raids;
 import com.villagepax.sim.war.Siege;
 import com.villagepax.sim.work.Hauling;
@@ -9321,6 +9322,288 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
 
         context.complete();
+    }
+
+
+    /**
+     * Откуп уводит отряд, но не возвращает доверия.
+     * <p>
+     * Главная проверка всей задачи, и вторая её половина важнее первой.
+     * Что монета уводит отряд — это удобство; что <b>доверие после откупа
+     * то же самое</b> — это решение по игре. Кошелёк покупает время, а не
+     * дружбу: иначе богатый игрок отменял бы всю дипломатию одним сундуком
+     * золота, и ни подарки, ни квесты больше ничего не значили бы.
+     * <p>
+     * Хвост проверки про то же: через десять дней, когда тишина кончится,
+     * отряд выходит снова — потому что обиду никто не отменял.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "peace")
+    public void paidPeaceSendsTheBandHomeButBuysNoTrust(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 2, 1));
+        BlockPos centre = context.getAbsolutePos(new BlockPos(16, 2, 16));
+        List<BlockPos> floor = new ArrayList<>();
+
+        // Ратуша деревни — это её кошель: плату кладут туда же, куда
+        // выручку с торга.
+        world.setBlockState(hall, ModBlocks.TOWN_HALL.getDefaultState());
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", hall);
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", centre);
+        manager.add(village);
+        manager.add(colony);
+
+        WarParty party = null;
+        try {
+            for (int x = 2; x <= 30; x++) {
+                for (int z = 2; z <= 30; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            manager.update(village.id(), state -> state.addReputation(player, -60));
+            Raids.sendIfDue(world, manager, village, 10L);
+            Raids.watch(world, manager, 11L);
+
+            party = manager.byId(colony.id()).orElseThrow().siege().orElse(null);
+            if (party == null) {
+                context.throwGameTestException("Отряд не вышел: мириться не с кем");
+                return;
+            }
+            if (Raids.bodiesOf(world, party).isEmpty()) {
+                context.throwGameTestException("Отряд не встал телами: уводить некого");
+                return;
+            }
+
+            SimpleInventory purse = new SimpleInventory(36);
+            purse.addStack(new ItemStack(ModItems.GOLD_COIN, 4));
+            int carried = Coins.total(purse);
+            int price = Peace.price(-60);
+
+            Peace.Outcome outcome = Peace.buy(world, manager, village, player, purse, 11L,
+                    left -> purse.addStack(left));
+            if (!outcome.bought()) {
+                context.throwGameTestException("Монету не взяли: " + outcome.verdict()
+                        + ", просили " + price + ", при себе " + carried);
+                return;
+            }
+            if (Coins.total(purse) != carried - price) {
+                context.throwGameTestException("С игрока взяли " + (carried - Coins.total(purse))
+                        + " вместо " + price);
+            }
+            if (Coins.total(Warehouse.of(world, village).coins()) != price) {
+                context.throwGameTestException("В кошель деревни легло "
+                        + Coins.total(Warehouse.of(world, village).coins()) + " вместо " + price);
+            }
+
+            Settlement paid = manager.byId(village.id()).orElseThrow();
+            if (paid.truceDaysLeft(11L) != Peace.TRUCE_DAYS) {
+                context.throwGameTestException("Куплено " + paid.truceDaysLeft(11L)
+                        + " дней тишины вместо " + Peace.TRUCE_DAYS);
+            }
+            if (paid.reputationOf(player) != -60) {
+                context.throwGameTestException("Откуп поднял доверие до "
+                        + paid.reputationOf(player) + ": деньгами покупается тишина, а не дружба");
+            }
+
+            // Отряд уходит сейчас же, а не достаивает свой срок.
+            if (!Raids.callOff(world, manager, player, village.id())) {
+                context.throwGameTestException("Отряд не увели: мир куплен, а бойцы стоят");
+            }
+            if (manager.byId(colony.id()).orElseThrow().siege().isPresent()) {
+                context.throwGameTestException("Осада не снята после откупа");
+            }
+            if (!Raids.bodiesOf(world, party).isEmpty()) {
+                context.throwGameTestException("Тела остались стоять после уплаченного мира");
+            }
+
+            // Пока идёт перемирие — не приходят, хотя обида на месте.
+            Raids.sendIfDue(world, manager, village, 11L + Raids.COOLDOWN_DAYS);
+            if (manager.byId(colony.id()).orElseThrow().siege().isPresent()) {
+                context.throwGameTestException("Набег во время оплаченного перемирия");
+            }
+
+            // А когда кончится — приходят снова: обиду не покупали.
+            Raids.sendIfDue(world, manager, village, 11L + Peace.TRUCE_DAYS);
+            if (manager.byId(colony.id()).orElseThrow().siege().isEmpty()) {
+                context.throwGameTestException("Перемирие кончилось, а отряда нет: "
+                        + "выходит, откуп отменил обиду насовсем");
+            }
+        } finally {
+            manager.byId(colony.id()).flatMap(Settlement::siege)
+                    .ifPresent(one -> Raids.bodiesOf(world, one).forEach(CitizenEntity::discard));
+            if (party != null) {
+                Raids.bodiesOf(world, party).forEach(CitizenEntity::discard);
+            }
+            manager.remove(village.id());
+            manager.remove(colony.id());
+            for (BlockPos at : floor) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            world.setBlockState(centre, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Отбитый набег покупает дни тишины — и ни очка доверия.
+     * <p>
+     * Ответ на «я отбился, и что изменилось». До сих пор — ничего: отряды
+     * приходили каждые пять дней, сколько бы их ни полегло, и оборона
+     * не значила <b>ровно ничего</b>. Теперь каждый павший стоит деревне
+     * дней траура, потому что мёртвые не ходят в походы.
+     * <p>
+     * Доверие при этом не меняется, и это то же решение, что у откупа:
+     * убитый боец деревню не примиряет. Кровью, как и монетой, покупается
+     * только время.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "peace")
+    public void fallenFightersBuyQuietDays(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 2, 1));
+        BlockPos centre = context.getAbsolutePos(new BlockPos(16, 2, 16));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", hall);
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", centre);
+        manager.add(village);
+        manager.add(colony);
+
+        WarParty party = null;
+        try {
+            for (int x = 2; x <= 30; x++) {
+                for (int z = 2; z <= 30; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            manager.update(village.id(), state -> state.addReputation(player, -60));
+            Raids.sendIfDue(world, manager, village, 10L);
+            Raids.watch(world, manager, 11L);
+
+            party = manager.byId(colony.id()).orElseThrow().siege().orElse(null);
+            if (party == null) {
+                context.throwGameTestException("Отряд не вышел: бить некого");
+                return;
+            }
+            List<CitizenEntity> band = Raids.bodiesOf(world, party);
+            if (band.size() != party.fighters()) {
+                context.throwGameTestException("Тел " + band.size() + " на "
+                        + party.fighters() + " бойцов");
+                return;
+            }
+
+            int fighters = party.fighters();
+            for (CitizenEntity fighter : band) {
+                Raids.fell(world, fighter, 11L);
+            }
+
+            Settlement mourning = manager.byId(village.id()).orElseThrow();
+            int quiet = fighters * Peace.MOURNING_DAYS;
+            if (mourning.truceDaysLeft(11L) != quiet) {
+                context.throwGameTestException("За " + fighters + " павших деревня молчит "
+                        + mourning.truceDaysLeft(11L) + " дней вместо " + quiet);
+            }
+            if (mourning.reputationOf(player) != -60) {
+                context.throwGameTestException("Убитые бойцы изменили доверие до "
+                        + mourning.reputationOf(player) + ": кровь не мирит");
+            }
+
+            // Пять дней остывания прошло, а траур — нет.
+            Raids.sendIfDue(world, manager, village, 11L + Raids.COOLDOWN_DAYS);
+            if (manager.byId(colony.id()).orElseThrow().siege().isPresent()) {
+                context.throwGameTestException("Деревня, потерявшая " + fighters
+                        + " бойцов, вышла снова через " + Raids.COOLDOWN_DAYS + " дней: "
+                        + "оборона не значит ничего");
+            }
+
+            // А когда отгоревали — выходят: обида-то осталась.
+            Raids.sendIfDue(world, manager, village, 11L + quiet);
+            if (manager.byId(colony.id()).orElseThrow().siege().isEmpty()) {
+                context.throwGameTestException("Траур кончился, а отряда нет: "
+                        + "выходит, отбитый набег примирил деревню навсегда");
+            }
+        } finally {
+            manager.byId(colony.id()).flatMap(Settlement::siege)
+                    .ifPresent(one -> Raids.bodiesOf(world, one).forEach(CitizenEntity::discard));
+            if (party != null) {
+                Raids.bodiesOf(world, party).forEach(CitizenEntity::discard);
+            }
+            manager.remove(village.id());
+            manager.remove(colony.id());
+            for (BlockPos at : floor) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(centre, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * Боец отряда, о котором поселение забыло, уходит сам.
+     * <p>
+     * Обычно тела уводит сам набег — но запись об осаде может исчезнуть
+     * помимо него: старое сохранение, выкупленный мир, правка данных.
+     * Без этой проверки вооружённые куклы остались бы стоять у колонии
+     * навсегда, и единственным способом от них избавиться было бы
+     * перебить их всех.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "peace", tickLimit = 100)
+    public void forgottenFighterLeavesOnItsOwn(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(4, 2, 4));
+        List<BlockPos> floor = new ArrayList<>();
+        for (int x = 2; x <= 8; x++) {
+            for (int z = 2; z <= 8; z++) {
+                BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                world.setBlockState(at, Blocks.STONE.getDefaultState());
+                floor.add(at);
+            }
+        }
+
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Моя", centre);
+        manager.add(colony);
+
+        CitizenEntity ghost = CitizenSpawner.spawnPuppet(world,
+                context.getAbsolutePos(new BlockPos(6, 2, 6)));
+        if (ghost == null) {
+            context.throwGameTestException("Кукла не встала: проверять нечего");
+            return;
+        }
+        // Отряда с таким опознавателем у колонии нет и не было.
+        ghost.linkRaid(colony.id(), UUID.randomUUID());
+
+        context.runAtTick(40, () -> {
+            try {
+                if (!ghost.isRemoved()) {
+                    context.throwGameTestException("Боец забытого отряда всё стоит: "
+                            + "такие куклы остаются в мире навсегда");
+                }
+            } finally {
+                ghost.discard();
+                manager.remove(colony.id());
+                for (BlockPos at : floor) {
+                    world.setBlockState(at, Blocks.AIR.getDefaultState());
+                }
+                world.setBlockState(centre, Blocks.AIR.getDefaultState());
+            }
+            context.complete();
+        });
     }
 
 

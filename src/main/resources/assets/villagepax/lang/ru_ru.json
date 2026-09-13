@@ -227,7 +227,7 @@
   "villagepax.gift.reason.too_little": "Этого мало даже на вежливый кивок.",
   "villagepax.gift.reason.already_today": "Сегодня ты уже дарил. Приходи завтра.",
   "villagepax.profession.guard": "Стража",
-  "villagepax.raid.coming": "Из «%s» вышел отряд: %s к оружию. Будут здесь к утру.",
+  "villagepax.raid.coming": "Из «%s» вышел отряд: %s к оружию. Будут здесь к утру. Можно успеть к их старейшине и откупиться.",
   "villagepax.raid.here": "Отряд у ворот «%s». Защищай своих.",
   "villagepax.raid.repelled": "Набег на «%s» отбит: пришедших больше нет.",
   "villagepax.raid.left": "Отряд отступил от «%s» — но обида осталась.",
@@ -268,5 +268,18 @@
   "villagepax.advice.no_builder": "Некому строить. Дай кому-нибудь ремесло строителя во вкладке «Жители».",
   "villagepax.advice.no_beds": "Все кровати заняты. Разметь ещё дом — без свободной кровати никто не придёт.",
   "villagepax.advice.no_farm": "Еду носишь ты. Разметь ферму и дай кому-нибудь ремесло пахаря — колония станет кормить себя сама.",
-  "villagepax.advice.nothing_building": "Стройки нет. Загляни во вкладку «Здания» и разметь, что поставить дальше."
+  "villagepax.advice.nothing_building": "Стройки нет. Загляни во вкладку «Здания» и разметь, что поставить дальше.",
+  "villagepax.people.screen.war": "Война",
+  "villagepax.people.screen.war_threat": "Терпение вышло: в следующий раз придут %s с мечами.",
+  "villagepax.people.screen.buy_peace": "Просить мира",
+  "villagepax.people.screen.truce": "Перемирие",
+  "villagepax.people.screen.truce_days": "ещё %s дней",
+  "villagepax.people.screen.truce_about": "Воевать они пока не станут, но зла не забыли. Успей помириться делами.",
+  "villagepax.peace.bought": "%s берут откуп: %s. Набегов не будет %s дней — но доверия это не вернуло.",
+  "villagepax.peace.reason.not_at_war": "Этот народ с тобой не воюет.",
+  "villagepax.peace.reason.already": "Перемирие уже идёт.",
+  "villagepax.peace.reason.no_coin": "Столько монеты у тебя с собой нет.",
+  "villagepax.peace.reason.no_room": "Деревне некуда положить плату.",
+  "villagepax.raid.mourning": "%s хоронят своих: %s дней будет тихо.",
+  "villagepax.raid.bought_off": "Отряд уходит от %s: за мир заплачено."
 }

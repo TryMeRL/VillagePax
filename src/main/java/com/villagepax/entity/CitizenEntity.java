@@ -450,6 +450,31 @@ public class CitizenEntity extends PathAwareEntity {
                 .isPresent();
     }
 
+    /**
+     * Забытая кукла уходит сама.
+     * <p>
+     * Тело набега живёт ровно столько, сколько поселение помнит его отряд,
+     * и обычно уводит их сам набег. Но запись об осаде может исчезнуть
+     * помимо него — старое сохранение, выкупленный мир, чужая правка
+     * данных, — и тогда вооружённые куклы остались бы стоять у колонии
+     * навсегда, а единственным способом от них избавиться было бы убить
+     * их всех. Проверка дешёвая (раз в секунду и только у тел набега),
+     * а чинит целый класс бед.
+     */
+    private void dropIfForgotten() {
+        if (raidId == null || raidHost == null
+                || !(getWorld() instanceof ServerWorld serverWorld)) {
+            return;
+        }
+        boolean remembered = SettlementManager.get(serverWorld).byId(raidHost)
+                .flatMap(colony -> colony.siege())
+                .filter(party -> raidId.equals(party.id()))
+                .isPresent();
+        if (!remembered) {
+            discard();
+        }
+    }
+
     /** Обоз этого тела, если это торговец, а не житель. */
     public UUID caravanId() {
         return caravanId;
@@ -823,6 +848,7 @@ public class CitizenEntity extends PathAwareEntity {
         }
         if (!getWorld().isClient() && age % ROLE_EVERY == 0) {
             refreshRole();
+            dropIfForgotten();
         }
     }
 

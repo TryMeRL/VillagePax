@@ -1,0 +1,734 @@
+#!/usr/bin/env python3
+"""Рисует все текстуры мода: блоки и предметы, 16x16.
+
+Зачем кодом, а не мышью: текстура из ровных форм — рама, кладка, солома,
+монета — описывается примитивами точнее, чем рисуется вручную, а главное
+переписывается. Палитра одна на весь мод, и это видно: норманнская
+штукатурка и штукатурка майя — один материал разного цвета, а не две
+разные картинки.
+
+Три правила, по которым всё здесь нарисовано (прежние текстуры нарушали
+все три, и заказчик справедливо назвал их некрасивыми):
+
+1. **Форма важнее шума.** Пиксельный шум по всей плитке читается как грязь.
+   Штукатурка почти ровная, и вся её жизнь — в двух трещинах и паре пятен.
+2. **Три тона, а не тридцать.** У каждого материала тень, основа и свет.
+   Свет всегда сверху слева, тень снизу справа — во всём моде одинаково.
+3. **Плитка обязана сходиться.** Верх стыкуется с низом, лево с правом:
+   иначе стена из блоков рассыпается на квадраты.
+
+    python tools/make-textures.py
+"""
+
+from pathlib import Path
+
+from PIL import Image
+
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "src/main/resources/assets/villagepax/textures"
+
+N = 16
+
+# --- палитра мода -----------------------------------------------------------
+#
+# Названия по материалу, а не по цвету: «дерево тёмное» переживёт смену
+# оттенка, а «коричневый» — нет.
+
+CLEAR = (0, 0, 0, 0)
+
+
+def rgb(value):
+    return ((value >> 16) & 255, (value >> 8) & 255, value & 255, 255)
+
+
+# Дерево балок: почти чёрное в тени, тёплое на свету.
+BEAM_DARK = rgb(0x33241A)
+BEAM = rgb(0x4A3524)
+BEAM_LIT = rgb(0x5E4531)
+
+# Доска: пол ратуши, ящики.
+PLANK_DARK = rgb(0x6E5330)
+PLANK = rgb(0x8F6E3E)
+PLANK_LIT = rgb(0xA8854E)
+
+# Штукатурка норманнов.
+PLASTER_DARK = rgb(0xC3B79B)
+PLASTER = rgb(0xDED4BB)
+PLASTER_LIT = rgb(0xEFE7D2)
+PLASTER_CRACK = rgb(0xAFA184)
+
+# Штукатурка майя: та же стена, другая земля в замесе.
+OCHRE_DARK = rgb(0xA24A32)
+OCHRE = rgb(0xBE5B3C)
+OCHRE_LIT = rgb(0xD1734E)
+OCHRE_CRACK = rgb(0x8B3E2A)
+
+# Камень кладки.
+STONE_DARK = rgb(0x6B6B66)
+STONE = rgb(0x8A8A84)
+STONE_LIT = rgb(0xA3A39B)
+MORTAR = rgb(0x585853)
+
+# Известняк майя: светлее и желтее северного камня.
+LIME_DARK = rgb(0xB0A98F)
+LIME = rgb(0xCFC6A8)
+LIME_LIT = rgb(0xE6DDC0)
+LIME_SHADOW = rgb(0x8E8871)
+JADE = rgb(0x3E8C6A)
+
+# Солома.
+STRAW_DARK = rgb(0x8A6E2E)
+STRAW = rgb(0xB8933F)
+STRAW_LIT = rgb(0xD4B057)
+
+# Кора и срез бревна.
+BARK_DARK = rgb(0x3E3022)
+BARK = rgb(0x574330)
+BARK_LIT = rgb(0x6B5440)
+WOOD_CUT = rgb(0xC0995A)
+WOOD_RING = rgb(0x9E7A44)
+
+# Мешковина.
+BURLAP_DARK = rgb(0x8E7648)
+BURLAP = rgb(0xB49A63)
+BURLAP_LIT = rgb(0xCBB27C)
+ROPE = rgb(0x6E5B38)
+
+# Ткань.
+LINEN_DARK = rgb(0xC6C0B2)
+LINEN = rgb(0xE4DFD2)
+LINEN_LIT = rgb(0xF2EFE6)
+DYED = rgb(0x6E88A6)
+DYED_DARK = rgb(0x56708C)
+
+# Монета.
+COPPER_DARK = rgb(0x8A4A22)
+COPPER = rgb(0xC4703A)
+COPPER_LIT = rgb(0xE0995C)
+SILVER_DARK = rgb(0x8E949A)
+SILVER = rgb(0xC3C9CE)
+SILVER_LIT = rgb(0xE8EDF1)
+GOLD_DARK = rgb(0xA07818)
+GOLD = rgb(0xE0B02C)
+GOLD_LIT = rgb(0xF6D96A)
+
+# Кожа кошеля.
+LEATHER_DARK = rgb(0x5E3E24)
+LEATHER = rgb(0x8A5C33)
+LEATHER_LIT = rgb(0xA87844)
+
+# Пергамент чертежа.
+PAPER_DARK = rgb(0xCFC2A0)
+PAPER = rgb(0xE9DFC2)
+PAPER_LIT = rgb(0xF6EFDA)
+INK = rgb(0x3A4A6B)
+WAX = rgb(0xB03A32)
+
+# Метки разметки: тёмная плашка и цветной знак.
+SLATE_DARK = rgb(0x1B1F24)
+SLATE = rgb(0x2B3138)
+SLATE_LIT = rgb(0x3C444D)
+MARK_BED = rgb(0xD25B5B)
+MARK_DOOR = rgb(0x3FB0A6)
+MARK_STORE = rgb(0xE0A030)
+MARK_WORK = rgb(0xC8912E)
+MARK_DECOR = rgb(0x9B6BC4)
+IRON = rgb(0x8A8F96)
+IRON_LIT = rgb(0xB4B9C0)
+
+
+class Tex:
+    """Холст 16x16 с примитивами. Координаты с нуля, x вправо, y вниз."""
+
+    def __init__(self, base=CLEAR):
+        self.px = [[base for _ in range(N)] for _ in range(N)]
+
+    def set(self, x, y, colour):
+        if 0 <= x < N and 0 <= y < N:
+            self.px[y][x] = colour
+
+    def fill(self, colour):
+        for y in range(N):
+            for x in range(N):
+                self.px[y][x] = colour
+
+    def rect(self, x0, y0, x1, y1, colour):
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                self.set(x, y, colour)
+
+    def dots(self, colour, *points):
+        for x, y in points:
+            self.set(x, y, colour)
+
+    def line(self, x0, y0, x1, y1, colour):
+        """Отрезок Брезенхэма: диагонали раскосов и трещин."""
+        dx, dy = abs(x1 - x0), abs(y1 - y0)
+        sx = 1 if x0 < x1 else -1
+        sy = 1 if y0 < y1 else -1
+        err = dx - dy
+        while True:
+            self.set(x0, y0, colour)
+            if x0 == x1 and y0 == y1:
+                return
+            err2 = 2 * err
+            if err2 > -dy:
+                err -= dy
+                x0 += sx
+            if err2 < dx:
+                err += dx
+                y0 += sy
+
+    def disc(self, cx, cy, radius, colour):
+        """Круг: монеты. Полушаг даёт ровный край без зубцов."""
+        for y in range(N):
+            for x in range(N):
+                if (x - cx) ** 2 + (y - cy) ** 2 <= radius * radius:
+                    self.set(x, y, colour)
+
+    def ring(self, cx, cy, outer, inner, colour):
+        for y in range(N):
+            for x in range(N):
+                away = (x - cx) ** 2 + (y - cy) ** 2
+                if inner * inner < away <= outer * outer:
+                    self.set(x, y, colour)
+
+    def sprite(self, rows, palette, ox=0, oy=0):
+        """Мелкий знак поверх фона: пробел — не трогать."""
+        for y, row in enumerate(rows):
+            for x, ch in enumerate(row):
+                if ch != " ":
+                    self.set(ox + x, oy + y, palette[ch])
+
+    def save(self, folder, name):
+        image = Image.new("RGBA", (N, N), CLEAR)
+        image.putdata([self.px[y][x] for y in range(N) for x in range(N)])
+        path = OUT / folder / (name + ".png")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        image.save(path)
+        return path
+
+
+# --- материалы стен ---------------------------------------------------------
+
+
+def plaster(base, dark, lit, crack):
+    """Штукатурка: почти ровная стена, вся жизнь — в трещинах.
+
+    Пятна и трещины расставлены руками и подобраны так, чтобы плитка
+    сходилась сама с собой: трещина, уходящая за правый край, продолжается
+    у левого.
+    """
+    t = Tex(base)
+    # Пятна кладутся парами и тройками: одиночные точки читаются сором,
+    # а пара соседних — мазком мастерка.
+    for x, y in [(2, 3), (3, 3), (9, 2), (10, 2), (9, 3), (5, 11), (6, 11), (6, 12)]:
+        t.set(x, y, lit)
+    for x, y in [(12, 5), (13, 5), (13, 6), (2, 8), (3, 8), (8, 13), (9, 13)]:
+        t.set(x, y, dark)
+    # Две трещины: одна сверху вниз, вторая через правый край на левый.
+    t.line(4, 0, 6, 5, crack)
+    t.line(6, 5, 5, 7, crack)
+    t.line(12, 9, 15, 11, crack)
+    t.line(0, 11, 2, 12, crack)
+    return t
+
+
+def timber_frame():
+    """Фахверк: дубовая рама, раскос и штукатурка между балками.
+
+    Рама по всем четырём краям: в стене из таких блоков балки сходятся
+    в решётку, и стена читается фахверком, а не пятном.
+    """
+    t = plaster(PLASTER, PLASTER_DARK, PLASTER_LIT, PLASTER_CRACK)
+    t.rect(0, 0, 15, 1, BEAM)
+    t.rect(0, 14, 15, 15, BEAM)
+    t.rect(0, 0, 1, 15, BEAM)
+    t.rect(14, 0, 15, 15, BEAM)
+    # Свет сверху слева: у балки светлая верхняя грань и тёмная нижняя.
+    t.rect(0, 0, 15, 0, BEAM_LIT)
+    t.rect(0, 0, 0, 15, BEAM_LIT)
+    t.rect(0, 15, 15, 15, BEAM_DARK)
+    t.rect(15, 0, 15, 15, BEAM_DARK)
+    # Стойка посередине и два подкоса от неё — настоящая вязка фахверка.
+    # Одной тонкой диагонали мало: панель читалась перечёркнутой, а не
+    # собранной из брёвен.
+    t.rect(7, 2, 8, 13, BEAM)
+    t.rect(7, 2, 7, 13, BEAM_LIT)
+    t.rect(8, 2, 8, 13, BEAM_DARK)
+    for step in range(5):
+        # Подкосы в две точки толщиной: тонкая диагональ на 16 пикселях
+        # рассыпается в лесенку и выглядит случайной царапиной.
+        t.set(2 + step, 12 - step, BEAM)
+        t.set(2 + step, 11 - step, BEAM_LIT)
+        t.set(3 + step, 12 - step, BEAM_DARK)
+        t.set(13 - step, 12 - step, BEAM)
+        t.set(13 - step, 11 - step, BEAM_LIT)
+        t.set(12 - step, 12 - step, BEAM_DARK)
+    return t
+
+
+def thatch():
+    """Солома: пучки разной длины, срез внизу.
+
+    Полосы не ровные — у каждой свой тон и свой обрыв, иначе крыша
+    читается забором. Нижний ряд темнее: это срез, он в тени.
+    """
+    t = Tex(STRAW)
+    tones = [STRAW_LIT, STRAW, STRAW_DARK, STRAW, STRAW_LIT, STRAW_DARK,
+             STRAW, STRAW_LIT, STRAW_DARK, STRAW, STRAW, STRAW_DARK,
+             STRAW_LIT, STRAW, STRAW_DARK, STRAW]
+    breaks = [11, 6, 13, 4, 9, 2, 14, 7, 12, 5, 10, 3, 8, 13, 6, 10]
+    for x in range(N):
+        t.rect(x, 0, x, 15, tones[x])
+        # Обрыв пучка: короткая перемычка другого тона поперёк полосы.
+        y = breaks[x]
+        t.set(x, y, STRAW_DARK if tones[x] is not STRAW_DARK else STRAW_LIT)
+        t.set(x, (y + 8) % 16, STRAW_DARK if tones[x] is not STRAW_DARK else STRAW_LIT)
+    t.rect(0, 15, 15, 15, STRAW_DARK)
+    return t
+
+
+def brick(dark, base, lit, mortar):
+    """Кладка: два ряда со смещением и раствор между ними."""
+    t = Tex(base)
+    t.rect(0, 0, 15, 0, mortar)
+    t.rect(0, 7, 15, 7, mortar)
+    t.rect(0, 15, 15, 15, mortar)
+    t.rect(7, 1, 7, 6, mortar)
+    t.rect(3, 8, 3, 14, mortar)
+    t.rect(11, 8, 11, 14, mortar)
+    # Свет на верхнем ряду каждого камня, тень на нижнем.
+    for y0, y1 in ((1, 6), (8, 14)):
+        t.rect(0, y0, 15, y0, lit)
+        t.rect(0, y1, 15, y1, dark)
+    for x, y in [(2, 3), (10, 4), (5, 10), (13, 12)]:
+        t.set(x, y, dark)
+    for x, y in [(4, 4), (12, 2), (7, 11), (1, 9)]:
+        t.set(x, y, lit)
+    return t
+
+
+def carved_stone():
+    """Резной камень майя: ступенчатый знак в рельефе.
+
+    Рельеф делается двумя линиями — светлой сверху слева и тёмной снизу
+    справа. Это тот же приём, что у балки, и он один на весь мод.
+    """
+    t = Tex(LIME)
+    for x, y in [(1, 2), (6, 1), (12, 3), (3, 9), (9, 12), (14, 8)]:
+        t.set(x, y, LIME_LIT)
+    for x, y in [(2, 5), (8, 4), (13, 11), (5, 14), (11, 6)]:
+        t.set(x, y, LIME_DARK)
+
+    # Ступенчатая спираль — та самая, что вырезали майя. Штрих в два
+    # пикселя и поля по краю: мелкий узор на 16 пикселях превращается
+    # в лабиринт, из которого глаз не выбирается.
+    glyph = [
+        "................",
+        "................",
+        "..############..",
+        "..############..",
+        "..##........##..",
+        "..##.######.##..",
+        "..##.######.##..",
+        "..##.##.........",
+        "..##.##.........",
+        "..##.######.##..",
+        "..##.######.##..",
+        "..##........##..",
+        "..############..",
+        "..############..",
+        "................",
+        "................",
+    ]
+    for y, row in enumerate(glyph):
+        for x, ch in enumerate(row):
+            if ch == "#":
+                t.set(x, y, LIME_SHADOW)
+    # Резьба заглублена: свет ложится на верхний край борозды.
+    for y, row in enumerate(glyph):
+        for x, ch in enumerate(row):
+            if ch == "#" and y + 1 < N and glyph[y + 1][x] != "#":
+                t.set(x, y + 1, LIME_LIT)
+    t.rect(0, 15, 15, 15, LIME_DARK)
+    return t
+
+
+# --- ратуша -----------------------------------------------------------------
+
+
+def town_hall_side():
+    """Бок ратуши: обшивка, железные углы и знак дома.
+
+    Это первый блок мода, который видит игрок, и по нему он судит обо всём
+    остальном. Поэтому здесь не просто доски: знак дома в круге читается
+    с десяти шагов и говорит, что это здание — главное.
+    """
+    t = Tex(PLANK)
+    for y in range(N):
+        if y % 4 == 0:
+            t.rect(0, y, 15, y, PLANK_DARK)
+        elif y % 4 == 1:
+            t.rect(0, y, 15, y, PLANK_LIT)
+    # Стойки по краям: блок читается как рубленая стена, а не как доска.
+    t.rect(0, 0, 1, 15, BEAM)
+    t.rect(14, 0, 15, 15, BEAM)
+    t.rect(0, 0, 0, 15, BEAM_LIT)
+    t.rect(15, 0, 15, 15, BEAM_DARK)
+    # Железные накладки сверху и снизу.
+    t.rect(2, 0, 13, 0, IRON)
+    t.rect(2, 15, 13, 15, IRON)
+    t.dots(IRON_LIT, (3, 0), (7, 0), (12, 0))
+
+    # Гербовый щит, а не домик: щит читается «здесь власть» с десяти
+    # шагов, а домик на восьми пикселях — просто светлое пятно.
+    sign = {
+        "o": BEAM_DARK,
+        "p": PLASTER_LIT,
+        "s": PLASTER_DARK,
+        "r": rgb(0xA8452F),
+        "R": rgb(0xC45A42),
+    }
+    t.sprite([
+        "oooooooo",
+        "oppppppo",
+        "oppRRpso",
+        "oRRRRRRo",
+        "oRRRRRRo",
+        "oppRRpso",
+        "osppppso",
+        "ossppsso",
+        " osppso ",
+        "  osso  ",
+        "   oo   ",
+    ], sign, ox=4, oy=2)
+    return t
+
+
+def town_hall_top():
+    """Верх ратуши: пол из плах и врезанный круг с розой ветров."""
+    t = Tex(PLANK)
+    for y in range(N):
+        if y % 5 == 0:
+            t.rect(0, y, 15, y, PLANK_DARK)
+    t.rect(0, 0, 15, 0, BEAM)
+    t.rect(0, 15, 15, 15, BEAM)
+    t.rect(0, 0, 0, 15, BEAM)
+    t.rect(15, 0, 15, 15, BEAM)
+    t.ring(7.5, 7.5, 6.2, 5.2, BEAM_DARK)
+    t.ring(7.5, 7.5, 5.2, 4.4, PLANK_LIT)
+    t.line(7, 3, 7, 12, BEAM_DARK)
+    t.line(8, 3, 8, 12, BEAM_DARK)
+    t.line(3, 7, 12, 7, BEAM_DARK)
+    t.line(3, 8, 12, 8, BEAM_DARK)
+    t.dots(GOLD, (7, 7), (8, 7), (7, 8), (8, 8))
+    t.dots(GOLD_LIT, (7, 7))
+    return t
+
+
+# --- прочие блоки -----------------------------------------------------------
+
+
+def firewood_end():
+    """Торцы поленницы: срезы с годовыми кольцами."""
+    t = Tex(BARK_DARK)
+    for cx, cy, r in ((4, 4, 3.4), (11, 4, 3.0), (4, 11, 3.0), (11, 11, 3.4)):
+        t.disc(cx, cy, r, BARK)
+        t.disc(cx, cy, r - 0.9, WOOD_CUT)
+        t.ring(cx, cy, r - 1.7, r - 2.4, WOOD_RING)
+        t.set(int(cx), int(cy), WOOD_RING)
+    for x, y in [(7, 7), (8, 8), (0, 8), (15, 7), (8, 0), (7, 15)]:
+        t.set(x, y, BARK_LIT)
+    return t
+
+
+def firewood_side():
+    """Бок поленницы: лежащие брёвна с корой."""
+    t = Tex(BARK)
+    for y0 in (0, 4, 8, 12):
+        t.rect(0, y0, 15, y0, BARK_LIT)
+        t.rect(0, y0 + 3, 15, y0 + 3, BARK_DARK)
+    for x, y in [(2, 1), (9, 2), (5, 5), (13, 6), (3, 9), (11, 10), (7, 13), (14, 14)]:
+        t.set(x, y, BARK_DARK)
+    for x, y in [(6, 1), (12, 2), (1, 6), (8, 5), (14, 9), (4, 10), (10, 13)]:
+        t.set(x, y, BARK_LIT)
+    return t
+
+
+def grain_sack():
+    """Мешок зерна: холстина в переплетение и верёвка поперёк."""
+    t = Tex(BURLAP)
+    for y in range(N):
+        for x in range(N):
+            if (x + y) % 4 == 0:
+                t.set(x, y, BURLAP_DARK)
+            elif (x - y) % 4 == 0:
+                t.set(x, y, BURLAP_LIT)
+    t.rect(0, 0, 15, 0, BURLAP_LIT)
+    t.rect(0, 15, 15, 15, BURLAP_DARK)
+    t.rect(0, 6, 15, 6, ROPE)
+    t.rect(0, 7, 15, 7, BARK_DARK)
+    t.dots(BURLAP_LIT, (4, 6), (11, 6))
+    return t
+
+
+def laundry():
+    """Бельё на верёвке: прозрачная плитка, две рубахи.
+
+    Единственная текстура с прозрачностью: это не стена, а плоскость
+    посреди улицы, и фон у неё — сама улица.
+    """
+    t = Tex(CLEAR)
+    t.rect(0, 1, 15, 1, ROPE)
+    cloth = {
+        "w": LINEN,
+        "W": LINEN_LIT,
+        "s": LINEN_DARK,
+        "d": DYED,
+        "D": DYED_DARK,
+    }
+    # Рубаха, а не полоса: узко у прищепки, шире книзу, с рукавом
+    # и складкой. Плоский прямоугольник на верёвке читается тряпкой.
+    t.sprite([
+        " wWw ",
+        " WwW ",
+        "wwwww",
+        "Wwwsw",
+        "wwwsw",
+        "wwwww",
+        "wswww",
+        "wswws",
+        "sw ws",
+        "ss  s",
+    ], cloth, ox=1, oy=2)
+    t.sprite([
+        " dDd ",
+        " ddd ",
+        "ddddd",
+        "dDdDd",
+        "ddDdd",
+        "dddDd",
+        "dDddd",
+        "DdddD",
+        "Dd dD",
+        "DD  D",
+    ], cloth, ox=9, oy=2)
+    t.dots(ROPE, (3, 1), (11, 1))
+    t.dots(BEAM_DARK, (3, 2), (11, 2))
+    return t
+
+
+def marker(colour, glyph):
+    """Метка разметки: тёмная плашка со знаком.
+
+    Метки видит только строитель да игрок в голограмме, но и они должны
+    читаться с одного взгляда: рамка, тень внутри и знак в цвет смысла.
+    """
+    t = Tex(SLATE)
+    t.rect(0, 0, 15, 0, SLATE_LIT)
+    t.rect(0, 0, 0, 15, SLATE_LIT)
+    t.rect(0, 15, 15, 15, SLATE_DARK)
+    t.rect(15, 0, 15, 15, SLATE_DARK)
+    t.rect(1, 1, 14, 14, SLATE)
+    t.sprite(glyph, {"#": colour, "+": SLATE_LIT}, ox=2, oy=3)
+    return t
+
+
+MARK_GLYPHS = {
+    "bed": [
+        "#          #",
+        "#..........#",
+        "############",
+        "############",
+        "#.#......#.#",
+        "#.#......#.#",
+    ],
+    "door": [
+        "  ########  ",
+        " ########## ",
+        " ##......## ",
+        " ##......## ",
+        " ##...#..## ",
+        " ##......## ",
+        " ##......## ",
+        " ##......## ",
+    ],
+    "storage": [
+        "############",
+        "#..........#",
+        "#....##....#",
+        "############",
+        "#....##....#",
+        "#..........#",
+        "############",
+    ],
+    "workstation": [
+        "############",
+        "#..........#",
+        "...####.....",
+        "...####.....",
+        "...####.....",
+        "..######....",
+        ".########...",
+    ],
+    "decor": [
+        "....####....",
+        "...######...",
+        "..###..###..",
+        ".###....###.",
+        "..###..###..",
+        "...######...",
+        "....####....",
+    ],
+}
+
+
+def _glyph(rows):
+    return [row.replace(".", " ") for row in rows]
+
+
+# --- предметы ---------------------------------------------------------------
+
+
+def coin(dark, base, lit, stamp):
+    """Монета: обод, чекан и блик.
+
+    Блик слева сверху, тень справа снизу — те же, что у всего мода.
+    Без чекана монета читается пуговицей.
+    """
+    t = Tex(CLEAR)
+    t.disc(7.5, 7.5, 6.6, dark)
+    t.disc(7.5, 7.5, 5.7, base)
+    t.ring(7.5, 7.5, 5.7, 4.6, dark)
+    t.disc(7.5, 7.5, 4.6, base)
+    t.sprite(stamp, {"#": dark, "+": lit}, ox=5, oy=5)
+    # Блик: короткая дуга сверху слева.
+    t.dots(lit, (4, 4), (5, 3), (6, 3), (7, 2), (3, 5), (3, 6))
+    t.dots(dark, (11, 11), (12, 10), (12, 9), (10, 12))
+    return t
+
+
+def purse():
+    """Кошель: мешочек кожи с затяжкой и монетой в горловине."""
+    t = Tex(CLEAR)
+    body = [
+        "    ......    ",
+        "   .oooooo.   ",
+        "  .oo####oo.  ",
+        "  .o######o.  ",
+        " .LLLLLLLLLL. ",
+        ".LLLLLLLLLLLL.",
+        "LLLLLLLLLLLLLL",
+        "LLLLLLLLLLLLLL",
+        "LLLLLLLLLLLLLL",
+        ".LLLLLLLLLLLL.",
+        ".dLLLLLLLLLLd.",
+        " .dddddddddd. ",
+        "  .dddddddd.  ",
+        "   ........   ",
+    ]
+    palette = {
+        "L": LEATHER,
+        "d": LEATHER_DARK,
+        "o": ROPE,
+        "#": GOLD,
+        ".": LEATHER_DARK,
+    }
+    t.sprite(body, palette, ox=1, oy=1)
+    # Свет на левом плече мешка и складка справа.
+    t.dots(LEATHER_LIT, (3, 7), (3, 8), (4, 6), (4, 9), (5, 6))
+    t.dots(LEATHER_DARK, (11, 8), (11, 9), (10, 10))
+    t.dots(GOLD_LIT, (7, 3))
+    return t
+
+
+def blueprint():
+    """Чертёж: свиток с планом дома и восковой печатью."""
+    t = Tex(CLEAR)
+    t.rect(2, 1, 13, 14, PAPER)
+    t.rect(2, 1, 13, 1, PAPER_LIT)
+    t.rect(2, 14, 13, 14, PAPER_DARK)
+    t.rect(2, 1, 2, 14, PAPER_LIT)
+    t.rect(13, 1, 13, 14, PAPER_DARK)
+    # План: дом в разрезе, а не абстрактные полоски.
+    t.rect(4, 4, 11, 4, INK)
+    t.rect(4, 10, 11, 10, INK)
+    t.rect(4, 4, 4, 10, INK)
+    t.rect(11, 4, 11, 10, INK)
+    t.rect(7, 5, 7, 9, INK)
+    t.dots(INK, (5, 3), (6, 2), (7, 2), (8, 2), (9, 3), (10, 3))
+    t.rect(8, 8, 10, 9, INK)
+    # Печать: единственное красное пятно, держит взгляд.
+    t.disc(12, 12, 2.2, WAX)
+    t.dots(rgb(0xD25B4E), (11, 11))
+    return t
+
+
+COIN_STAMP = [
+    " #### ",
+    "#+  +#",
+    "#   ##",
+    "##   #",
+    "#+  +#",
+    " #### ",
+]
+
+CROSS_STAMP = [
+    "  ##  ",
+    "  ##  ",
+    "######",
+    "######",
+    "  ##  ",
+    "  ##  ",
+]
+
+SUN_STAMP = [
+    "# ## #",
+    " #### ",
+    "######",
+    "######",
+    " #### ",
+    "# ## #",
+]
+
+
+def main():
+    made = []
+
+    made.append(plaster(PLASTER, PLASTER_DARK, PLASTER_LIT, PLASTER_CRACK)
+                .save("block", "plaster"))
+    made.append(plaster(OCHRE, OCHRE_DARK, OCHRE_LIT, OCHRE_CRACK)
+                .save("block", "ochre_plaster"))
+    made.append(timber_frame().save("block", "timber_frame"))
+    made.append(thatch().save("block", "thatch"))
+    made.append(carved_stone().save("block", "carved_stone"))
+    made.append(town_hall_side().save("block", "town_hall_side"))
+    made.append(town_hall_top().save("block", "town_hall_top"))
+    made.append(brick(STONE_DARK, STONE, STONE_LIT, MORTAR)
+                .save("block", "town_hall_bottom"))
+    made.append(firewood_end().save("block", "firewood_end"))
+    made.append(firewood_side().save("block", "firewood_side"))
+    made.append(grain_sack().save("block", "grain_sack"))
+    made.append(laundry().save("block", "laundry"))
+
+    for name, colour in (("bed", MARK_BED), ("door", MARK_DOOR),
+                         ("storage", MARK_STORE), ("workstation", MARK_WORK),
+                         ("decor", MARK_DECOR)):
+        made.append(marker(colour, _glyph(MARK_GLYPHS[name]))
+                    .save("block", "marker_" + name))
+
+    made.append(coin(COPPER_DARK, COPPER, COPPER_LIT, CROSS_STAMP)
+                .save("item", "coin"))
+    made.append(coin(SILVER_DARK, SILVER, SILVER_LIT, COIN_STAMP)
+                .save("item", "silver_coin"))
+    made.append(coin(GOLD_DARK, GOLD, GOLD_LIT, SUN_STAMP)
+                .save("item", "gold_coin"))
+    made.append(purse().save("item", "purse"))
+    made.append(blueprint().save("item", "town_hall_blueprint"))
+
+    print("нарисовано текстур: %d" % len(made))
+
+
+if __name__ == "__main__":
+    main()

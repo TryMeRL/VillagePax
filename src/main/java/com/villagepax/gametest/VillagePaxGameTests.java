@@ -9674,6 +9674,70 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    /**
+     * Житель переодевается, когда меняет ремесло.
+     * <p>
+     * Облик едет на клиент отслеживаемым полем, и вся ценность затеи —
+     * в том, что он <b>не застывает</b>: игрок даёт человеку ремесло
+     * через пульт и должен через секунду увидеть на нём фартук, а не
+     * ждать перезахода в мир.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "looks", tickLimit = 120)
+    public void citizenChangesClothesWithTheCraft(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        BlockPos stands = context.getAbsolutePos(new BlockPos(4, 2, 4));
+
+        world.setBlockState(hall, ModBlocks.TOWN_HALL.getDefaultState());
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Облик", hall);
+        manager.add(colony);
+
+        Citizen citizen = Citizen.newborn("Adeline", "la Fermiere", NORMAN, Gender.FEMALE);
+        citizen.setPosition(Vec3d.ofBottomCenter(stands));
+        colony.addCitizen(citizen);
+        CitizenEntity body = CitizenSpawner.spawnBody(world, colony, citizen);
+        if (body == null) {
+            manager.remove(colony.id());
+            context.throwGameTestException("Тело не встало: смотреть не на кого");
+            return;
+        }
+
+        if (!body.look().endsWith("norman/female.png")) {
+            cleanUpLooks(world, manager, colony, body, hall);
+            context.throwGameTestException("Без ремесла облик "
+                    + body.look() + ", а ждали будничный норманнский женский");
+            return;
+        }
+
+        citizen.setProfession(FarmJob.FARMER);
+
+        context.runAtTick(40, () -> {
+            try {
+                if (body.look() == null || !body.look().endsWith("norman/female_farmer.png")) {
+                    context.throwGameTestException("Дали ремесло пахаря, а на человеке "
+                            + body.look() + ": убрано=" + body.isRemoved()
+                            + ", запись=" + manager.byId(colony.id())
+                                    .flatMap(state -> state.citizen(citizen.id()))
+                                    .flatMap(Citizen::profession)
+                            + ", тел=" + world.getEntitiesByClass(CitizenEntity.class,
+                                    new Box(hall).expand(16), alive -> true).size());
+                }
+            } finally {
+                cleanUpLooks(world, manager, colony, body, hall);
+            }
+            context.complete();
+        });
+    }
+
+    private static void cleanUpLooks(ServerWorld world, SettlementManager manager,
+                                     Settlement colony, CitizenEntity body, BlockPos hall) {
+        body.discard();
+        manager.remove(colony.id());
+        world.setBlockState(hall, Blocks.AIR.getDefaultState());
+    }
+
+
     /** Сколько хранилищ стоит в следе здания прямо сейчас. */
     private static int containersIn(ServerWorld world, Building building, Schematic schematic) {
         int found = 0;

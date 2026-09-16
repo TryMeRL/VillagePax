@@ -5,6 +5,7 @@ import com.villagepax.core.trade.Caravan;
 import com.villagepax.core.trade.TradeTable;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.entity.CitizenSpawner;
+import com.villagepax.entity.Looks;
 import com.villagepax.item.ModItems;
 import com.villagepax.sim.Ground;
 import com.villagepax.sim.ItemTally;
@@ -194,6 +195,8 @@ public final class Caravans {
         }
 
         body.linkCaravan(host.id(), guest.id());
+        // Торговец обоза — курьер своего народа: с сумкой через плечо.
+        body.setLook(Looks.puppet(guest.culture(), "courier"));
         // Привязь к телеге, и короткая. Кукла унаследовала от жителя
         // прогулку и без привязи ушла бы гулять по колонии — а игрок
         // пришёл бы к телеге и не нашёл торговца.

@@ -4,6 +4,7 @@ import com.villagepax.VillagePax;
 import com.villagepax.core.war.WarParty;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.entity.CitizenSpawner;
+import com.villagepax.entity.Looks;
 import com.villagepax.sim.Ground;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
@@ -233,6 +234,9 @@ public final class Raids {
             }
 
             fighter.linkRaid(colony.id(), party.id());
+            // Налётчик одет стражем своего народа: игрок должен видеть,
+            // кто пришёл, ещё до того, как прочтёт имя над головой.
+            fighter.setLook(Looks.puppet(party.culture(), "guard"));
             fighter.setCustomName(Text.translatable("villagepax.raid.fighter",
                     Text.translatable("villagepax.culture." + party.culture().getPath())));
             fighter.setCustomNameVisible(true);

@@ -21,6 +21,9 @@ import com.villagepax.sim.work.Schedule;
 import net.minecraft.block.BlockState;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.data.DataTracker;
+import net.minecraft.entity.data.TrackedData;
+import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.ai.goal.ActiveTargetGoal;
 import net.minecraft.entity.ai.goal.FleeEntityGoal;
@@ -353,6 +356,17 @@ public class CitizenEntity extends PathAwareEntity {
     private static final int MURDER_COSTS = 30;
 
     /** Опознаватели набега, если это боец, а не житель. */
+    /**
+     * Облик: путь к текстуре, каким его назначил сервер.
+     * <p>
+     * Строкой, а не числом: народы приходят из датапаков, и нумеровать
+     * их значило бы завести реестр, который обязан совпасть у сервера
+     * и клиента. Путь совпадать не обязан — чего нет, то клиент заменит
+     * известным обликом сам.
+     */
+    private static final TrackedData<String> LOOK =
+            DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.STRING);
+
     private UUID raidId;
     private UUID raidHost;
 
@@ -444,10 +458,41 @@ public class CitizenEntity extends PathAwareEntity {
             guard = false;
             return;
         }
-        guard = data(serverWorld)
-                .flatMap(Citizen::profession)
-                .filter(Villages.GUARD::equals)
-                .isPresent();
+        Citizen citizen = data(serverWorld).orElse(null);
+        if (citizen == null) {
+            guard = false;
+            return;
+        }
+        guard = citizen.profession().filter(Villages.GUARD::equals).isPresent();
+        // И облик заодно: ремесло игрок меняет на ходу, и человек должен
+        // переодеться при жизни, а не в следующей.
+        setLook(Looks.of(citizen));
+    }
+
+    /**
+     * Какой текстурой рисовать это тело.
+     * <p>
+     * Отслеживаемым полем, а не расчётом на клиенте: культура и ремесло
+     * живут в датапаке <b>сервера</b>, и клиент про них не знает ничего.
+     */
+    public void setLook(Identifier look) {
+        String value = look.toString();
+        if (!value.equals(look())) {
+            dataTracker.set(LOOK, value);
+        }
+    }
+
+    /**
+     * Путь к текстуре этого тела — и никогда не пусто.
+     * <p>
+     * Пустоту отдаёт трекер в те кадры, пока клиент ещё не получил
+     * значение с сервера, и одного такого кадра довольно, чтобы отрисовка
+     * упала на разборе пустого пути. Известный облик в этот кадр —
+     * единственный честный ответ.
+     */
+    public String look() {
+        String value = dataTracker.get(LOOK);
+        return value == null || value.isEmpty() ? Looks.UNKNOWN.toString() : value;
     }
 
     /**
@@ -561,6 +606,7 @@ public class CitizenEntity extends PathAwareEntity {
 
     public void applyFrom(Citizen citizen) {
         label(citizen, Configs.get().citizenLabels());
+        setLook(Looks.of(citizen));
         setHealth(citizen.health());
         // И ремесло сразу, раз запись всё равно в руках: иначе у только
         // что появившегося стража была бы секунда, в которую он считает
@@ -838,6 +884,12 @@ public class CitizenEntity extends PathAwareEntity {
      * пустоты, и переносить его было бы уже не помощью.
      */
     private static final int OFF_FENCE_REACH = 2;
+
+    @Override
+    protected void initDataTracker() {
+        super.initDataTracker();
+        dataTracker.startTracking(LOOK, Looks.UNKNOWN.toString());
+    }
 
     @Override
     public void tick() {

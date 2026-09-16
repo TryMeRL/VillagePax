@@ -140,6 +140,10 @@ public final class BuildOrders {
         }
 
         /** Улучшать некуда: схемы следующего уровня не существует. */
+        /** Здание откроется со ступенью колонии. */
+        record Locked(Identifier type, com.villagepax.sim.SettlementLevel needs) implements Result {
+        }
+
         record TopLevel(Building building) implements Result {
         }
 
@@ -201,6 +205,15 @@ public final class BuildOrders {
         }
         int level = BuildJob.levelOf(schematicId).orElse(1);
 
+        com.villagepax.core.building.BuildingType kind =
+                com.villagepax.core.building.BuildingTypes.all().get(type);
+        if (kind != null && !kind.openTo(colony.level())) {
+            // Мастерская выше ступени колонии: рано. Проверка здесь же,
+            // где и остальные, чтобы отказ пришёл до того, как игрок
+            // завезёт материалы.
+            return new Result.Locked(type, kind.minLevel());
+        }
+
         if (!colony.claims(anchor)) {
             return new Result.OutsideClaim(anchor);
         }
@@ -252,6 +265,9 @@ public final class BuildOrders {
         }
         if (result instanceof Result.OutsideClaim) {
             return "villagepax.hologram.outside";
+        }
+        if (result instanceof Result.Locked) {
+            return "villagepax.hologram.locked";
         }
         return "villagepax.hologram.overlaps";
     }

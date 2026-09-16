@@ -4,7 +4,10 @@ import com.villagepax.VillagePax;
 import com.villagepax.block.ModBlocks;
 import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
 import net.minecraft.block.Block;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.item.BlockItem;
+import net.minecraft.item.FoodComponent;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemGroup;
 import net.minecraft.item.ItemStack;
@@ -56,6 +59,45 @@ public final class ModItems {
      */
     public static final Item PURSE = register("purse",
             new PurseItem(new Item.Settings().maxCount(1)));
+
+    /**
+     * Норманнский эль: то, ради чего колония нужна.
+     * <p>
+     * Первая вещь в моде, которой <b>нельзя добыть киркой и нельзя
+     * скрафтить</b>. Её варит пивовар колонии из зерна, и больше она
+     * не берётся ниоткуда. Это и есть ответ на «зацепиться не за что»:
+     * до сих пор колония давала игроку ровно то, что он добыл бы сам,
+     * только медленнее.
+     * <p>
+     * Бодрость, а не сила: эль пьют перед работой, и ускоренная кирка
+     * — то, что игрок чувствует сразу и хочет снова. Сила сделала бы
+     * из мода про деревню мод про драку.
+     */
+    public static final Item ALE = register("ale", new DrinkItem(new Item.Settings()
+            .maxCount(16)
+            .food(new FoodComponent.Builder()
+                    .hunger(4)
+                    .saturationModifier(0.4f)
+                    .statusEffect(new StatusEffectInstance(StatusEffects.HASTE, 20 * 120, 0), 1.0f)
+                    .alwaysEdible()
+                    .build())));
+
+    /**
+     * Какао майя: густой горький напиток, который они пьют перед дорогой.
+     * <p>
+     * Пара элю и его противоположность по смыслу: север даёт руки, юг —
+     * ноги. Два народа должны отличаться тем, что от них получает игрок,
+     * а не только цветом стен.
+     */
+    public static final Item CACAO = register("cacao", new DrinkItem(new Item.Settings()
+            .maxCount(16)
+            .food(new FoodComponent.Builder()
+                    .hunger(5)
+                    .saturationModifier(0.6f)
+                    .statusEffect(new StatusEffectInstance(StatusEffects.SPEED, 20 * 120, 0), 1.0f)
+                    .statusEffect(new StatusEffectInstance(StatusEffects.REGENERATION, 20 * 8, 0), 1.0f)
+                    .alwaysEdible()
+                    .build())));
 
     public static final ItemGroup GROUP = Registry.register(
             Registries.ITEM_GROUP,

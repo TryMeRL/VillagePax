@@ -1,0 +1,8 @@
+{
+  "display_name": "villagepax.profession.brewer",
+  "job": "villagepax:craft",
+  "needs_workplace": true,
+  "hiring_priority": 40,
+  "workplace": "brewery",
+  "min_level": "village"
+}

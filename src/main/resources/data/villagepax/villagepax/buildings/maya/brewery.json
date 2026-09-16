@@ -1,0 +1,18 @@
+{
+  "display_name": "villagepax.building.maya.brewery",
+  "role": "workplace",
+  "profession": "villagepax:brewer",
+  "min_level": "village",
+  "crafts": [
+    {
+      "from": {"minecraft:cocoa_beans": 3},
+      "to": "villagepax:cacao",
+      "count": 1
+    },
+    {
+      "from": {"minecraft:wheat": 4},
+      "to": "villagepax:cacao",
+      "count": 1
+    }
+  ]
+}

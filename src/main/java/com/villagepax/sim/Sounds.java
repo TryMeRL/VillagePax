@@ -69,6 +69,18 @@ public final class Sounds {
     }
 
     /**
+     * Котёл: ремесленник довёл дело до конца.
+     * <p>
+     * Звук у работы обязателен: без него игрок узнаёт о ремесле только
+     * по числу на складе, а работа должна быть слышна и видна — это
+     * несущее правило мода, а не украшение.
+     */
+    public static void crafted(World world, BlockPos pos) {
+        world.playSound(null, pos, SoundEvents.BLOCK_BREWING_STAND_BREW,
+                SoundCategory.BLOCKS, 0.8f, 1.0f);
+    }
+
+    /**
      * Колокол: в колонии сдали здание.
      * <p>
      * Звонит в середине поселения, а не на стройке: это объявление, и

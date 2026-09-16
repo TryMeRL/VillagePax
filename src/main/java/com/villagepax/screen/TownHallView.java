@@ -5,7 +5,22 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.villagepax.core.ModTags;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
+import com.villagepax.core.building.BuildingType;
+import com.villagepax.core.building.BuildingTypes;
+import com.villagepax.core.building.BuildingType;
+import com.villagepax.core.building.BuildingTypes;
+import com.villagepax.core.building.BuildingType;
+import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.profession.ProfessionManager;
+import com.villagepax.sim.Levels;
+import com.villagepax.sim.Milestones;
+import com.villagepax.sim.SettlementLevel;
+import com.villagepax.sim.Levels;
+import com.villagepax.sim.Milestones;
+import com.villagepax.sim.SettlementLevel;
+import com.villagepax.sim.Levels;
+import com.villagepax.sim.Milestones;
+import com.villagepax.sim.SettlementLevel;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
@@ -67,7 +82,34 @@ public record TownHallView(
         ItemTally stock,
         List<Identifier> offers,
         List<ProfessionLine> professions,
-        Optional<String> advice) {
+        Optional<String> advice,
+        Growth growth) {
+
+    /**
+     * Рост колонии: где она сейчас, что дальше и что это даст.
+     * <p>
+     * Ступени были в моде давно и не значили почти ничего — предел
+     * населения да радиус границ. Игрок не понимал, зачем расти, потому
+     * что <b>награду ему никто не называл</b>. Здесь она названа заранее:
+     * подними ратушу до такого-то уровня, и откроется вот это.
+     *
+     * @param level     ключ названия нынешней ступени
+     * @param next      ключ названия следующей, если она есть
+     * @param hallLevel уровень ратуши сейчас
+     * @param needsHall уровень ратуши, с которого начнётся следующая ступень
+     * @param opens     ключи названий того, что откроется на следующей
+     */
+    public record Growth(String level, Optional<String> next, int hallLevel, int needsHall,
+                         List<String> opens) {
+
+        public static final Codec<Growth> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.STRING.fieldOf("level").forGetter(Growth::level),
+                Codec.STRING.optionalFieldOf("next").forGetter(Growth::next),
+                Codec.INT.optionalFieldOf("hall_level", 1).forGetter(Growth::hallLevel),
+                Codec.INT.optionalFieldOf("needs_hall", 2).forGetter(Growth::needsHall),
+                Codec.STRING.listOf().optionalFieldOf("opens", List.of()).forGetter(Growth::opens)
+        ).apply(instance, Growth::new));
+    }
 
     /** Здание, которое строится прямо сейчас, и чего ему не хватает. */
     public record Construction(Identifier type, int level, int step, int steps, ItemTally missing) {
@@ -89,11 +131,22 @@ public record TownHallView(
      * и вывести название по соглашению значило бы завести второе описание
      * там, где уже есть первое.
      */
-    public record ProfessionLine(Identifier id, String displayName) {
+    /**
+     * Ремесло в списке пульта — и заперто ли оно ступенью.
+     * <p>
+     * Запертые показываются, а не прячутся: спрятанное ремесло — это
+     * ремесло, о котором игрок не знает и которого потому не хочет.
+     * Видимая и недостижимая строчка «Пивовар — откроется в деревне»
+     * и есть цель.
+     */
+    public record ProfessionLine(Identifier id, String displayName, boolean locked,
+                                 String opensAt) {
 
         public static final Codec<ProfessionLine> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Identifier.CODEC.fieldOf("id").forGetter(ProfessionLine::id),
-                Codec.STRING.fieldOf("display_name").forGetter(ProfessionLine::displayName)
+                Codec.STRING.fieldOf("display_name").forGetter(ProfessionLine::displayName),
+                Codec.BOOL.optionalFieldOf("locked", false).forGetter(ProfessionLine::locked),
+                Codec.STRING.optionalFieldOf("opens_at", "").forGetter(ProfessionLine::opensAt)
         ).apply(instance, ProfessionLine::new));
     }
 
@@ -144,7 +197,8 @@ public record TownHallView(
             ItemTally.CODEC.fieldOf("stock").forGetter(TownHallView::stock),
             Identifier.CODEC.listOf().fieldOf("offers").forGetter(TownHallView::offers),
             ProfessionLine.CODEC.listOf().fieldOf("professions").forGetter(TownHallView::professions),
-            Codec.STRING.optionalFieldOf("advice").forGetter(TownHallView::advice)
+            Codec.STRING.optionalFieldOf("advice").forGetter(TownHallView::advice),
+            Growth.CODEC.fieldOf("growth").forGetter(TownHallView::growth)
     ).apply(instance, TownHallView::new));
 
     /**
@@ -233,10 +287,46 @@ public record TownHallView(
                 citizens(settlement),
                 stock,
                 offers(settlement),
-                knownProfessions(),
+                knownProfessions(settlement.level()),
                 // Совет считается здесь же: ему нужны и склад, и здания,
                 // и жители — всё то, что уже собрано этим снимком.
-                Advice.nextStep(world, settlement));
+                Advice.nextStep(world, settlement),
+                growthOf(settlement));
+    }
+
+    /**
+     * Куда колонии расти и что это даст.
+     * <p>
+     * Уровень ратуши здесь — то же правило, что и в {@link Levels}:
+     * ступень колонии равна уровню её ратуши. Дублировать правило нельзя,
+     * поэтому нужный уровень считается из порядкового номера ступени,
+     * а не из отдельной таблицы.
+     */
+    private static Growth growthOf(Settlement settlement) {
+        SettlementLevel now = settlement.level();
+        int hall = settlement.buildings().stream()
+                .filter(building -> building.isOperational() && Levels.isTownHallType(building.type()))
+                .mapToInt(Building::level)
+                .max()
+                .orElse(0);
+
+        if (now.isMax()) {
+            return new Growth(Milestones.levelKey(now), Optional.empty(), hall, hall, List.of());
+        }
+        SettlementLevel next = now.next();
+        List<String> opens = new ArrayList<>();
+        for (Identifier id : ProfessionManager.byHiringPriority()) {
+            ProfessionManager.get(id)
+                    .filter(craft -> craft.minLevel() == next)
+                    .ifPresent(craft -> opens.add(craft.displayName()));
+        }
+        for (BuildingType kind : BuildingTypes.all().values()) {
+            if (kind.minLevel() == next) {
+                opens.add(kind.displayName());
+            }
+        }
+        return new Growth(Milestones.levelKey(now), Optional.of(Milestones.levelKey(next)),
+                hall, next.ordinal() + 1, opens);
     }
 
     /**
@@ -246,11 +336,12 @@ public record TownHallView(
      * Имя не {@code professions()}: у записи с таким полем это уже занятое
      * имя метода доступа, и компилятор отказывается прямо на этом.
      */
-    private static List<ProfessionLine> knownProfessions() {
+    private static List<ProfessionLine> knownProfessions(SettlementLevel level) {
         List<ProfessionLine> lines = new ArrayList<>();
         for (Identifier id : ProfessionManager.byHiringPriority()) {
-            ProfessionManager.get(id)
-                    .ifPresent(known -> lines.add(new ProfessionLine(id, known.displayName())));
+            ProfessionManager.get(id).ifPresent(known -> lines.add(new ProfessionLine(
+                    id, known.displayName(), !known.openTo(level),
+                    Milestones.levelKey(known.minLevel()))));
         }
         return lines;
     }

@@ -137,6 +137,9 @@ public final class BuildCommand {
         } else if (result instanceof BuildOrders.Result.OutsideClaim outside) {
             tell(context, "Здесь не твоя земля: " + outside.anchor().toShortString()
                     + " вне границ колонии «" + colony.name() + "»");
+        } else if (result instanceof BuildOrders.Result.Locked locked) {
+            tell(context, "Такое здание строят не раньше ступени «" + locked.needs().id()
+                    + "»: " + locked.type());
         } else if (result instanceof BuildOrders.Result.Overlaps clash) {
             tell(context, "След пересекается с уже размеченным " + clash.clash().type()
                     + " в " + clash.clash().anchor().toShortString());

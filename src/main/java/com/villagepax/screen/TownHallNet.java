@@ -70,7 +70,8 @@ public final class TownHallNet {
     /** Снимок, который ничего не утверждает: показывать нечего, но экран жив. */
     public static final TownHallView EMPTY = new TownHallView("", UNKNOWN, "hamlet",
             0, 0, new TownHallView.Household(0, 0, 0, 0, 0), Optional.empty(),
-            List.of(), List.of(), new ItemTally(), List.of(), List.of(), Optional.empty());
+            List.of(), List.of(), new ItemTally(), List.of(), List.of(), Optional.empty(),
+            new TownHallView.Growth("villagepax.level.hamlet", Optional.empty(), 0, 1, List.of()));
 
     private TownHallNet() {
     }
@@ -328,6 +329,10 @@ public final class TownHallNet {
         if (result == Assignments.Result.NO_SUCH_PROFESSION) {
             tell(player, "villagepax.screen.assign.unknown",
                     Text.literal(profession.map(Identifier::toString).orElse("?")));
+            return;
+        }
+        if (result == Assignments.Result.LOCKED) {
+            tell(player, "villagepax.screen.assign.locked");
             return;
         }
         if (result != Assignments.Result.DONE || citizen == null) {

@@ -4,8 +4,11 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.villagepax.core.EnumCodecs;
 import com.villagepax.core.Named;
+import com.villagepax.sim.SettlementLevel;
 import net.minecraft.util.Identifier;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -34,9 +37,39 @@ import java.util.Optional;
  * @param role        чем здание служит колонии
  * @param profession  профессия, для которой это мастерская
  * @param starting    ставит ли деревня народа это здание сразу при появлении
+ * @param minLevel    с какой ступени колонии это здание можно размечать
+ * @param crafts      что в этой мастерской делают из чего
  */
 public record BuildingType(String displayName, Role role, Optional<Identifier> profession,
-                           boolean starting) {
+                           boolean starting, SettlementLevel minLevel, List<Craft> crafts) {
+
+    /**
+     * Одна работа мастерской: из чего и что выходит.
+     * <p>
+     * Рецепт у <b>здания</b>, а не у ремесла, и это решение по смыслу.
+     * Пивовар норманнов варит эль, а знахарь майя — какао; ремесло у них
+     * одно и то же («стоять у котла»), а выходит разное, потому что разная
+     * мастерская. Повесь рецепт на ремесло — и пришлось бы заводить два
+     * ремесла, отличающихся одной строкой.
+     * <p>
+     * Предметы названы опознавателями, а не codec'ом предмета: рецепт
+     * читается при загрузке датапака, а спрашивать реестр предметов в этот
+     * миг незачем — искать их придётся всё равно в мире, когда житель
+     * встанет к котлу.
+     *
+     * @param from  что расходуется: предмет и сколько
+     * @param to    что выходит
+     * @param count сколько выходит за одну работу
+     */
+    public record Craft(Map<Identifier, Integer> from, Identifier to, int count) {
+
+        public static final Codec<Craft> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.unboundedMap(Identifier.CODEC, Codec.INT).fieldOf("from")
+                        .forGetter(Craft::from),
+                Identifier.CODEC.fieldOf("to").forGetter(Craft::to),
+                Codec.INT.optionalFieldOf("count", 1).forGetter(Craft::count)
+        ).apply(instance, Craft::new));
+    }
 
     /**
      * Чем здание служит колонии.
@@ -76,8 +109,16 @@ public record BuildingType(String displayName, Role role, Optional<Identifier> p
             Codec.STRING.fieldOf("display_name").forGetter(BuildingType::displayName),
             Role.CODEC.fieldOf("role").forGetter(BuildingType::role),
             Identifier.CODEC.optionalFieldOf("profession").forGetter(BuildingType::profession),
-            Codec.BOOL.optionalFieldOf("starting", false).forGetter(BuildingType::starting)
+            Codec.BOOL.optionalFieldOf("starting", false).forGetter(BuildingType::starting),
+            SettlementLevel.CODEC.optionalFieldOf("min_level", SettlementLevel.HAMLET)
+                    .forGetter(BuildingType::minLevel),
+            Craft.CODEC.listOf().optionalFieldOf("crafts", List.of()).forGetter(BuildingType::crafts)
     ).apply(instance, BuildingType::new));
+
+    /** Можно ли размечать такое здание колонии такой ступени. */
+    public boolean openTo(SettlementLevel level) {
+        return level.ordinal() >= minLevel.ordinal();
+    }
 
     public boolean isTownHall() {
         return role == Role.TOWN_HALL;

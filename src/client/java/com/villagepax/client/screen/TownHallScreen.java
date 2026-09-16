@@ -219,6 +219,60 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
 
     // --- вкладки ---
 
+    /**
+     * Карточка роста: где колония сейчас, что дальше и что это откроет.
+     * <p>
+     * Стоит сразу за советом, до чисел. Совет отвечает «что делать
+     * сегодня», рост — «ради чего вообще всё это»; без второго колония
+     * работает как машина, и это ровно то, на что жаловался заказчик.
+     */
+    private void fillGrowth(TownHallView view) {
+        TownHallView.Growth growth = view.growth();
+        FlowLayout card = Look.card("villagepax.screen.overview.section_growth",
+                new ItemStack(Items.GOLDEN_APPLE));
+
+        card.child(Look.stat(Text.translatable("villagepax.screen.growth.level"),
+                Text.translatable(growth.level()), CAPTION));
+
+        if (growth.next().isEmpty()) {
+            LabelComponent top = Components.label(
+                    Text.translatable("villagepax.screen.growth.top"));
+            top.color(Look.MUTED);
+            top.lineHeight(10);
+            card.child(top.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            body.child(card);
+            return;
+        }
+
+        card.child(Look.stat(Text.translatable("villagepax.screen.growth.next"),
+                Text.translatable(growth.next().get()), CAPTION));
+
+        LabelComponent how = Components.label(Text.translatable("villagepax.screen.growth.how",
+                Text.literal(String.valueOf(growth.needsHall()))));
+        how.color(Look.INK);
+        how.lineHeight(10);
+        card.child(how.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+
+        if (growth.opens().isEmpty()) {
+            LabelComponent nothing = Components.label(
+                    Text.translatable("villagepax.screen.growth.nothing"));
+            nothing.color(Look.MUTED);
+            nothing.lineHeight(10);
+            card.child(nothing.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+        } else {
+            for (String key : growth.opens()) {
+                LabelComponent line = Components.label(
+                        Text.literal("• ").append(Text.translatable(key)));
+                line.color(Look.GOOD);
+                line.lineHeight(10);
+                card.child(line.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            }
+        }
+        body.child(card);
+    }
+
+    /**
+     */
     private void overview(TownHallView view) {
         // Совет — самой первой строкой, до всех чисел. Числа правдивы,
         // но ни одно из них не говорит, что делать дальше, а это и есть
@@ -233,6 +287,8 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
             hint.child(line.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
             body.child(hint);
         });
+
+        fillGrowth(view);
 
         FlowLayout colony = Look.card("villagepax.screen.overview.section_colony",
                 new ItemStack(ModBlocks.TOWN_HALL));
@@ -525,19 +581,28 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         if (known.isEmpty()) {
             return Optional.empty();
         }
+        // Запертые ступенью пропускаются: кнопка, которая переключает
+        // на ремесло и тут же получает отказ, — это сломанная кнопка.
+        // Видно их всё равно — в карточке роста, как цель.
+        List<TownHallView.ProfessionLine> open = known.stream()
+                .filter(line -> !line.locked())
+                .toList();
+        if (open.isEmpty()) {
+            return Optional.empty();
+        }
         if (current.isEmpty()) {
-            return Optional.of(known.get(0).id());
+            return Optional.of(open.get(0).id());
         }
 
-        for (int index = 0; index < known.size(); index++) {
-            if (known.get(index).id().equals(current.get())) {
+        for (int index = 0; index < open.size(); index++) {
+            if (open.get(index).id().equals(current.get())) {
                 // За последней профессией — «без дела», и круг замыкается.
-                return index + 1 < known.size()
-                        ? Optional.of(known.get(index + 1).id())
+                return index + 1 < open.size()
+                        ? Optional.of(open.get(index + 1).id())
                         : Optional.empty();
             }
         }
-        return Optional.of(known.get(0).id());
+        return Optional.of(open.get(0).id());
     }
 
     // --- мелочи вёрстки ---

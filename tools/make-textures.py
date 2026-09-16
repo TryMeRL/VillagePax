@@ -665,6 +665,70 @@ def blueprint():
     return t
 
 
+def ale():
+    """Кружка эля: дерево, обручи, шапка пены.
+
+    Пена — то, по чему кружка узнаётся мгновенно; без неё это просто
+    ведро. Ручка справа, свет слева — как у всего прочего.
+    """
+    t = Tex(CLEAR)
+    mug = {
+        "o": BEAM_DARK,
+        "w": rgb(0x8A6034),
+        "W": rgb(0xA87844),
+        "d": rgb(0x6B4A28),
+        "i": IRON,
+        "f": rgb(0xF2EEE0),
+        "F": rgb(0xD8D2BE),
+        "a": rgb(0xC98A2E),
+    }
+    t.sprite([
+        "ooooooooo",
+        "offfffffo",
+        "ofFffffFo",
+        "oWaaaaado",
+        "oWaaaaado",
+        "oiiiiiiio",
+        "oWaaaaado",
+        "oWaaaaado",
+        "oiiiiiiio",
+        "oWaaaaado",
+        "oWaaaaado",
+        "ooooooooo",
+    ], mug, ox=2, oy=2)
+    # Ручка прирастает к боку кружки: отдельно висящая дужка читается
+    # вторым предметом, а не частью этого.
+    t.dots(BEAM_DARK, (11, 6), (12, 7), (12, 8), (12, 9), (11, 10))
+    t.dots(rgb(0x8A6034), (11, 7), (11, 8), (11, 9))
+    return t
+
+
+def cacao():
+    """Чаша какао: обожжённая глина, красный узор, густой напиток."""
+    t = Tex(CLEAR)
+    cup = {
+        "o": rgb(0x5E3320),
+        "c": rgb(0x9E5436),
+        "C": rgb(0xBA6842),
+        "r": rgb(0xD8A03C),
+        "d": rgb(0x3E2418),
+        "D": rgb(0x55331F),
+    }
+    t.sprite([
+        "oooooooooo",
+        "oddddddddo",
+        "oDddddddDo",
+        "ocCccccCco",
+        "crrccccrrc",
+        "cCcccccCco",
+        "cCcccccCco",
+        "ocCccccCco",
+        " occcccco ",
+        "  oooooo  ",
+    ], cup, ox=3, oy=3)
+    return t
+
+
 COIN_STAMP = [
     " #### ",
     "#+  +#",
@@ -724,6 +788,8 @@ def main():
                 .save("item", "silver_coin"))
     made.append(coin(GOLD_DARK, GOLD, GOLD_LIT, SUN_STAMP)
                 .save("item", "gold_coin"))
+    made.append(ale().save("item", "ale"))
+    made.append(cacao().save("item", "cacao"))
     made.append(purse().save("item", "purse"))
     made.append(blueprint().save("item", "town_hall_blueprint"))
 

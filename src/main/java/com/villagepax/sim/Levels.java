@@ -1,6 +1,7 @@
 package com.villagepax.sim;
 
 import com.villagepax.core.building.BuildingTypes;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 
 /**
@@ -29,6 +30,18 @@ public final class Levels {
      * предела — наказание, которого игрок не заказывал.
      */
     public static void refresh(Settlement settlement) {
+        refresh(null, settlement);
+    }
+
+    /**
+     * То же, но с миром: с ним ступень становится событием.
+     * <p>
+     * Мир нужен только ради праздника — звука, частиц и слов в чат.
+     * Без него уровень всё равно поднимется: проверки зовут этот метод
+     * без мира, и ступень не должна зависеть от того, есть ли кому
+     * её увидеть.
+     */
+    public static void refresh(ServerWorld world, Settlement settlement) {
         int hall = 0;
         for (Building building : settlement.buildings()) {
             if (building.isOperational() && isTownHall(building)) {
@@ -44,6 +57,9 @@ public final class Levels {
 
         if (reached.ordinal() > settlement.level().ordinal()) {
             settlement.setLevel(reached);
+            if (world != null) {
+                Milestones.reached(world, settlement, reached);
+            }
         }
     }
 

@@ -63,6 +63,7 @@ import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.ModTags;
 import com.villagepax.screen.QuestView;
 import com.villagepax.screen.QuestNet;
+import com.villagepax.sim.work.CraftJob;
 import com.villagepax.sim.war.Peace;
 import com.villagepax.sim.war.Raids;
 import com.villagepax.sim.war.Siege;
@@ -8322,7 +8323,9 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Тела не появились");
                 return;
             }
-            raider.linkRaid(colony.id(), UUID.randomUUID());
+            UUID watched = UUID.randomUUID();
+            raider.linkRaid(colony.id(), watched);
+            rememberRaid(manager, colony, watched, raider.getBlockPos(), 1);
 
             GuardJob guard = new GuardJob();
             WorkContext seen = new WorkContext(world, manager, colony, watchman, body);
@@ -8416,6 +8419,10 @@ public class VillagePaxGameTests implements FabricGameTest {
         UUID party = UUID.randomUUID();
         raider.linkRaid(colony.id(), party);
         brother.linkRaid(colony.id(), party);
+        // Осаду поселение обязано помнить: тела отряда, о котором нет
+        // записи, мод убирает сам — и это не придирка проверки, а правило
+        // игры. Состояние «бойцы есть, осады нет» в мире не встречается.
+        rememberRaid(manager, colony, party, raider.getBlockPos(), 2);
 
         context.runAtTick(100, () -> {
             try {
@@ -9735,6 +9742,131 @@ public class VillagePaxGameTests implements FabricGameTest {
         body.discard();
         manager.remove(colony.id());
         world.setBlockState(hall, Blocks.AIR.getDefaultState());
+    }
+
+
+    private static final Identifier BREWERY_SCHEMATIC =
+            new Identifier("villagepax", "norman/brewery_lvl1");
+    private static final Identifier BREWERY_TYPE =
+            new Identifier("villagepax", "norman/brewery");
+
+    /**
+     * Пивоварня открывается деревней — и варит то, чего не добыть киркой.
+     * <p>
+     * Вся задача одной проверкой, потому что это одна цепь, и рвётся она
+     * в любом звене. Заказчик сказал: играть скучно, зацепиться не за что.
+     * Зацепиться теперь есть за что ровно потому, что цепь целая: ступень
+     * запирает ремесло → ратуша второго уровня открывает его → мастерская
+     * даёт работу → работа даёт эль, которого нигде больше нет.
+     * <p>
+     * Каждое звено проверяется отдельным утверждением, и каждое из них
+     * когда-нибудь спасёт: заперто ли до срока, открылось ли вовремя,
+     * ушло ли зерно, появился ли эль.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "growth", tickLimit = 400)
+    public void breweryOpensWithTheVillageAndBrewsAle(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic plan = schematic(context, BREWERY_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos shopAt = context.getAbsolutePos(new BlockPos(0, 8, 6));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Citizen brewer = null;
+
+        try {
+            // --- заперто, пока колония хутор ---
+            if (!(BuildOrders.check(colony, BREWERY_SCHEMATIC, shopAt, BlockRotation.NONE)
+                    instanceof BuildOrders.Result.Locked)) {
+                context.throwGameTestException("Пивоварню дали разметить на хуторе: "
+                        + "ступень ничего не значит");
+                return;
+            }
+
+            Citizen worker = Citizen.newborn("Ansel", "le Brasseur", NORMAN, Gender.MALE);
+            colony.addCitizen(worker);
+            if (Assignments.set(world, manager, colony, worker.id(),
+                    Optional.of(CraftJob.BREWER)) != Assignments.Result.LOCKED) {
+                context.throwGameTestException("Пивовара наняли на хуторе: "
+                        + "ремесло не заперто ступенью");
+                return;
+            }
+
+            // --- деревня открывает и то и другое ---
+            colony.setLevel(SettlementLevel.VILLAGE);
+            if (!(BuildOrders.check(colony, BREWERY_SCHEMATIC, shopAt, BlockRotation.NONE)
+                    instanceof BuildOrders.Result.Placed)) {
+                context.throwGameTestException("Колония стала деревней, а пивоварня "
+                        + "всё заперта: ступень не открывает обещанного");
+                return;
+            }
+
+            Building shop = plan(colony, shopAt, BREWERY_TYPE, BlockRotation.NONE);
+            stockFor(world, colony, plan);
+            if (BuildJob.advance(world, manager, colony.id(), shop.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Пивоварня не встала: варить негде");
+                return;
+            }
+
+            brewer = worker;
+            if (Assignments.set(world, manager, colony, brewer.id(),
+                    Optional.of(CraftJob.BREWER)) != Assignments.Result.DONE) {
+                context.throwGameTestException("В деревне пивовара всё ещё не нанять");
+                return;
+            }
+            brewer.setPosition(Vec3d.ofBottomCenter(shopAt.up()));
+            CitizenSpawner.spawnBody(world, colony, brewer);
+            Workplaces.assign(world, colony);
+
+            // --- работа: зерно в эль ---
+            Warehouse before = Warehouse.of(world, colony);
+            before.add(new ItemStack(Items.WHEAT, 12));
+            int wheat = before.count(Items.WHEAT);
+
+            runWork(world, manager, colony, brewer, 8, Schedule.MORNING_WORK);
+
+            Warehouse after = Warehouse.of(world, colony);
+            if (after.count(ModItems.ALE) <= 0) {
+                context.throwGameTestException("Пивовар отработал восемь решений "
+                        + "и не сварил ничего: эля на складе " + after.count(ModItems.ALE)
+                        + ", зерна " + after.count(Items.WHEAT));
+            }
+            if (after.count(Items.WHEAT) >= wheat) {
+                context.throwGameTestException("Эль взялся из воздуха: зерна было "
+                        + wheat + ", осталось " + after.count(Items.WHEAT));
+            }
+        } finally {
+            if (brewer != null) {
+                discardBodies(world, colony);
+            }
+            // Здания может и не быть: проверка падает на первом же
+            // утверждении, если ворота ступени сняли, — и уборка не имеет
+            // права заслонить собой настоящую причину падения.
+            colony.buildings().stream()
+                    .filter(one -> one.type().equals(BREWERY_TYPE))
+                    .findFirst()
+                    .ifPresent(one -> demolish(world, one, plan));
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * Записать поселению осаду, которую проверка изображает телами.
+     * <p>
+     * Без записи тела набега живут до первой секунды: мод убирает бойцов,
+     * о чьём отряде поселение не помнит. Правильно так и есть — а проверке
+     * остаётся не выдумывать состояний, которых в игре не бывает.
+     */
+    private static void rememberRaid(SettlementManager manager, Settlement colony, UUID party,
+                                     BlockPos musters, int fighters) {
+        manager.update(colony.id(), state -> state.besiege(
+                new WarParty(party, UUID.randomUUID(), NORMAN, musters, fighters, 0L, 9_000L), 0L));
     }
 
 

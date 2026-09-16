@@ -39,7 +39,8 @@
     "villagepax:norman/warehouse",
     "villagepax:norman/builder_hut",
     "villagepax:norman/lumberjack",
-    "villagepax:norman/farm"
+    "villagepax:norman/farm",
+    "villagepax:norman/brewery"
   ],
   "road": [
     "minecraft:gravel",

@@ -1,5 +1,6 @@
 package com.villagepax.sim.work;
 
+import com.villagepax.core.profession.Profession;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
@@ -26,7 +27,10 @@ public final class Assignments {
     public enum Result {
         DONE,
         NO_SUCH_CITIZEN,
-        NO_SUCH_PROFESSION
+        NO_SUCH_PROFESSION,
+
+        /** Ремесло есть, но колония до него ещё не доросла. */
+        LOCKED
     }
 
     private Assignments() {
@@ -44,8 +48,16 @@ public final class Assignments {
         if (colony.citizen(citizenId).isEmpty()) {
             return Result.NO_SUCH_CITIZEN;
         }
-        if (profession.isPresent() && ProfessionManager.get(profession.get()).isEmpty()) {
+        Profession craft = profession.map(id -> ProfessionManager.get(id).orElse(null))
+                .orElse(null);
+        if (profession.isPresent() && craft == null) {
             return Result.NO_SUCH_PROFESSION;
+        }
+        if (craft != null && !craft.openTo(colony.level())) {
+            // Ремесло откроется со ступенью. Отказ здесь, а не в экране:
+            // пульт — только способ попросить, а правило одно на все
+            // способы, включая будущие команды и чужие моды.
+            return Result.LOCKED;
         }
 
         manager.update(colony.id(), settlement -> {

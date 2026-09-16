@@ -176,6 +176,7 @@ public final class Villages {
         for (Identifier type : startingBuildings(culture)) {
             raiseNow(world, manager, village, type);
         }
+        openForBusiness(world, village);
         // А это она строит при игроке.
         planNext(world, manager, village, culture);
 
@@ -183,6 +184,37 @@ public final class Villages {
         VillagePax.LOGGER.info("Деревня {} народа {} встала на {}",
                 village.name(), cultureId, site.toShortString());
         return Optional.of(village);
+    }
+
+    /**
+     * Деревня встречает игрока с полным прилавком.
+     * <p>
+     * До этого первая встреча с торговлей была <b>тупиком</b>, и это
+     * стоило моду половины впечатления. Игрок находил деревню, открывал
+     * разговор со старейшиной и видел прилавок, на котором нельзя ни
+     * купить (монеты у него ещё нет), ни продать (монеты нет у деревни:
+     * кошель наполнялся только на суточной смене). Обе стороны разводили
+     * руками, и мод выглядел сломанным — при том что работал ровно так,
+     * как написан.
+     * <p>
+     * Починка идёт по той же мысли, по какой у деревни сразу стоят дом
+     * и поле: <b>деревня старше игрока</b>. Она торгует не первый год,
+     * и у неё есть и выручка, и товар на полке. Немного: половина
+     * предела кошеля и по две сделки каждого товара — этого хватает,
+     * чтобы первый разговор был живым, и мало, чтобы деревня заменила
+     * собой игру.
+     */
+    private static void openForBusiness(ServerWorld world, Settlement village) {
+        Warehouse warehouse = Warehouse.of(world, village);
+        Coins.earn(warehouse.coins(), PURSE_CAP / 2).forEach(left ->
+                ItemScatterer.spawn(world, village.center().getX(), village.center().getY(),
+                        village.center().getZ(), left));
+
+        for (TradeTable.Deal deal : Trading.dealsOn(village, Trading.Side.VILLAGE_SELLS)) {
+            // Вдвое против сделки: одну продать, одну оставить себе.
+            // Правило «последнее не отдают» иначе оставило бы полку пустой.
+            warehouse.add(new ItemStack(deal.item(), deal.count() * 2));
+        }
     }
 
     /**

@@ -9870,6 +9870,85 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    /**
+     * Деревня встречает игрока живым прилавком, а не двумя отказами.
+     * <p>
+     * Заказчик назвал торговлю среди того, что «криво работает», и разбор
+     * кода объяснил почему. Первая встреча была <b>тупиком с обеих
+     * сторон</b>: купить игрок не мог (монеты у него ещё нет и взяться
+     * ей неоткуда), продать тоже — у самой деревни кошель был пуст,
+     * потому что наполнялся только на суточной смене. Оба прилавка
+     * серые, мод выглядит сломанным.
+     * <p>
+     * Проверяется ровно то, что делает игрок в первые минуты: подходит
+     * и пробует и то и другое. Обе сделки обязаны пройти на нулевом
+     * доверии — на большее в первую встречу ему рассчитывать не на что.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trade_first", tickLimit = 300)
+    public void villageMeetsThePlayerWithAFullStall(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(16, 2, 16));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+
+        try {
+            for (int x = 0; x <= 32; x++) {
+                for (int z = 0; z <= 32; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала: помеха="
+                        + whoBlocks(manager, centre));
+                return;
+            }
+
+            Warehouse wares = Warehouse.of(world, village);
+            if (Trading.purse(wares) <= 0) {
+                context.throwGameTestException("У деревни пустой кошель в день знакомства: "
+                        + "продать ей нечего и некому");
+            }
+
+            // --- игрок покупает: у него монета, у деревни товар ---
+            TradeTable.Deal sells = Trading.dealsOn(village, Trading.Side.VILLAGE_SELLS).get(0);
+            SimpleInventory hands = new SimpleInventory(36);
+            hands.addStack(new ItemStack(ModItems.COIN, 32));
+
+            Trading.Outcome bought = Trading.trade(village, player, hands,
+                    Warehouse.of(world, village), Trading.Side.VILLAGE_SELLS, sells,
+                    left -> hands.addStack(left));
+            if (bought != Trading.Outcome.DONE) {
+                context.throwGameTestException("Купить у деревни нельзя в первый же день: "
+                        + bought + ", товар " + sells.item()
+                        + ", на складе " + Warehouse.of(world, village).count(sells.item()));
+            }
+
+            // --- и продаёт: у деревни монета ---
+            TradeTable.Deal buys = Trading.dealsOn(village, Trading.Side.VILLAGE_BUYS).get(0);
+            hands.addStack(new ItemStack(buys.item(), buys.count() * 2));
+            Trading.Outcome sold = Trading.trade(village, player, hands,
+                    Warehouse.of(world, village), Trading.Side.VILLAGE_BUYS, buys,
+                    left -> hands.addStack(left));
+            if (sold != Trading.Outcome.DONE) {
+                context.throwGameTestException("Продать деревне нельзя в первый же день: "
+                        + sold + ", товар " + buys.item()
+                        + ", в кошеле " + Trading.purse(Warehouse.of(world, village)));
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+
     /** Сколько хранилищ стоит в следе здания прямо сейчас. */
     private static int containersIn(ServerWorld world, Building building, Schematic schematic) {
         int found = 0;

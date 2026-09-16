@@ -241,6 +241,21 @@ public final class TownHallNet {
         int level = colony.building(building).map(Building::level).orElse(0);
 
         tell(player, BuildOrders.upgradeKey(result), name, Text.literal(String.valueOf(level)));
+
+        // И сразу — что нести. Без этой строки «улучшение не проходит»:
+        // заказ принят, билдер ждёт камня, а игрок видит только то, что
+        // ничего не происходит. Ровно та же строка, что и при разметке,
+        // и по той же причине.
+        if (result instanceof BuildOrders.Result.Placed placed) {
+            Map<Item, Integer> missing = BuildOrders.stillNeeded(
+                    player.getServerWorld(), colony, placed.site());
+            if (missing.isEmpty()) {
+                tell(player, "villagepax.screen.order.needs_none");
+            } else {
+                tell(player, "villagepax.screen.order.needs",
+                        BuildOrders.shoppingLine(missing, 5));
+            }
+        }
     }
 
     /**

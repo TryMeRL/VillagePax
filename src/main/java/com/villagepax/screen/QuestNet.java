@@ -457,12 +457,12 @@ public final class QuestNet {
             }
         }
 
-        List<String> rewards = new ArrayList<>();
+        List<QuestView.Prize> rewards = new ArrayList<>();
         for (Quest.Reward reward : quest.rewards()) {
             if (reward instanceof Quest.Reward.Give give) {
-                rewards.add(Registries.ITEM.getId(give.item()) + " x" + give.count());
+                rewards.add(new QuestView.Prize(Optional.of(give.item()), give.count()));
             } else if (reward instanceof Quest.Reward.Trust trust) {
-                rewards.add("+" + trust.amount());
+                rewards.add(new QuestView.Prize(Optional.empty(), trust.amount()));
             }
         }
 

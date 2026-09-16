@@ -1,39 +1,235 @@
 {
   "parent": "minecraft:block/block",
+  "ambientocclusion": false,
   "textures": {
-    "cloth": "villagepax:block/laundry",
-    "particle": "villagepax:block/laundry"
+    "rope": "villagepax:block/laundry_rope",
+    "linen": "villagepax:block/laundry_linen",
+    "dyed": "villagepax:block/laundry_dyed",
+    "particle": "villagepax:block/laundry_linen"
   },
   "elements": [
     {
+      "__comment": "Верёвка через весь блок: за неё и держится всё прочее",
       "from": [
-        1,
         0,
-        7
+        14.5,
+        7.5
       ],
       "to": [
-        15,
         16,
-        9
+        15.5,
+        8.5
       ],
       "faces": {
         "north": {
-          "texture": "#cloth"
+          "texture": "#rope",
+          "uv": [
+            0,
+            7,
+            16,
+            8
+          ]
         },
         "south": {
-          "texture": "#cloth"
+          "texture": "#rope",
+          "uv": [
+            0,
+            7,
+            16,
+            8
+          ]
         },
         "east": {
-          "texture": "#cloth"
+          "texture": "#rope",
+          "uv": [
+            7,
+            7,
+            8,
+            8
+          ]
         },
         "west": {
-          "texture": "#cloth"
+          "texture": "#rope",
+          "uv": [
+            7,
+            7,
+            8,
+            8
+          ]
         },
         "up": {
-          "texture": "#cloth"
+          "texture": "#rope",
+          "uv": [
+            0,
+            7,
+            16,
+            8
+          ]
         },
         "down": {
-          "texture": "#cloth"
+          "texture": "#rope",
+          "uv": [
+            0,
+            7,
+            16,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "__comment": "Рубаха холщовая: полблока толщины и наклон от ветра. Угол ровно 22.5: ванильный формат других не принимает, и модель с 5.625 не загрузилась бы вовсе",
+      "from": [
+        1.5,
+        4,
+        7.5
+      ],
+      "to": [
+        7.5,
+        14.5,
+        8.5
+      ],
+      "rotation": {
+        "origin": [
+          4.5,
+          14.5,
+          8
+        ],
+        "axis": "z",
+        "angle": -22.5
+      },
+      "faces": {
+        "north": {
+          "texture": "#linen",
+          "uv": [
+            1,
+            1,
+            7,
+            12
+          ]
+        },
+        "south": {
+          "texture": "#linen",
+          "uv": [
+            1,
+            1,
+            7,
+            12
+          ]
+        },
+        "east": {
+          "texture": "#linen",
+          "uv": [
+            7,
+            1,
+            8,
+            12
+          ]
+        },
+        "west": {
+          "texture": "#linen",
+          "uv": [
+            1,
+            1,
+            2,
+            12
+          ]
+        },
+        "up": {
+          "texture": "#linen",
+          "uv": [
+            1,
+            1,
+            7,
+            2
+          ]
+        },
+        "down": {
+          "texture": "#linen",
+          "uv": [
+            1,
+            11,
+            7,
+            12
+          ]
+        }
+      }
+    },
+    {
+      "__comment": "Рубаха крашеная: висит ниже и повёрнута в другую сторону",
+      "from": [
+        9,
+        3,
+        7.5
+      ],
+      "to": [
+        15,
+        14.5,
+        8.5
+      ],
+      "rotation": {
+        "origin": [
+          12,
+          14.5,
+          8
+        ],
+        "axis": "z",
+        "angle": 22.5
+      },
+      "faces": {
+        "north": {
+          "texture": "#dyed",
+          "uv": [
+            1,
+            1,
+            7,
+            12
+          ]
+        },
+        "south": {
+          "texture": "#dyed",
+          "uv": [
+            1,
+            1,
+            7,
+            12
+          ]
+        },
+        "east": {
+          "texture": "#dyed",
+          "uv": [
+            7,
+            1,
+            8,
+            12
+          ]
+        },
+        "west": {
+          "texture": "#dyed",
+          "uv": [
+            1,
+            1,
+            2,
+            12
+          ]
+        },
+        "up": {
+          "texture": "#dyed",
+          "uv": [
+            1,
+            1,
+            7,
+            2
+          ]
+        },
+        "down": {
+          "texture": "#dyed",
+          "uv": [
+            1,
+            11,
+            7,
+            12
+          ]
         }
       }
     }

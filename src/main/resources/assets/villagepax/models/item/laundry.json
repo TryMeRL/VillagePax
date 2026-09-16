@@ -1,6 +1,3 @@
 {
-  "parent": "minecraft:item/generated",
-  "textures": {
-    "layer0": "villagepax:block/laundry"
-  }
+  "parent": "villagepax:block/laundry"
 }

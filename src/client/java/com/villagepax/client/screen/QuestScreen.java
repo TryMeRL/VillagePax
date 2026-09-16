@@ -398,10 +398,8 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         if (!offer.rewards().isEmpty()) {
             FlowLayout gives = Look.card("villagepax.quest.screen.gives",
                     new ItemStack(ModItems.COIN));
-            for (String reward : offer.rewards()) {
-                LabelComponent line = Components.label(Text.literal(reward));
-                line.color(Look.GOOD);
-                gives.child(line);
+            for (QuestView.Prize prize : offer.rewards()) {
+                gives.child(prizeRow(prize));
             }
             body.child(gives);
         }
@@ -486,6 +484,42 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
      * Требование строкой: предмет, сколько есть, сколько надо. Хватает —
      * зелёным, не хватает — красным: это видно быстрее, чем читается.
      */
+    /**
+     * Строка награды: значок, человеческое имя и число.
+     * <p>
+     * Раньше здесь стояла строка, собранная сервером, и в ней был
+     * опознаватель предмета: игрок читал {@code villagepax:coin x9}.
+     * Теперь вещь доезжает вещью, и имя ей даёт клиент — на своём языке.
+     */
+    private Component prizeRow(QuestView.Prize prize) {
+        FlowLayout row = Containers.horizontalFlow(Sizing.content(), Sizing.content());
+        row.verticalAlignment(VerticalAlignment.CENTER);
+        row.gap(4);
+
+        if (prize.isTrust()) {
+            LabelComponent trust = Components.label(
+                    Text.translatable("villagepax.quest.screen.reward_trust",
+                            Text.literal("+" + prize.amount())));
+            trust.color(Look.GOOD);
+            trust.shadow(false);
+            row.child(trust);
+            return row;
+        }
+
+        ItemStack goods = new ItemStack(prize.goods().orElseThrow(), prize.amount());
+        ItemComponent picture = Components.item(goods);
+        picture.showOverlay(true);
+        picture.setTooltipFromStack(true);
+        row.child(picture);
+
+        LabelComponent name = Components.label(Text.translatable("villagepax.trade.screen.goods",
+                goods.getName(), Text.literal(String.valueOf(prize.amount()))));
+        name.color(Look.GOOD);
+        name.shadow(false);
+        row.child(name);
+        return row;
+    }
+
     private Component needRow(QuestView.Need need) {
         FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         row.gap(4);

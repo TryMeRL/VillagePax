@@ -519,6 +519,57 @@ def laundry():
     return t
 
 
+def cloth_frames(base, dark, lit, frames=3):
+    """Ткань в несколько кадров: складки сдвигаются, и бельё трепещет.
+
+    Анимация в Minecraft — это кадры, сложенные в столбик, и .mcmeta
+    рядом. Три кадра с переливом дают тихое колыхание, от которого
+    висящая рубаха перестаёт быть наклейкой. Дороже это ничего не стоит:
+    16 на 48 пикселей.
+    """
+    sheets = []
+    for frame in range(frames):
+        t = Tex(base)
+        # Кайма: у настоящей рубахи виден край полотна.
+        t.rect(0, 0, 15, 0, lit)
+        t.rect(0, 15, 15, 15, dark)
+        t.rect(0, 0, 0, 15, lit)
+        t.rect(15, 0, 15, 15, dark)
+        # Складки: три вертикальных, и каждый кадр они гуляют на пиксель.
+        for index, column in enumerate((3, 7, 11)):
+            shift = ((frame + index) % 3) - 1
+            x = max(1, min(14, column + shift))
+            for y in range(2, 14):
+                t.set(x, y, dark if (y + frame) % 4 else lit)
+        sheets.append(t)
+    return sheets
+
+
+def save_frames(sheets, folder, name):
+    """Столбик кадров одной картинкой: так их и ждёт игра."""
+    tall = Image.new("RGBA", (N, N * len(sheets)), CLEAR)
+    for index, sheet in enumerate(sheets):
+        frame = Image.new("RGBA", (N, N), CLEAR)
+        frame.putdata([sheet.px[y][x] for y in range(N) for x in range(N)])
+        tall.paste(frame, (0, index * N))
+    path = OUT / folder / (name + ".png")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tall.save(path)
+    return path
+
+
+def rope_texture():
+    """Верёвка: витое волокно, сплошная плитка."""
+    t = Tex(ROPE)
+    for y in range(N):
+        for x in range(N):
+            if (x + y) % 4 == 0:
+                t.set(x, y, BURLAP_LIT)
+            elif (x - y) % 4 == 0:
+                t.set(x, y, BARK_DARK)
+    return t
+
+
 def marker(colour, glyph):
     """Метка разметки: тёмная плашка со знаком.
 
@@ -757,8 +808,53 @@ SUN_STAMP = [
 ]
 
 
+# --- подложки интерфейса ---------------------------------------------------
+#
+# Сюда я пришёл не от красоты, а от жалобы: «вырвиглазное меню, ничего
+# не разобрать». Причина оказалась ровно одна и очень простая. Карточки
+# разделов рисовались вдавленной плашкой owo — а она ТЁМНО-СЕРАЯ, —
+# и по ней шёл мой тёмно-коричневый текст. Два тёмных слоя друг на друге
+# читаются никак.
+#
+# Чинить перекраской текста в светлый значило бы вернуть «чисто тёмное
+# меню», от которого заказчик отказался раньше. Поэтому подложки свои:
+# лён окна и пергамент карточек. Тёмные чернила по светлой бумаге —
+# то, как выглядят и ванильные книги, и интерфейс MineColonies, на
+# который заказчик просил равняться.
+
+
+def linen():
+    """Поле окна: некрашеный лён, едва заметная нить."""
+    base = rgb(0xC9B695)
+    dark = rgb(0xBCA884)
+    lit = rgb(0xD6C4A6)
+    t = Tex(base)
+    for y in range(N):
+        for x in range(N):
+            if (x + y * 3) % 7 == 0:
+                t.set(x, y, lit)
+            elif (x * 2 + y) % 11 == 0:
+                t.set(x, y, dark)
+    return t
+
+
+def parchment():
+    """Поле карточки: бумага светлее окна, чтобы карточка выступала."""
+    base = rgb(0xE3D6B4)
+    dark = rgb(0xD5C6A0)
+    lit = rgb(0xF0E6CA)
+    t = Tex(base)
+    for x, y in [(3, 2), (4, 2), (11, 5), (2, 9), (13, 12), (8, 14)]:
+        t.set(x, y, lit)
+    for x, y in [(6, 3), (12, 7), (5, 8), (9, 11), (1, 13)]:
+        t.set(x, y, dark)
+    return t
+
+
 def main():
     made = []
+    made.append(linen().save("gui", "linen"))
+    made.append(parchment().save("gui", "parchment"))
 
     made.append(plaster(PLASTER, PLASTER_DARK, PLASTER_LIT, PLASTER_CRACK)
                 .save("block", "plaster"))
@@ -775,6 +871,9 @@ def main():
     made.append(firewood_side().save("block", "firewood_side"))
     made.append(grain_sack().save("block", "grain_sack"))
     made.append(laundry().save("block", "laundry"))
+    made.append(rope_texture().save("block", "laundry_rope"))
+    made.append(save_frames(cloth_frames(LINEN, LINEN_DARK, LINEN_LIT), "block", "laundry_linen"))
+    made.append(save_frames(cloth_frames(DYED, DYED_DARK, rgb(0x87A0BC)), "block", "laundry_dyed"))
 
     for name, colour in (("bed", MARK_BED), ("door", MARK_DOOR),
                          ("storage", MARK_STORE), ("workstation", MARK_WORK),

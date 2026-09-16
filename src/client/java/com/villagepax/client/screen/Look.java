@@ -27,14 +27,20 @@ import net.minecraft.util.Identifier;
  * подписи в одном месте {@code 0xA0A0A0}, в другом {@code 0xB0B0B0}.
  * По отдельности это незаметно, вместе — выглядит как два мода.
  * <p>
- * <b>Светлая панель, а не тёмное стекло.</b> Первый вид был чёрной
- * полупрозрачной подложкой со светлым текстом: строго, дёшево и —
- * как сказал заказчик — «чисто тёмное». Мод про деревни, дерево и
- * пергамент, и место ему рядом с ванильным сундуком, а не рядом с
- * консолью. Поэтому панель теперь ванильная ({@link Surface#PANEL}),
- * разделы — вдавленные ({@link Surface#PANEL_INSET}), заголовок лежит
- * на доске из настоящей текстуры дерева, а текст тёмный, как во всех
- * ванильных окнах.
+ * <b>Светлая бумага под тёмными чернилами — и своя, а не чужая.</b>
+ * Первый вид был чёрным стеклом со светлым текстом, и заказчик назвал
+ * его «чисто тёмным». Второй — ванильными подложками owo, и вышло хуже:
+ * {@code Surface.PANEL_INSET}, которым рисовались все карточки, —
+ * <b>тёмно-серый</b>, а текст по нему шёл мой тёмно-коричневый. Два
+ * тёмных слоя друг на друге не читаются вовсе, и заказчик сказал ровно
+ * это: «вырвиглазное меню, ничего не разобрать».
+ * <p>
+ * Чинить перекраской чернил в светлые значило бы вернуться к тёмному
+ * меню, от которого он отказался. Поэтому подложки свои: лён у окна,
+ * пергамент у карточек. Тёмные чернила по светлой бумаге — то, как
+ * выглядят и ванильная книга, и интерфейс MineColonies, на который
+ * заказчик просил равняться. Заголовок по-прежнему лежит на доске
+ * из настоящего дерева: окно начинается с вывески.
  * <p>
  * <b>Тень у текста выключена.</b> На тёмном фоне тень отделяла букву от
  * подложки, на светлом она превращается в грязь под каждой буквой. Это
@@ -76,28 +82,47 @@ public final class Look {
     private static final Identifier BOARD =
             new Identifier("minecraft", "textures/block/stripped_dark_oak_log.png");
 
-    /** Пилюля: вдавленное гнездо под число. */
-    private static final int PILL_FILL = 0x22000000;
-    private static final int PILL_EDGE = 0x50FFFFFF;
+    /**
+     * Пилюля: гнездо под число.
+     * <p>
+     * По светлой бумаге гнездо делается <b>тенью</b>, а не подсветкой:
+     * белёсая подложка на белёсом фоне не видна вовсе. Прежние значения
+     * рисовались под тёмную панель и на бумаге пропали.
+     */
+    private static final int PILL_FILL = 0x1A000000;
+    private static final int PILL_EDGE = 0x40000000;
 
     /** Кнопка вкладки: обычная, наведённая, выбранная. */
-    private static final int TAB_FILL = 0x30000000;
-    private static final int TAB_HOVER = 0x40FFFFFF;
-    private static final int TAB_CHOSEN = 0xC0C08A30;
+    private static final int TAB_FILL = 0x18000000;
+    private static final int TAB_HOVER = 0x30000000;
+    private static final int TAB_CHOSEN = 0xFFB8862A;
 
     /** Черта: тёмная линия и светлый подбой под ней — гравировкой. */
-    private static final int RULE_DARK = 0x60000000;
-    private static final int RULE_LIGHT = 0x50FFFFFF;
+    private static final int RULE_DARK = 0x50000000;
+    private static final int RULE_LIGHT = 0x60FFFFFF;
 
     private Look() {
     }
 
-    /** Панель экрана: ванильная, с отступом и промежутками. */
+    /** Поле окна: некрашеный лён. */
+    private static final Identifier LINEN_BG =
+            new Identifier("villagepax", "textures/gui/linen.png");
+
+    /** Поле карточки: бумага светлее окна, чтобы карточка выступала. */
+    private static final Identifier PARCHMENT_BG =
+            new Identifier("villagepax", "textures/gui/parchment.png");
+
+    /** Рамка окна и карточки: тёмное дерево, тонкой чертой. */
+    private static final int FRAME = 0xFF3A2A18;
+    private static final int CARD_FRAME = 0x903A2A18;
+
+    /** Панель экрана: льняное поле в деревянной рамке. */
     public static FlowLayout panel(int width, int height, int padding, int gap) {
         FlowLayout panel = Containers.verticalFlow(Sizing.fixed(width), Sizing.fixed(height));
         // По отдельности, а не цепочкой: surface возвращает общий тип
         // родителя, и gap на нём уже не найти.
-        panel.surface(Surface.PANEL);
+        panel.surface(Surface.tiled(LINEN_BG, 16, 16)
+                .and(Surface.outline(FRAME)));
         panel.padding(Insets.of(padding));
         panel.gap(gap);
         return panel;
@@ -136,7 +161,8 @@ public final class Look {
      */
     public static FlowLayout card(String headingKey, ItemStack icon) {
         FlowLayout card = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
-        card.surface(Surface.PANEL_INSET);
+        card.surface(Surface.tiled(PARCHMENT_BG, 16, 16)
+                .and(Surface.outline(CARD_FRAME)));
         card.padding(Insets.of(6));
         card.gap(4);
 
@@ -238,7 +264,14 @@ public final class Look {
     /** Кнопка вкладки. Выбранная — золотая и выключенная: нажимать нечего. */
     public static ButtonComponent tab(Text title, boolean chosen, int width,
                                       java.util.function.Consumer<ButtonComponent> press) {
-        ButtonComponent button = Components.button(title, press);
+        // Цвет букв задаётся СТИЛЕМ текста, а не кнопкой, и это не
+        // придирка. Выбранная вкладка выключена (нажимать её незачем),
+        // а выключенной кнопке ваниль рисует надпись серой — по янтарной
+        // подложке её не прочесть. Стиль текста ваниль уважает и в таком
+        // состоянии: ровно на этом и держится читаемость вкладок.
+        ButtonComponent button = Components.button(
+                title.copy().styled(style -> style.withColor(chosen ? 0x2A1E10 : 0x4A3A22)),
+                press);
         button.renderer(ButtonComponent.Renderer.flat(TAB_FILL, TAB_HOVER, TAB_CHOSEN));
         button.textShadow(false);
         button.active(!chosen);
@@ -250,7 +283,8 @@ public final class Look {
     /** Обычная кнопка действия — тем же плоским письмом, что и вкладки. */
     public static ButtonComponent action(Text title, int width,
                                          java.util.function.Consumer<ButtonComponent> press) {
-        ButtonComponent button = Components.button(title, press);
+        ButtonComponent button = Components.button(
+                title.copy().styled(style -> style.withColor(0x2A1E10)), press);
         button.renderer(ButtonComponent.Renderer.flat(TAB_FILL, TAB_HOVER, 0x30000000));
         button.textShadow(false);
         button.horizontalSizing(Sizing.fixed(width));

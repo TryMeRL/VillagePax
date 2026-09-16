@@ -58,7 +58,7 @@ public final class ModBlocks {
      * жителя, ни игрока. Ломается мгновенно, как ткань, а не как стена.
      */
     public static final Block LAUNDRY = register("laundry",
-            new Block(AbstractBlock.Settings.create()
+            new LaundryBlock(AbstractBlock.Settings.create()
                     .noCollision()
                     .breakInstantly()
                     .sounds(BlockSoundGroup.WOOL)

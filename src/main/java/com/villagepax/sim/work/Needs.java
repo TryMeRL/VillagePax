@@ -5,6 +5,7 @@ import com.villagepax.core.ModTags;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.core.config.Configs;
 import com.villagepax.sim.Citizen;
+import com.villagepax.sim.Comfort;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Warehouse;
@@ -128,7 +129,11 @@ public final class Needs {
                 citizen.setHappiness(citizen.happiness() - HAPPINESS_HUNGRY);
                 citizen.addDiscontent();
             } else {
-                citizen.setHappiness(citizen.happiness() + HAPPINESS_FED);
+                // Сытость — основа, уют — прибавка. Голодному никакой
+                // фонарь не поможет, и складывать их поэтому нельзя:
+                // уют достаётся только тому, кто поел.
+                citizen.setHappiness(citizen.happiness() + HAPPINESS_FED
+                        + Comfort.of(world, settlement, citizen));
                 citizen.contented();
             }
 

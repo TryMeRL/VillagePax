@@ -20,6 +20,7 @@ import net.minecraft.util.math.Vec3d;
 import com.villagepax.core.war.WarParty;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
+import com.villagepax.sim.Comfort;
 import com.villagepax.sim.Gender;
 import com.villagepax.sim.Levels;
 import com.villagepax.sim.Owner;
@@ -134,6 +135,7 @@ import net.minecraft.resource.Resource;
 import net.minecraft.util.math.Vec3i;
 
 import com.villagepax.sim.Warehouse;
+import com.villagepax.sim.build.Access;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Materials;
@@ -4631,8 +4633,19 @@ public class VillagePaxGameTests implements FabricGameTest {
 
     // --- носильщик со слотами ---
 
-    /** Далеко от склада: билдер сам до сундука не дотянется. */
-    private static final BlockPos FAR_SITE = new BlockPos(20, 8, 0);
+    /**
+     * Далеко от склада: билдер сам до сундука не дотянется.
+     * <p>
+     * Двенадцать блоков, а не двадцать. Дело не в правиле — до сундука
+     * не дотянуться уже с трёх, — а в том, что мир игровых тестов
+     * <b>общий</b>, площадки стоят в нём сеткой, и стройка за двадцать
+     * блоков от своей уезжала к соседям, в область, которая не всегда
+     * загружена. Тело билдера, отправленное туда, переставало
+     * существовать, стройка стояла на нуле, и падало это через раз —
+     * причём падало у тех, кто рядом. Нашлось, когда добавление двух
+     * новых проверок сдвинуло раскладку.
+     */
+    private static final BlockPos FAR_SITE = new BlockPos(12, 8, 0);
 
     /**
      * Один житель поднимает стройку без курьера.
@@ -4798,7 +4811,9 @@ public class VillagePaxGameTests implements FabricGameTest {
 
             if (!site.isOperational()) {
                 context.throwGameTestException("Стройка встала при неработающем курьере: шаг "
-                        + site.nextStep() + " из " + housePlan.plan().steps().size());
+                        + site.nextStep() + " из " + housePlan.plan().steps().size()
+                        + ", тел рядом " + world.getEntitiesByClass(CitizenEntity.class,
+                                new Box(hall).expand(48), alive -> true).size());
             }
             int leftOver = Warehouse.of(world, colony).totalItems();
             if (leftOver != 0) {
@@ -9949,6 +9964,185 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    /**
+     * На поле можно войти с земли, а не только спрыгнуть в него.
+     * <p>
+     * Жалоба заказчика, повторённая трижды: «который раз не взобраться
+     * на ферму, с неё не смогут забрать посев». Здание стоит на цоколе,
+     * под цоколь мод подсыпает опору, и порог оказывается на два блока
+     * выше земли. Шаг в один блок делают и человек, и ванильный поиск
+     * пути; <b>два не делает никто</b>, и поле стоит нетронутым.
+     * <p>
+     * Проверяется ровно то, чего не хватало: у калитки снаружи обязана
+     * быть ступень не ниже чем на блок под порогом. Всё остальное —
+     * дело ног.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "porch", tickLimit = 400)
+    public void farmCanBeWalkedIntoFromTheGround(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic plan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        // Поле на два блока выше земли вокруг — ровно то, что получается
+        // в игре после подсыпки опоры на склоне. Ступени пойдут на запад
+        // от калитки, и место под них оставлено внутри площадки: за её
+        // краем начинается соседняя проверка.
+        BlockPos farmAt = context.getAbsolutePos(new BlockPos(3, 4, 3));
+        List<BlockPos> ground = new ArrayList<>();
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = null;
+
+        try {
+            // Земля кладётся только там, где стоит поле и куда ляжет
+            // крыльцо. Мир игровых тестов общий, и площадка, расписанная
+            // на двадцать блоков вокруг, затирает соседние проверки —
+            // на этом я и попался, получив мигание в чужих проверках
+            // подвоза.
+            for (int x = 0; x <= 12; x++) {
+                for (int z = 0; z <= 12; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 2, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    ground.add(at);
+                }
+            }
+
+            farm = plan(colony, farmAt, FARM_TYPE, BlockRotation.NONE);
+            stockFor(world, colony, plan);
+            if (BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Поле не встало: входить некуда");
+                return;
+            }
+
+            List<BlockPos> doors = Access.entrances(farm, plan);
+            if (doors.isEmpty()) {
+                context.throwGameTestException("У поля не нашлось ни калитки, ни двери");
+                return;
+            }
+
+            for (BlockPos door : doors) {
+                // Снаружи — это в сторону от середины поля; у калитки
+                // норманнского поля это запад.
+                BlockPos outside = nearestOutside(farm, plan, door);
+                int top = topSolid(world, outside, door.getY() + 1);
+                if (top < door.getY() - 1) {
+                    context.throwGameTestException("У входа " + door.toShortString()
+                            + " снаружи высота " + top + ", а порог на " + door.getY()
+                            + ": перепад в " + (door.getY() - top)
+                            + " блока не перешагнуть ни игроку, ни жителю");
+                }
+            }
+        } finally {
+            if (farm != null) {
+                demolish(world, farm, plan);
+            }
+            cleanUpVillage(world, manager, colony, hall, ground);
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Клетка сразу за входом — с той стороны, куда вход смотрит. */
+    private static BlockPos nearestOutside(Building building, Schematic schematic, BlockPos door) {
+        BlockPos centre = BuildJob.worldPos(building, schematic.size(),
+                new BlockPos(schematic.size().getX() / 2, 0, schematic.size().getZ() / 2));
+        int dx = door.getX() - centre.getX();
+        int dz = door.getZ() - centre.getZ();
+        if (Math.abs(dx) >= Math.abs(dz)) {
+            return door.add(dx >= 0 ? 1 : -1, 0, 0);
+        }
+        return door.add(0, 0, dz >= 0 ? 1 : -1);
+    }
+
+    /** Верхний твёрдый блок в столбце, начиная сверху. */
+    private static int topSolid(ServerWorld world, BlockPos column, int from) {
+        for (int y = from; y > world.getBottomY(); y--) {
+            BlockPos at = column.withY(y);
+            if (world.getBlockState(at).isSolidBlock(world, at)) {
+                return y;
+            }
+        }
+        return world.getBottomY();
+    }
+
+
+    /**
+     * Обжитой дом поднимает настроение, а голый — нет.
+     * <p>
+     * Убранство в моде было с самого начала и не значило ничего: фонарь,
+     * ковёр и бельё ставились билдером, стояли и ни на что не влияли.
+     * Заказчик попросил, чтобы декор что-то делал, и делает он то,
+     * чего от него и ждут.
+     * <p>
+     * Проверяется разницей, а не числом: два сытых жителя одной колонии,
+     * у одного дом есть, у другого нет. Разница в настроении и есть уют.
+     * Так проверка переживёт любую правку самих прибавок.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "comfort", tickLimit = 400)
+    public void cosyHomeLiftsTheMood(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic plan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        // Низко и рядом: мир игровых тестов общий, площадки стоят сеткой,
+        // и проверка, расписавшаяся на двадцать блоков вокруг, ломает
+        // соседей. На этом я и попался — мигали чужие проверки подвоза.
+        BlockPos houseAt = context.getAbsolutePos(new BlockPos(2, 1, 2));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building house = plan(colony, houseAt, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, plan);
+            if (BuildJob.advance(world, manager, colony.id(), house.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Дом не встал: уюту неоткуда взяться");
+                return;
+            }
+
+            int cosy = Comfort.of(world, house);
+            if (cosy <= 0) {
+                context.throwGameTestException("В достроенном доме с фонарём и ковром "
+                        + "уюта " + cosy + ": убранство снова ничего не значит");
+                return;
+            }
+
+            Citizen homed = Citizen.newborn("Adeline", "", NORMAN, Gender.FEMALE);
+            Citizen homeless = Citizen.newborn("Rollo", "", NORMAN, Gender.MALE);
+            for (Citizen citizen : List.of(homed, homeless)) {
+                citizen.setSaturation(30);
+                citizen.setHappiness(50);
+                colony.addCitizen(citizen);
+            }
+            homed.setHome(house.id());
+
+            Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 16));
+            Needs.newDay(world, manager, colony);
+
+            int withHome = homed.happiness() - 50;
+            int without = homeless.happiness() - 50;
+            if (withHome <= without) {
+                context.throwGameTestException("Дом не согрел: с домом прибавка "
+                        + withHome + ", без дома " + without);
+            }
+            if (withHome - without != cosy) {
+                context.throwGameTestException("Уют посчитан не тот: разница "
+                        + (withHome - without) + ", а дом стоит " + cosy);
+            }
+        } finally {
+            demolish(world, house, plan);
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
     /** Сколько хранилищ стоит в следе здания прямо сейчас. */
     private static int containersIn(ServerWorld world, Building building, Schematic schematic) {
         int found = 0;
@@ -10998,6 +11192,26 @@ public class VillagePaxGameTests implements FabricGameTest {
         for (BuildStep step : schematic.plan().steps()) {
             world.setBlockState(BuildJob.worldPos(site, schematic.size(), step.pos()),
                     Blocks.AIR.getDefaultState(), net.minecraft.block.Block.NOTIFY_LISTENERS);
+        }
+        clearPorch(world, site, schematic);
+    }
+
+    /**
+     * Убрать и ступени у входов.
+     * <p>
+     * Крыльцо кладётся <b>снаружи</b> следа здания, а снос проходит только
+     * по следу — и ступени оставались в общем мире игровых тестов навсегда.
+     * Следующая проверка находила на своём месте чужой булыжник и падала
+     * непонятно от чего.
+     * <p>
+     * Убирается ровно то, куда крыльцо могло лечь, и ни клеткой больше:
+     * первая попытка вычищала объём вокруг входа и вырезала землю, на
+     * которой стояли соседние проверки, — а падали от этого уже третьи.
+     */
+    private static void clearPorch(ServerWorld world, Building site, Schematic schematic) {
+        for (BlockPos spot : Access.stepSpots(site, schematic)) {
+            world.setBlockState(spot, Blocks.AIR.getDefaultState(),
+                    net.minecraft.block.Block.NOTIFY_LISTENERS);
         }
     }
 }

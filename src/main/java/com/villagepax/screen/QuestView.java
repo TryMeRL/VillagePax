@@ -141,13 +141,37 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
      * @param rewards    что за это дадут, готовыми строками
      * @param ready      всё ли принесено: по этому включается кнопка
      */
-    public record Offer(String dialogue, List<Need> objectives, List<String> rewards,
+    /**
+     * Одна награда квеста: вещи или доверие.
+     * <p>
+     * Данными, а не готовой строкой, и это не вкусовщина. Строку собирал
+     * сервер, и в ней стоял <b>опознаватель</b>: игрок читал
+     * {@code villagepax:coin x9} вместо «Медяк ×9». Перевести
+     * опознаватель может только клиент — язык у него, — а значит вещь
+     * обязана доехать вещью.
+     *
+     * @param goods  что дают; пусто — награда в доверии
+     * @param amount сколько штук или сколько очков доверия
+     */
+    public record Prize(Optional<Item> goods, int amount) {
+
+        public static final Codec<Prize> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Registries.ITEM.getCodec().optionalFieldOf("goods").forGetter(Prize::goods),
+                Codec.INT.fieldOf("amount").forGetter(Prize::amount)
+        ).apply(instance, Prize::new));
+
+        public boolean isTrust() {
+            return goods.isEmpty();
+        }
+    }
+
+    public record Offer(String dialogue, List<Need> objectives, List<Prize> rewards,
                         boolean ready) {
 
         public static final Codec<Offer> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.STRING.fieldOf("dialogue").forGetter(Offer::dialogue),
                 Need.CODEC.listOf().fieldOf("objectives").forGetter(Offer::objectives),
-                Codec.STRING.listOf().optionalFieldOf("rewards", List.of()).forGetter(Offer::rewards),
+                Prize.CODEC.listOf().optionalFieldOf("rewards", List.of()).forGetter(Offer::rewards),
                 Codec.BOOL.fieldOf("ready").forGetter(Offer::ready)
         ).apply(instance, Offer::new));
     }

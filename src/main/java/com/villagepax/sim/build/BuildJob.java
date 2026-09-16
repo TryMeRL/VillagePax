@@ -297,6 +297,10 @@ public final class BuildJob {
             // как остатки уедут на склад: иначе подсыпать было бы нечем.
             underpin(world, settlement, warehouse, building, schematic);
 
+            // И ступени у входов. После опоры, а не до: подсыпка поднимает
+            // цоколь, и крыльцо надо мерить уже от готового порога.
+            Access.porch(world, building, schematic);
+
             returnLeftovers(world, warehouse, building);
             announceDone(world, settlement, building);
             return Outcome.FINISHED;

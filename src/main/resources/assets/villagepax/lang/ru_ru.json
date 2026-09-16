@@ -304,5 +304,6 @@
   "villagepax.screen.craft.locked": "откроется: %s",
   "villagepax.screen.assign.locked": "Это ремесло откроется, когда колония подрастёт.",
   "villagepax.screen.place.locked": "Такое здание строят не раньше, чем колония станет: %s",
-  "villagepax.hologram.locked": "Рано: колония ещё не доросла"
+  "villagepax.hologram.locked": "Рано: колония ещё не доросла",
+  "villagepax.quest.screen.reward_trust": "%s к доверию"
 }

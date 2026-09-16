@@ -280,10 +280,12 @@ public final class BuildJob {
                 return worked > 0 ? Outcome.ADVANCED : Outcome.OUT_OF_REACH;
             }
 
+            BuildStep laid = steps.get(building.nextStep());
             building.advanceStep();
             if (result == StepResult.WORKED) {
                 worked++;
             }
+            openTheWay(world, settlement, warehouse, building, schematic, steps, laid);
         }
 
         if (building.nextStep() >= steps.size()) {
@@ -306,6 +308,53 @@ public final class BuildJob {
             return Outcome.FINISHED;
         }
         return Outcome.ADVANCED;
+    }
+
+    /**
+     * Сделать дом проходимым, как только лёг цоколь.
+     * <p>
+     * Заказчик: «пусть строители строят сразу так, чтоб можно было войти
+     * в дом». До этого опора и ступени клались <b>после крыши</b>, и всё
+     * время стройки дом стоял с порогом на высоте пояса: ни игроку зайти,
+     * ни жителю. А стройка идёт долго.
+     * <p>
+     * Теперь ступени кладутся в тот миг, когда нижний венец закончен
+     * и порог обрёл опору, — дальше стены растут уже вокруг проходимого
+     * входа.
+     * <p>
+     * <b>Только ступени, и только они.</b> Подсыпка опоры под цоколь
+     * тратит материалы со склада, и запущенная посреди стройки она
+     * объедает саму стройку: первая версия этой правки уронила четырнадцать
+     * проверок разом, и все — про нехватку материалов. Опора остаётся
+     * на потом, когда материалы уже не нужны никому. Крыльцо же даровое:
+     * оно повторяет блок из-под порога, и ждать ему нечего.
+     * <p>
+     * Условие стоит O(1) на шаг: сравниваются вид и высота положенного
+     * и следующего шагов плана. Никаких обходов, никакого состояния
+     * в данных — «куча проверок, но не нагружая систему».
+     * <p>
+     * Считается именно <b>укладка</b>, а не любой шаг: план идёт сперва
+     * расчисткой всего объёма, и на ней порога ещё нет.
+     * <p>
+     * И на <b>каждом</b> законченном ярусе, а не только на цоколе. Порог
+     * опирается на разное: у дома — на цоколь, у поля — на грядку слоем
+     * выше, и привязка к одному ярусу промахивалась то там, то тут.
+     * Ярусов у здания пять, крыльцо на готовой земле не делает ничего
+     * и выходит на первой же проверке, — дешевле, чем искать, какой ярус
+     * «тот самый».
+     */
+    private static void openTheWay(ServerWorld world, Settlement settlement, Warehouse warehouse,
+                                   Building building, Schematic schematic, List<BuildStep> steps,
+                                   BuildStep laid) {
+        if (!laid.placesBlock() || building.nextStep() >= steps.size()) {
+            return;
+        }
+        BuildStep next = steps.get(building.nextStep());
+        if (!next.placesBlock() || next.pos().getY() <= laid.pos().getY()) {
+            // Ярус ещё кладётся: рано.
+            return;
+        }
+        Access.porch(world, building, schematic);
     }
 
     /**
@@ -473,6 +522,9 @@ public final class BuildJob {
         }
 
         world.setBlockState(where, laid, Block.NOTIFY_ALL);
+        // Что кладётся внутрь поставленного: бельё на верёвку и прочая
+        // обстановка. Для всего остального — одна проверка типа блока.
+        Furnishings.stock(world, where, laid, where.asLong());
         Sounds.placed(world, where, laid);
         return StepResult.WORKED;
     }

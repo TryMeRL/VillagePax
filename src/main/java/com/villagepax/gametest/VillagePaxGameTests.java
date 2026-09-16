@@ -1,6 +1,8 @@
 package com.villagepax.gametest;
 
 import com.villagepax.block.ModBlocks;
+import com.villagepax.sim.build.Furnishings;
+import com.villagepax.block.entity.RopeBlockEntity;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureKind;
 import com.villagepax.core.culture.CultureManager;
@@ -9976,6 +9978,11 @@ public class VillagePaxGameTests implements FabricGameTest {
      * Проверяется ровно то, чего не хватало: у калитки снаружи обязана
      * быть ступень не ниже чем на блок под порогом. Всё остальное —
      * дело ног.
+     * <p>
+     * И проверяется это <b>дважды</b>: на недостроенном поле и на готовом.
+     * Заказчик попросил, чтобы войти можно было сразу, — а стройка идёт
+     * долго, и дом, в который нельзя войти всю стройку, бесполезен ровно
+     * так же, как дом, в который нельзя войти совсем.
      */
     @GameTest(templateName = EMPTY_STRUCTURE, batchId = "porch", tickLimit = 400)
     public void farmCanBeWalkedIntoFromTheGround(TestContext context) {
@@ -10010,6 +10017,26 @@ public class VillagePaxGameTests implements FabricGameTest {
 
             farm = plan(colony, farmAt, FARM_TYPE, BlockRotation.NONE);
             stockFor(world, colony, plan);
+
+            // Сперва только цоколь и немного стен: заказчик просил, чтобы
+            // войти можно было СРАЗУ, а не после крыши. Стройка идёт долго,
+            // и всё это время дом с порогом на высоте пояса бесполезен.
+            BuildJob.advance(world, manager, colony.id(), farm.id(), 120);
+            if (farm.isOperational()) {
+                context.throwGameTestException("Поле достроилось за сто двадцать шагов: "
+                        + "проверять «вход до крыши» не на чем");
+                return;
+            }
+            for (BlockPos door : Access.entrances(farm, plan)) {
+                BlockPos outside = nearestOutside(farm, plan, door);
+                int top = topSolid(world, outside, door.getY() + 1);
+                if (top < door.getY() - 1) {
+                    context.throwGameTestException("Недостроенное поле не пускает: у входа "
+                            + door.toShortString() + " снаружи высота " + top
+                            + " при пороге " + door.getY());
+                }
+            }
+
             if (BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000)
                     != BuildJob.Outcome.FINISHED) {
                 context.throwGameTestException("Поле не встало: входить некуда");
@@ -10057,11 +10084,16 @@ public class VillagePaxGameTests implements FabricGameTest {
         return door.add(0, 0, dz >= 0 ? 1 : -1);
     }
 
-    /** Верхний твёрдый блок в столбце, начиная сверху. */
+    /**
+     * Верхний блок в столбце, на котором можно стоять.
+     * <p>
+     * По столкновениям, а не по «полный ли куб»: ступень крыльца бывает
+     * тропой или ступенями, и мерка «полный куб» объявила бы её пустотой.
+     */
     private static int topSolid(ServerWorld world, BlockPos column, int from) {
         for (int y = from; y > world.getBottomY(); y--) {
             BlockPos at = column.withY(y);
-            if (world.getBlockState(at).isSolidBlock(world, at)) {
+            if (!world.getBlockState(at).getCollisionShape(world, at).isEmpty()) {
                 return y;
             }
         }
@@ -10137,6 +10169,110 @@ public class VillagePaxGameTests implements FabricGameTest {
             demolish(world, house, plan);
             cleanUpVillage(world, manager, colony, hall, List.of());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * На верёвку вешают и с неё снимают — а что попало не вешают.
+     * <p>
+     * Решение заказчика: «пусть это будет просто верёвка, но на которую
+     * можно будет вешать кожаные вещи, кожу и тканевую одежду». Проверка
+     * держит три обещания разом: вещь из тега вешается, снимается та,
+     * что повесили последней, и больше четырёх на бечеву не лезет.
+     * <p>
+     * Ещё одно обещание — что сломанная верёвка возвращает повешенное —
+     * проверяется тем же ходом: без него игрок теряет вещи молча.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "rope")
+    public void ropeHoldsWhatYouHangOnIt(TestContext context) {
+        ServerWorld world = context.getWorld();
+        BlockPos at = context.getAbsolutePos(new BlockPos(1, 2, 1));
+
+        try {
+            world.setBlockState(at, ModBlocks.LAUNDRY.getDefaultState());
+            if (!(world.getBlockEntity(at) instanceof RopeBlockEntity rope)) {
+                context.throwGameTestException("У верёвки нет блок-сущности: вешать некуда");
+                return;
+            }
+
+            if (!rope.isEmpty()) {
+                context.throwGameTestException("Поставленная руками верёвка пришла не пустой");
+            }
+
+            if (!rope.hang(new ItemStack(Items.LEATHER, 3))) {
+                context.throwGameTestException("Кожу на верёвку не повесили");
+                return;
+            }
+            if (rope.hung().get(0).getCount() != 1) {
+                context.throwGameTestException("На верёвке повисло "
+                        + rope.hung().get(0).getCount() + " штук: вешают по одной, "
+                        + "иначе на бечеве будет «кожа ×64»");
+            }
+
+            rope.hang(new ItemStack(Items.WHITE_WOOL));
+            rope.hang(new ItemStack(Items.LEATHER_BOOTS));
+            rope.hang(new ItemStack(Items.WHITE_CARPET));
+            if (rope.hang(new ItemStack(Items.LEATHER))) {
+                context.throwGameTestException("На верёвку влезло пятое: мест у неё "
+                        + RopeBlockEntity.SIZE + ", и складом она быть не должна");
+            }
+
+            ItemStack taken = rope.takeDown();
+            if (!taken.isOf(Items.WHITE_CARPET)) {
+                context.throwGameTestException("Сняли не то, что вешали последним: "
+                        + taken.getItem());
+            }
+
+            // Сломали — повешенное падает наземь, а не пропадает.
+            int before = world.getEntitiesByClass(ItemEntity.class,
+                    new Box(at).expand(4), alive -> true).size();
+            world.breakBlock(at, false);
+            int after = world.getEntitiesByClass(ItemEntity.class,
+                    new Box(at).expand(4), alive -> true).size();
+            if (after - before < 3) {
+                context.throwGameTestException("Сломанная верёвка вернула " + (after - before)
+                        + " вещей из трёх: игрок теряет их молча");
+            }
+        } finally {
+            world.setBlockState(at, Blocks.AIR.getDefaultState());
+            world.getEntitiesByClass(ItemEntity.class, new Box(at).expand(6), alive -> true)
+                    .forEach(ItemEntity::discard);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Строитель вешает бельё сам, а игрок получает верёвку пустой.
+     * <p>
+     * Пустая бечева посреди деревенского двора выглядит недоделкой,
+     * а верёвка, которая сама родит шерсть в руках игрока, — это
+     * бесплатная шерсть. Поэтому вешает <b>строитель</b>, и только он.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "rope")
+    public void theBuilderHangsTheWashingHimself(TestContext context) {
+        ServerWorld world = context.getWorld();
+        BlockPos at = context.getAbsolutePos(new BlockPos(3, 2, 3));
+
+        try {
+            world.setBlockState(at, ModBlocks.LAUNDRY.getDefaultState());
+            Furnishings.stock(world, at, world.getBlockState(at), at.asLong());
+
+            if (!(world.getBlockEntity(at) instanceof RopeBlockEntity rope) || rope.isEmpty()) {
+                context.throwGameTestException("Строитель натянул верёвку и ничего не повесил");
+                return;
+            }
+            if (rope.lastHung() != 1) {
+                context.throwGameTestException("Во дворе повисло не две вещи, а "
+                        + (rope.lastHung() + 1));
+            }
+        } finally {
+            world.setBlockState(at, Blocks.AIR.getDefaultState());
+            world.getEntitiesByClass(ItemEntity.class, new Box(at).expand(6), alive -> true)
+                    .forEach(ItemEntity::discard);
         }
 
         context.complete();

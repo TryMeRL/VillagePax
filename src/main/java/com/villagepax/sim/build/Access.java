@@ -3,6 +3,10 @@ package com.villagepax.sim.build;
 import com.villagepax.sim.Building;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.StairsBlock;
+import net.minecraft.block.enums.BlockHalf;
+import net.minecraft.block.enums.StairShape;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
@@ -141,11 +145,12 @@ public final class Access {
     private static int stepsFrom(ServerWorld world, BlockPos centre, BlockPos door) {
         Direction out = outward(centre, door);
         BlockState material = world.getBlockState(door.down());
-        if (!material.isSolidBlock(world, door.down())) {
+        if (!standable(world, door.down())) {
             // Порог висит в воздухе: чинить надо не крыльцом.
             return 0;
         }
 
+        BlockState tread = stepBlock(material, out);
         int laid = 0;
         for (int step = 1; step <= REACH; step++) {
             // Каждый шаг наружу — на блок ниже: и человек, и поиск пути
@@ -165,7 +170,7 @@ public final class Access {
                 return laid;
             }
 
-            world.setBlockState(column.withY(top), material, Block.NOTIFY_ALL);
+            world.setBlockState(column.withY(top), tread, Block.NOTIFY_ALL);
             laid++;
             // Над ступенью должно быть, где пройти: два блока воздуха.
             for (int head = 1; head <= 2; head++) {
@@ -179,11 +184,77 @@ public final class Access {
         return laid;
     }
 
+    /**
+     * Из чего сделать ступень.
+     * <p>
+     * Заказчик увидел готовое крыльцо и сказал: «просто блок добавился».
+     * Он прав: кусок земли под калиткой чинит проход, но выглядит
+     * оплошностью, а не крыльцом. Поэтому у материалов, у которых
+     * в ванили есть ступенчатая пара, крыльцо кладётся <b>ступенями</b>
+     * и разворачивается к порогу — по ним и видно, что это вход.
+     * <p>
+     * Таблицей, а не угадыванием по имени: {@code stone_bricks} даёт
+     * {@code stone_brick_stairs}, а {@code dark_oak_planks} —
+     * {@code dark_oak_stairs}, и правило «приписать _stairs» промахнулось
+     * бы на обоих. Чего в таблице нет, то кладётся целым блоком: земля
+     * ступеней не имеет, и ком земли под калиткой честнее пустоты.
+     */
+    private static BlockState stepBlock(BlockState material, Direction out) {
+        Block tread = TREAD.get(material.getBlock());
+        if (tread == null) {
+            return material;
+        }
+        if (!(tread instanceof StairsBlock)) {
+            // У земли ступеней не бывает, а тропа — бывает: вытоптанная
+            // дорожка к калитке читается входом, а ком земли — оплошностью.
+            return tread.getDefaultState();
+        }
+        return tread.getDefaultState()
+                // Лицом к порогу: по ступени поднимаются ко входу, а не от него.
+                .with(StairsBlock.FACING, out.getOpposite())
+                .with(StairsBlock.HALF, BlockHalf.BOTTOM)
+                .with(StairsBlock.SHAPE, StairShape.STRAIGHT);
+    }
+
+    /**
+     * Чем мостить ступень для каждого основания.
+     * <p>
+     * Камню и доскам — ступени, земле — тропа. Заказчик увидел готовое
+     * крыльцо у поля и сказал «просто блок добавился»: он был прав,
+     * ком земли под калиткой чинит проход и портит вид.
+     */
+    private static final Map<Block, Block> TREAD = Map.ofEntries(
+            Map.entry(Blocks.COBBLESTONE, Blocks.COBBLESTONE_STAIRS),
+            Map.entry(Blocks.STONE, Blocks.STONE_STAIRS),
+            Map.entry(Blocks.STONE_BRICKS, Blocks.STONE_BRICK_STAIRS),
+            Map.entry(Blocks.DARK_OAK_PLANKS, Blocks.DARK_OAK_STAIRS),
+            Map.entry(Blocks.JUNGLE_PLANKS, Blocks.JUNGLE_STAIRS),
+            Map.entry(Blocks.OAK_PLANKS, Blocks.OAK_STAIRS),
+            Map.entry(Blocks.SANDSTONE, Blocks.SANDSTONE_STAIRS),
+            Map.entry(Blocks.MOSSY_COBBLESTONE, Blocks.MOSSY_COBBLESTONE_STAIRS),
+            Map.entry(Blocks.DIRT, Blocks.DIRT_PATH),
+            Map.entry(Blocks.COARSE_DIRT, Blocks.DIRT_PATH),
+            Map.entry(Blocks.ROOTED_DIRT, Blocks.DIRT_PATH),
+            Map.entry(Blocks.GRASS_BLOCK, Blocks.DIRT_PATH),
+            Map.entry(Blocks.FARMLAND, Blocks.DIRT_PATH));
+
+    /**
+     * Можно ли стоять на этом блоке.
+     * <p>
+     * По столкновениям, а не по «полный ли это куб». Ступень из тропы,
+     * плиты или ступеней — не полный куб, и мерка «полный куб» объявила
+     * бы собственное крыльцо пустотой: мод положил бы вторую ступень
+     * поверх первой, а проверка решила бы, что войти нельзя.
+     */
+    private static boolean standable(ServerWorld world, BlockPos at) {
+        return !world.getBlockState(at).getCollisionShape(world, at).isEmpty();
+    }
+
     /** Верхний твёрдый блок в столбце: от порога и вниз. */
     private static int topSolid(ServerWorld world, BlockPos column, int from) {
         for (int y = from; y > world.getBottomY(); y--) {
             BlockPos at = column.withY(y);
-            if (world.getBlockState(at).isSolidBlock(world, at)) {
+            if (standable(world, at)) {
                 return y;
             }
         }
@@ -202,7 +273,7 @@ public final class Access {
             if (under.getY() <= world.getBottomY()) {
                 return false;
             }
-            if (world.getBlockState(under).isSolidBlock(world, under)) {
+            if (standable(world, under)) {
                 return depth > 0;
             }
         }

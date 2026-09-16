@@ -870,10 +870,9 @@ def main():
     made.append(firewood_end().save("block", "firewood_end"))
     made.append(firewood_side().save("block", "firewood_side"))
     made.append(grain_sack().save("block", "grain_sack"))
-    made.append(laundry().save("block", "laundry"))
+    # Нарисованного белья больше нет: на верёвке висит то, что повесили,
+    # и рисует это клиент по содержимому блока. Остались бечева и прищепки.
     made.append(rope_texture().save("block", "laundry_rope"))
-    made.append(save_frames(cloth_frames(LINEN, LINEN_DARK, LINEN_LIT), "block", "laundry_linen"))
-    made.append(save_frames(cloth_frames(DYED, DYED_DARK, rgb(0x87A0BC)), "block", "laundry_dyed"))
 
     for name, colour in (("bed", MARK_BED), ("door", MARK_DOOR),
                          ("storage", MARK_STORE), ("workstation", MARK_WORK),

@@ -3,13 +3,11 @@
   "ambientocclusion": false,
   "textures": {
     "rope": "villagepax:block/laundry_rope",
-    "linen": "villagepax:block/laundry_linen",
-    "dyed": "villagepax:block/laundry_dyed",
-    "particle": "villagepax:block/laundry_linen"
+    "peg": "villagepax:block/laundry_rope",
+    "particle": "villagepax:block/laundry_rope"
   },
   "elements": [
     {
-      "__comment": "Верёвка через весь блок: за неё и держится всё прочее",
       "from": [
         0,
         14.5,
@@ -78,157 +76,178 @@
       }
     },
     {
-      "__comment": "Рубаха холщовая: полблока толщины и наклон от ветра. Угол ровно 22.5: ванильный формат других не принимает, и модель с 5.625 не загрузилась бы вовсе",
       "from": [
-        1.5,
-        4,
-        7.5
+        3,
+        14,
+        7.2
       ],
       "to": [
-        7.5,
-        14.5,
-        8.5
+        4,
+        15.5,
+        8.8
       ],
-      "rotation": {
-        "origin": [
-          4.5,
-          14.5,
-          8
-        ],
-        "axis": "z",
-        "angle": -22.5
-      },
       "faces": {
         "north": {
-          "texture": "#linen",
+          "texture": "#peg",
           "uv": [
+            0,
+            0,
             1,
-            1,
-            7,
-            12
+            2
           ]
         },
         "south": {
-          "texture": "#linen",
+          "texture": "#peg",
           "uv": [
+            0,
+            0,
             1,
-            1,
-            7,
-            12
+            2
           ]
         },
         "east": {
-          "texture": "#linen",
+          "texture": "#peg",
           "uv": [
-            7,
-            1,
-            8,
-            12
+            0,
+            0,
+            2,
+            2
           ]
         },
         "west": {
-          "texture": "#linen",
+          "texture": "#peg",
           "uv": [
-            1,
-            1,
+            0,
+            0,
             2,
-            12
-          ]
-        },
-        "up": {
-          "texture": "#linen",
-          "uv": [
-            1,
-            1,
-            7,
             2
           ]
         },
         "down": {
-          "texture": "#linen",
+          "texture": "#peg",
           "uv": [
+            0,
+            0,
             1,
-            11,
-            7,
-            12
+            2
           ]
         }
       }
     },
     {
-      "__comment": "Рубаха крашеная: висит ниже и повёрнута в другую сторону",
       "from": [
-        9,
-        3,
-        7.5
+        7,
+        14,
+        7.2
       ],
       "to": [
-        15,
-        14.5,
-        8.5
+        8,
+        15.5,
+        8.8
       ],
-      "rotation": {
-        "origin": [
-          12,
-          14.5,
-          8
-        ],
-        "axis": "z",
-        "angle": 22.5
-      },
       "faces": {
         "north": {
-          "texture": "#dyed",
+          "texture": "#peg",
           "uv": [
+            0,
+            0,
             1,
-            1,
-            7,
-            12
+            2
           ]
         },
         "south": {
-          "texture": "#dyed",
+          "texture": "#peg",
           "uv": [
+            0,
+            0,
             1,
-            1,
-            7,
-            12
+            2
           ]
         },
         "east": {
-          "texture": "#dyed",
+          "texture": "#peg",
           "uv": [
-            7,
-            1,
-            8,
-            12
+            0,
+            0,
+            2,
+            2
           ]
         },
         "west": {
-          "texture": "#dyed",
+          "texture": "#peg",
           "uv": [
-            1,
-            1,
+            0,
+            0,
             2,
-            12
-          ]
-        },
-        "up": {
-          "texture": "#dyed",
-          "uv": [
-            1,
-            1,
-            7,
             2
           ]
         },
         "down": {
-          "texture": "#dyed",
+          "texture": "#peg",
           "uv": [
+            0,
+            0,
             1,
-            11,
-            7,
-            12
+            2
+          ]
+        }
+      }
+    },
+    {
+      "from": [
+        11,
+        14,
+        7.2
+      ],
+      "to": [
+        12,
+        15.5,
+        8.8
+      ],
+      "faces": {
+        "north": {
+          "texture": "#peg",
+          "uv": [
+            0,
+            0,
+            1,
+            2
+          ]
+        },
+        "south": {
+          "texture": "#peg",
+          "uv": [
+            0,
+            0,
+            1,
+            2
+          ]
+        },
+        "east": {
+          "texture": "#peg",
+          "uv": [
+            0,
+            0,
+            2,
+            2
+          ]
+        },
+        "west": {
+          "texture": "#peg",
+          "uv": [
+            0,
+            0,
+            2,
+            2
+          ]
+        },
+        "down": {
+          "texture": "#peg",
+          "uv": [
+            0,
+            0,
+            1,
+            2
           ]
         }
       }

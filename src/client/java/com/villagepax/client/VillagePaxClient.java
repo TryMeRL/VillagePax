@@ -27,6 +27,8 @@ import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityModelLayerRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
+import net.minecraft.client.render.block.entity.BlockEntityRendererFactories;
+import com.villagepax.block.entity.ModBlockEntities;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.model.Dilation;
@@ -48,6 +50,9 @@ public class VillagePaxClient implements ClientModInitializer {
         EntityModelLayerRegistry.registerModelLayer(CitizenEntityRenderer.LAYER,
                 () -> TexturedModelData.of(BipedEntityModel.getModelData(Dilation.NONE, 0.0f), 64, 64));
         EntityRendererRegistry.register(ModEntities.CITIZEN, CitizenEntityRenderer::new);
+        // Верёвка рисует не себя, а то, что на ней висит: см. RopeBlockEntityRenderer.
+        BlockEntityRendererFactories.register(ModBlockEntities.ROPE,
+                RopeBlockEntityRenderer::new);
         registerCutouts();
         HandledScreens.register(TownHallScreens.TOWN_HALL, TownHallScreen::new);
         registerViewUpdates();

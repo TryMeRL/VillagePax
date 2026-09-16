@@ -1,0 +1,16 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:wool",
+    "#minecraft:wool_carpets",
+    "minecraft:leather",
+    "minecraft:rabbit_hide",
+    "minecraft:leather_helmet",
+    "minecraft:leather_chestplate",
+    "minecraft:leather_leggings",
+    "minecraft:leather_boots",
+    "minecraft:leather_horse_armor",
+    "minecraft:string",
+    "minecraft:paper"
+  ]
+}

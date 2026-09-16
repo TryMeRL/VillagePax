@@ -41,6 +41,16 @@ public final class ModTags {
      * шаг вне дороги стоит чуть дороже, и путь сам ложится на мощёную улицу —
      * а какие блоки считать улицей, решает датапак.
      */
+    /**
+     * Что вешают на бельевую верёвку.
+     * <p>
+     * Тегом, а не списком в коде: тканевую одежду мод добавит позже,
+     * и верёвка примет её, не зная о ней ничего. Тем же тегом чужой
+     * датапак повесит на неё своё.
+     */
+    public static final TagKey<Item> HANGABLE = TagKey.of(
+            RegistryKeys.ITEM, new Identifier(VillagePax.MOD_ID, "hangable"));
+
     public static final TagKey<Block> PREFERRED_PATH = TagKey.of(
             RegistryKeys.BLOCK, new Identifier(VillagePax.MOD_ID, "preferred_path"));
 

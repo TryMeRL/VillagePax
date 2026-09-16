@@ -14,6 +14,11 @@ public final class ModBlockEntities {
             new Identifier(VillagePax.MOD_ID, "town_hall"),
             BlockEntityType.Builder.create(TownHallBlockEntity::new, ModBlocks.TOWN_HALL).build(null));
 
+    public static final BlockEntityType<RopeBlockEntity> ROPE = Registry.register(
+            Registries.BLOCK_ENTITY_TYPE,
+            new Identifier(VillagePax.MOD_ID, "rope"),
+            BlockEntityType.Builder.create(RopeBlockEntity::new, ModBlocks.LAUNDRY).build(null));
+
     private ModBlockEntities() {
     }
 

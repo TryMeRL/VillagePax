@@ -295,6 +295,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         }
 
         fillWar();
+        fillPact();
         fillGift();
     }
 
@@ -349,6 +350,64 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         }
         card.child(row);
         body.child(card);
+    }
+
+    /**
+     * Карточка союза.
+     * <p>
+     * Стоит <b>после войны и перед подарком</b>: война — это разговор,
+     * который нельзя отложить, а союз — то, ради чего игрок дарил.
+     * <p>
+     * Показывается и тогда, когда союз заключить нельзя: причина названа
+     * словами, и этими же словами названа цель. «Сперва город» — это
+     * не отказ, а указание, куда расти.
+     */
+    private void fillPact() {
+        QuestView.Pact pact = view.pact().orElse(null);
+        if (pact == null) {
+            return;
+        }
+
+        FlowLayout card = Look.card("villagepax.people.screen.pact",
+                new ItemStack(Items.SHIELD));
+
+        if (pact.forged()) {
+            LabelComponent done = Components.label(
+                    Text.translatable("villagepax.people.screen.pact_done"));
+            done.color(Look.GOOD);
+            done.lineHeight(10);
+            card.child(done.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            body.child(card);
+            return;
+        }
+
+        LabelComponent about = Components.label(
+                Text.translatable("villagepax.people.screen.pact_about"));
+        about.color(Look.MUTED);
+        about.lineHeight(10);
+        card.child(about.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+
+        FlowLayout row = Containers.horizontalFlow(Sizing.content(), Sizing.content());
+        row.verticalAlignment(VerticalAlignment.CENTER);
+        row.gap(6);
+        row.child(Look.pill(new ItemStack(ModItems.COIN), Coins.spell(pact.price()),
+                pact.ready() ? Look.INK : Look.MUTED));
+
+        ButtonComponent forge = Look.action(
+                Text.translatable("villagepax.people.screen.forge_pact"), 92, button -> pact());
+        forge.active(pact.ready());
+        row.child(forge);
+        pact.verdict().reasonKey().ifPresent(key -> row.tooltip(Text.translatable(key)));
+        card.child(row);
+        body.child(card);
+    }
+
+    /** «Заключим союз»: условия считает сервер, клиент — только намерение. */
+    private void pact() {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeUuid(view.village());
+        buf.writeIdentifier(view.giver());
+        ClientPlayNetworking.send(QuestNet.PACT, buf);
     }
 
     /**

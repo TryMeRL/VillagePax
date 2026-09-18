@@ -208,6 +208,9 @@ public final class Raids {
             }
             if (party.hasArrived(today) && world.isChunkLoaded(party.musters())) {
                 muster(world, manager, settlement, party);
+                // И подмога — тем же порядком и в тот же миг: союзники
+                // приходят к воротам, а не выходят из них.
+                Allies.callUp(world, manager, settlement, party);
                 ruin(world, manager, settlement, party);
             }
         }
@@ -278,8 +281,11 @@ public final class Raids {
     /** Тела этого отряда, какие есть в мире. */
     public static List<CitizenEntity> bodiesOf(ServerWorld world, WarParty party) {
         Box around = new Box(party.musters()).expand(64);
+        // Только налётчики: к тому же отряду привязаны и союзники, пришедшие
+        // ему навстречу, а считать их своими значило бы недосчитаться
+        // мечей у ворот и уводить домой чужих людей.
         return new ArrayList<>(world.getEntitiesByClass(CitizenEntity.class, around,
-                alive -> party.id().equals(alive.raidId())));
+                alive -> alive.isRaider() && party.id().equals(alive.raidId())));
     }
 
     /**
@@ -365,6 +371,7 @@ public final class Raids {
         }
 
         left.forEach(CitizenEntity::discard);
+        Allies.dismiss(world, party);
         manager.update(colony.id(), Settlement::liftSiege);
 
         if (!left.isEmpty()) {

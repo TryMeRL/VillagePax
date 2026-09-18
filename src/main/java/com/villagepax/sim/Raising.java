@@ -1,12 +1,16 @@
 package com.villagepax.sim;
 
 import com.villagepax.core.culture.Traits;
+import com.villagepax.sim.build.BuildStep;
+import com.villagepax.VillagePax;
 import com.villagepax.screen.BuildOrders;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
-import net.minecraft.item.ItemStack;
+import net.minecraft.block.Block;
+import net.minecraft.block.Blocks;
+import net.minecraft.registry.Registries;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
@@ -85,18 +89,55 @@ public final class Raising {
             return Optional.empty();
         }
 
-        Warehouse warehouse = Warehouse.of(world, settlement);
-        Materials.required(schematic).forEach((item, count) -> {
-            int rest = count;
-            while (rest > 0) {
-                int chunk = Math.min(rest, item.getMaxCount());
-                warehouse.addOrScatter(world, settlement.center(), new ItemStack(item, chunk));
-                rest -= chunk;
-            }
-        });
+        // Материал кладётся В САМУ СТРОЙКУ, а не на склад, и это не мелочь.
+        // Склад колонии в первый день — один сундук ратуши на двадцать семь
+        // ячеек; материалы на дом и поле разом в него не влезают, а лишнее
+        // {@code addOrScatter} высыпает под ноги. Билдер тогда просит
+        // то, что валяется рядом на земле, и подарок застревает
+        // недостроенным — ровно это и поймала проверка «путь игрока».
+        //
+        // Запас стройки билдер спрашивает первым, до всякого склада,
+        // и объёма у него нет.
+        Materials.required(schematic).forEach((item, count) ->
+                site.stock().add(Registries.ITEM.getId(item), count));
 
-        BuildJob.advance(world, manager, settlement.id(), site.id(), Integer.MAX_VALUE);
+        BuildJob.Outcome outcome =
+                BuildJob.advance(world, manager, settlement.id(), site.id(), Integer.MAX_VALUE);
+        if (outcome != BuildJob.Outcome.FINISHED) {
+            // Подарок, который не встал, не оставляет после себя
+            // стройплощадку. Недостроенное здание — это не «почти готово»,
+            // а вечная работа для билдера: он берётся за неё первой, до
+            // всего, что заказал игрок, и колония застывает на месте.
+            // Поймано проверкой «путь игрока»: подаренное поле село
+            // на край площадки, не достроилось — и билдер двести тиков
+            // ходил вокруг него, пока размеченный игроком дом стоял
+            // нетронутым.
+            takeBack(world, manager, settlement, site, schematic);
+            VillagePax.LOGGER.info("Надел {} не встал ({}) — место возвращено",
+                    type, outcome);
+            return Optional.empty();
+        }
         return settlement.building(site.id());
+    }
+
+    /**
+     * Убрать несостоявшийся подарок: и блоки, и запись.
+     * <p>
+     * Блоки — только те клетки, которые план успел пройти: всё остальное
+     * билдер не трогал, и трогать это здесь значило бы выесть землю
+     * вокруг на ровном месте.
+     */
+    private static void takeBack(ServerWorld world, SettlementManager manager,
+                                 Settlement settlement, Building site, Schematic schematic) {
+        List<BuildStep> steps = schematic.plan().steps();
+        int done = Math.min(site.nextStep(), steps.size());
+        for (int step = 0; step < done; step++) {
+            if (steps.get(step).placesBlock()) {
+                world.setBlockState(BuildJob.worldPos(site, schematic.size(), steps.get(step).pos()),
+                        Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+            }
+        }
+        manager.update(settlement.id(), state -> state.removeBuilding(site.id()));
     }
 
     /**

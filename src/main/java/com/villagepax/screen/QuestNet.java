@@ -10,6 +10,7 @@ import com.villagepax.core.trade.Caravan;
 import com.villagepax.core.trade.TradeTable;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.ItemTally;
+import com.villagepax.sim.diplomacy.Alliance;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Standing;
@@ -86,6 +87,7 @@ public final class QuestNet {
      * когда доверять клиенту нельзя ни в одной игре.
      */
     public static final Identifier PEACE = new Identifier(VillagePax.MOD_ID, "quest_peace");
+    public static final Identifier PACT = new Identifier(VillagePax.MOD_ID, "quest_pact");
 
     /**
      * Насколько близко надо стоять, чтобы отдать.
@@ -117,6 +119,12 @@ public final class QuestNet {
             UUID village = buf.readUuid();
             Identifier giver = buf.readIdentifier();
             server.execute(() -> peace(player, village, giver));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(PACT, (server, player, handler, buf, sender) -> {
+            UUID village = buf.readUuid();
+            Identifier giver = buf.readIdentifier();
+            server.execute(() -> pact(player, village, giver));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(TRADE, (server, player, handler, buf, sender) -> {
@@ -270,7 +278,41 @@ public final class QuestNet {
                 // сразу на торге и лишних вкладок не показывает. А если
                 // датапак однажды даст купцу квест, разговор вернётся —
                 // молча потерять его нельзя.
-                caravan.isEmpty() && giver.equals(Villages.MERCHANT) && offer.isEmpty()));
+                caravan.isEmpty() && giver.equals(Villages.MERCHANT) && offer.isEmpty(),
+                caravan.isPresent() ? Optional.empty() : pactOf(manager, village, id, carried)));
+    }
+
+    /**
+     * Союз: заключён, предложен или назван целью.
+     * <p>
+     * Карточки нет вовсе, пока игрок деревне чужой: «союз: сперва
+     * подружиться» в первом же разговоре с первой же деревней — это шум.
+     * А знакомому она уже цель, и потому показывается даже тогда, когда
+     * заключить его нельзя: запертая ступень, которую видно, — это то,
+     * ради чего растут.
+     */
+    private static Optional<QuestView.Pact> pactOf(SettlementManager manager, Settlement village,
+                                                   UUID player, Inventory carried) {
+        if (!village.owner().isAutonomous()) {
+            return Optional.empty();
+        }
+        if (!village.isAllyOf(player)
+                && village.reputationOf(player) < Standing.KNOWN.from()) {
+            return Optional.empty();
+        }
+        Alliance.Verdict verdict = Alliance.judge(village, colonyOf(manager, player),
+                player, carried);
+        return Optional.of(new QuestView.Pact(Alliance.PRICE, verdict));
+    }
+
+    /** Колония этого игрока, если она у него есть. */
+    private static Settlement colonyOf(SettlementManager manager, UUID player) {
+        for (Settlement candidate : manager.all()) {
+            if (candidate.owner().isOwnedBy(player)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     /**
@@ -368,6 +410,42 @@ public final class QuestNet {
             // Отряд, если он уже под воротами, разворачивается сейчас же:
             // «мир куплен, а эти пусть добьют» было бы издевательством.
             Raids.callOff(world, manager, player.getUuid(), village);
+        } else {
+            outcome.verdict().reasonKey().ifPresent(key ->
+                    player.sendMessage(Text.translatable(key), true));
+        }
+        refresh(player, manager, village, giver);
+    }
+
+    /**
+     * Заключить союз.
+     * <p>
+     * Тем же порядком, что и откуп: проверить, что старейшина рядом,
+     * отдать дар, сказать словами, обновить экран. Разница одна — за союз
+     * не воюют, поэтому и разворачивать некого.
+     */
+    private static void pact(ServerPlayerEntity player, UUID village, Identifier giver) {
+        ServerWorld world = player.getServerWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Settlement home = manager.byId(village).orElse(null);
+        if (home == null) {
+            return;
+        }
+        if (nearbyGiver(player, home, giver) == null) {
+            player.sendMessage(Text.translatable("villagepax.quest.too_far"), true);
+            return;
+        }
+
+        Alliance.Outcome outcome = Alliance.forge(world, manager, home,
+                colonyOf(manager, player.getUuid()), player.getUuid(), player.getInventory(),
+                Schedule.dayOf(world.getTimeOfDay()),
+                left -> player.getInventory().offerOrDrop(left));
+
+        if (outcome.forged()) {
+            player.sendMessage(Text.translatable("villagepax.pact.forged",
+                    Text.literal(home.name()), Coins.spell(outcome.price())), false);
+            world.playSound(null, player.getBlockPos(), SoundEvents.ENTITY_VILLAGER_YES,
+                    SoundCategory.NEUTRAL, 1.0f, 1.0f);
         } else {
             outcome.verdict().reasonKey().ifPresent(key ->
                     player.sendMessage(Text.translatable(key), true));

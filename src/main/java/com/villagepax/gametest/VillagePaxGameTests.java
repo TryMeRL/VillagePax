@@ -69,6 +69,8 @@ import com.villagepax.screen.QuestView;
 import com.villagepax.screen.QuestNet;
 import com.villagepax.sim.work.CraftJob;
 import com.villagepax.sim.war.Peace;
+import com.villagepax.sim.diplomacy.Alliance;
+import com.villagepax.sim.war.Allies;
 import com.villagepax.sim.war.Raids;
 import com.villagepax.sim.war.Siege;
 import com.villagepax.sim.work.Hauling;
@@ -338,8 +340,19 @@ public class VillagePaxGameTests implements FabricGameTest {
         SettlementManager manager = SettlementManager.get(world);
         UUID player = UUID.randomUUID();
 
-        context.setBlockState(new BlockPos(1, 1, 1), Blocks.STONE);
-        BlockPos target = context.getAbsolutePos(new BlockPos(1, 2, 1));
+        // Своя земля и своя полка по высоте. Основание теперь дарит колонии
+        // дом и поле, а они ищут ровное место кольцами вокруг ратуши —
+        // и в общем мире проверок находят его НА ЧУЖОЙ ДЕЛЯНКЕ, если своей
+        // земли нет. Соседняя проверка потом падает непонятно отчего.
+        List<BlockPos> floor = new ArrayList<>();
+        for (int x = -8; x <= 12; x++) {
+            for (int z = -8; z <= 12; z++) {
+                BlockPos at = context.getAbsolutePos(new BlockPos(x, 30, z));
+                world.setBlockState(at, Blocks.STONE.getDefaultState());
+                floor.add(at);
+            }
+        }
+        BlockPos target = context.getAbsolutePos(new BlockPos(1, 31, 1));
 
         FoundingOutcome outcome = ColonyFounder.foundAt(world, player, NORMAN, target);
 
@@ -394,8 +407,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             // Одна колония на игрока: вторая попытка того же игрока отклоняется.
-            context.setBlockState(new BlockPos(3, 1, 1), Blocks.STONE);
-            BlockPos second = context.getAbsolutePos(new BlockPos(3, 2, 1));
+            BlockPos second = context.getAbsolutePos(new BlockPos(3, 31, 1));
             FoundingOutcome again = ColonyFounder.foundAt(world, player, NORMAN, second);
             if (!(again instanceof FoundingOutcome.Refused refusedAgain)
                     || !refusedAgain.translationKey().equals(Founding.KEY_ALREADY_OWNER)) {
@@ -409,9 +421,13 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Соседняя колония должна отклоняться по границам, получено: " + neighbour);
             }
         } finally {
+            razeHolding(world, colony);
             discardBodies(world, colony);
             manager.remove(colony.id());
             world.setBlockState(target, Blocks.AIR.getDefaultState());
+            for (BlockPos at : floor) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
         }
 
         context.complete();
@@ -11593,6 +11609,225 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
         return came;
     }
+
+    /**
+     * Союз заключают друзья и только с городом — и он держится дружбой.
+     * <p>
+     * Лестница ступеней обещала союзы с города, а доверие до сих пор
+     * меняло только цены на прилавке. Проверяется вся сделка: чего не
+     * хватает на каждом шагу, что дар уходит деревне и что союз
+     * <b>перестаёт действовать</b>, если игрок растерял дружбу.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "peace", tickLimit = 600)
+    public void anAllianceNeedsFriendshipATownAndGold(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        BlockPos colonyAt = context.getAbsolutePos(new BlockPos(14, 2, 2));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement village = null;
+        Settlement colony = null;
+
+        try {
+            for (int x = -2; x <= 18; x++) {
+                for (int z = -2; z <= 8; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", villageAt);
+            world.setBlockState(villageAt, ModBlocks.TOWN_HALL.getDefaultState());
+            manager.add(village);
+
+            colony = Settlement.found(NORMAN, Owner.of(player), "Моя", colonyAt);
+            manager.add(colony);
+
+            SimpleInventory pockets = new SimpleInventory(9);
+
+            // Чужак с золотом: денег мало, дружбы нет.
+            Coins.earn(pockets, Alliance.PRICE);
+            if (Alliance.judge(village, colony, player, pockets)
+                    != Alliance.Verdict.NOT_FRIENDS) {
+                context.throwGameTestException("Союз предлагают чужаку: "
+                        + Alliance.judge(village, colony, player, pockets));
+            }
+
+            // Друг, но хутор.
+            village.addReputation(player, Standing.FRIEND.from());
+            if (Alliance.judge(village, colony, player, pockets) != Alliance.Verdict.NO_TOWN) {
+                context.throwGameTestException("Союз предлагают хутору: "
+                        + Alliance.judge(village, colony, player, pockets));
+            }
+
+            // Друг и город, но без золота.
+            colony.setLevel(SettlementLevel.TOWN);
+            SimpleInventory empty = new SimpleInventory(9);
+            if (Alliance.judge(village, colony, player, empty) != Alliance.Verdict.NO_COIN) {
+                context.throwGameTestException("Союз заключают даром: "
+                        + Alliance.judge(village, colony, player, empty));
+            }
+
+            // И наконец всё сошлось.
+            Alliance.Outcome outcome = Alliance.forge(world, manager, village, colony, player,
+                    pockets, 7L, left -> { });
+            if (!outcome.forged()) {
+                context.throwGameTestException("Союз не заключён: " + outcome.verdict());
+                return;
+            }
+            if (Coins.total(pockets) != 0) {
+                context.throwGameTestException("Дар не ушёл: у игрока осталось "
+                        + Coins.total(pockets));
+            }
+            if (Coins.total(Warehouse.of(world, village).coins()) != Alliance.PRICE) {
+                context.throwGameTestException("Дар не дошёл до деревни: в кошеле "
+                        + Coins.total(Warehouse.of(world, village).coins()));
+            }
+            if (!manager.byId(village.id()).orElseThrow().isAllyOf(player)) {
+                context.throwGameTestException("Союз заключён, а деревня об этом не знает");
+            }
+
+            // И союз держится дружбой, а не записью.
+            Settlement allied = manager.byId(village.id()).orElseThrow();
+            allied.addReputation(player, -Standing.FRIEND.from());
+            if (allied.isAllyOf(player)) {
+                context.throwGameTestException("Союз пережил утраченную дружбу: доверие "
+                        + allied.reputationOf(player));
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, villageAt, List.of());
+            cleanUpVillage(world, manager, colony, colonyAt, floor);
+            world.setBlockState(villageAt, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Союзники приходят на набег и бьют налётчиков.
+     * <p>
+     * Это и есть всё содержание союза: не строка в пульте, а мечи у ворот.
+     * Проверяется то, ради чего он заключается, — что подмога пришла,
+     * что её не считают налётчиками свои же проверки, и что обе стороны
+     * взяли друг друга на прицел.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid", tickLimit = 600)
+    public void alliesComeWhenRaidersDo(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        // Своя полка по высоте: делянки проверок стоят в двенадцати блоках,
+        // а этой нужна площадка шире — соседи затирали бы её.
+        BlockPos centre = context.getAbsolutePos(new BlockPos(6, 61, 6));
+        BlockPos musters = context.getAbsolutePos(new BlockPos(10, 61, 6));
+        BlockPos friendAt = context.getAbsolutePos(new BlockPos(2, 61, 14));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", centre);
+        manager.add(colony);
+        Settlement friend = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Верный", friendAt);
+        friend.addReputation(player, Standing.FRIEND.from());
+        friend.makeAlly(player, 1L);
+        manager.add(friend);
+
+        WarParty party = new WarParty(UUID.randomUUID(), UUID.randomUUID(), MAYA,
+                musters, 2, 20L, 21L);
+
+        try {
+            for (int x = 2; x <= 16; x++) {
+                for (int z = 0; z <= 14; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 60, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            manager.update(colony.id(), state -> state.besiege(party, 19L));
+            Raids.watch(world, manager, 20L);
+
+            List<CitizenEntity> raiders = Raids.bodiesOf(world, party);
+            List<CitizenEntity> helpers = Allies.defendersOf(world, party);
+
+            if (raiders.size() != 2) {
+                context.throwGameTestException("Налётчиков " + raiders.size() + " вместо двух: "
+                        + "союзников сочли своими");
+                return;
+            }
+            if (helpers.size() != 2) {
+                context.throwGameTestException("Союзников пришло " + helpers.size()
+                        + " вместо двух");
+                return;
+            }
+            for (CitizenEntity helper : helpers) {
+                if (helper.isRaider()) {
+                    context.throwGameTestException("Союзник числится налётчиком: "
+                            + "его смерть засчитают деревне-обидчице");
+                }
+            }
+
+            // И обе стороны видят друг в друге врага.
+            //
+            // Спрашивается НЕ ОДИН РАЗ, а до самого срока: ванильная цель
+            // просыпается раз в десяток тиков, случайно, и требует прямой
+            // видимости. Проверка, спросившая однажды, мигает — и это
+            // не «иногда не работает», а «иногда не успели посмотреть».
+            boolean[] met = {false};
+            for (int tick = 40; tick <= 200; tick += 40) {
+                boolean last = tick > 160;
+                context.runAtTick(tick, () -> {
+                    if (met[0]) {
+                        return;
+                    }
+                    // Меркой служит КРОВЬ НАЛЁТЧИКА, а не то, на кого он
+                    // смотрит прямо сейчас. Прицел — мгновение: бой
+                    // кончается за пару секунд, и проверка, спросившая
+                    // «целится ли», у победившей стороны получает «нет»
+                    // ровно потому, что дело сделано. А бить налётчика
+                    // в этой проверке больше некому: жителей у колонии нет,
+                    // падать неоткуда.
+                    List<CitizenEntity> raidersNow = Raids.bodiesOf(world, party);
+                    boolean bled = raidersNow.size() < 2
+                            || raidersNow.stream().anyMatch(one -> one.getHealth() < one.getMaxHealth());
+                    if (bled) {
+                        met[0] = true;
+                        tidyUpFight(world, manager, party, friend, friendAt, colony, centre, floor);
+                        context.complete();
+                        return;
+                    }
+                    if (!last) {
+                        return;
+                    }
+                    try {
+                        context.throwGameTestException("Союзники пришли и не подрались: "
+                                + "за десять секунд налётчики не потеряли ни капли крови. "
+                                + "Их " + Raids.bodiesOf(world, party).size()
+                                + ", союзников " + Allies.defendersOf(world, party).size());
+                    } finally {
+                        tidyUpFight(world, manager, party, friend, friendAt, colony, centre, floor);
+                    }
+                });
+            }
+        } catch (RuntimeException | Error trouble) {
+            tidyUpFight(world, manager, party, friend, friendAt, colony, centre, floor);
+            throw trouble;
+        }
+    }
+
+    /** Убрать за боем: тела обеих сторон, обе деревни и площадку. */
+    private static void tidyUpFight(ServerWorld world, SettlementManager manager, WarParty party,
+                                    Settlement friend, BlockPos friendAt, Settlement colony,
+                                    BlockPos centre, List<BlockPos> floor) {
+        Raids.bodiesOf(world, party).forEach(CitizenEntity::discard);
+        Allies.dismiss(world, party);
+        cleanUpVillage(world, manager, friend, friendAt, List.of());
+        cleanUpVillage(world, manager, colony, centre, floor);
+    }
+
 
     /** Сколько хранилищ стоит в следе здания прямо сейчас. */
     private static int containersIn(ServerWorld world, Building building, Schematic schematic) {

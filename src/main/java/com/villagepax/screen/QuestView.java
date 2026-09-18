@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.villagepax.core.EnumCodecs;
 import com.villagepax.core.Named;
+import com.villagepax.sim.diplomacy.Alliance;
 import com.villagepax.sim.diplomacy.Gifts;
 import net.minecraft.item.Item;
 import net.minecraft.registry.Registries;
@@ -35,12 +36,42 @@ import java.util.UUID;
  * @param gift       что выйдет, если подарить то, что в руках
  * @param truce      война с этим народом: сколько бойцов и чего стоит мир
  * @param counter    разговор идёт через прилавок: только торг и ничего больше
+ * @param pact       союз с этой деревней: заключён, предложен или назван целью
  */
 public record QuestView(UUID village, String villageName, Identifier giver, String standing,
                         int reputation, Optional<Integer> nextAt, Optional<Offer> quest,
                         List<Stall> stalls, int purse, Optional<UUID> caravan,
                         People people, Optional<Gift> gift, Optional<Truce> truce,
-                        boolean counter) {
+                        boolean counter, Optional<Pact> pact) {
+
+    /**
+     * Союз и то, что ему мешает.
+     * <p>
+     * Приговор целиком, а не «можно/нельзя»: серая кнопка игроку ничего
+     * не объясняет, а «сперва город» — объясняет всё и вдобавок называет
+     * цель. Считает его сервер: и лестница доверия, и ступень колонии
+     * живут там.
+     *
+     * @param price   сколько просят за союз
+     * @param verdict согласны ли — и если нет, то почему
+     */
+    public record Pact(int price, Alliance.Verdict verdict) {
+
+        public static final Codec<Pact> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.INT.fieldOf("price").forGetter(Pact::price),
+                Alliance.Verdict.CODEC.fieldOf("verdict").forGetter(Pact::verdict)
+        ).apply(instance, Pact::new));
+
+        /** Союз уже есть. */
+        public boolean forged() {
+            return verdict == Alliance.Verdict.ALREADY;
+        }
+
+        /** Союз можно заключить прямо сейчас. */
+        public boolean ready() {
+            return verdict == Alliance.Verdict.YES;
+        }
+    }
 
     /**
      * Война и цена мира.
@@ -278,7 +309,8 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
             People.CODEC.fieldOf("people").forGetter(QuestView::people),
             Gift.CODEC.optionalFieldOf("gift").forGetter(QuestView::gift),
             Truce.CODEC.optionalFieldOf("truce").forGetter(QuestView::truce),
-            Codec.BOOL.optionalFieldOf("counter", false).forGetter(QuestView::counter)
+            Codec.BOOL.optionalFieldOf("counter", false).forGetter(QuestView::counter),
+            Pact.CODEC.optionalFieldOf("pact").forGetter(QuestView::pact)
     ).apply(instance, QuestView::new));
 
     /** Торгует ли эта деревня вообще: по этому решается, есть ли вкладка торга. */

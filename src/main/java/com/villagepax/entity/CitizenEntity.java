@@ -317,6 +317,13 @@ public class CitizenEntity extends PathAwareEntity {
         // а не первого попавшегося в кольце обзора.
         targetSelector.add(1, new ActiveTargetGoal<>(this, CitizenEntity.class, 10, true, false,
                 who -> isRaider() && who instanceof CitizenEntity other && isEnemyOf(other)));
+        // А союзник ищет налётчика — того самого, что пришёл к колонии,
+        // за которую его прислали. Своим ремеслом он это решить не может:
+        // у куклы нет ни записи жителя, ни стратегии, которая ставила бы
+        // ей цель. Значит, цель ставит глаз.
+        targetSelector.add(1, new ActiveTargetGoal<>(this, CitizenEntity.class, 10, true, false,
+                who -> isDefender() && who instanceof CitizenEntity other
+                        && other.isRaider() && sameSiege(other)));
         targetSelector.add(2, new ActiveTargetGoal<>(this, PlayerEntity.class, 10, true, false,
                 who -> isRaider() && who instanceof PlayerEntity target
                         && ownsWhatWeCameFor(target)));
@@ -331,8 +338,21 @@ public class CitizenEntity extends PathAwareEntity {
      * — отряд взял на прицел сам себя, не дойдя до ворот.
      */
     private boolean isEnemyOf(CitizenEntity other) {
-        return !other.isRaider()
-                && other.settlementId().filter(host -> host.equals(raidHost)).isPresent();
+        if (other.isRaider()) {
+            return false;
+        }
+        // Союзник, пришедший за эту колонию, — враг такой же, как её пахарь:
+        // он пришёл мешать. Без этого отряд ходил бы мимо мечника,
+        // рубящего его в спину, к безоружному жителю.
+        if (other.isDefender()) {
+            return sameSiege(other);
+        }
+        return other.settlementId().filter(host -> host.equals(raidHost)).isPresent();
+    }
+
+    /** Об одной ли осаде идёт речь: тот же отряд у тех же ворот. */
+    private boolean sameSiege(CitizenEntity other) {
+        return raidId != null && raidId.equals(other.raidId());
     }
 
     /** Тот ли это игрок, к чьей колонии пришли. */
@@ -373,6 +393,15 @@ public class CitizenEntity extends PathAwareEntity {
     /** Стража ли это тело: перечитывается раз в секунду, см. {@link #isGuard}. */
     private boolean guard;
 
+    /**
+     * Стоит ли это тело <b>за</b> колонию, а не против неё.
+     * <p>
+     * Куклой приходят обе стороны, и отряд у них общий; разводит их
+     * это поле. Оно же бережёт деревню от чужого траура: павший союзник
+     * её людей не убавляет.
+     */
+    private boolean defender;
+
     /** Как часто тело перечитывает своё ремесло, в тиках. */
     private static final int ROLE_EVERY = 20;
 
@@ -408,6 +437,22 @@ public class CitizenEntity extends PathAwareEntity {
     public void linkRaid(UUID colony, UUID party) {
         this.raidHost = colony;
         this.raidId = party;
+        this.defender = false;
+    }
+
+    /**
+     * Привязать тело к той же осаде, но <b>на другой стороне</b>: союзник
+     * пришёл за колонию.
+     * <p>
+     * Отряд тот же — по нему союзник и уйдёт, когда осада кончится, —
+     * а сторона другая, и различает их одно поле. Иначе пришлось бы
+     * заводить союзникам собственный отряд, который ничем, кроме знака,
+     * от осадного не отличается.
+     */
+    public void linkDefence(UUID colony, UUID party) {
+        this.raidHost = colony;
+        this.raidId = party;
+        this.defender = true;
     }
 
     public UUID raidId() {
@@ -420,7 +465,12 @@ public class CitizenEntity extends PathAwareEntity {
 
     /** Налётчик ли это. */
     public boolean isRaider() {
-        return raidId != null;
+        return raidId != null && !defender;
+    }
+
+    /** Союзник ли это: пришёл к той же осаде, но за колонию. */
+    public boolean isDefender() {
+        return raidId != null && defender;
     }
 
     /**
@@ -431,7 +481,7 @@ public class CitizenEntity extends PathAwareEntity {
      * всё равно что не добавлена.
      */
     public boolean isFighter() {
-        return isRaider() || isGuard();
+        return isRaider() || isGuard() || isDefender();
     }
 
     /**
@@ -737,12 +787,15 @@ public class CitizenEntity extends PathAwareEntity {
                 if (reason == RemovalReason.KILLED) {
                     robCaravan(serverWorld, getRecentDamageSource());
                 }
-            } else if (raidId != null) {
+            } else if (isRaider()) {
                 // Боец набега — тоже кукла: в данные возвращать нечего,
                 // но отряд обязан узнать, что его стало меньше.
                 if (reason == RemovalReason.KILLED) {
                     com.villagepax.sim.war.Raids.fell(serverWorld, this);
                 }
+            } else if (raidId != null) {
+                // Павший союзник — тоже кукла, и её смерть не траур
+                // осаждающей деревне: она своих не теряла.
             } else if (reason == RemovalReason.KILLED) {
                 buryCitizen(serverWorld);
             } else {

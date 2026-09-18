@@ -7,18 +7,14 @@ import net.minecraft.block.Blocks;
 import net.minecraft.block.StairsBlock;
 import net.minecraft.block.enums.BlockHalf;
 import net.minecraft.block.enums.StairShape;
-import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3i;
 
 import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Крыльцо: ступени от входа к земле.
@@ -54,13 +50,6 @@ public final class Access {
     /** Глубже этого лесенку не роют: там уже обрыв, а не порог. */
     private static final int DROP = 4;
 
-    /**
-     * Цена улицы при выборе стороны: заведомо дороже любой пустоты внутри.
-     * Пустота под крышей стоит не больше {@link #REACH}, и никакая горница
-     * не перевесит выхода наружу.
-     */
-    private static final int STREET = 100;
-
     private Access() {
     }
 
@@ -80,120 +69,40 @@ public final class Access {
     /**
      * В какую сторону от входа уходить.
      * <p>
-     * Спрашивается <b>сам чертёж</b>: наружу — туда, где в плане на уровне
-     * порога дольше всего нет блоков. Это единственная мерка, которая
-     * верна для всех зданий сразу.
-     * <p>
-     * Прежние две ошибались. Догадка по середине следа шла в стену у хижины
-     * лесоруба: к дому пристроена роща, середина уезжает в неё, и крыльцо
-     * упиралось в сруб — «стена высотой 3», как сказала проверка входов.
-     * А {@code facing} у калитки — это ось прохода, и она молчит о том,
-     * с какой стороны улица.
-     * <p>
-     * <b>Улица бьёт любую пустоту под крышей</b>, и это не мелочь счёта.
-     * Мерка «где дольше пусто» у двери в южной стене давала поровну:
-     * на юг след кончается сразу, на север — четыре пустые клетки горницы.
-     * Ничья доставалась тому, кого первым назовёт перебор сторон, то есть
-     * северу, и крыльцо ложилось внутрь дома. Сейчас за краем следа дают
-     * заведомо больше, и чем ближе край, тем больше: наружу — это туда,
-     * где дом кончается раньше всего.
+     * Ответ лежит <b>в самой схеме</b> и посчитан один раз при её разборе:
+     * он зависит только от чертежа — где у здания стена, а где улица, —
+     * и от поворота, которым здание поставили. Прежде эта сторона
+     * считалась заново на каждый зов крыльца, то есть на каждом законченном
+     * ярусе стройки, и каждый раз обходила весь план ради ответа
+     * про шестнадцать клеток.
      */
     public static Direction awayFrom(Building building, Schematic schematic, BlockPos door) {
-        Vec3i size = schematic.size();
-        BlockPos local = BuildSite.toLocal(building.anchor(), size, building.rotation(), door);
-
-        // Спрашиваются только те клетки, от которых что-то зависит: их
-        // шестнадцать. Первая редакция складывала в множество ВСЕ блоки
-        // схемы и потом заглядывала в него шестнадцать раз, а крыльцо
-        // зовётся на каждом законченном ярусе стройки — ратуша заказывала
-        // тысячи позиций по десятку раз за дом. «Куча проверок, но не
-        // нагружая систему» — значит один проход и горсть клеток.
-        Set<BlockPos> asked = new HashSet<>();
-        for (Direction way : Direction.Type.HORIZONTAL) {
-            for (int step = 1; step <= REACH; step++) {
-                asked.add(local.offset(way, step));
+        BlockPos local = BuildSite.toLocal(building.anchor(), schematic.size(),
+                building.rotation(), door);
+        for (Schematic.Entrance entrance : schematic.entrances()) {
+            if (entrance.pos().equals(local)) {
+                // Направление чертежа поворачивается вместе со зданием.
+                return building.rotation().rotate(entrance.wayOut());
             }
         }
-        Set<BlockPos> filled = new HashSet<>();
-        for (BuildStep step : schematic.plan().steps()) {
-            if (step.placesBlock() && asked.contains(step.pos())
-                    && !schematic.blockAt(step.paletteIndex()).isAir()) {
-                filled.add(step.pos());
-            }
-        }
-
-        Direction best = Direction.NORTH;
-        int bestScore = Integer.MIN_VALUE;
-        for (Direction way : Direction.Type.HORIZONTAL) {
-            int score = 0;
-            for (int step = 1; step <= REACH; step++) {
-                BlockPos at = local.offset(way, step);
-                boolean outside = at.getX() < 0 || at.getZ() < 0
-                        || at.getX() >= size.getX() || at.getZ() >= size.getZ();
-                if (outside) {
-                    // Улица найдена, и чем ближе она, тем вернее сторона.
-                    score = STREET - step;
-                    break;
-                }
-                if (filled.contains(at)) {
-                    break;
-                }
-                // Пусто, но всё ещё под крышей: это горница, а не улица.
-                score = step;
-            }
-            if (score > bestScore) {
-                bestScore = score;
-                best = way;
-            }
-        }
-        // Направление чертежа поворачивается вместе со зданием.
-        return building.rotation().rotate(best);
+        // Спросили не про вход: у крыльца тут дела нет, но врать про
+        // сторону хуже, чем ответить хоть что-то одинаковое.
+        return building.rotation().rotate(Direction.NORTH);
     }
 
     /**
      * Где у здания вход.
      * <p>
      * И метка двери, и калитка ограды: у поля двери нет вовсе, а войти
-     * в него надо — с этого вся починка и началась.
+     * в него надо — с этого вся починка и началась. Список считает схема,
+     * здесь остаётся только перевод в координаты мира.
      */
     public static List<BlockPos> entrances(Building building, Schematic schematic) {
-        List<BlockPos> doors = new ArrayList<>(
-                BuildJob.pointsOfInterest(building, schematic, MarkerKind.DOOR));
-
-        for (BuildStep step : schematic.plan().steps()) {
-            if (!step.placesBlock()) {
-                continue;
-            }
-            BlockState block = schematic.blockAt(step.paletteIndex());
-            if (block.isIn(BlockTags.FENCE_GATES) || block.isIn(BlockTags.DOORS)) {
-                BlockPos where = BuildJob.worldPos(building, schematic.size(), step.pos());
-                if (!doors.contains(where)) {
-                    doors.add(where);
-                }
-            }
+        List<BlockPos> doors = new ArrayList<>(schematic.entrances().size());
+        for (Schematic.Entrance entrance : schematic.entrances()) {
+            doors.add(BuildJob.worldPos(building, schematic.size(), entrance.pos()));
         }
-        return thresholds(doors);
-    }
-
-    /**
-     * Из всех блоков входа — только порог.
-     * <p>
-     * Дверь высотой в два блока (и метка её, и сама дверь) даёт в столбце
-     * две точки, а вход у неё один: <b>нижняя</b>. Крыльцо, померенное
-     * от верхней половины, выкладывало лишнюю ступень на высоте головы —
-     * ровно это и нашли проверки улиц, увидев булыжник там, где ждали
-     * мостовую.
-     */
-    private static List<BlockPos> thresholds(List<BlockPos> doors) {
-        Map<Long, BlockPos> lowest = new LinkedHashMap<>();
-        for (BlockPos door : doors) {
-            long column = ((long) door.getX() << 32) ^ (door.getZ() & 0xFFFFFFFFL);
-            BlockPos known = lowest.get(column);
-            if (known == null || door.getY() < known.getY()) {
-                lowest.put(column, door);
-            }
-        }
-        return List.copyOf(lowest.values());
+        return doors;
     }
 
     /**

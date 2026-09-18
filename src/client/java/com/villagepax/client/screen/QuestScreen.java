@@ -12,7 +12,6 @@ import io.wispforest.owo.ui.component.ItemComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.core.Component;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
@@ -96,6 +95,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
     private FlowLayout head;
     private FlowLayout tabs;
     private FlowLayout body;
+    private KeptScroll<FlowLayout> scroll;
 
     public QuestScreen(QuestView view) {
         this.view = view;
@@ -145,8 +145,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         body = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
         body.gap(4);
 
-        ScrollContainer<FlowLayout> scroll = Containers.verticalScroll(
-                Sizing.fill(100), Sizing.fixed(BODY_HEIGHT), body);
+        scroll = new KeptScroll<>(Sizing.fill(100), Sizing.fixed(BODY_HEIGHT), body);
         scroll.scrollbarThiccness(4);
         scroll.padding(Insets.right(6));
         panel.child(scroll);
@@ -156,8 +155,17 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         fill();
     }
 
-    /** Новый снимок с сервера: заголовок, вкладки и тело заново. */
+    /**
+     * Новый снимок с сервера.
+     * <p>
+     * Ничего не изменилось — не трогаем <b>ничего</b>: собранное заново
+     * тело мигает и сбрасывает прокрутку, а приходит снимок дважды
+     * в секунду. Это не оптимизация, а условие пользуемости меню.
+     */
     private void refresh(QuestView fresh) {
+        if (fresh.equals(view)) {
+            return;
+        }
         this.view = fresh;
         if (body != null) {
             fill();
@@ -165,6 +173,18 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     private void fill() {
+        // Прокрутка переживает пересборку: игрок, добравшийся до нижней
+        // сделки, не должен искать её заново после каждой покупки.
+        double kept = scroll == null ? 0 : scroll.where();
+
+        fillAll();
+
+        if (scroll != null) {
+            scroll.restore(kept);
+        }
+    }
+
+    private void fillAll() {
         if (tab == Tab.TRADE && !view.trades()) {
             // Народ перестал торговать, пока экран был открыт: пустая
             // вкладка хуже, чем возврат к разговору.
@@ -219,7 +239,12 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
             }
             tabs.child(Look.tab(candidate.title(), candidate == tab, TAB_WIDTH, pressed -> {
                 tab = candidate;
-                fill();
+                // Новая вкладка начинается сверху: держать место от прошлой
+                // значило бы открывать торг с середины списка.
+                fillAll();
+                if (scroll != null) {
+                    scroll.restore(0);
+                }
             }));
         }
     }

@@ -14,7 +14,6 @@ import io.wispforest.owo.ui.component.ItemComponent;
 import io.wispforest.owo.ui.component.LabelComponent;
 import io.wispforest.owo.ui.container.Containers;
 import io.wispforest.owo.ui.container.FlowLayout;
-import io.wispforest.owo.ui.container.ScrollContainer;
 import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.Component;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
@@ -104,6 +103,7 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
     private FlowLayout head;
     private FlowLayout body;
     private FlowLayout tabs;
+    private KeptScroll<FlowLayout> scroll;
 
     public TownHallScreen(TownHallScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
@@ -135,8 +135,7 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
 
         // Высота — числом, ширина — с запасом под ползунок, чтобы он
         // не наезжал на строки.
-        ScrollContainer<FlowLayout> scroll = Containers.verticalScroll(
-                Sizing.fill(100), Sizing.fixed(BODY_HEIGHT), body);
+        scroll = new KeptScroll<>(Sizing.fill(100), Sizing.fixed(BODY_HEIGHT), body);
         scroll.scrollbarThiccness(4);
         scroll.padding(Insets.right(6));
         panel.child(scroll);
@@ -152,13 +151,29 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         return getScreenHandler().view();
     }
 
-    /** Новый снимок с сервера: заголовок, вкладки и тело заново. */
+    /**
+     * Новый снимок с сервера: заголовок, вкладки и тело заново.
+     * <p>
+     * И <b>ровно на том же месте</b>. Снимок приходит дважды в секунду,
+     * а в живой колонии он почти всегда другой: кто-то поработал, кто-то
+     * поел, стройка сдвинулась на блок. Пересобранное тело уводило
+     * прокрутку в начало, и список длиннее экрана становился нечитаемым —
+     * до нижней строки было не дожить. Заказчик сказал прямо: «нельзя
+     * нормально использовать меню».
+     */
     public void refresh(TownHallView fresh) {
+        if (fresh.equals(view())) {
+            return;
+        }
         getScreenHandler().acceptView(fresh);
         if (body != null) {
+            double kept = scroll == null ? 0 : scroll.where();
             fillHead();
             fillTabs();
             fillBody();
+            if (scroll != null) {
+                scroll.restore(kept);
+            }
         }
     }
 
@@ -201,6 +216,10 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
                 tab = candidate;
                 fillTabs();
                 fillBody();
+                // Новая вкладка начинается сверху, а не с места прошлой.
+                if (scroll != null) {
+                    scroll.restore(0);
+                }
             }));
         }
     }

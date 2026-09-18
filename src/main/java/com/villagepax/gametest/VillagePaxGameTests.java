@@ -709,8 +709,33 @@ public class VillagePaxGameTests implements FabricGameTest {
             context.throwGameTestException("Шаги не сходятся: установок " + plan.blockCount()
                     + ", расчисток " + clearing + ", всего " + plan.steps().size());
         }
-        if (plan.steps().size() != volume) {
-            context.throwGameTestException("Шагов " + plan.steps().size() + " при объёме " + volume);
+        // Шагов теперь больше, чем клеток схемы, и это правило, а не
+        // погрешность: сверх следа план расчищает ПОДХОД ко входу —
+        // проход в рост человека на три шага от порога. Им билдер и валит
+        // дерево, выросшее у калитки, из-за которого на ферму было не войти.
+        int inside = 0;
+        int outside = 0;
+        for (BuildStep step : plan.steps()) {
+            BlockPos at = step.pos();
+            boolean within = at.getX() >= 0 && at.getY() >= 0 && at.getZ() >= 0
+                    && at.getX() < size.getX() && at.getY() < size.getY() && at.getZ() < size.getZ();
+            if (within) {
+                inside++;
+                continue;
+            }
+            outside++;
+            if (step.placesBlock()) {
+                context.throwGameTestException("За следом здания план ставит блок на "
+                        + at.toShortString() + ": туда билдеру можно только с топором");
+            }
+        }
+        if (inside != volume) {
+            context.throwGameTestException("Клеток схемы в плане " + inside
+                    + " при объёме " + volume + " — часть схемы потерялась");
+        }
+        if (outside == 0) {
+            context.throwGameTestException("Подход ко входу не расчищается: "
+                    + "дерево у порога снова останется стоять");
         }
 
         context.complete();
@@ -10560,11 +10585,16 @@ public class VillagePaxGameTests implements FabricGameTest {
         Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
         Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
 
-        BlockPos hall = context.getAbsolutePos(new BlockPos(0, 3, 0));
+        // Высота — вместо простора. Делянки игровых проверок стоят
+        // в двенадцати блоках друг от друга, а этой площадке нужно
+        // пятнадцать: соседи затирали бы её ровно тогда, когда мир общий
+        // и проверки идут разом. По высоте соседей нет, и разъехаться
+        // вверх дешевле, чем ужимать землю до бесполезной.
+        BlockPos hall = context.getAbsolutePos(new BlockPos(0, 41, 0));
         // Земля вокруг на два блока ниже пола зданий: так и выходит
         // в игре на склоне, и ровно так выглядят снимки заказчика.
-        BlockPos houseAt = context.getAbsolutePos(new BlockPos(3, 4, 2));
-        BlockPos farmAt = context.getAbsolutePos(new BlockPos(3, 4, 10));
+        BlockPos houseAt = context.getAbsolutePos(new BlockPos(3, 42, 2));
+        BlockPos farmAt = context.getAbsolutePos(new BlockPos(3, 42, 10));
         List<BlockPos> ground = new ArrayList<>();
 
         Settlement colony = colonyWithBuilder(world, manager, hall);
@@ -10582,9 +10612,12 @@ public class VillagePaxGameTests implements FabricGameTest {
         // Поэтому за собой убирают оба исхода: и провал посреди стройки,
         // и разбор на двадцатом тике.
         try {
-            for (int x = -8; x <= 16; x++) {
-                for (int z = -8; z <= 24; z++) {
-                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 2, z));
+            // Площадка ровно под нужду: дом, поле, место жителя и шаг
+            // спуска вокруг. Мир у игровых проверок общий, и лишние
+            // двадцать блоков камня — это не запас, а чужая площадка.
+            for (int x = -2; x <= 13; x++) {
+                for (int z = -2; z <= 20; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 40, z));
                     world.setBlockState(at, Blocks.STONE.getDefaultState());
                     ground.add(at);
                 }
@@ -10598,7 +10631,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             grown = BuildJob.advance(world, manager, colony.id(), farm.id(), 20_000);
 
             Citizen citizen = Citizen.newborn("Пешеход", "", NORMAN, Gender.MALE);
-            citizen.setPosition(Vec3d.ofBottomCenter(context.getAbsolutePos(new BlockPos(1, 3, 6))));
+            citizen.setPosition(Vec3d.ofBottomCenter(context.getAbsolutePos(new BlockPos(1, 41, 6))));
             colony.addCitizen(citizen);
             walker = CitizenSpawner.spawnBody(world, colony, citizen);
 
@@ -10667,8 +10700,13 @@ public class VillagePaxGameTests implements FabricGameTest {
         SettlementManager manager = SettlementManager.get(world);
         Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
 
-        BlockPos hall = context.getAbsolutePos(new BlockPos(0, 12, 0));
-        BlockPos houseAt = context.getAbsolutePos(new BlockPos(4, 6, 4));
+        // Высота — вместо простора. Делянки игровых проверок стоят
+        // в двенадцати блоках друг от друга, а этой площадке нужно
+        // пятнадцать: соседи затирали бы её ровно тогда, когда мир общий
+        // и проверки идут разом. По высоте соседей нет, и разъехаться
+        // вверх дешевле, чем ужимать землю до бесполезной.
+        BlockPos hall = context.getAbsolutePos(new BlockPos(0, 82, 0));
+        BlockPos houseAt = context.getAbsolutePos(new BlockPos(4, 76, 4));
         List<BlockPos> ground = new ArrayList<>();
 
         Settlement colony = colonyWithBuilder(world, manager, hall);
@@ -10738,6 +10776,117 @@ public class VillagePaxGameTests implements FabricGameTest {
             context.complete();
         });
     }
+
+    /**
+     * Дерево у калитки валит сам билдер, и на поле можно войти.
+     * <p>
+     * Жалоба заказчика: «построил ферму, а зайти нельзя, дерево блокирует».
+     * Дерево росло вплотную к калитке, но <b>за следом здания</b>, а план
+     * расчищал только след. Крыльцо потом честно клало ступени под стволом,
+     * и войти всё равно было нельзя: мерили одно, мешало другое.
+     * <p>
+     * Теперь подход ко входу — часть плана: три шага от порога в рост
+     * человека. Билдер валит дерево сам, тем же шагом расчистки, каким
+     * убирает бугор под фундаментом, и остаток ствола не висит над
+     * проходом.
+     * <p>
+     * Судит по-прежнему ванильный поиск пути: «расчищено» — это не когда
+     * клетка пуста по нашей мерке, а когда житель дошёл.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "walkin", tickLimit = 600)
+    public void theBuilderFellsTheTreeAtTheGate(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        // Высота — вместо простора. Делянки игровых проверок стоят
+        // в двенадцати блоках друг от друга, а этой площадке нужно
+        // пятнадцать: соседи затирали бы её ровно тогда, когда мир общий
+        // и проверки идут разом. По высоте соседей нет, и разъехаться
+        // вверх дешевле, чем ужимать землю до бесполезной.
+        BlockPos hall = context.getAbsolutePos(new BlockPos(0, 103, 0));
+        BlockPos farmAt = context.getAbsolutePos(new BlockPos(4, 103, 4));
+        List<BlockPos> ground = new ArrayList<>();
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        Building farm;
+        CitizenEntity walker;
+        BlockPos inFarm;
+        BlockPos trunk;
+        BuildJob.Outcome grown;
+
+        try {
+            // Ровная земля: единственная помеха в этой проверке — дерево.
+            for (int x = -1; x <= 13; x++) {
+                for (int z = -1; z <= 13; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 102, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    ground.add(at);
+                }
+            }
+
+            farm = plan(colony, farmAt, FARM_TYPE, BlockRotation.NONE);
+
+            // Дуб вырос ровно там, где выходят с поля.
+            BlockPos gate = Access.entrances(farm, farmPlan).get(0);
+            trunk = gate.offset(Access.awayFrom(farm, farmPlan, gate));
+            for (int up = 0; up < 5; up++) {
+                world.setBlockState(trunk.up(up), Blocks.OAK_LOG.getDefaultState());
+            }
+            world.setBlockState(trunk.up(5), Blocks.OAK_LEAVES.getDefaultState());
+
+            stockFor(world, colony, farmPlan);
+            grown = BuildJob.advance(world, manager, colony.id(), farm.id(), 20_000);
+
+            Citizen citizen = Citizen.newborn("Прохожий", "", NORMAN, Gender.MALE);
+            citizen.setPosition(Vec3d.ofBottomCenter(context.getAbsolutePos(new BlockPos(0, 103, 8))));
+            colony.addCitizen(citizen);
+            walker = CitizenSpawner.spawnBody(world, colony, citizen);
+
+            inFarm = insideOf(world, farm, farmPlan);
+
+            if (grown != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Поле не встало: " + grown);
+            }
+            if (walker == null || inFarm == null) {
+                context.throwGameTestException("Некому или некуда идти: тело "
+                        + (walker != null) + ", на поле " + inFarm);
+            }
+
+            // Глазами — сразу: проход в рост человека свободен, и обрубок
+            // ствола над ним не висит. Ждать тика тут нечего, а падение
+            // со словами читается лучше, чем падение по времени.
+            for (int up = 0; up < 5; up++) {
+                if (!world.getBlockState(trunk.up(up)).isAir()) {
+                    context.throwGameTestException("Дерево у калитки не свалено: на "
+                            + trunk.up(up).toShortString() + " стоит "
+                            + world.getBlockState(trunk.up(up)).getBlock());
+                }
+            }
+        } catch (RuntimeException | Error trouble) {
+            cleanUpVillage(world, manager, colony, hall, ground);
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            throw trouble;
+        }
+
+        context.runAtTick(20, () -> {
+            try {
+                // А ногами — на двадцатом тике: ванильная навигация
+                // отказывает телу, которое ещё не коснулось земли.
+                String trouble = whyCannotReach(walker, inFarm);
+                if (trouble != null) {
+                    context.throwGameTestException(walkFailure("На поле не войти", trouble,
+                            world, farm, farmPlan, walker, inFarm));
+                }
+            } finally {
+                cleanUpVillage(world, manager, colony, hall, ground);
+                world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            }
+            context.complete();
+        });
+    }
+
 
     /** Рассказ о том, почему не дойти: порог, ступени и всё, что рядом. */
     private static String walkFailure(String what, String why, ServerWorld world,
@@ -10860,14 +11009,19 @@ public class VillagePaxGameTests implements FabricGameTest {
         List<String> complaints = new ArrayList<>();
         List<BlockPos> ground = new ArrayList<>();
 
-        BlockPos hall = context.getAbsolutePos(new BlockPos(10, 9, 3));
+        // Высота — вместо простора. Делянки игровых проверок стоят
+        // в двенадцати блоках друг от друга, а этой площадке нужно
+        // пятнадцать: соседи затирали бы её ровно тогда, когда мир общий
+        // и проверки идут разом. По высоте соседей нет, и разъехаться
+        // вверх дешевле, чем ужимать землю до бесполезной.
+        BlockPos hall = context.getAbsolutePos(new BlockPos(10, 139, 3));
         // На два блока выше земли: так здание и встаёт после подсыпки опоры.
-        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 11, 0));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 141, 0));
 
         try {
             for (int x = -9; x <= 20; x++) {
                 for (int z = -9; z <= 20; z++) {
-                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 138, z));
                     world.setBlockState(at, Blocks.STONE.getDefaultState());
                     ground.add(at);
                 }

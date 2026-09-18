@@ -22,6 +22,7 @@ import net.minecraft.item.Items;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.registry.Registries;
+import net.minecraft.registry.tag.BlockTags;
 import com.villagepax.screen.TownHallNet;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -52,6 +53,9 @@ import java.util.UUID;
  * проверял бы не то, что работает в игре.
  */
 public final class BuildJob {
+
+    /** Докуда валится остаток ствола над расчищенной клеткой. */
+    private static final int TRUNK = 12;
 
     /** Один блок за полсекунды: стройка должна быть видна как процесс. */
     public static final int TICKS_PER_STEP = 10;
@@ -461,6 +465,15 @@ public final class BuildJob {
                 return StepResult.SKIPPED;
             }
 
+            // Расчистка подхода выходит за след здания, и там уже может
+            // стоять соседний дом. Прогрызть в нём дыру ради прохода —
+            // не проход, а погром: билдер просто обходит чужую стену,
+            // а житель обойдёт её сам.
+            if (!BuildSite.covers(building.anchor(), schematic.size(), building.rotation(), where)
+                    && standsInAnother(settlement, building, where)) {
+                return StepResult.SKIPPED;
+            }
+
             // Слот декора план не расчищает. Обстановку в него поставил
             // {@link Decor} — бесплатно, потому что заявка на материалы
             // считается по плану, а декор в плане только место. Снеси его
@@ -473,9 +486,14 @@ public final class BuildJob {
             if (isTooFar(workFrom, where)) {
                 return StepResult.TOO_FAR;
             }
-            salvage(world, warehouse, building, where, storageIsNearby(warehouse, building));
+            boolean nearby = storageIsNearby(warehouse, building);
+            boolean trunk = world.getBlockState(where).isIn(BlockTags.LOGS);
+            salvage(world, warehouse, building, where, nearby);
             Sounds.broke(world, where, world.getBlockState(where));
             world.setBlockState(where, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
+            if (trunk) {
+                fellTrunkAbove(world, settlement, warehouse, building, where, nearby);
+            }
             return StepResult.WORKED;
         }
 
@@ -734,6 +752,54 @@ public final class BuildJob {
         return schematic.plan().positionsOf(kind).stream()
                 .map(local -> worldPos(building, schematic.size(), local))
                 .toList();
+    }
+
+    /**
+     * Свалить остаток ствола над расчищенной клеткой.
+     * <p>
+     * Без этого над проходом висит обрубок: билдер вырубает клетку в рост
+     * человека, а дерево было в пять брёвен. Игрок видит пенёк, парящий
+     * над крыльцом, и это хуже, чем дерево, — дерево хоть выглядело деревом.
+     * <p>
+     * Столбом вверх, а не всем деревом по связности: обход веток — работа
+     * лесоруба, у него на неё и топор, и грядка в роще. Билдеру довольно
+     * колонны над своей клеткой; листва без ствола осыпается сама.
+     * <p>
+     * Брёвна идут туда же, куда всё снесённое, — на склад или в запас
+     * стройки. Дерево у порога оборачивается материалом для стены.
+     */
+    private static void fellTrunkAbove(ServerWorld world, Settlement settlement, Warehouse warehouse,
+                                       Building building, BlockPos base, boolean nearStorage) {
+        for (int up = 1; up <= TRUNK; up++) {
+            BlockPos at = base.up(up);
+            if (!world.getBlockState(at).isIn(BlockTags.LOGS)
+                    || standsInAnother(settlement, building, at)) {
+                return;
+            }
+            salvage(world, warehouse, building, at, nearStorage);
+            world.setBlockState(at, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
+        }
+    }
+
+    /**
+     * Занята ли эта точка следом другого здания поселения.
+     * <p>
+     * Спрашивается только про клетки <b>за следом</b> своего здания —
+     * то есть про расчистку подхода, а это шесть клеток на вход. Внутри
+     * своего следа вопрос не имеет смысла: два здания там пересечься
+     * не могут, это проверено при разметке.
+     */
+    private static boolean standsInAnother(Settlement settlement, Building building, BlockPos where) {
+        for (Building other : settlement.buildings()) {
+            if (other.id().equals(building.id())) {
+                continue;
+            }
+            Schematic plan = SchematicLoader.get(schematicId(other)).orElse(null);
+            if (plan != null && BuildSite.covers(other.anchor(), plan.size(), other.rotation(), where)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasBuilder(Settlement settlement) {

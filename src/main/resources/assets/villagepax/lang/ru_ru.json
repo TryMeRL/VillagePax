@@ -305,5 +305,10 @@
   "villagepax.screen.assign.locked": "Это ремесло откроется, когда колония подрастёт.",
   "villagepax.screen.place.locked": "Такое здание строят не раньше, чем колония станет: %s",
   "villagepax.hologram.locked": "Рано: колония ещё не доросла",
-  "villagepax.quest.screen.reward_trust": "%s к доверию"
+  "villagepax.quest.screen.reward_trust": "%s к доверию",
+  "item.villagepax.cloth": "Сукно",
+  "villagepax.profession.weaver": "Ткач",
+  "villagepax.building.norman.weavery": "Ткацкая",
+  "villagepax.building.maya.weavery": "Дом ткачих",
+  "villagepax.screen.growth.not_yet": "Ратуши такого уровня в моде пока нет — эта ступень впереди."
 }

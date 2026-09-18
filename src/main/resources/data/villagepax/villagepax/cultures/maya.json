@@ -40,7 +40,8 @@
     "villagepax:maya/lumberjack",
     "villagepax:maya/warehouse",
     "villagepax:maya/builder_hut",
-    "villagepax:maya/brewery"
+    "villagepax:maya/brewery",
+    "villagepax:maya/weavery"
   ],
   "road": [
     "minecraft:stone_bricks",

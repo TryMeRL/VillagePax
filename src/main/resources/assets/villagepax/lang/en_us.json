@@ -305,5 +305,10 @@
   "villagepax.screen.assign.locked": "That craft unlocks when the colony grows.",
   "villagepax.screen.place.locked": "This building needs the colony to be at least: %s",
   "villagepax.hologram.locked": "Too early: the colony has not grown into it",
-  "villagepax.quest.screen.reward_trust": "%s trust"
+  "villagepax.quest.screen.reward_trust": "%s trust",
+  "item.villagepax.cloth": "Cloth",
+  "villagepax.profession.weaver": "Weaver",
+  "villagepax.building.norman.weavery": "Weavery",
+  "villagepax.building.maya.weavery": "Weavers' House",
+  "villagepax.screen.growth.not_yet": "No town hall of that level exists yet — this rank is still ahead."
 }

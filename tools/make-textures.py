@@ -714,6 +714,33 @@ def purse():
     return t
 
 
+def cloth():
+    """Сукно: свёрнутый отрез с кромкой и складками.
+
+    Первый товар колонии на вывоз, и выглядеть он должен товаром:
+    ровный свёрток с видимой кромкой, а не тряпка. Оттенок — небелёный
+    лён: крашеное сукно будет отдельной вещью, когда дойдут руки.
+    """
+    t = Tex(CLEAR)
+    base = rgb(0xD9CFB4)
+    dark = rgb(0xBCB094)
+    lit = rgb(0xEDE5CE)
+    edge = rgb(0x8E8368)
+    t.rect(1, 3, 14, 12, base)
+    t.rect(1, 3, 14, 3, lit)
+    t.rect(1, 12, 14, 12, edge)
+    t.rect(1, 3, 1, 12, lit)
+    t.rect(14, 3, 14, 12, edge)
+    # Складки: три валика поперёк свёртка.
+    for y in (5, 8, 11):
+        t.rect(2, y, 13, y, dark)
+        t.rect(2, y - 1, 13, y - 1, lit)
+    # Кромка по краю: по ней отрез и узнаётся.
+    for x in range(2, 14, 3):
+        t.set(x, 12, rgb(0xA8452F))
+    return t
+
+
 def blueprint():
     """Чертёж: свиток с планом дома и восковой печатью."""
     t = Tex(CLEAR)
@@ -909,6 +936,7 @@ def main():
                 .save("item", "gold_coin"))
     made.append(ale().save("item", "ale"))
     made.append(cacao().save("item", "cacao"))
+    made.append(cloth().save("item", "cloth"))
     made.append(purse().save("item", "purse"))
     made.append(blueprint().save("item", "town_hall_blueprint"))
 

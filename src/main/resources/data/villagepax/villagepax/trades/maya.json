@@ -51,6 +51,11 @@
   ],
   "buys": [
     {
+      "item": "villagepax:cloth",
+      "count": 2,
+      "price": 5
+    },
+    {
       "item": "minecraft:iron_ingot",
       "count": 4,
       "price": 3

@@ -71,7 +71,8 @@ public final class TownHallNet {
     public static final TownHallView EMPTY = new TownHallView("", UNKNOWN, "hamlet",
             0, 0, new TownHallView.Household(0, 0, 0, 0, 0), Optional.empty(),
             List.of(), List.of(), new ItemTally(), List.of(), List.of(), Optional.empty(),
-            new TownHallView.Growth("villagepax.level.hamlet", Optional.empty(), 0, 1, List.of()));
+            new TownHallView.Growth("villagepax.level.hamlet", Optional.empty(), 0, 1,
+                    List.of(), true));
 
     private TownHallNet() {
     }

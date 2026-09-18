@@ -11,7 +11,10 @@ import com.villagepax.core.building.BuildingType;
 import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.building.BuildingType;
 import com.villagepax.core.building.BuildingTypes;
+import com.villagepax.core.culture.Culture;
+import com.villagepax.core.culture.CultureManager;
 import com.villagepax.core.profession.ProfessionManager;
+import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.Levels;
 import com.villagepax.sim.Milestones;
 import com.villagepax.sim.SettlementLevel;
@@ -98,16 +101,18 @@ public record TownHallView(
      * @param hallLevel уровень ратуши сейчас
      * @param needsHall уровень ратуши, с которого начнётся следующая ступень
      * @param opens     ключи названий того, что откроется на следующей
+     * @param reachable есть ли вообще схема ратуши нужного уровня
      */
     public record Growth(String level, Optional<String> next, int hallLevel, int needsHall,
-                         List<String> opens) {
+                         List<String> opens, boolean reachable) {
 
         public static final Codec<Growth> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.STRING.fieldOf("level").forGetter(Growth::level),
                 Codec.STRING.optionalFieldOf("next").forGetter(Growth::next),
                 Codec.INT.optionalFieldOf("hall_level", 1).forGetter(Growth::hallLevel),
                 Codec.INT.optionalFieldOf("needs_hall", 2).forGetter(Growth::needsHall),
-                Codec.STRING.listOf().optionalFieldOf("opens", List.of()).forGetter(Growth::opens)
+                Codec.STRING.listOf().optionalFieldOf("opens", List.of()).forGetter(Growth::opens),
+                Codec.BOOL.optionalFieldOf("reachable", true).forGetter(Growth::reachable)
         ).apply(instance, Growth::new));
     }
 
@@ -311,7 +316,8 @@ public record TownHallView(
                 .orElse(0);
 
         if (now.isMax()) {
-            return new Growth(Milestones.levelKey(now), Optional.empty(), hall, hall, List.of());
+            return new Growth(Milestones.levelKey(now), Optional.empty(), hall, hall,
+                    List.of(), true);
         }
         SettlementLevel next = now.next();
         List<String> opens = new ArrayList<>();
@@ -325,8 +331,30 @@ public record TownHallView(
                 opens.add(kind.displayName());
             }
         }
+        int needsHall = next.ordinal() + 1;
         return new Growth(Milestones.levelKey(now), Optional.of(Milestones.levelKey(next)),
-                hall, next.ordinal() + 1, opens);
+                hall, needsHall, opens, hallExists(settlement, needsHall));
+    }
+
+    /**
+     * Есть ли в моде ратуша такого уровня.
+     * <p>
+     * Пульт не имеет права обещать ступень, до которой нельзя дойти.
+     * Ровно это и случилось, когда лестница ступеней появилась раньше
+     * третьей ратуши: карточка роста звала игрока поднять ратушу
+     * до уровня, схемы которого не существовало, а кнопка «Улучшить»
+     * отвечала «выше некуда». Хуже, чем молчание.
+     */
+    private static boolean hallExists(Settlement settlement, int level) {
+        Culture culture = CultureManager.get(settlement.culture());
+        if (culture == null) {
+            return false;
+        }
+        return culture.townHallBuilding()
+                .map(type -> new Identifier(type.getNamespace(),
+                        type.getPath() + "_lvl" + level))
+                .flatMap(SchematicLoader::get)
+                .isPresent();
     }
 
     /**

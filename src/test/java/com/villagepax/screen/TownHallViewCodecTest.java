@@ -28,7 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TownHallViewCodecTest {
 
     private static final TownHallView.Growth GROWTH =
-            new TownHallView.Growth("villagepax.level.hamlet", Optional.empty(), 1, 2, java.util.List.of());
+            new TownHallView.Growth("villagepax.level.hamlet", Optional.empty(), 1, 2,
+                    java.util.List.of(), true);
 
     private static TownHallView sample() {
         return new TownHallView(

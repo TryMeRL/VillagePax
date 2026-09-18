@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
+    "villagepax:cloth",
     "#minecraft:wool",
     "#minecraft:wool_carpets",
     "minecraft:leather",

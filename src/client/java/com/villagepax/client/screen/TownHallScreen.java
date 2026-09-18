@@ -247,6 +247,17 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         card.child(Look.stat(Text.translatable("villagepax.screen.growth.next"),
                 Text.translatable(growth.next().get()), CAPTION));
 
+        if (!growth.reachable()) {
+            // Обещать ступень, до которой нет ратуши, — хуже, чем молчать.
+            LabelComponent later = Components.label(
+                    Text.translatable("villagepax.screen.growth.not_yet"));
+            later.color(Look.MUTED);
+            later.lineHeight(10);
+            card.child(later.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            body.child(card);
+            return;
+        }
+
         LabelComponent how = Components.label(Text.translatable("villagepax.screen.growth.how",
                 Text.literal(String.valueOf(growth.needsHall()))));
         how.color(Look.INK);

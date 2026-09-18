@@ -1,0 +1,8 @@
+{
+  "display_name": "villagepax.profession.weaver",
+  "job": "villagepax:craft",
+  "needs_workplace": true,
+  "hiring_priority": 35,
+  "workplace": "weavery",
+  "min_level": "town"
+}

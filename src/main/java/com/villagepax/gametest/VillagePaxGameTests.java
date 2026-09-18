@@ -3271,17 +3271,24 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Предел населения не вырос");
             }
 
-            // Второй раз улучшать некуда: схемы третьего уровня нет.
+            // А вот теперь есть куда: третий уровень появился вместе
+            // со ступенью «город», и лестница перестала упираться в стену.
+            // Раньше здесь стояло обратное утверждение — «улучшать некуда», —
+            // и оно было правдой ровно до тех пор, пока ступени ничего
+            // не открывали.
             BuildOrders.Result again = BuildOrders.upgrade(manager, colony, townHall.id());
-            if (!(again instanceof BuildOrders.Result.TopLevel)) {
-                context.throwGameTestException("Улучшение сверх наивысшего уровня принято: "
-                        + again);
+            if (!(again instanceof BuildOrders.Result.Placed)) {
+                context.throwGameTestException("Ратушу не дают поднять до третьего уровня: "
+                        + again + ". Тогда ступень «город» недостижима, а пульт её обещает");
             }
-            if (townHall.level() != 2) {
-                context.throwGameTestException("Отказ всё-таки поднял уровень");
+            if (townHall.level() != 3) {
+                context.throwGameTestException("Улучшение принято, а уровень остался "
+                        + townHall.level());
             }
         } finally {
             demolish(world, townHall, bigger);
+            demolish(world, townHall, schematic(context,
+                    new Identifier("villagepax", "norman/town_hall_lvl3")));
             discardBodies(world, colony);
             manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
@@ -5984,6 +5991,18 @@ public class VillagePaxGameTests implements FabricGameTest {
             if (village.buildings().stream().noneMatch(BuildJob::isUnderConstruction)) {
                 context.throwGameTestException("Деревня ничего не строит — возить нечего");
                 return;
+            }
+
+            // Никаких колоний поблизости: суточная смена деревни — это
+            // не только привоз, но и обоз, а обоз УВОЗИТ товар, и счёт
+            // предметов уходит в минус. Появилось это, когда деревни стали
+            // встречать игрока полным прилавком: возить стало что, и
+            // проверка начала мигать через раз, потому что день обоза
+            // зависит от опознавателя деревни.
+            for (Settlement colony : List.copyOf(manager.all())) {
+                if (!colony.owner().isAutonomous()) {
+                    manager.remove(colony.id());
+                }
             }
 
             Warehouse warehouse = Warehouse.of(world, village);
@@ -10273,6 +10292,172 @@ public class VillagePaxGameTests implements FabricGameTest {
             world.setBlockState(at, Blocks.AIR.getDefaultState());
             world.getEntitiesByClass(ItemEntity.class, new Box(at).expand(6), alive -> true)
                     .forEach(ItemEntity::discard);
+        }
+
+        context.complete();
+    }
+
+
+    private static final Identifier WEAVERY_SCHEMATIC =
+            new Identifier("villagepax", "norman/weavery_lvl1");
+    private static final Identifier WEAVERY_TYPE =
+            new Identifier("villagepax", "norman/weavery");
+    private static final Identifier WEAVER = new Identifier("villagepax", "weaver");
+
+    /**
+     * Город открывает ткача, а ткач даёт колонии товар на вывоз.
+     * <p>
+     * Вторая ступень лестницы, и без неё первая висела в пустоте: до сих
+     * пор выше «деревни» не открывалось <b>ничего</b>, потому что и самой
+     * ратуши третьего уровня в моде не было. Карточка роста звала игрока
+     * туда, куда дойти нельзя.
+     * <p>
+     * Проверяется вся цепь: в деревне ткач заперт, в городе открыт,
+     * ткацкая встаёт, шерсть уходит, сукно появляется. И отдельно —
+     * что <b>сукно у деревень в цене</b>: ради этого оно и заведено,
+     * иначе это просто ещё одна вещь на складе.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "growth", tickLimit = 400)
+    public void townOpensTheWeaverAndClothIsWorthSelling(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic plan = schematic(context, WEAVERY_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        BlockPos shopAt = context.getAbsolutePos(new BlockPos(3, 6, 3));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Citizen weaver = null;
+
+        try {
+            colony.setLevel(SettlementLevel.VILLAGE);
+            Citizen worker = Citizen.newborn("Mahaut", "la Tisserande", NORMAN, Gender.FEMALE);
+            colony.addCitizen(worker);
+            if (Assignments.set(world, manager, colony, worker.id(), Optional.of(WEAVER))
+                    != Assignments.Result.LOCKED) {
+                context.throwGameTestException("Ткача наняли в деревне: ступень «город» "
+                        + "ничего не значит");
+                return;
+            }
+            if (!(BuildOrders.check(colony, WEAVERY_SCHEMATIC, shopAt, BlockRotation.NONE)
+                    instanceof BuildOrders.Result.Locked)) {
+                context.throwGameTestException("Ткацкую дали разметить в деревне");
+                return;
+            }
+
+            colony.setLevel(SettlementLevel.TOWN);
+            Building shop = plan(colony, shopAt, WEAVERY_TYPE, BlockRotation.NONE);
+            stockFor(world, colony, plan);
+            if (BuildJob.advance(world, manager, colony.id(), shop.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Ткацкая не встала");
+                return;
+            }
+
+            weaver = worker;
+            if (Assignments.set(world, manager, colony, weaver.id(), Optional.of(WEAVER))
+                    != Assignments.Result.DONE) {
+                context.throwGameTestException("В городе ткача всё ещё не нанять");
+                return;
+            }
+            weaver.setPosition(Vec3d.ofBottomCenter(shopAt.up()));
+            CitizenSpawner.spawnBody(world, colony, weaver);
+            Workplaces.assign(world, colony);
+
+            Warehouse.of(world, colony).add(new ItemStack(Items.WHITE_WOOL, 12));
+            int wool = Warehouse.of(world, colony).count(Items.WHITE_WOOL);
+            runWork(world, manager, colony, weaver, 8, Schedule.MORNING_WORK);
+
+            Warehouse after = Warehouse.of(world, colony);
+            if (after.count(ModItems.CLOTH) <= 0) {
+                context.throwGameTestException("Ткач отработал восемь решений и не соткал "
+                        + "ничего: сукна " + after.count(ModItems.CLOTH)
+                        + ", шерсти " + after.count(Items.WHITE_WOOL));
+            }
+            if (after.count(Items.WHITE_WOOL) >= wool) {
+                context.throwGameTestException("Сукно взялось из воздуха: шерсти было "
+                        + wool + ", осталось " + after.count(Items.WHITE_WOOL));
+            }
+
+            // Ради чего всё: деревни берут сукно, и берут дорого.
+            Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Торг",
+                    context.getAbsolutePos(new BlockPos(12, 1, 12)));
+            manager.add(village);
+            try {
+                TradeTable.Deal deal = Trading
+                        .find(village, Trading.Side.VILLAGE_BUYS, ModItems.CLOTH, 2)
+                        .orElse(null);
+                if (deal == null) {
+                    context.throwGameTestException("Деревня не скупает сукно: колонии "
+                            + "нечем торговать, и монета в мир по-прежнему не приходит");
+                    return;
+                }
+                if (deal.price() < 4) {
+                    context.throwGameTestException("За сукно дают " + deal.price()
+                            + " — это не товар на вывоз, а безделица");
+                }
+            } finally {
+                manager.remove(village.id());
+            }
+        } finally {
+            if (weaver != null) {
+                discardBodies(world, colony);
+            }
+            colony.buildings().stream()
+                    .filter(one -> one.type().equals(WEAVERY_TYPE))
+                    .findFirst()
+                    .ifPresent(one -> demolish(world, one, plan));
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Ратуша растёт до третьего уровня, и колония становится городом.
+     * <p>
+     * Ступень «город» была обещана пультом и недостижима в мире: схемы
+     * ратуши третьего уровня попросту не существовало, и кнопка
+     * «Улучшить» отвечала «выше некуда». Проверка держит обещание —
+     * схема есть, улучшение проходит, ступень поднимается.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "growth", tickLimit = 600)
+    public void townHallGrowsToTheThirdLevel(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic third = schematic(context, new Identifier("villagepax",
+                "norman/town_hall_lvl3"));
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        BlockPos at = context.getAbsolutePos(new BlockPos(2, 1, 2));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building seat = null;
+
+        try {
+            seat = plan(colony, at, TOWN_HALL_TYPE, BlockRotation.NONE);
+            seat.setLevel(3);
+            seat.restartBuilding();
+            stockFor(world, colony, third);
+            if (BuildJob.advance(world, manager, colony.id(), seat.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Ратуша третьего уровня не встала: шаг "
+                        + seat.nextStep() + " из " + third.plan().steps().size());
+                return;
+            }
+
+            Levels.refresh(colony);
+            if (colony.level() != SettlementLevel.TOWN) {
+                context.throwGameTestException("Ратуша третьего уровня стоит, а колония "
+                        + "всё ещё " + colony.level().id());
+            }
+        } finally {
+            if (seat != null) {
+                demolish(world, seat, third);
+            }
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
 
         context.complete();

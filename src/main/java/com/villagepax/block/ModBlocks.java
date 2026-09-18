@@ -67,6 +67,14 @@ public final class ModBlocks {
                     .sounds(BlockSoundGroup.WOOL)
                     .nonOpaque()));
 
+    /**
+     * Печная труба. Единственный блок мода, который сам по себе ничего
+     * не делает и всё же нужен: дым над крышей виден оттуда, откуда
+     * ни жителей, ни их дел ещё не разглядеть.
+     */
+    public static final Block CHIMNEY = register("chimney",
+            new ChimneyBlock(AbstractBlock.Settings.copy(Blocks.BRICKS)));
+
     /** Мешок снеди. Стоит у склада и на ферме — знак, что колония кормится. */
     public static final Block GRAIN_SACK = register("grain_sack",
             new Block(AbstractBlock.Settings.create()

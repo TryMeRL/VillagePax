@@ -289,6 +289,34 @@ def thatch():
     return t
 
 
+def chimney_side():
+    """Труба: кирпич в перевязку, закопчённый кверху.
+
+    Копоть не украшение: по ней труба отличается от кирпичной стены
+    с одного взгляда, а дом с трубой — от дома без неё.
+    """
+    t = brick(rgb(0x7E3A2C), rgb(0x9C4A38), rgb(0xB35C46), rgb(0x6B5048))
+    # Копоть: чем выше, тем гуще. Верхние два ряда почти чёрные.
+    soot = rgb(0x3A2A24)
+    for x in range(N):
+        t.set(x, 0, soot)
+        if (x * 5) % 7 < 4:
+            t.set(x, 1, soot)
+        if (x * 3) % 5 < 2:
+            t.set(x, 2, soot)
+    return t
+
+
+def chimney_top():
+    """Верх трубы: устье в копоти."""
+    t = brick(rgb(0x7E3A2C), rgb(0x9C4A38), rgb(0xB35C46), rgb(0x6B5048))
+    t.rect(4, 4, 11, 11, rgb(0x2B211C))
+    t.rect(5, 5, 10, 10, rgb(0x17110E))
+    t.rect(4, 4, 11, 4, rgb(0x3A2A24))
+    t.rect(4, 11, 11, 11, rgb(0x120D0B))
+    return t
+
+
 def brick(dark, base, lit, mortar):
     """Кладка: два ряда со смещением и раствор между ними."""
     t = Tex(base)
@@ -914,6 +942,8 @@ def main():
     made.append(town_hall_top().save("block", "town_hall_top"))
     made.append(brick(STONE_DARK, STONE, STONE_LIT, MORTAR)
                 .save("block", "town_hall_bottom"))
+    made.append(chimney_side().save("block", "chimney"))
+    made.append(chimney_top().save("block", "chimney_top"))
     made.append(firewood_end().save("block", "firewood_end"))
     made.append(log_end().save("block", "firewood_log_end"))
     made.append(firewood_side().save("block", "firewood_side"))

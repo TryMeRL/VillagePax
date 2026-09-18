@@ -187,6 +187,9 @@ LEGEND = {
     # Лестница, прислонённая к западной стене: у майя лаз на второй
     # этаж идёт по стене, а свободная клетка нашлась только там.
     "x": ("minecraft:ladder", {"facing": "east", "waterlogged": "false"}),
+    # Венец трубы: из него и идёт дым. Ставится только на самый верх
+    # дымохода — ниже труба остаётся полой, иначе дыму неоткуда взяться.
+    "Y": ("villagepax:chimney", {}),
     # Станок и кипа шерсти: приметы ткацкой. Ванильный ткацкий станок
     # здесь ровно к месту — он и в ванили для узора на ткани.
     "@": ("minecraft:loom", {"facing": "north"}),
@@ -292,13 +295,22 @@ def chimney_stack(width, depth, x, z, levels):
     """Труба над крышей: кольцо камня вокруг пустой колонны."""
     layers = []
 
-    for _ in range(levels):
+    for level in range(levels):
+        top = level == levels - 1
         rows = []
         for row_z in range(depth):
             row = []
             for row_x in range(width):
                 touching = max(abs(row_x - x), abs(row_z - z)) <= 1
-                row.append("M" if touching and (row_x, row_z) != (x, z) else ".")
+                if (row_x, row_z) == (x, z):
+                    # Устье остаётся открытым сверху донизу: дыму надо
+                    # куда-то идти, и проверка дома это стережёт.
+                    row.append(".")
+                elif touching:
+                    # Венец — верхний ряд кольца: он закопчён и дымит.
+                    row.append("Y" if top else "M")
+                else:
+                    row.append(".")
             rows.append("".join(row))
         layers.append(rows)
 

@@ -310,5 +310,6 @@
   "villagepax.profession.weaver": "Ткач",
   "villagepax.building.norman.weavery": "Ткацкая",
   "villagepax.building.maya.weavery": "Дом ткачих",
-  "villagepax.screen.growth.not_yet": "Ратуши такого уровня в моде пока нет — эта ступень впереди."
+  "villagepax.screen.growth.not_yet": "Ратуши такого уровня в моде пока нет — эта ступень впереди.",
+  "block.villagepax.chimney": "Печная труба"
 }

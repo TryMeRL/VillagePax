@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "top": "villagepax:block/chimney_top",
+    "bottom": "villagepax:block/chimney",
+    "side": "villagepax:block/chimney"
+  }
+}

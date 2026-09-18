@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "b b",
+    "b b",
+    "bbb"
+  ],
+  "key": {
+    "b": {
+      "item": "minecraft:bricks"
+    }
+  },
+  "result": {
+    "item": "villagepax:chimney",
+    "count": 2
+  }
+}

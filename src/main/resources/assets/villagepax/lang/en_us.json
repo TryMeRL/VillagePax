@@ -310,5 +310,6 @@
   "villagepax.profession.weaver": "Weaver",
   "villagepax.building.norman.weavery": "Weavery",
   "villagepax.building.maya.weavery": "Weavers' House",
-  "villagepax.screen.growth.not_yet": "No town hall of that level exists yet — this rank is still ahead."
+  "villagepax.screen.growth.not_yet": "No town hall of that level exists yet — this rank is still ahead.",
+  "block.villagepax.chimney": "Chimney"
 }

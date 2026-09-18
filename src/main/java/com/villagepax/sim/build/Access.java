@@ -9,13 +9,19 @@ import net.minecraft.block.enums.BlockHalf;
 import net.minecraft.block.enums.StairShape;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.state.property.DirectionProperty;
+import net.minecraft.state.property.Property;
+import net.minecraft.util.BlockRotation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.Vec3i;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Крыльцо: ступени от входа к земле.
@@ -61,12 +67,75 @@ public final class Access {
      */
     public static int porch(ServerWorld world, Building building, Schematic schematic) {
         int laid = 0;
-        BlockPos centre = BuildJob.worldPos(building, schematic.size(),
-                new BlockPos(schematic.size().getX() / 2, 0, schematic.size().getZ() / 2));
         for (BlockPos door : entrances(building, schematic)) {
-            laid += stepsFrom(world, centre, door);
+            laid += stepsFrom(world, building, schematic, door);
         }
         return laid;
+    }
+
+    /**
+     * В какую сторону от входа уходить.
+     * <p>
+     * Спрашивается <b>сам чертёж</b>: наружу — туда, где в плане на уровне
+     * порога дольше всего нет блоков. Это единственная мерка, которая
+     * верна для всех зданий сразу.
+     * <p>
+     * Прежние две ошибались. Догадка по середине следа шла в стену у хижины
+     * лесоруба: к дому пристроена роща, середина уезжает в неё, и крыльцо
+     * упиралось в сруб — «стена высотой 3», как сказала проверка входов.
+     * А {@code facing} у калитки — это ось прохода, и она молчит о том,
+     * с какой стороны улица.
+     */
+    public static Direction awayFrom(Building building, Schematic schematic, BlockPos door) {
+        Vec3i size = schematic.size();
+        BlockPos local = localOf(building, schematic, door);
+        Set<BlockPos> filled = new HashSet<>();
+        for (BuildStep step : schematic.plan().steps()) {
+            if (step.placesBlock() && !schematic.blockAt(step.paletteIndex()).isAir()) {
+                filled.add(step.pos());
+            }
+        }
+
+        Direction best = Direction.NORTH;
+        int longest = -1;
+        for (Direction way : Direction.Type.HORIZONTAL) {
+            int open = 0;
+            for (int step = 1; step <= REACH; step++) {
+                BlockPos at = local.offset(way, step);
+                boolean outside = at.getX() < 0 || at.getZ() < 0
+                        || at.getX() >= size.getX() || at.getZ() >= size.getZ();
+                if (outside) {
+                    // За краем следа — самая улица и есть.
+                    open += REACH;
+                    break;
+                }
+                if (filled.contains(at)) {
+                    break;
+                }
+                open++;
+            }
+            if (open > longest) {
+                longest = open;
+                best = way;
+            }
+        }
+        // Направление чертежа поворачивается вместе со зданием.
+        return turned(best, building.rotation());
+    }
+
+    /** Место входа в собственных координатах схемы. */
+    private static BlockPos localOf(Building building, Schematic schematic, BlockPos door) {
+        for (BuildStep step : schematic.plan().steps()) {
+            if (BuildJob.worldPos(building, schematic.size(), step.pos()).equals(door)) {
+                return step.pos();
+            }
+        }
+        return BlockPos.ORIGIN;
+    }
+
+    /** Повернуть направление чертежа так, как повёрнуто здание. */
+    private static Direction turned(Direction way, BlockRotation rotation) {
+        return rotation.rotate(way);
     }
 
     /**
@@ -128,12 +197,37 @@ public final class Access {
                 new BlockPos(schematic.size().getX() / 2, 0, schematic.size().getZ() / 2));
         List<BlockPos> spots = new ArrayList<>();
         for (BlockPos door : entrances(building, schematic)) {
-            Direction out = outward(centre, door);
+            Direction out = awayFrom(building, schematic, door);
+            // Те же места, что и у настоящей укладки: ноги опускаются
+            // на блок за шаг, значит блок ложится на два ниже предыдущих ног.
             for (int step = 1; step <= REACH; step++) {
-                spots.add(door.offset(out, step).withY(door.getY() - step));
+                spots.add(door.offset(out, step).withY(door.getY() - step - 1));
             }
         }
         return spots;
+    }
+
+    /**
+     * Рассказ о том, что крыльцо видит у входа. Только для проверок.
+     */
+    public static String story(ServerWorld world, Building building, Schematic schematic) {
+        StringBuilder story = new StringBuilder();
+        for (BlockPos door : entrances(building, schematic)) {
+            Direction out = awayFrom(building, schematic, door);
+            story.append("[вход ").append(door.toShortString())
+                    .append(" наружу ").append(out)
+                    .append(" опора=").append(standable(world, door.down()))
+                    .append(" из=").append(world.getBlockState(door.down()).getBlock());
+            int walk = door.getY();
+            for (int step = 1; step <= REACH; step++) {
+                BlockPos column = door.offset(out, step);
+                story.append(" | шаг").append(step)
+                        .append(" земля=").append(topSolid(world, column, walk + 1))
+                        .append(" нужна=").append(needsStep(world, column, walk - 2));
+            }
+            story.append("]");
+        }
+        return story.toString();
     }
 
     /**
@@ -142,8 +236,9 @@ public final class Access {
      * Наружу — это прочь от середины здания: по той стороне, с которой
      * вход и смотрит. Иначе ступени легли бы внутрь дома.
      */
-    private static int stepsFrom(ServerWorld world, BlockPos centre, BlockPos door) {
-        Direction out = outward(centre, door);
+    private static int stepsFrom(ServerWorld world, Building building, Schematic schematic,
+                                 BlockPos door) {
+        Direction out = awayFrom(building, schematic, door);
         BlockState material = world.getBlockState(door.down());
         if (!standable(world, door.down())) {
             // Порог висит в воздухе: чинить надо не крыльцом.
@@ -152,29 +247,49 @@ public final class Access {
 
         BlockState tread = stepBlock(material, out);
         int laid = 0;
+
+        // Считается ВЫСОТА НОГ, а не место блока, и мерка одна на весь
+        // спуск: каждый следующий шаг наружу ниже предыдущего ровно
+        // на один блок. Прежний счёт сравнивал землю с тем уровнем, куда
+        // ступень только собиралась лечь, — и у самой двери оставался
+        // перепад в два блока. Ступень при этом стояла, крыльцо выглядело
+        // сделанным, а войти было нельзя: ровно это заказчик и видел
+        // четыре раза подряд.
+        int walk = door.getY();
+
         for (int step = 1; step <= REACH; step++) {
-            // Каждый шаг наружу — на блок ниже: и человек, и поиск пути
-            // проходят перепад в один блок в обе стороны.
             BlockPos column = door.offset(out, step);
-            int top = door.getY() - step;
+            int ground = topSolid(world, column, walk + 1);
 
-            // Перепад в один блок — не помеха, а обычный шаг, и засыпать
-            // его нельзя. Крыльцо, ровняющее и то, что и так проходимо,
-            // растаскивает булыжник по всей колонии и лезет на улицу —
-            // ровно это и показали проверки дорог.
-            int ground = topSolid(world, column, door.getY());
-            if (ground >= top - 1) {
+            // Земля не ниже чем на шаг — ступень тут не нужна, но выход
+            // на этом НЕ КОНЧАЕТСЯ: крыльцо идёт дальше по самой земле.
+            //
+            // Прежняя редакция здесь выходила, и это была последняя
+            // и самая обидная ошибка из всей череды: у поля сразу
+            // за калиткой лежала ровная клетка, крыльцо радостно
+            // считало дело сделанным, а обрыв в два блока ждал
+            // на третьей. Ступень не клалась вовсе, житель не входил,
+            // и заказчик четвёртый раз писал одно и то же.
+            //
+            // Ровнять проходимое по-прежнему нельзя: блок кладётся
+            // только там, где перепад больше шага.
+            if (ground + 1 >= walk - 1) {
+                walk = ground + 1;
+                continue;
+            }
+
+            int under = walk - 2;
+            if (!needsStep(world, column, under)) {
                 return laid;
             }
-            if (!needsStep(world, column, top)) {
-                return laid;
-            }
 
-            world.setBlockState(column.withY(top), tread, Block.NOTIFY_ALL);
+            world.setBlockState(column.withY(under), tread, Block.NOTIFY_ALL);
             laid++;
+            walk--;
+
             // Над ступенью должно быть, где пройти: два блока воздуха.
             for (int head = 1; head <= 2; head++) {
-                BlockPos above = column.withY(top + head);
+                BlockPos above = column.withY(under + head);
                 if (!world.getBlockState(above).isAir()
                         && !world.getBlockState(above).isSolidBlock(world, above)) {
                     world.removeBlock(above, false);
@@ -287,11 +402,57 @@ public final class Access {
      * и этого довольно: вход стоит в стене, а стена — с краю.
      */
     private static Direction outward(BlockPos centre, BlockPos door) {
+        return outward(centre, door, null);
+    }
+
+    /**
+     * В какую сторону смотрит вход.
+     * <p>
+     * <b>Ось берётся у самого блока</b>, если он её знает: у двери и
+     * у калитки есть {@code facing}, и это точный ответ. Догадка по
+     * середине здания ошибается там, где след не квадратный: у хижины
+     * лесоруба к дому пристроена роща, середина уезжает в неё, и крыльцо
+     * шло прямо в ограду. Проверка входов у всех зданий это и показала —
+     * «стена высотой 3» у обоих лесорубов.
+     * <p>
+     * Знак — по середине здания: наружу значит прочь от неё. Сама
+     * {@code facing} этого не скажет, потому что через калитку ходят
+     * в обе стороны.
+     */
+    private static Direction outward(BlockPos centre, BlockPos door, Direction axisOf) {
         int dx = door.getX() - centre.getX();
         int dz = door.getZ() - centre.getZ();
+
+        if (axisOf != null && axisOf.getAxis().isHorizontal()) {
+            return axisOf.getAxis() == Direction.Axis.X
+                    ? (dx >= 0 ? Direction.EAST : Direction.WEST)
+                    : (dz >= 0 ? Direction.SOUTH : Direction.NORTH);
+        }
         if (Math.abs(dx) >= Math.abs(dz)) {
             return dx >= 0 ? Direction.EAST : Direction.WEST;
         }
         return dz >= 0 ? Direction.SOUTH : Direction.NORTH;
+    }
+
+    /**
+     * Ось входа по самому блоку в мире: дверь и калитка её знают.
+     * <p>
+     * Спрашивается мир, а не схема: схема хранит состояние до поворота
+     * здания, а игрок ставит дом как хочет.
+     */
+    private static Direction axisOf(ServerWorld world, BlockPos door) {
+        BlockState state = world.getBlockState(door);
+        // У калитки facing — это ось прохода, у двери — куда она открыта.
+        // Обе годятся: нужна только ось, знак берётся от середины дома.
+        for (Property<?> property : state.getProperties()) {
+            if (property instanceof DirectionProperty facing
+                    && "facing".equals(property.getName())) {
+                Direction value = state.get(facing);
+                if (value.getAxis().isHorizontal()) {
+                    return value;
+                }
+            }
+        }
+        return null;
     }
 }

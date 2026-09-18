@@ -10026,8 +10026,11 @@ public class VillagePaxGameTests implements FabricGameTest {
             // на двадцать блоков вокруг, затирает соседние проверки —
             // на этом я и попался, получив мигание в чужих проверках
             // подвоза.
-            for (int x = 0; x <= 12; x++) {
-                for (int z = 0; z <= 12; z++) {
+            // Площадка с запасом по всем сторонам: спуск с крыльца идёт
+            // на три-четыре клетки, и край площадки не должен попадать
+            // в эти клетки — иначе проверка объявит обрывом свою границу.
+            for (int x = -6; x <= 14; x++) {
+                for (int z = -6; z <= 14; z++) {
                     BlockPos at = context.getAbsolutePos(new BlockPos(x, 2, z));
                     world.setBlockState(at, Blocks.STONE.getDefaultState());
                     ground.add(at);
@@ -10047,12 +10050,10 @@ public class VillagePaxGameTests implements FabricGameTest {
                 return;
             }
             for (BlockPos door : Access.entrances(farm, plan)) {
-                BlockPos outside = nearestOutside(farm, plan, door);
-                int top = topSolid(world, outside, door.getY() + 1);
-                if (top < door.getY() - 1) {
-                    context.throwGameTestException("Недостроенное поле не пускает: у входа "
-                            + door.toShortString() + " снаружи высота " + top
-                            + " при пороге " + door.getY());
+                String trouble = descentTrouble(world, farm, plan, door);
+                if (trouble != null) {
+                    context.throwGameTestException("Недостроенное поле не пускает: "
+                            + trouble);
                 }
             }
 
@@ -10071,13 +10072,9 @@ public class VillagePaxGameTests implements FabricGameTest {
             for (BlockPos door : doors) {
                 // Снаружи — это в сторону от середины поля; у калитки
                 // норманнского поля это запад.
-                BlockPos outside = nearestOutside(farm, plan, door);
-                int top = topSolid(world, outside, door.getY() + 1);
-                if (top < door.getY() - 1) {
-                    context.throwGameTestException("У входа " + door.toShortString()
-                            + " снаружи высота " + top + ", а порог на " + door.getY()
-                            + ": перепад в " + (door.getY() - top)
-                            + " блока не перешагнуть ни игроку, ни жителю");
+                String trouble = descentTrouble(world, farm, plan, door);
+                if (trouble != null) {
+                    context.throwGameTestException("На готовое поле не войти: " + trouble);
                 }
             }
         } finally {
@@ -10101,6 +10098,66 @@ public class VillagePaxGameTests implements FabricGameTest {
             return door.add(dx >= 0 ? 1 : -1, 0, 0);
         }
         return door.add(0, 0, dz >= 0 ? 1 : -1);
+    }
+
+    /**
+     * Проходим ли выход целиком: от порога и на четыре шага наружу.
+     * <p>
+     * Считается ВЫСОТА НОГ, а не место блока: в проёме ноги на уровне
+     * самого проёма, снаружи — на блок выше найденной опоры. Мерка
+     * блоками давала ошибку в единицу, и из-за неё крыльцо выглядело
+     * сделанным при перепаде в два блока.
+     * <p>
+     * И проверяется <b>весь спуск</b>, а не первая клетка за порогом.
+     * Первая редакция смотрела только её — и пропускала обрыв на второй,
+     * то есть ровно ту беду, на которую жаловался заказчик: ступень
+     * стоит, а войти нельзя. Поймал это поиск пути в соседней проверке,
+     * и мерку пришлось растить до его строгости.
+     *
+     * @return пусто, если пройти можно, иначе рассказ о том, где обрыв
+     */
+    private static String descentTrouble(ServerWorld world, Building building,
+                                         Schematic schematic, BlockPos door) {
+        // Сторону спрашиваем у самого мода: считать её второй раз здесь
+        // значило бы проверять свою же догадку, а не то, что он сделал.
+        Direction out = Access.awayFrom(building, schematic, door);
+
+        int walk = door.getY();
+        for (int step = 1; step <= 4; step++) {
+            BlockPos column = door.offset(out, step);
+            // Ищем опору только рядом: глубже четырёх блоков — это уже
+            // обрыв или край испытательной площадки, а крыльцо мостов
+            // не строит и спрашивать с него нечего.
+            int ground = Integer.MIN_VALUE;
+            for (int y = walk + 2; y >= walk - 4; y--) {
+                BlockPos at = column.withY(y);
+                if (!world.getBlockState(at).getCollisionShape(world, at).isEmpty()) {
+                    ground = y;
+                    break;
+                }
+            }
+            if (ground == Integer.MIN_VALUE) {
+                return null;
+            }
+            int feet = ground + 1;
+            if (feet < walk - 1) {
+                return "на " + column.toShortString() + " ноги на " + feet
+                        + ", а шагом раньше на " + walk + " — обрыв в " + (walk - feet);
+            }
+            if (feet > walk + 1) {
+                return "на " + column.toShortString() + " стена высотой "
+                        + (feet - walk);
+            }
+            boolean flat = feet == walk;
+            walk = feet;
+            if (flat) {
+                // Спуск вышел на ровное место: дальше дело ног, а не крыльца.
+                // Без этой остановки проверка доходит до края испытательной
+                // площадки и объявляет обрывом её собственную границу.
+                return null;
+            }
+        }
+        return null;
     }
 
     /**
@@ -10457,6 +10514,283 @@ public class VillagePaxGameTests implements FabricGameTest {
                 demolish(world, seat, third);
             }
             cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * Житель доходит внутрь дома и внутрь поля — своими ногами.
+     * <p>
+     * Жалоба заказчика, повторённая в четвёртый раз: «жители не могут
+     * попасть как в дом, так и на ферму». Три прошлых починки мерили
+     * <b>высоту ступени</b> — и мерили верно, а войти всё равно нельзя.
+     * Значит, мерили не то.
+     * <p>
+     * Эта проверка не мерит ничего. Она спрашивает <b>ванильный поиск
+     * пути</b> — тот самый, которым ходят жители: построй дорогу отсюда
+     * вон туда. Не построил — войти нельзя, и неважно, что там со
+     * ступенями. Ровно этот вопрос задаёт себе житель каждую секунду,
+     * и ровно на него до сих пор никто не отвечал.
+     * <p>
+     * Здание ставится на цоколь <b>выше земли вокруг</b> — так, как оно
+     * и выходит в игре на склоне, потому что мод сам подсыпает опору.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "walkin", tickLimit = 600)
+    public void citizensCanWalkIntoHouseAndFarm(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(0, 3, 0));
+        // Земля вокруг на два блока ниже пола зданий: так и выходит
+        // в игре на склоне, и ровно так выглядят снимки заказчика.
+        BlockPos houseAt = context.getAbsolutePos(new BlockPos(3, 4, 2));
+        BlockPos farmAt = context.getAbsolutePos(new BlockPos(3, 4, 10));
+        List<BlockPos> ground = new ArrayList<>();
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        for (int x = -8; x <= 16; x++) {
+            for (int z = -8; z <= 24; z++) {
+                BlockPos at = context.getAbsolutePos(new BlockPos(x, 2, z));
+                world.setBlockState(at, Blocks.STONE.getDefaultState());
+                ground.add(at);
+            }
+        }
+
+        Building house = plan(colony, houseAt, HOUSE_TYPE, BlockRotation.NONE);
+        stockFor(world, colony, housePlan);
+        BuildJob.Outcome built = BuildJob.advance(world, manager, colony.id(), house.id(), 20_000);
+        Building farm = plan(colony, farmAt, FARM_TYPE, BlockRotation.NONE);
+        stockFor(world, colony, farmPlan);
+        BuildJob.Outcome grown = BuildJob.advance(world, manager, colony.id(), farm.id(), 20_000);
+
+        Citizen citizen = Citizen.newborn("Пешеход", "", NORMAN, Gender.MALE);
+        citizen.setPosition(Vec3d.ofBottomCenter(context.getAbsolutePos(new BlockPos(1, 3, 6))));
+        colony.addCitizen(citizen);
+        CitizenEntity walker = CitizenSpawner.spawnBody(world, colony, citizen);
+
+        BlockPos inHouse = insideOf(world, house, housePlan);
+        BlockPos inFarm = insideOf(world, farm, farmPlan);
+
+        // Тело обязано отстояться: ванильная навигация отказывает тому,
+        // кто ещё не коснулся земли, а только что появившееся тело висит
+        // в воздухе до первого тика. Первая редакция этой проверки на том
+        // и споткнулась — и хорошо, что споткнулась на себе, а не на игроке.
+        context.runAtTick(20, () -> {
+            try {
+                if (built != BuildJob.Outcome.FINISHED || grown != BuildJob.Outcome.FINISHED) {
+                    context.throwGameTestException("Не встало: дом " + built + ", поле " + grown);
+                    return;
+                }
+                if (walker == null || inHouse == null || inFarm == null) {
+                    context.throwGameTestException("Некому или некуда идти: тело "
+                            + (walker != null) + ", в доме " + inHouse + ", на поле " + inFarm);
+                    return;
+                }
+
+                String toHouse = whyCannotReach(walker, inHouse);
+                if (toHouse != null) {
+                    context.throwGameTestException(walkFailure("В дом не войти", toHouse,
+                            world, house, housePlan, walker, inHouse));
+                }
+                String toFarm = whyCannotReach(walker, inFarm);
+                if (toFarm != null) {
+                    context.throwGameTestException(walkFailure("На поле не войти", toFarm,
+                            world, farm, farmPlan, walker, inFarm));
+                }
+            } finally {
+                if (walker != null) {
+                    walker.discard();
+                }
+                demolish(world, house, housePlan);
+                demolish(world, farm, farmPlan);
+                cleanUpVillage(world, manager, colony, hall, ground);
+                world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            }
+            context.complete();
+        });
+    }
+
+    /** Рассказ о том, почему не дойти: порог, ступени и всё, что рядом. */
+    private static String walkFailure(String what, String why, ServerWorld world,
+                                      Building building, Schematic schematic,
+                                      CitizenEntity walker, BlockPos target) {
+        StringBuilder story = new StringBuilder(what + ": " + why
+                + ". Цель " + target.toShortString() + ", житель "
+                + walker.getBlockPos().toShortString());
+        for (BlockPos door : Access.entrances(building, schematic)) {
+            story.append(" | порог ").append(door.toShortString())
+                    .append(" сам=").append(world.getBlockState(door).getBlock())
+                    .append(" под=").append(world.getBlockState(door.down()).getBlock());
+        }
+        for (BlockPos spot : Access.stepSpots(building, schematic)) {
+            story.append(" | ступень ").append(spot.toShortString())
+                    .append("=").append(world.getBlockState(spot).getBlock());
+        }
+        // Сколько положит крыльцо, если позвать его прямо сейчас: ноль
+        // значит «отказывается», больше нуля — «его не звали».
+        story.append(" | крыльцо видит: ").append(Access.story(world, building, schematic))
+                .append(" | повторный вызов положил ")
+                .append(Access.porch(world, building, schematic));
+        return story.toString();
+    }
+
+    /**
+     * Почему житель не дойдёт до этой точки — или пусто, если дойдёт.
+     * <p>
+     * Спрашивается сам ванильный поиск пути. Это единственная честная
+     * мерка проходимости: всё остальное — наши догадки о том, что он
+     * считает проходимым.
+     */
+    private static String whyCannotReach(CitizenEntity walker, BlockPos target) {
+        Path path = walker.getNavigation().findPathTo(target, 0);
+        if (path == null) {
+            return "поиск пути не построил дороги вовсе";
+        }
+        if (!path.reachesTarget()) {
+            BlockPos end = path.getTarget();
+            return "дорога обрывается на " + end.toShortString();
+        }
+        return null;
+    }
+
+    /**
+     * Место внутри здания, до которого житель обязан доходить.
+     * <p>
+     * Ищется <b>по миру</b>, а не по меткам схемы: у норманнского дома
+     * кровати стоят настоящими блоками, у поля метка одна и та на пугале,
+     * и опираться на метки значило бы проверять не то. Годится любая
+     * клетка внутри следа, где есть воздух в рост и твёрдая опора под
+     * ногами, — ближайшая к середине.
+     */
+    private static BlockPos insideOf(ServerWorld world, Building building, Schematic schematic) {
+        Vec3i size = BuildSite.rotatedSize(schematic.size(), building.rotation());
+        BlockPos anchor = building.anchor();
+        BlockPos best = null;
+        double closest = Double.MAX_VALUE;
+        double midX = anchor.getX() + size.getX() / 2.0;
+        double midZ = anchor.getZ() + size.getZ() / 2.0;
+
+        for (int dx = 1; dx < size.getX() - 1; dx++) {
+            for (int dz = 1; dz < size.getZ() - 1; dz++) {
+                for (int dy = 0; dy < size.getY() - 1; dy++) {
+                    BlockPos at = anchor.add(dx, dy, dz);
+                    // Проходимость меряется столкновениями, а не воздухом:
+                    // фермер стоит ПОСРЕДИ моркови, а морковь — не воздух.
+                    boolean standable = !world.getBlockState(at.down())
+                            .getCollisionShape(world, at.down()).isEmpty();
+                    boolean roomToStand = world.getBlockState(at)
+                            .getCollisionShape(world, at).isEmpty()
+                            && world.getBlockState(at.up())
+                            .getCollisionShape(world, at.up()).isEmpty();
+                    if (!standable || !roomToStand) {
+                        continue;
+                    }
+                    double away = Math.abs(at.getX() + 0.5 - midX)
+                            + Math.abs(at.getZ() + 0.5 - midZ);
+                    if (away < closest) {
+                        closest = away;
+                        best = at;
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
+
+    /**
+     * В каждое здание мода можно войти с земли — во все и у обоих народов.
+     * <p>
+     * Заказчик написал про дом и поле, но беда была не в них: пол любого
+     * здания стоит на цоколе, под цоколь мод подсыпает опору, и порог
+     * оказывается выше земли вокруг. Чинить по одному зданию — значит
+     * возвращаться к этому каждый раз, когда в моде появится новое;
+     * их уже десять.
+     * <p>
+     * Поэтому проверяется <b>весь список схем разом</b> и на той высоте,
+     * какая и выходит в игре на склоне: здание ставится на два блока выше
+     * земли. У каждого входа снаружи обязана быть опора не ниже чем
+     * на шаг от порога — всё остальное сделают ноги.
+     * <p>
+     * Ходьбу как таковую проверяет соседняя проверка, спрашивая ванильный
+     * поиск пути; здесь же — <b>геометрия у порога</b>, зато у всех зданий
+     * и быстро.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "walkin", tickLimit = 900)
+    public void everyBuildingLetsYouInFromTheGround(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        List<Identifier> all = new ArrayList<>(SchematicLoader.ids());
+        all.sort(java.util.Comparator.comparing(Identifier::toString));
+
+        List<String> complaints = new ArrayList<>();
+        List<BlockPos> ground = new ArrayList<>();
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(10, 9, 3));
+        // На два блока выше земли: так здание и встаёт после подсыпки опоры.
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 11, 0));
+
+        try {
+            for (int x = -9; x <= 20; x++) {
+                for (int z = -9; z <= 20; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    ground.add(at);
+                }
+            }
+
+            for (Identifier id : all) {
+                Schematic schematic = SchematicLoader.get(id).orElseThrow();
+                Identifier type = BuildJob.buildingTypeOf(id).orElse(null);
+                if (type == null) {
+                    continue;
+                }
+
+                Identifier culture = new Identifier(type.getNamespace(),
+                        type.getPath().split("/")[0]);
+                Settlement colony = colonyWithBuilder(world, manager, hall, culture);
+                Building site = new Building(UUID.randomUUID(), type,
+                        BuildJob.levelOf(id).orElse(1), anchor, BlockRotation.NONE,
+                        BuildProgress.PLANNED, List.of());
+                colony.addBuilding(site);
+
+                try {
+                    stockFor(world, colony, schematic);
+                    BuildJob.advance(world, manager, colony.id(), site.id(), 40_000);
+
+                    List<BlockPos> doors = Access.entrances(site, schematic);
+                    if (doors.isEmpty()) {
+                        // Здание без входа — отдельный разговор: у поленницы
+                        // и у второго уровня дверь наследуется от первого.
+                        continue;
+                    }
+                    for (BlockPos door : doors) {
+                        String trouble = descentTrouble(world, site, schematic, door);
+                        if (trouble != null) {
+                            complaints.add(id + ": " + trouble);
+                        }
+                    }
+                } finally {
+                    demolish(world, site, schematic);
+                    manager.remove(colony.id());
+                }
+            }
+
+            if (!complaints.isEmpty()) {
+                context.throwGameTestException("Здания, в которые не войти с земли:\n  "
+                        + String.join("\n  ", complaints));
+            }
+        } finally {
+            for (BlockPos at : ground) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
 

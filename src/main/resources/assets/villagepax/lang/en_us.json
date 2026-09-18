@@ -313,6 +313,8 @@
   "villagepax.profession.merchant": "Merchant",
   "villagepax.building.norman.market_stall": "Market Stall",
   "villagepax.building.maya.market_stall": "Trading Canopy",
+  "villagepax.building.norman.market": "Market",
+  "villagepax.building.maya.market": "Market Square",
   "villagepax.trade.at_the_stall": "The merchant at the stall handles trade — I speak of other matters.",
   "villagepax.screen.growth.not_yet": "No town hall of that level exists yet — this rank is still ahead.",
   "block.villagepax.chimney": "Chimney"

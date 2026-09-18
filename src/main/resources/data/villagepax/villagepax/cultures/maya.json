@@ -36,6 +36,7 @@
   "buildings": [
     "villagepax:maya/town_hall",
     "villagepax:maya/market_stall",
+    "villagepax:maya/market",
     "villagepax:maya/house",
     "villagepax:maya/farm",
     "villagepax:maya/lumberjack",

@@ -1,6 +1,8 @@
 package com.villagepax.sim.trade;
 
 import com.villagepax.VillagePax;
+import com.villagepax.core.building.BuildingTypes;
+import com.villagepax.sim.Building;
 import com.villagepax.core.trade.Caravan;
 import com.villagepax.core.trade.TradeTable;
 import com.villagepax.entity.CitizenEntity;
@@ -10,6 +12,8 @@ import com.villagepax.item.ModItems;
 import com.villagepax.sim.Ground;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
+import com.villagepax.sim.SettlementLevel;
+import com.villagepax.sim.Villages;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.diplomacy.Relations;
@@ -54,6 +58,28 @@ public final class Caravans {
     private static final int EVERY = 100;
 
     /**
+     * Стоит ли в этом поселении рынок.
+     * <p>
+     * Рынок — не «ларёк побольше», а <b>место, ради которого делают крюк</b>:
+     * спрашивается он у данных, а не по имени здания. Народ, назвавший свой
+     * рынок иначе, получит то же самое, пока в типе написано «здесь работает
+     * купец» и «нужна столица».
+     */
+    private static boolean hasMarket(Settlement colony) {
+        for (Building building : colony.buildings()) {
+            if (!building.isOperational()) {
+                continue;
+            }
+            if (BuildingTypes.get(building.type())
+                    .filter(type -> type.minLevel() == SettlementLevel.CAPITAL)
+                    .filter(type -> type.employs(Villages.MERCHANT)).isPresent()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Как далеко деревня посылает обоз.
      * <p>
      * Пятьсот блоков — примерно день пути пешком. Дальше не посылают
@@ -64,6 +90,16 @@ public final class Caravans {
 
     /** Сколько дней между обозами от одной деревни. */
     private static final int EVERY_DAYS = 3;
+
+    /**
+     * А к столице с рынком — каждый день.
+     * <p>
+     * Это и есть награда за четвёртую ступень, и она из тех, которые
+     * видно, не открывая пульта: у ворот стоит чужой обоз, и стоит он
+     * там каждое утро. Ступень, дающая только предел населения, наградой
+     * не ощущается — это уже проходили.
+     */
+    private static final int MARKET_DAYS = 1;
 
     /** Сколько видов товара везёт и по сколько штук каждого. */
     private static final int KINDS = 4;
@@ -103,17 +139,20 @@ public final class Caravans {
      */
     public static void sendIfDue(ServerWorld world, SettlementManager manager,
                                  Settlement village, long today) {
-        if (Math.floorMod(today + village.id().hashCode(), EVERY_DAYS) != 0) {
-            // Не каждый день и у каждой деревни свой день: иначе все обозы
-            // мира приходили бы одним утром.
-            return;
-        }
         if (Trading.tableOf(village).isEmpty()) {
             return;
         }
 
         Settlement colony = nearestColony(manager, village);
         if (colony == null || alreadyVisiting(colony, village)) {
+            return;
+        }
+
+        // Срок считается ПОСЛЕ того, как нашлась колония: он зависит от неё.
+        // Не каждый день и у каждой деревни свой день — иначе все обозы
+        // мира приходили бы одним утром; а к рынку — каждый день.
+        int every = hasMarket(colony) ? MARKET_DAYS : EVERY_DAYS;
+        if (Math.floorMod(today + village.id().hashCode(), every) != 0) {
             return;
         }
 

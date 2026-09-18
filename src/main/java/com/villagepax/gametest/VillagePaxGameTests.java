@@ -11418,6 +11418,182 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    private static final Identifier MARKET_TYPE = new Identifier("villagepax", "norman/market");
+    private static final Identifier MARKET_SCHEMATIC =
+            new Identifier("villagepax", "norman/market_lvl1");
+
+    /**
+     * Ратуша растёт до четвёртого уровня, и колония становится столицей.
+     * <p>
+     * Ступень «столица» была в лестнице с первой недели и недостижима:
+     * схемы ратуши четвёртого уровня не существовало, и на третьем
+     * «Улучшить» отвечало «выше некуда». Обещание держится схемой.
+     * <p>
+     * И растёт она <b>вширь</b>, а не вверх, и это не украшение: третий
+     * ярус пришлось укоротить на ряд стен и ярус кровли, потому что
+     * до верха билдер не дотягивался. Четвёртый растёт гульбищем вокруг —
+     * на восток и юг, чтобы якорь здания остался на месте.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "growth", tickLimit = 900)
+    public void townHallGrowsWideIntoACapital(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic fourth = schematic(context, new Identifier("villagepax",
+                "norman/town_hall_lvl4"));
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        BlockPos at = context.getAbsolutePos(new BlockPos(2, 1, 2));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building seat = null;
+
+        try {
+            seat = plan(colony, at, TOWN_HALL_TYPE, BlockRotation.NONE);
+            seat.setLevel(4);
+            seat.restartBuilding();
+            stockFor(world, colony, fourth);
+            if (BuildJob.advance(world, manager, colony.id(), seat.id(), 40_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Ратуша четвёртого уровня не встала: шаг "
+                        + seat.nextStep() + " из " + fourth.plan().steps().size());
+                return;
+            }
+
+            Levels.refresh(colony);
+            if (colony.level() != SettlementLevel.CAPITAL) {
+                context.throwGameTestException("Ратуша четвёртого уровня стоит, а колония "
+                        + "всё ещё " + colony.level().id());
+            }
+
+            // И ступень открывает дело, а не только число: рынок был заперт,
+            // а теперь его можно строить.
+            com.villagepax.core.building.BuildingType market =
+                    BuildingTypes.get(MARKET_TYPE).orElse(null);
+            if (market == null) {
+                context.throwGameTestException("Рынка нет в данных");
+                return;
+            }
+            if (market.openTo(SettlementLevel.TOWN)) {
+                context.throwGameTestException("Рынок открыт городу: тогда столица "
+                        + "не открывает ничего");
+            }
+            if (!market.openTo(colony.level())) {
+                context.throwGameTestException("Столица стоит, а рынок всё ещё заперт");
+            }
+        } finally {
+            if (seat != null) {
+                demolish(world, seat, fourth);
+            }
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * К рынку обоз приходит каждый день, а к колонии без рынка — раз в три.
+     * <p>
+     * Это и есть награда за столицу, и она из тех, которые видно, не
+     * открывая пульта: у ворот стоит чужой обоз, и стоит он там каждое
+     * утро. Ступень, дающая только предел населения, наградой
+     * не ощущается — это уже проходили с первыми тремя.
+     * <p>
+     * Считается по дням числом, а не по игровым суткам: «раз в три дня»
+     * иначе не проверить — тест не может прождать трое суток, а шесть
+     * вызовов в одном тике для мода один и тот же день.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "caravan", tickLimit = 900)
+    public void theMarketBringsACaravanEveryDay(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic marketPlan = schematic(context, MARKET_SCHEMATIC);
+
+        BlockPos colonyAt = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(20, 2, 2));
+        BlockPos marketAt = context.getAbsolutePos(new BlockPos(4, 2, 5));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement colony = null;
+        Settlement village = null;
+        Building market = null;
+
+        try {
+            for (int x = -2; x <= 26; x++) {
+                for (int z = -4; z <= 14; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Торговая", villageAt);
+            world.setBlockState(villageAt, ModBlocks.TOWN_HALL.getDefaultState());
+            manager.add(village);
+
+            colony = colonyWithBuilder(world, manager, colonyAt);
+
+            // Деревне есть чем торговать — иначе обоз не выйдет вовсе,
+            // и проверка мерила бы пустоту.
+            Warehouse store = Warehouse.of(world, village);
+            store.add(new ItemStack(Items.BREAD, 40));
+            Coins.earn(store.coins(), 64);
+
+            int without = countVisits(world, manager, village, colony);
+
+            market = plan(colony, marketAt, MARKET_TYPE, BlockRotation.NONE);
+            stockFor(world, colony, marketPlan);
+            if (BuildJob.advance(world, manager, colony.id(), market.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Рынок не встал");
+                return;
+            }
+            Warehouse.of(world, village).add(new ItemStack(Items.BREAD, 40));
+            Coins.earn(Warehouse.of(world, village).coins(), 64);
+
+            int with = countVisits(world, manager, village, colony);
+
+            if (with <= without) {
+                context.throwGameTestException("Рынок не позвал обозы чаще: без рынка "
+                        + without + " прихода за шесть дней, с рынком " + with);
+            }
+            if (with < 6) {
+                context.throwGameTestException("К рынку обоз приходит не каждый день: "
+                        + with + " прихода за шесть дней");
+            }
+        } finally {
+            if (market != null) {
+                demolish(world, market, marketPlan);
+            }
+            cleanUpVillage(world, manager, village, villageAt, List.of());
+            cleanUpVillage(world, manager, colony, colonyAt, floor);
+            world.setBlockState(villageAt, Blocks.AIR.getDefaultState());
+            world.setBlockState(colonyAt, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Сколько раз за шесть дней деревня послала обоз к этой колонии.
+     * <p>
+     * Гость отпускается сразу: обоз, оставшийся у ворот, не даёт прийти
+     * следующему, и «каждый день» превратилось бы в «один раз».
+     */
+    private static int countVisits(ServerWorld world, SettlementManager manager,
+                                   Settlement village, Settlement colony) {
+        int came = 0;
+        for (long day = 0; day < 6; day++) {
+            Caravans.sendIfDue(world, manager, village, day);
+            Settlement gates = manager.byId(colony.id()).orElseThrow();
+            came += gates.visitors().size();
+            for (Caravan guest : List.copyOf(gates.visitors())) {
+                gates.seeOff(guest.id());
+            }
+        }
+        return came;
+    }
+
     /** Сколько хранилищ стоит в следе здания прямо сейчас. */
     private static int containersIn(ServerWorld world, Building building, Schematic schematic) {
         int found = 0;

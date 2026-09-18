@@ -1459,6 +1459,148 @@ MAYA_MARKET_STALL = [
 ]
 
 
+def gallery(base, plinth, post, beam, deck):
+    """Четвёртый уровень: тот же дом, а вокруг — крытое гульбище.
+
+    Вверх ратуше расти больше нельзя, и это выяснено дорого: третий ярус
+    пришлось укоротить на ряд стен и ярус кровли, потому что до верха
+    билдер не дотягивался, а материалы не влезали в сундук. Поэтому
+    столица растёт ВШИРЬ.
+
+    И только на восток и юг: якорь здания — минимальный угол следа,
+    и рост в другую сторону означал бы, что улучшение переносит дом.
+    Это же правило проверяет containment_check.
+
+    Гульбище — крытая галерея на столбах по внешнему краю: пола у неё
+    нет своего, полом служит цоколь, а между столбами открыто. Столица
+    обязана выглядеть столицей с первого взгляда, и делает это не высотой,
+    которой нельзя, а размахом.
+    """
+    old_width = len(base[0][0])
+    old_depth = len(base[0])
+    width = old_width + 2
+    depth = old_depth + 2
+
+    layers = []
+    for layer in base:
+        rows = [row + ".." for row in layer]
+        rows += ["." * width, "." * width]
+        layers.append(rows)
+
+    def put(y, x, z, symbol):
+        row = list(layers[y][z])
+        row[x] = symbol
+        layers[y][z] = "".join(row)
+
+    added = [(x, z) for x in range(width) for z in range(depth)
+             if x >= old_width or z >= old_depth]
+
+    for x, z in added:
+        # Цоколь под гульбищем — он же его пол.
+        put(0, x, z, plinth)
+
+        # Столбы через клетку по внешнему краю: реже — и навес повиснет,
+        # чаще — и получится стена, а гульбище должно просматриваться.
+        edge = x == width - 1 or z == depth - 1
+        if edge and (x + z) % 2 == 0:
+            put(1, x, z, post)
+            put(2, x, z, post)
+
+        put(3, x, z, beam)
+        put(4, x, z, deck)
+
+    return layers
+
+
+NORMAN_TOWN_HALL_4 = gallery(NORMAN_TOWN_HALL_3, "C", "B", "H", "P")
+
+# У майя гульбище то же, а сложено своим: подошва из камня, столбы
+# и обвязка из дерева джунглей, настил пальмовый.
+MAYA_TOWN_HALL_4 = gallery(MAYA_TOWN_HALL_3, "M", "j", "i", "T")
+
+
+# --- рынок норманнов, 7x7 ---
+#
+# Награда за столицу и старший брат ларька: два прилавка, два места
+# для купцов, два сундука. Устроен так же — без стен, навесом на столбах:
+# торговое место должно читаться с улицы.
+NORMAN_MARKET = [
+    # y=0 — цоколь
+    ["CCCCCCC"] * 7,
+    # y=1 — два прилавка к улице, два места купцов, сундуки и убранство
+    ["BPPPPPB",
+     "..K.K..",
+     ".S...S.",
+     ".O...O.",
+     ".......",
+     ".......",
+     "B..D..B"],
+    # y=2 — столбы и фонари над прилавком
+    ["Bt...tB",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     "B.....B"],
+    # y=3 — обвязка
+    ["HHHHHHH",
+     "Z.....Z",
+     "Z.....Z",
+     "Z.....Z",
+     "Z.....Z",
+     "Z.....Z",
+     "HHHHHHH"],
+    # y=4 — навес
+    ["nnnnnnn",
+     "wPPPPPe",
+     "wPPPPPe",
+     "wPPPPPe",
+     "wPPPPPe",
+     "wPPPPPe",
+     "sssssss"],
+]
+
+
+# --- торговая площадь майя, 7x7 ---
+MAYA_MARKET = [
+    # y=0 — каменная подошва
+    ["MMMMMMM"] * 7,
+    # y=1 — прилавки, места торговцев, сундуки и убранство
+    ["jaaaaaj",
+     "..K.K..",
+     ".S...S.",
+     ".O...O.",
+     ".......",
+     ".......",
+     "j..D..j"],
+    # y=2 — столбы и фонари
+    ["jt...tj",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     "j.....j"],
+    # y=3 — обвязка из дерева джунглей
+    ["iiiiiii",
+     "u.....u",
+     "u.....u",
+     "u.....u",
+     "u.....u",
+     "u.....u",
+     "iiiiiii"],
+    # y=4 — пальмовая кровля
+    ["TTTTTTT",
+     "TaaaaaT",
+     "TaaaaaT",
+     "TaaaaaT",
+     "TaaaaaT",
+     "TaaaaaT",
+     "TTTTTTT"],
+]
+
+
 SCHEMATICS = {
     "norman/town_hall_lvl1": NORMAN_TOWN_HALL,
     "norman/town_hall_lvl2": NORMAN_TOWN_HALL_2,
@@ -1486,6 +1628,10 @@ SCHEMATICS = {
     "maya/town_hall_lvl3": MAYA_TOWN_HALL_3,
     "norman/market_stall_lvl1": NORMAN_MARKET_STALL,
     "maya/market_stall_lvl1": MAYA_MARKET_STALL,
+    "norman/town_hall_lvl4": NORMAN_TOWN_HALL_4,
+    "maya/town_hall_lvl4": MAYA_TOWN_HALL_4,
+    "norman/market_lvl1": NORMAN_MARKET,
+    "maya/market_lvl1": MAYA_MARKET,
 }
 
 
@@ -1577,7 +1723,9 @@ def main():
                  ("norman/farm", NORMAN_FARM, NORMAN_FARM_2),
                  ("maya/town_hall", MAYA_TOWN_HALL, MAYA_TOWN_HALL_2),
                  ("maya/house", MAYA_HOUSE, MAYA_HOUSE_2),
-                 ("maya/farm", MAYA_FARM, MAYA_FARM_2)):
+                 ("maya/farm", MAYA_FARM, MAYA_FARM_2),
+                 ("norman/town_hall_3", NORMAN_TOWN_HALL_3, NORMAN_TOWN_HALL_4),
+                 ("maya/town_hall_3", MAYA_TOWN_HALL_3, MAYA_TOWN_HALL_4)):
         kept, changed = containment_check(*pair)
         print(f"{pair[0]}: второй уровень сохраняет {kept - changed} блоков первого этажа "
               f"из {kept}, меняет {changed}")

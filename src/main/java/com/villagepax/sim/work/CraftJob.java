@@ -13,6 +13,7 @@ import com.villagepax.sim.build.SchematicLoader;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.registry.Registries;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
@@ -139,7 +140,18 @@ public final class CraftJob implements Job {
             warehouse.take(Registries.ITEM.get(need.getKey()), need.getValue());
         }
         warehouse.add(new ItemStack(made, craft.count()));
-        Sounds.crafted(context.world(), context.body().getBlockPos());
+
+        // Слышно и видно. Работа, о которой знает только счётчик на складе,
+        // с точки зрения игрока не происходит вовсе — это несущее правило
+        // мода, и пар над котлом стоит ровно столько же, сколько звук.
+        BlockPos bench = context.body().getBlockPos();
+        Sounds.crafted(context.world(), bench);
+        context.world().spawnParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE,
+                bench.getX() + 0.5, bench.getY() + 1.1, bench.getZ() + 0.5,
+                6, 0.2, 0.1, 0.2, 0.01);
+        context.world().spawnParticles(ParticleTypes.SPLASH,
+                bench.getX() + 0.5, bench.getY() + 1.0, bench.getZ() + 0.5,
+                8, 0.25, 0.05, 0.25, 0.0);
     }
 
     /** Где в мастерской стоит станок: по метке схемы, иначе — якорь здания. */

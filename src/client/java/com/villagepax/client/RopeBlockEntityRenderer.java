@@ -50,12 +50,22 @@ public class RopeBlockEntityRenderer implements BlockEntityRenderer<RopeBlockEnt
 
             matrices.push();
             // Четыре места вдоль бечевы, вещь висит под ней.
-            matrices.translate(0.22 + slot * 0.19, 0.62, 0.5);
+            //
+            // Шаг и размер связаны намертво: вещь занимает ровно столько,
+            // сколько ей отведено. Первая версия рисовала в размер 0.6
+            // с шагом 0.19 — вещи налезали друг на друга втрое, и заказчик
+            // сказал «перекрывается текстура». Четыре места на блок — это
+            // четверть блока на каждое, и больше взять неоткуда.
+            float step = 1.0f / RopeBlockEntity.SIZE;
+            // Через одну — чуть глубже: так они не сливаются в полосу
+            // и не спорят гранями, стоя в одной плоскости.
+            float depth = slot % 2 == 0 ? 0.46f : 0.54f;
+            matrices.translate(step / 2 + slot * step, 0.66, depth);
 
             float phase = (time + tickDelta) * PACE + (seed + slot * 37) % 628 / 100.0f;
             matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(
                     (float) Math.sin(phase) * SWING));
-            matrices.scale(0.6f, 0.6f, 0.6f);
+            matrices.scale(step, step, step);
 
             MinecraftClient.getInstance().getItemRenderer().renderItem(stack,
                     ModelTransformationMode.FIXED, light, overlay, matrices, vertices,

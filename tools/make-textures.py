@@ -443,6 +443,26 @@ def firewood_end():
     return t
 
 
+def log_end():
+    """Торец одного полена: кора кольцом, срез с годовыми кольцами.
+
+    Отдельной картинкой, потому что в модели поленница сложена из брёвен,
+    и каждому бревну нужен СВОЙ торец целиком. Общая плитка на четыре
+    среза давала каждому полену по четверти чужого — рябь вместо дров.
+    """
+    t = Tex(BARK)
+    t.disc(7.5, 7.5, 7.6, BARK_DARK)
+    t.disc(7.5, 7.5, 7.0, BARK)
+    t.disc(7.5, 7.5, 6.0, WOOD_CUT)
+    t.ring(7.5, 7.5, 4.6, 3.9, WOOD_RING)
+    t.ring(7.5, 7.5, 2.4, 1.7, WOOD_RING)
+    t.dots(WOOD_RING, (7, 7), (8, 8))
+    # Свет сверху слева, как у всего прочего.
+    t.dots(BARK_LIT, (4, 2), (5, 1), (10, 2))
+    t.dots(BARK_DARK, (11, 13), (10, 14), (5, 14))
+    return t
+
+
 def firewood_side():
     """Бок поленницы: лежащие брёвна с корой."""
     t = Tex(BARK)
@@ -868,6 +888,7 @@ def main():
     made.append(brick(STONE_DARK, STONE, STONE_LIT, MORTAR)
                 .save("block", "town_hall_bottom"))
     made.append(firewood_end().save("block", "firewood_end"))
+    made.append(log_end().save("block", "firewood_log_end"))
     made.append(firewood_side().save("block", "firewood_side"))
     made.append(grain_sack().save("block", "grain_sack"))
     # Нарисованного белья больше нет: на верёвке висит то, что повесили,

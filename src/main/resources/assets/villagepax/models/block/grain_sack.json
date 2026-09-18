@@ -1,6 +1,251 @@
 {
-  "parent": "minecraft:block/cube_all",
+  "parent": "minecraft:block/block",
   "textures": {
-    "all": "villagepax:block/grain_sack"
-  }
+    "burlap": "villagepax:block/grain_sack",
+    "rope": "villagepax:block/laundry_rope",
+    "particle": "villagepax:block/grain_sack"
+  },
+  "elements": [
+    {
+      "__comment": "Осевшее брюхо мешка",
+      "from": [
+        1,
+        0,
+        1
+      ],
+      "to": [
+        15,
+        9,
+        15
+      ],
+      "faces": {
+        "north": {
+          "texture": "#burlap",
+          "uv": [
+            1,
+            7,
+            15,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#burlap",
+          "uv": [
+            1,
+            7,
+            15,
+            16
+          ]
+        },
+        "east": {
+          "texture": "#burlap",
+          "uv": [
+            1,
+            7,
+            15,
+            16
+          ]
+        },
+        "west": {
+          "texture": "#burlap",
+          "uv": [
+            1,
+            7,
+            15,
+            16
+          ]
+        },
+        "up": {
+          "texture": "#burlap",
+          "uv": [
+            1,
+            1,
+            15,
+            15
+          ]
+        },
+        "down": {
+          "texture": "#burlap",
+          "uv": [
+            1,
+            1,
+            15,
+            15
+          ],
+          "cullface": "down"
+        }
+      }
+    },
+    {
+      "__comment": "Плечи: мешок сужается кверху",
+      "from": [
+        3,
+        9,
+        3
+      ],
+      "to": [
+        13,
+        13,
+        13
+      ],
+      "faces": {
+        "north": {
+          "texture": "#burlap",
+          "uv": [
+            3,
+            3,
+            13,
+            7
+          ]
+        },
+        "south": {
+          "texture": "#burlap",
+          "uv": [
+            3,
+            3,
+            13,
+            7
+          ]
+        },
+        "east": {
+          "texture": "#burlap",
+          "uv": [
+            3,
+            3,
+            13,
+            7
+          ]
+        },
+        "west": {
+          "texture": "#burlap",
+          "uv": [
+            3,
+            3,
+            13,
+            7
+          ]
+        },
+        "up": {
+          "texture": "#burlap",
+          "uv": [
+            3,
+            3,
+            13,
+            13
+          ]
+        }
+      }
+    },
+    {
+      "__comment": "Перевязь на горловине",
+      "from": [
+        4.5,
+        13,
+        4.5
+      ],
+      "to": [
+        11.5,
+        14,
+        11.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#rope",
+          "uv": [
+            0,
+            7,
+            7,
+            8
+          ]
+        },
+        "south": {
+          "texture": "#rope",
+          "uv": [
+            0,
+            7,
+            7,
+            8
+          ]
+        },
+        "east": {
+          "texture": "#rope",
+          "uv": [
+            0,
+            7,
+            7,
+            8
+          ]
+        },
+        "west": {
+          "texture": "#rope",
+          "uv": [
+            0,
+            7,
+            7,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "__comment": "Смятая горловина над перевязью",
+      "from": [
+        5,
+        14,
+        5
+      ],
+      "to": [
+        11,
+        16,
+        11
+      ],
+      "faces": {
+        "north": {
+          "texture": "#burlap",
+          "uv": [
+            5,
+            0,
+            11,
+            2
+          ]
+        },
+        "south": {
+          "texture": "#burlap",
+          "uv": [
+            5,
+            0,
+            11,
+            2
+          ]
+        },
+        "east": {
+          "texture": "#burlap",
+          "uv": [
+            5,
+            0,
+            11,
+            2
+          ]
+        },
+        "west": {
+          "texture": "#burlap",
+          "uv": [
+            5,
+            0,
+            11,
+            2
+          ]
+        },
+        "up": {
+          "texture": "#burlap",
+          "uv": [
+            5,
+            5,
+            11,
+            11
+          ]
+        }
+      }
+    }
+  ]
 }

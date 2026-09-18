@@ -49,7 +49,10 @@ public final class ModBlocks {
      * их видно с улицы, и они ничего не делают, кроме этого.
      */
     public static final Block FIREWOOD = register("firewood",
-            new PillarBlock(AbstractBlock.Settings.copy(Blocks.OAK_LOG)));
+            // nonOpaque обязателен: модель больше не полный куб, а поленница
+            // из брёвен со щелями. Без него ваниль срезает грани соседей
+            // и сквозь поленницу видно пустоту.
+            new PillarBlock(AbstractBlock.Settings.copy(Blocks.OAK_LOG).nonOpaque()));
 
     /**
      * Бельё на верёвке. Просьба заказчика — та самая «мелкая жизнь».
@@ -68,7 +71,10 @@ public final class ModBlocks {
     public static final Block GRAIN_SACK = register("grain_sack",
             new Block(AbstractBlock.Settings.create()
                     .strength(0.6f)
-                    .sounds(BlockSoundGroup.WOOL)));
+                    .sounds(BlockSoundGroup.WOOL)
+                    // Мешок уже клетки и ниже её: полным кубом он не был
+                    // никогда, а теперь это видно и модели.
+                    .nonOpaque()));
 
     /**
      * Стена майя: охра по извести.

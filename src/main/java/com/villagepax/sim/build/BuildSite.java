@@ -55,6 +55,33 @@ public final class BuildSite {
         return anchor.add(turned);
     }
 
+    /**
+     * Точка мира в координатах схемы — обратный ход {@link #toWorld}.
+     * <p>
+     * Нужен тем, кто держит в руках готовую точку мира (вход, метку, клетку
+     * следа) и спрашивает у чертежа, что там нарисовано. Без обратного хода
+     * такой вопрос решается перебором всех шагов плана с переводом каждого
+     * в мир — и дорого, и <b>молча врёт</b>, когда точка пришла не из шагов,
+     * а из меток: метки лежат в плане отдельным списком.
+     * <p>
+     * Поворот обратим ровно потому, что он идёт внутри следа: тот же след,
+     * та же четверть оборота, только знак другой.
+     */
+    public static BlockPos toLocal(BlockPos anchor, Vec3i size, BlockRotation rotation, BlockPos world) {
+        BlockPos turned = world.subtract(anchor);
+        int width = size.getX();
+        int depth = size.getZ();
+        int x = turned.getX();
+        int z = turned.getZ();
+
+        return switch (rotation) {
+            case NONE -> new BlockPos(x, turned.getY(), z);
+            case CLOCKWISE_90 -> new BlockPos(z, turned.getY(), depth - 1 - x);
+            case CLOCKWISE_180 -> new BlockPos(width - 1 - x, turned.getY(), depth - 1 - z);
+            case COUNTERCLOCKWISE_90 -> new BlockPos(width - 1 - z, turned.getY(), x);
+        };
+    }
+
     /** Занимает ли здание эту точку мира. */
     public static boolean covers(BlockPos anchor, Vec3i size, BlockRotation rotation, BlockPos world) {
         Vec3i footprint = rotatedSize(size, rotation);

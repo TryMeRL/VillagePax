@@ -10088,18 +10088,6 @@ public class VillagePaxGameTests implements FabricGameTest {
         context.complete();
     }
 
-    /** Клетка сразу за входом — с той стороны, куда вход смотрит. */
-    private static BlockPos nearestOutside(Building building, Schematic schematic, BlockPos door) {
-        BlockPos centre = BuildJob.worldPos(building, schematic.size(),
-                new BlockPos(schematic.size().getX() / 2, 0, schematic.size().getZ() / 2));
-        int dx = door.getX() - centre.getX();
-        int dz = door.getZ() - centre.getZ();
-        if (Math.abs(dx) >= Math.abs(dz)) {
-            return door.add(dx >= 0 ? 1 : -1, 0, 0);
-        }
-        return door.add(0, 0, dz >= 0 ? 1 : -1);
-    }
-
     /**
      * Проходим ли выход целиком: от порога и на четыре шага наружу.
      * <p>
@@ -10113,14 +10101,29 @@ public class VillagePaxGameTests implements FabricGameTest {
      * то есть ровно ту беду, на которую жаловался заказчик: ступень
      * стоит, а войти нельзя. Поймал это поиск пути в соседней проверке,
      * и мерку пришлось растить до его строгости.
+     * <p>
+     * Вторая редакция останавливалась на первой же ровной клетке — и это
+     * была та же ошибка, от которой чинили крыльцо, только переписанная
+     * в проверку: ровно перед обрывом клетка как раз ровная. Теперь
+     * спуск идёт до конца, а кончается он на краю площадки, где опоры
+     * нет вовсе.
      *
      * @return пусто, если пройти можно, иначе рассказ о том, где обрыв
      */
     private static String descentTrouble(ServerWorld world, Building building,
                                          Schematic schematic, BlockPos door) {
-        // Сторону спрашиваем у самого мода: считать её второй раз здесь
-        // значило бы проверять свою же догадку, а не то, что он сделал.
         Direction out = Access.awayFrom(building, schematic, door);
+
+        // Сторона обязана вести НАРУЖУ следа. Без этого вопроса проверка
+        // меряет спуск там, куда показал сам проверяемый код: уйди он
+        // в горницу — под ногами ровный пол, обрыва нет, всё «хорошо»,
+        // а с улицы в дом по-прежнему не войти. Спрашивается только
+        // у тех входов, от которых до края следа вообще можно дойти:
+        // внутренняя дверь большого дома наружу и не должна выводить.
+        if (leavesFootprint(building, schematic, door) && !leavesFootprint(building, schematic, door, out)) {
+            return "сторона " + out + " от входа " + door.toShortString()
+                    + " ведёт внутрь следа: крыльцо ляжет в горнице, а не на улице";
+        }
 
         int walk = door.getY();
         for (int step = 1; step <= 4; step++) {
@@ -10137,6 +10140,8 @@ public class VillagePaxGameTests implements FabricGameTest {
                 }
             }
             if (ground == Integer.MIN_VALUE) {
+                // Опоры нет вовсе: это край испытательной площадки,
+                // а не порог. Дальше мерить нечего.
                 return null;
             }
             int feet = ground + 1;
@@ -10148,32 +10153,31 @@ public class VillagePaxGameTests implements FabricGameTest {
                 return "на " + column.toShortString() + " стена высотой "
                         + (feet - walk);
             }
-            boolean flat = feet == walk;
             walk = feet;
-            if (flat) {
-                // Спуск вышел на ровное место: дальше дело ног, а не крыльца.
-                // Без этой остановки проверка доходит до края испытательной
-                // площадки и объявляет обрывом её собственную границу.
-                return null;
-            }
         }
         return null;
     }
 
-    /**
-     * Верхний блок в столбце, на котором можно стоять.
-     * <p>
-     * По столкновениям, а не по «полный ли куб»: ступень крыльца бывает
-     * тропой или ступенями, и мерка «полный куб» объявила бы её пустотой.
-     */
-    private static int topSolid(ServerWorld world, BlockPos column, int from) {
-        for (int y = from; y > world.getBottomY(); y--) {
-            BlockPos at = column.withY(y);
-            if (!world.getBlockState(at).getCollisionShape(world, at).isEmpty()) {
-                return y;
+    /** Выводит ли эта сторона за след здания — на улицу, а не в горницу. */
+    private static boolean leavesFootprint(Building building, Schematic schematic,
+                                           BlockPos door, Direction way) {
+        for (int step = 1; step <= 4; step++) {
+            if (!BuildSite.covers(building.anchor(), schematic.size(), building.rotation(),
+                    door.offset(way, step))) {
+                return true;
             }
         }
-        return world.getBottomY();
+        return false;
+    }
+
+    /** Есть ли у этого входа вообще выход наружу в четыре шага. */
+    private static boolean leavesFootprint(Building building, Schematic schematic, BlockPos door) {
+        for (Direction way : Direction.Type.HORIZONTAL) {
+            if (leavesFootprint(building, schematic, door, way)) {
+                return true;
+            }
+        }
+        return false;
     }
 
 
@@ -10554,28 +10558,46 @@ public class VillagePaxGameTests implements FabricGameTest {
 
         Settlement colony = colonyWithBuilder(world, manager, hall);
 
-        for (int x = -8; x <= 16; x++) {
-            for (int z = -8; z <= 24; z++) {
-                BlockPos at = context.getAbsolutePos(new BlockPos(x, 2, z));
-                world.setBlockState(at, Blocks.STONE.getDefaultState());
-                ground.add(at);
+        Building house;
+        Building farm;
+        CitizenEntity walker;
+        BlockPos inHouse;
+        BlockPos inFarm;
+        BuildJob.Outcome built;
+        BuildJob.Outcome grown;
+
+        // Мир у игровых проверок общий, и брошенная плита камня валит
+        // не эту проверку, а соседнюю — через прогон, непонятно отчего.
+        // Поэтому за собой убирают оба исхода: и провал посреди стройки,
+        // и разбор на двадцатом тике.
+        try {
+            for (int x = -8; x <= 16; x++) {
+                for (int z = -8; z <= 24; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 2, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    ground.add(at);
+                }
             }
+
+            house = plan(colony, houseAt, HOUSE_TYPE, BlockRotation.NONE);
+            stockFor(world, colony, housePlan);
+            built = BuildJob.advance(world, manager, colony.id(), house.id(), 20_000);
+            farm = plan(colony, farmAt, FARM_TYPE, BlockRotation.NONE);
+            stockFor(world, colony, farmPlan);
+            grown = BuildJob.advance(world, manager, colony.id(), farm.id(), 20_000);
+
+            Citizen citizen = Citizen.newborn("Пешеход", "", NORMAN, Gender.MALE);
+            citizen.setPosition(Vec3d.ofBottomCenter(context.getAbsolutePos(new BlockPos(1, 3, 6))));
+            colony.addCitizen(citizen);
+            walker = CitizenSpawner.spawnBody(world, colony, citizen);
+
+            inHouse = insideOf(world, house, housePlan);
+            inFarm = insideOf(world, farm, farmPlan);
+        } catch (RuntimeException | Error trouble) {
+            cleanUpVillage(world, manager, colony, hall, ground);
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            throw trouble;
         }
-
-        Building house = plan(colony, houseAt, HOUSE_TYPE, BlockRotation.NONE);
-        stockFor(world, colony, housePlan);
-        BuildJob.Outcome built = BuildJob.advance(world, manager, colony.id(), house.id(), 20_000);
-        Building farm = plan(colony, farmAt, FARM_TYPE, BlockRotation.NONE);
-        stockFor(world, colony, farmPlan);
-        BuildJob.Outcome grown = BuildJob.advance(world, manager, colony.id(), farm.id(), 20_000);
-
-        Citizen citizen = Citizen.newborn("Пешеход", "", NORMAN, Gender.MALE);
-        citizen.setPosition(Vec3d.ofBottomCenter(context.getAbsolutePos(new BlockPos(1, 3, 6))));
-        colony.addCitizen(citizen);
-        CitizenEntity walker = CitizenSpawner.spawnBody(world, colony, citizen);
-
-        BlockPos inHouse = insideOf(world, house, housePlan);
-        BlockPos inFarm = insideOf(world, farm, farmPlan);
 
         // Тело обязано отстояться: ванильная навигация отказывает тому,
         // кто ещё не коснулся земли, а только что появившееся тело висит
@@ -10604,11 +10626,101 @@ public class VillagePaxGameTests implements FabricGameTest {
                             world, farm, farmPlan, walker, inFarm));
                 }
             } finally {
-                if (walker != null) {
-                    walker.discard();
+                // Сносить дом и поле отдельно не нужно: уборка деревни
+                // разбирает все её здания и разгоняет тела сама.
+                cleanUpVillage(world, manager, colony, hall, ground);
+                world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            }
+            context.complete();
+        });
+    }
+
+    /**
+     * Ровная клетка перед обрывом не обманывает крыльцо.
+     * <p>
+     * Это та самая земля, на которой мод и попался: у порога площадка
+     * шириной в шаг, а за ней уступ в два блока. Ровно так лежит склон,
+     * подсыпанный опорой, и ровно это видно на снимках заказчика.
+     * <p>
+     * Прежнее крыльцо доходило до ровной клетки, объявляло дело сделанным
+     * и выходило — ни одной ступени. Прежние проверки этого <b>не ловили</b>:
+     * они строили на ровной плите, где обрыв начинается сразу за порогом,
+     * и одной ступени хватало. Ошибку нашёл заказчик, четвёртый раз подряд.
+     * <p>
+     * Поэтому земля тут нарочно с уступом, а судит по-прежнему ванильный
+     * поиск пути: дойдёт житель внутрь — крыльцо своё дело сделало.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "walkin", tickLimit = 600)
+    public void aFlatCellBeforeTheDropDoesNotFoolThePorch(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(0, 12, 0));
+        BlockPos houseAt = context.getAbsolutePos(new BlockPos(4, 6, 4));
+        List<BlockPos> ground = new ArrayList<>();
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        Building house;
+        CitizenEntity walker;
+        BlockPos inHouse;
+        BuildJob.Outcome built;
+
+        try {
+            house = plan(colony, houseAt, HOUSE_TYPE, BlockRotation.NONE);
+
+            // Высота порога спрашивается у чертежа до стройки: землю надо
+            // разложить относительно него, а не наугад.
+            int door = Access.entrances(house, housePlan).get(0).getY();
+            Vec3i size = BuildSite.rotatedSize(housePlan.size(), BlockRotation.NONE);
+
+            for (int dx = -3; dx <= size.getX() + 2; dx++) {
+                for (int dz = -3; dz <= size.getZ() + 2; dz++) {
+                    boolean under = dx >= 0 && dz >= 0 && dx < size.getX() && dz < size.getZ();
+                    boolean ledge = dx >= -1 && dz >= -1 && dx <= size.getX() && dz <= size.getZ();
+                    // Под домом — опора, кольцом вокруг — площадка вровень
+                    // с порогом, дальше — земля на два блока ниже неё.
+                    int top = under ? houseAt.getY() - 1 : (ledge ? door - 1 : door - 3);
+                    BlockPos at = houseAt.add(dx, 0, dz).withY(top);
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    ground.add(at);
                 }
-                demolish(world, house, housePlan);
-                demolish(world, farm, farmPlan);
+            }
+
+            stockFor(world, colony, housePlan);
+            built = BuildJob.advance(world, manager, colony.id(), house.id(), 20_000);
+
+            Citizen citizen = Citizen.newborn("Ходок", "", NORMAN, Gender.MALE);
+            citizen.setPosition(Vec3d.ofBottomCenter(houseAt.add(-3, 0, -3).withY(door - 2)));
+            colony.addCitizen(citizen);
+            walker = CitizenSpawner.spawnBody(world, colony, citizen);
+
+            inHouse = insideOf(world, house, housePlan);
+        } catch (RuntimeException | Error trouble) {
+            cleanUpVillage(world, manager, colony, hall, ground);
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            throw trouble;
+        }
+
+        context.runAtTick(20, () -> {
+            try {
+                if (built != BuildJob.Outcome.FINISHED) {
+                    context.throwGameTestException("Дом не встал: " + built);
+                    return;
+                }
+                if (walker == null || inHouse == null) {
+                    context.throwGameTestException("Некому или некуда идти: тело "
+                            + (walker != null) + ", в доме " + inHouse);
+                    return;
+                }
+                String trouble = whyCannotReach(walker, inHouse);
+                if (trouble != null) {
+                    context.throwGameTestException(walkFailure(
+                            "С уступа в дом не войти", trouble,
+                            world, house, housePlan, walker, inHouse));
+                }
+            } finally {
                 cleanUpVillage(world, manager, colony, hall, ground);
                 world.setBlockState(hall, Blocks.AIR.getDefaultState());
             }
@@ -10629,8 +10741,12 @@ public class VillagePaxGameTests implements FabricGameTest {
                     .append(" под=").append(world.getBlockState(door.down()).getBlock());
         }
         for (BlockPos spot : Access.stepSpots(building, schematic)) {
-            story.append(" | ступень ").append(spot.toShortString())
-                    .append("=").append(world.getBlockState(spot).getBlock());
+            // Полоса возможных мест широка, а рассказывать стоит о занятых:
+            // пустые клетки только прячут в себе те, где что-то лежит.
+            if (!world.getBlockState(spot).isAir()) {
+                story.append(" | ступень ").append(spot.toShortString())
+                        .append("=").append(world.getBlockState(spot).getBlock());
+            }
         }
         // Сколько положит крыльцо, если позвать его прямо сейчас: ноль
         // значит «отказывается», больше нуля — «его не звали».
@@ -10763,7 +10879,16 @@ public class VillagePaxGameTests implements FabricGameTest {
 
                 try {
                     stockFor(world, colony, schematic);
-                    BuildJob.advance(world, manager, colony.id(), site.id(), 40_000);
+                    BuildJob.Outcome outcome =
+                            BuildJob.advance(world, manager, colony.id(), site.id(), 40_000);
+                    if (outcome != BuildJob.Outcome.FINISHED) {
+                        // Недостроенное здание молча прошло бы проверку: порог
+                        // висит в воздухе, под ним ровная площадка, спуск
+                        // безупречен — и вход при этом не существует.
+                        complaints.add(id + ": не достроилось (" + outcome
+                                + "), вход проверять не на чем");
+                        continue;
+                    }
 
                     List<BlockPos> doors = Access.entrances(site, schematic);
                     if (doors.isEmpty()) {
@@ -11859,14 +11984,19 @@ public class VillagePaxGameTests implements FabricGameTest {
      * Следующая проверка находила на своём месте чужой булыжник и падала
      * непонятно от чего.
      * <p>
-     * Убирается ровно то, куда крыльцо могло лечь, и ни клеткой больше:
-     * первая попытка вычищала объём вокруг входа и вырезала землю, на
-     * которой стояли соседние проверки, — а падали от этого уже третьи.
+     * Убирается только <b>похожее на ступень</b> и только в столбцах
+     * у входа: первая попытка вычищала объём вокруг входа и вырезала землю,
+     * на которой стояли соседние проверки, — а падали от этого уже третьи.
+     * Вторая считала высоту ступени наперёд, но укладка идёт по земле,
+     * и одна ровная клетка сдвигала всю лесенку мимо расчёта: чужой
+     * булыжник оставался, а вместо него стиралась целая клетка.
      */
     private static void clearPorch(ServerWorld world, Building site, Schematic schematic) {
         for (BlockPos spot : Access.stepSpots(site, schematic)) {
-            world.setBlockState(spot, Blocks.AIR.getDefaultState(),
-                    net.minecraft.block.Block.NOTIFY_LISTENERS);
+            if (Access.isTread(world.getBlockState(spot))) {
+                world.setBlockState(spot, Blocks.AIR.getDefaultState(),
+                        net.minecraft.block.Block.NOTIFY_LISTENERS);
+            }
         }
     }
 }

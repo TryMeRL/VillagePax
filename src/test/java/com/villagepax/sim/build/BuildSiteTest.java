@@ -103,6 +103,30 @@ class BuildSiteTest {
         assertEquals(SIZE, size);
     }
 
+    /**
+     * Обратный ход возвращает ровно то, с чего начали, — при любом повороте
+     * и в любой клетке следа.
+     * <p>
+     * Крыльцо спрашивает у чертежа, что нарисовано вокруг входа, а вход
+     * оно получает уже в координатах мира. Ошибись обратный ход знаком —
+     * и сторона «наружу» возьмётся от чужой клетки: ступени лягут в стену,
+     * причём молча и только у повёрнутых зданий, то есть у половины деревни.
+     */
+    @Test
+    void backAndForthIsIdentity() {
+        for (BlockRotation rotation : BlockRotation.values()) {
+            for (int x = 0; x < SIZE.getX(); x++) {
+                for (int z = 0; z < SIZE.getZ(); z++) {
+                    BlockPos local = new BlockPos(x, 1, z);
+                    BlockPos world = BuildSite.toWorld(ANCHOR, SIZE, rotation, local);
+
+                    assertEquals(local, BuildSite.toLocal(ANCHOR, SIZE, rotation, world),
+                            "поворот " + rotation + " у клетки " + local.toShortString());
+                }
+            }
+        }
+    }
+
     @Test
     void oppositeTurnsCancelOut() {
         BlockPos local = new BlockPos(2, 1, 4);

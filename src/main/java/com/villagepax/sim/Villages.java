@@ -15,6 +15,7 @@ import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.trade.Caravans;
 import com.villagepax.sim.war.Raids;
+import com.villagepax.sim.work.Workplaces;
 import com.villagepax.sim.trade.Coins;
 import com.villagepax.sim.trade.Trading;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -89,20 +90,43 @@ public final class Villages {
      */
     public static final int PURSE_CAP = 128;
 
-    /** Кольца поиска места для нового здания и шаг между ними, в блоках. */
-    private static final int PLACE_RINGS = 5;
-    private static final int PLACE_STEP = 7;
-
-    /** Сколько шагов в сторону стоит один блок подъёма: круче не ходят. */
-    private static final int CLIMB_PER_STEP = 3;
-
-    /** Холмик у самой ратуши деревню не портит. */
-    private static final int MIN_CLIMB = 3;
-
 
 
     /** Профессия, с которой игрок разговаривает. Данными задан только её файл. */
     public static final Identifier ELDER = new Identifier(VillagePax.MOD_ID, "elder");
+
+    /**
+     * Профессия, которая торгует.
+     * <p>
+     * Названа в коде затем же, зачем старейшина: по ней тело решает,
+     * открывать ли прилавок на щелчок. Деревня ставит купца <b>явно</b>,
+     * не полагаясь на приоритет найма, — без него торговать не с кем,
+     * а новый житель приходит в деревню не каждый день.
+     */
+    public static final Identifier MERCHANT = new Identifier(VillagePax.MOD_ID, "merchant");
+
+    /**
+     * Кто в этом поселении стоит за прилавком.
+     * <p>
+     * Купец, если он есть, и старейшина, если купца нет. Второе — не
+     * поблажка, а <b>страховка от тупика</b>: купца может унести набег,
+     * а нового нанимают не в тот же день, и деревня без прилавка перестала
+     * бы торговать насовсем. Мод, который молча перестаёт делать то, что
+     * делал, выглядит сломанным — это уже проходили с пустой полкой.
+     * <p>
+     * Спрашивают отсюда все: и тело жителя, решающее, отвечать ли на
+     * щелчок, и экран, решающий, показывать ли товар. Два ответа на один
+     * вопрос означали бы, что игрок щёлкает по тому, кто открывает пустой
+     * прилавок.
+     */
+    public static Identifier counterKeeper(Settlement settlement) {
+        for (Citizen citizen : settlement.citizens()) {
+            if (citizen.profession().filter(MERCHANT::equals).isPresent()) {
+                return MERCHANT;
+            }
+        }
+        return ELDER;
+    }
 
     /**
      * Профессия, которая дерётся.
@@ -166,16 +190,24 @@ public final class Villages {
         ColonyFounder.raiseTownHall(world, site, village, culture, cultureId);
         manager.add(village);
 
-        // Трое сразу: без строителя не встанет ничего, без старейшины
-        // не с кем говорить, а один житель на деревню — это не деревня.
+        // Четверо сразу: без строителя не встанет ничего, без старейшины
+        // не с кем говорить, без купца не с кем торговать, а один житель
+        // на деревню — это не деревня.
         settle(world, village, Founding.firstBuilder(cultureId, culture, random));
         settle(world, village, elder(cultureId, culture, random));
+        settle(world, village, tradesman(cultureId, culture, random));
         settle(world, village, Founding.newCitizen(cultureId, culture, random));
 
         // Дом и ферма уже стоят: деревня старше игрока.
         for (Identifier type : startingBuildings(culture)) {
-            raiseNow(world, manager, village, type);
+            Raising.raise(world, manager, village, type);
         }
+        raiseStall(world, manager, village, culture);
+        // Места раздаются тут же, а не на первой суточной смене: купец,
+        // которому ларёк достанется только завтра, сегодня бродит по
+        // деревне, и игрок ищет его по всей улице. Тот же урок, что
+        // с домом, достроенным в полдень.
+        Workplaces.assign(world, village);
         openForBusiness(world, village);
         // А это она строит при игроке.
         planNext(world, manager, village, culture);
@@ -350,147 +382,10 @@ public final class Villages {
             if (SchematicLoader.get(schematicId).isEmpty() || isTownHall(type)) {
                 continue;
             }
-            if (place(world, manager, village, schematicId).isPresent()) {
+            if (Raising.placeNear(world, manager, village, schematicId).isPresent()) {
                 return;
             }
         }
-    }
-
-    /** Здание, которое встаёт сразу и целиком: деревня уже стояла до игрока. */
-    private static void raiseNow(ServerWorld world, SettlementManager manager, Settlement village,
-                                 Identifier type) {
-        Identifier schematicId = new Identifier(type.getNamespace(), type.getPath() + "_lvl1");
-        Schematic schematic = SchematicLoader.get(schematicId).orElse(null);
-        if (schematic == null) {
-            return;
-        }
-
-        Building site = place(world, manager, village, schematicId).orElse(null);
-        if (site == null) {
-            return;
-        }
-
-        // Материалы на уже стоящее здание не спрашивают: его построили
-        // до прихода игрока, и просить за него было бы не у кого.
-        Warehouse warehouse = Warehouse.of(world, village);
-        Materials.required(schematic).forEach((item, count) -> {
-            int rest = count;
-            while (rest > 0) {
-                int chunk = Math.min(rest, item.getMaxCount());
-                warehouse.addOrScatter(world, village.center(), new ItemStack(item, chunk));
-                rest -= chunk;
-            }
-        });
-
-        BuildJob.advance(world, manager, village.id(), site.id(), Integer.MAX_VALUE);
-    }
-
-    /**
-     * Место для здания: кольцами от ратуши, первое подходящее.
-     * <p>
-     * Пригодность спрашивается у тех же правил, по которым размечает игрок
-     * ({@link BuildOrders#check}) — границы, наложение следов, имя схемы.
-     * Деревня не должна уметь того, чего не умеет игрок, иначе её застройка
-     * начнёт выглядеть невозможной.
-     */
-    private static Optional<Building> place(ServerWorld world, SettlementManager manager,
-                                            Settlement village, Identifier schematicId) {
-        Schematic schematic = SchematicLoader.get(schematicId).orElse(null);
-        if (schematic == null) {
-            return Optional.empty();
-        }
-
-        for (BlockPos anchor : spots(world, village, schematic)) {
-            for (BlockRotation rotation : BlockRotation.values()) {
-                if (!(BuildOrders.check(village, schematicId, anchor, rotation)
-                        instanceof BuildOrders.Result.Placed)) {
-                    continue;
-                }
-                if (BuildOrders.place(manager, village, schematicId, anchor, rotation)
-                        instanceof BuildOrders.Result.Placed placed) {
-                    return Optional.of(placed.site());
-                }
-            }
-        }
-        return Optional.empty();
-    }
-
-    /** Возможные углы застройки: кольца вокруг ратуши по ровной земле. */
-    private static List<BlockPos> spots(ServerWorld world, Settlement village, Schematic schematic) {
-        List<BlockPos> spots = new ArrayList<>();
-        BlockPos centre = village.center();
-
-        for (int ring = 1; ring <= PLACE_RINGS; ring++) {
-            int reach = ring * PLACE_STEP;
-            for (int dx = -reach; dx <= reach; dx += PLACE_STEP) {
-                for (int dz = -reach; dz <= reach; dz += PLACE_STEP) {
-                    if (Math.max(Math.abs(dx), Math.abs(dz)) != reach) {
-                        continue;
-                    }
-                    BlockPos anchor = surface(world, centre.add(dx, 0, dz));
-                    if (anchor != null && isWalkableFrom(centre, anchor)
-                            && isFlatEnough(world, village, anchor, schematic)) {
-                        spots.add(anchor);
-                    }
-                }
-            }
-        }
-        return spots;
-    }
-
-    /**
-     * Земля под колонной — та, на которой можно строить.
-     * <p>
-     * Не карта высот мира: она считает поверхностью верхушку листвы, и
-     * деревня в лесу размечала бы дома по кронам деревьев.
-     */
-    private static BlockPos surface(ServerWorld world, BlockPos column) {
-        return Ground.buildableAt(world, column.getX(), column.getZ()).orElse(null);
-    }
-
-    /**
-     * Ровность следа. Без этой проверки деревня охотно ставит дом на склон,
-     * и половина его висит в воздухе, а другая утоплена в холм.
-     * <p>
-     * Насколько неровно — дело народа: у майя есть черта террасного
-     * земледелия, и они берутся за склоны, на которые норманны не пойдут.
-     */
-    /**
-     * Можно ли дойти от середины деревни до этого места пешком.
-     * <p>
-     * Написано по настоящей деревне из игры заказчика: дом и ферма встали
-     * <b>на восемнадцать блоков выше</b> ратуши, в десяти шагах от неё.
-     * Ровности следа это не нарушало — полка на скале ровная, — и место
-     * проходило проверку. А билдер до него не добирался, стройка вставала
-     * на середине, и игрок сказал прямо: «строится высоко и не пройти».
-     * <p>
-     * Правило простое и человеческое: <b>подъём не круче одного блока
-     * на три шага</b>. Столько поднимается лестница, столько одолевает
-     * житель, и ровно на столько ляжет улица. Ближний край деревни при
-     * этом всё равно вправе быть на три блока выше: холмик у дома —
-     * не скала.
-     */
-    public static boolean isWalkableFrom(BlockPos centre, BlockPos anchor) {
-        int away = (int) Math.sqrt(centre.getSquaredDistance(anchor.getX(), centre.getY(),
-                anchor.getZ()));
-        int climb = Math.abs(anchor.getY() - centre.getY());
-        return climb <= Math.max(MIN_CLIMB, away / CLIMB_PER_STEP);
-    }
-
-    private static boolean isFlatEnough(ServerWorld world, Settlement village, BlockPos anchor,
-                                        Schematic schematic) {
-        Vec3i size = schematic.size();
-        int allowed = Traits.maxSlope(village.culture());
-
-        for (int dx = 0; dx < size.getX(); dx += Math.max(1, size.getX() - 1)) {
-            for (int dz = 0; dz < size.getZ(); dz += Math.max(1, size.getZ() - 1)) {
-                BlockPos corner = surface(world, anchor.add(dx, 0, dz));
-                if (corner == null || Math.abs(corner.getY() - anchor.getY()) > allowed) {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 
     private static Optional<Building> underConstruction(Settlement village) {
@@ -523,6 +418,35 @@ public final class Villages {
         Citizen elder = Founding.newCitizen(cultureId, culture, random);
         elder.setProfession(ELDER);
         return elder;
+    }
+
+    /**
+     * Купец. Ставится <b>явно</b>, как и старейшина, и по той же причине:
+     * это второе из двух лиц, ради которых игрок вообще подходит к деревне.
+     * Ждать, пока его наймут по приоритету, значило бы, что первая
+     * встреченная деревня ничем не торгует.
+     */
+    private static Citizen tradesman(Identifier cultureId, Culture culture, Random random) {
+        Citizen merchant = Founding.newCitizen(cultureId, culture, random);
+        merchant.setProfession(MERCHANT);
+        return merchant;
+    }
+
+    /**
+     * Ларёк — и тоже сразу готовым.
+     * <p>
+     * Не через {@code starting}, хотя соблазн был. {@code starting} — это
+     * «без чего поселение не живёт», и по этому списку колония игрока
+     * получает свой первый надел. Ларёк же нужен не поселению, а
+     * <b>игроку</b>: это прилавок, за которым с ним будут торговать.
+     * Колонии он в первый день не нужен — она торгует не сама с собой, —
+     * а деревне нужен с первого мига: иначе первая встреча с торговлей
+     * упрётся в «приходите через пару дней, мы строимся».
+     */
+    private static void raiseStall(ServerWorld world, SettlementManager manager,
+                                   Settlement village, Culture culture) {
+        BuildingTypes.workplaceOf(culture.buildings(), MERCHANT)
+                .ifPresent(stall -> Raising.raise(world, manager, village, stall));
     }
 
     private static void settle(ServerWorld world, Settlement village, Citizen citizen) {

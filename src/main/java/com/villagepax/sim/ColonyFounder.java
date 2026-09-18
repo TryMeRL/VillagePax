@@ -2,6 +2,7 @@ package com.villagepax.sim;
 
 import com.villagepax.block.ModBlocks;
 import com.villagepax.block.entity.TownHallBlockEntity;
+import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.entity.CitizenSpawner;
@@ -45,9 +46,38 @@ public final class ColonyFounder {
         if (outcome instanceof FoundingOutcome.Founded founded) {
             raiseTownHall(world, target, founded.settlement(), culture, cultureId);
             settleFirstBuilder(world, founded.settlement(), culture, cultureId);
+            // В учёт — до первого надела: и разметка, и стройка спрашивают
+            // поселение у менеджера по опознавателю, а не у того, кто его
+            // только что создал.
             manager.add(founded.settlement());
+            grantFirstHolding(world, manager, founded.settlement(), culture);
         }
         return outcome;
+    }
+
+    /**
+     * Первый надел колонии: дом и поле стоят с первого дня.
+     * <p>
+     * Решение заказчика, и оно чинит настоящую беду начала. До сих пор
+     * колония начиналась ратушей и одним строителем в чистом поле: спать
+     * ему негде, есть нечего, а первый дом надо разметить, завезти в него
+     * материалы и дождаться стройки — всё это <b>до того</b>, как в моде
+     * случится хоть что-нибудь. Игрок в это время смотрит на пустырь.
+     * <p>
+     * Даётся ровно то, без чего колония не живёт: <b>крыша и еда</b>.
+     * Что именно это за здания, говорят данные — те же {@code starting},
+     * по которым встаёт деревня народа. Дальше игрок строит сам, и первая
+     * же его постройка обходится ему в полную цену.
+     * <p>
+     * Строится по общим правилам ({@link Raising}): не нашлось ровного
+     * места в кольцах вокруг ратуши — надела не будет. Колония, основанная
+     * на скале, обязана выглядеть как колония, основанная на скале.
+     */
+    private static void grantFirstHolding(ServerWorld world, SettlementManager manager,
+                                          Settlement colony, Culture culture) {
+        for (Identifier type : BuildingTypes.starting(culture.buildings())) {
+            Raising.raise(world, manager, colony, type, Raising.CLOSE_RINGS);
+        }
     }
 
     /** Ратуше нужна твёрдая опора и свободное место — иначе колония повиснет в воздухе. */

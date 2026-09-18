@@ -30,6 +30,7 @@ import com.villagepax.sim.Hazards;
 import com.villagepax.sim.Guide;
 import com.villagepax.sim.Ground;
 import com.villagepax.sim.ItemTally;
+import com.villagepax.sim.Raising;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementLevel;
 import com.villagepax.sim.SettlementManager;
@@ -365,9 +366,13 @@ public class VillagePaxGameTests implements FabricGameTest {
             if (manager.byId(colony.id()).isEmpty()) {
                 context.throwGameTestException("Поселение не попало в менеджер");
             }
-            if (colony.buildings().size() != 1
-                    || colony.buildings().get(0).progress() != BuildProgress.DONE) {
-                context.throwGameTestException("Ратуша не записана как готовое здание поселения");
+            // Ратуша — первое здание колонии и сразу готовое. Считать
+            // здания поштучно больше нельзя: рядом с ратушей встают дом
+            // и поле первого надела, и сколько их выйдет, решает земля.
+            Building hall = colony.buildings().get(0);
+            if (!BuildingTypes.isTownHall(hall.type()) || hall.progress() != BuildProgress.DONE) {
+                context.throwGameTestException("Ратуша не записана как готовое здание поселения: "
+                        + hall.type() + " " + hall.progress());
             }
 
             // Первый житель — строитель, и он обязан появиться сразу с телом:
@@ -1372,6 +1377,12 @@ public class VillagePaxGameTests implements FabricGameTest {
             context.throwGameTestException("Основание не дало строителя — стройке некому идти");
             return;
         }
+
+        // Первый надел колонии тут же и сносится. Эта проверка — про
+        // приказ игрока и про то, что тикер работ подключён к тику мира;
+        // подаренные дом и поле встают сами, без билдера, и вдобавок
+        // занимают ту самую площадку, которую проверка размечает следом.
+        razeHolding(world, colony);
 
         // Площадка рядом с ратушей, но не поверх неё: склад в двух шагах,
         // поэтому курьер не нужен и билдер берёт материалы сам.
@@ -8843,19 +8854,19 @@ public class VillagePaxGameTests implements FabricGameTest {
     public void villageDoesNotClimbCliffs(TestContext context) {
         BlockPos centre = new BlockPos(0, 69, 0);
 
-        if (Villages.isWalkableFrom(centre, new BlockPos(7, 87, -7))) {
+        if (Raising.isWalkableFrom(centre, new BlockPos(7, 87, -7))) {
             context.throwGameTestException("Полка на восемнадцать блоков выше в десяти шагах "
                     + "считается годной — это та самая деревня на скале");
         }
-        if (!Villages.isWalkableFrom(centre, new BlockPos(7, 71, 0))) {
+        if (!Raising.isWalkableFrom(centre, new BlockPos(7, 71, 0))) {
             context.throwGameTestException("Холмик в два блока у самой ратуши объявлен "
                     + "непроходимым: так деревню не построить нигде");
         }
-        if (!Villages.isWalkableFrom(centre, new BlockPos(35, 78, 0))) {
+        if (!Raising.isWalkableFrom(centre, new BlockPos(35, 78, 0))) {
             context.throwGameTestException("Пологий склон — блок подъёма на три шага — "
                     + "должен считаться проходимым");
         }
-        if (Villages.isWalkableFrom(centre, new BlockPos(35, 88, 0))) {
+        if (Raising.isWalkableFrom(centre, new BlockPos(35, 88, 0))) {
             context.throwGameTestException("Подъём круче одного блока на три шага "
                     + "проходимым не считается");
         }
@@ -10916,6 +10927,336 @@ public class VillagePaxGameTests implements FabricGameTest {
             for (BlockPos at : ground) {
                 world.setBlockState(at, Blocks.AIR.getDefaultState());
             }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
+    private static final Identifier STALL_TYPE =
+            new Identifier("villagepax", "norman/market_stall");
+    private static final Identifier STALL_SCHEMATIC =
+            new Identifier("villagepax", "norman/market_stall_lvl1");
+    private static final Identifier FARMER = new Identifier("villagepax", "farmer");
+
+    /**
+     * Колония начинается с крыши над головой и поля под боком.
+     * <p>
+     * Заказчик: «добавь для начала колонии гарантированный дом и ферму,
+     * чтоб уже были построены». До этого первый час игры выглядел так:
+     * ратуша, один строитель и пустырь. Спать негде, есть нечего, а чтобы
+     * появился первый дом, надо разметить его, добыть материалы, завезти
+     * и дождаться стройки — и всё это <b>до</b> того, как в моде случится
+     * хоть что-то.
+     * <p>
+     * Проверяется не запись в данных, а <b>блоки в мире</b>: здание,
+     * записанное готовым и не поставленное, — ровно та беда, от которой
+     * игрок и жаловался, только теперь молча.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "founding", tickLimit = 600)
+    public void colonyStartsWithARoofAndAField(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement colony = null;
+
+        try {
+            for (int x = -18; x <= 18; x++) {
+                for (int z = -18; z <= 18; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+
+            FoundingOutcome outcome = ColonyFounder.foundAt(world, UUID.randomUUID(), NORMAN, hall);
+            if (!(outcome instanceof FoundingOutcome.Founded founded)) {
+                context.throwGameTestException("Колония не основана: "
+                        + ((FoundingOutcome.Refused) outcome).translationKey());
+                return;
+            }
+            colony = founded.settlement();
+
+            Building home = null;
+            Building field = null;
+            for (Building site : colony.buildings()) {
+                if (BuildingTypes.isHome(site.type())) {
+                    home = site;
+                }
+                if (BuildingTypes.employs(site.type(), FARMER)) {
+                    field = site;
+                }
+            }
+
+            if (home == null || field == null) {
+                context.throwGameTestException("Колонии не дали надела: "
+                        + colony.buildings().stream().map(site -> site.type() + " "
+                                + site.progress()).toList());
+                return;
+            }
+
+            for (Building site : List.of(home, field)) {
+                if (site.progress() != BuildProgress.DONE) {
+                    context.throwGameTestException(site.type() + " числится "
+                            + site.progress() + ", а обещано готовым");
+                }
+                Schematic plan = SchematicLoader.get(BuildJob.schematicId(site)).orElseThrow();
+                int raised = raisedBlocks(world, site, plan);
+                if (raised < plan.blocks().size() / 2) {
+                    context.throwGameTestException(site.type() + " записано готовым, а в мире "
+                            + raised + " блоков из " + plan.blocks().size()
+                            + ": здание есть только на бумаге");
+                }
+            }
+        } finally {
+            cleanUpVillage(world, manager, colony, hall, meadow);
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Снести всё, кроме ратуши: первый надел колонии проверкам стройки
+     * только мешает — он встаёт даром и занимает место у ратуши.
+     */
+    private static void razeHolding(ServerWorld world, Settlement colony) {
+        for (Building site : colony.buildings()) {
+            if (BuildingTypes.isTownHall(site.type())) {
+                continue;
+            }
+            SchematicLoader.get(BuildJob.schematicId(site))
+                    .ifPresent(plan -> demolish(world, site, plan));
+        }
+    }
+
+    /** Сколько клеток следа здания заняты не воздухом. */
+    private static int raisedBlocks(ServerWorld world, Building site, Schematic schematic) {
+        int standing = 0;
+        for (Schematic.PalettedBlock block : schematic.blocks()) {
+            BlockPos at = BuildJob.worldPos(site, schematic.size(), block.pos());
+            if (!world.getBlockState(at).isAir()) {
+                standing++;
+            }
+        }
+        return standing;
+    }
+
+    /**
+     * За прилавком стоит купец, а не старейшина.
+     * <p>
+     * Заказчик: «ларёк для купца, чтоб у него покупать и продавать вещи,
+     * а не у старейшины — разделим обязанности». До этого деревня была
+     * одним человеком с четырьмя руками: старейшина давал квесты, принимал
+     * подарки, мирился и торговал.
+     * <p>
+     * Проверяется <b>обе стороны разделения</b>: у купца товар есть,
+     * у старейшины его нет. Одной половины мало — прилавок, открытый
+     * у обоих, выглядел бы как работающее разделение ровно до того мига,
+     * когда игрок подойдёт к старейшине.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests", tickLimit = 600)
+    public void theCounterIsKeptByTheMerchantNotTheElder(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+
+        try {
+            for (int x = -20; x <= 20; x++) {
+                for (int z = -20; z <= 20; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала: место занято="
+                        + manager.isSettled(centre) + ", помеха=" + whoBlocks(manager, centre));
+                return;
+            }
+
+            Citizen merchant = village.citizens().stream()
+                    .filter(citizen -> citizen.profession()
+                            .filter(Villages.MERCHANT::equals).isPresent())
+                    .findFirst().orElse(null);
+            if (merchant == null) {
+                context.throwGameTestException("В деревне нет купца: "
+                        + village.citizens().stream().map(citizen -> citizen.profession()
+                                .map(Identifier::toString).orElse("без дела")).toList());
+                return;
+            }
+
+            Building stall = village.buildings().stream()
+                    .filter(site -> BuildingTypes.employs(site.type(), Villages.MERCHANT))
+                    .findFirst().orElse(null);
+            if (stall == null || stall.progress() != BuildProgress.DONE) {
+                context.throwGameTestException("Ларёк не стоит: "
+                        + village.buildings().stream().map(site -> site.type() + " "
+                                + site.progress()).toList());
+                return;
+            }
+            // И у купца есть где стоять: ларёк без рабочего места — сарай.
+            if (Workplaces.of(village, merchant).isEmpty()) {
+                context.throwGameTestException("Купцу не досталось ларька");
+            }
+
+            UUID player = UUID.randomUUID();
+            Warehouse wares = Warehouse.of(world, village);
+            SimpleInventory pockets = new SimpleInventory(9);
+
+            QuestView atCounter = QuestNet.viewOf(manager, village, player, pockets,
+                    Villages.MERCHANT, wares).orElse(null);
+            QuestView atElder = QuestNet.viewOf(manager, village, player, pockets,
+                    Villages.ELDER, wares).orElse(null);
+            if (atCounter == null || atElder == null) {
+                context.throwGameTestException("Разговор не собрался: купец=" + atCounter
+                        + ", старейшина=" + atElder);
+                return;
+            }
+
+            if (!atCounter.trades()) {
+                context.throwGameTestException("У купца пустой прилавок");
+            }
+            if (!atCounter.counter()) {
+                context.throwGameTestException("Разговор с купцом не считается прилавком: "
+                        + "игрок увидит лишние вкладки вместо товара");
+            }
+            if (atElder.trades()) {
+                context.throwGameTestException("Старейшина всё ещё торгует: "
+                        + atElder.stalls().size() + " сделок на прилавке");
+            }
+            // А квесты, наоборот, остались у него.
+            if (Quests.offered(village, player, Villages.ELDER).isEmpty()) {
+                context.throwGameTestException("Старейшине нечего предложить игроку");
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Без купца прилавок держит старейшина.
+     * <p>
+     * Разделение обязанностей не должно оборачиваться тупиком: купца может
+     * унести набег, а нанимают нового не в тот же день. Деревня, молча
+     * переставшая торговать, выглядит сломанной — это уже проходили
+     * с пустой полкой при первой встрече.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests", tickLimit = 600)
+    public void withoutAMerchantTheElderKeepsTheCounter(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+
+        try {
+            for (int x = -20; x <= 20; x++) {
+                for (int z = -20; z <= 20; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала");
+                return;
+            }
+
+            // Купца не стало: набег, мор, дорога — неважно.
+            for (Citizen citizen : List.copyOf(village.citizens())) {
+                if (citizen.profession().filter(Villages.MERCHANT::equals).isPresent()) {
+                    citizen.entityUuid().map(world::getEntity).ifPresent(Entity::discard);
+                    village.removeCitizen(citizen.id());
+                }
+            }
+
+            if (!Villages.counterKeeper(village).equals(Villages.ELDER)) {
+                context.throwGameTestException("Без купца прилавок остался за "
+                        + Villages.counterKeeper(village));
+            }
+
+            QuestView atElder = QuestNet.viewOf(manager, village, UUID.randomUUID(),
+                    new SimpleInventory(9), Villages.ELDER, Warehouse.of(world, village))
+                    .orElse(null);
+            if (atElder == null || !atElder.trades()) {
+                context.throwGameTestException("Без купца торговать стало не с кем: "
+                        + "деревня молча перестала быть деревней");
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Купец приходит за свой прилавок и там остаётся.
+     * <p>
+     * Ремесло без выработки: купец производит <b>место встречи</b>. Ларёк
+     * без купца — декорация, купец без ларька — прохожий, которого игрок
+     * ловит щелчками по всей деревне. Поэтому проверяется ровно то, ради
+     * чего работа заведена: где он стоит, когда работает.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trade", tickLimit = 600)
+    public void merchantStandsBehindHisCounter(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic stallPlan = schematic(context, STALL_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building stall = plan(colony, anchor, STALL_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, stallPlan);
+            if (BuildJob.advance(world, manager, colony.id(), stall.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Ларёк не встал");
+                return;
+            }
+
+            BlockPos counter = Workplaces.stations(stall).stream().findFirst().orElse(null);
+            if (counter == null) {
+                context.throwGameTestException("В ларьке нет рабочего места: торговать негде");
+                return;
+            }
+
+            Citizen merchant = hireWithBody(world, colony, Villages.MERCHANT,
+                    anchor.add(0, 1, 0).north(6));
+            Workplaces.assign(world, colony);
+            if (Workplaces.of(colony, merchant).isEmpty()) {
+                context.throwGameTestException("Купцу не досталось ларька, хотя он один");
+            }
+
+            runWork(world, manager, colony, merchant, 8, Schedule.MORNING_WORK);
+
+            CitizenEntity body = bodyOf(world, colony, merchant);
+            double away = body.getBlockPos().getSquaredDistance(counter);
+            if (away > WorkContext.ARRIVAL_REACH * WorkContext.ARRIVAL_REACH) {
+                context.throwGameTestException("Купец не за прилавком: он на "
+                        + body.getBlockPos().toShortString() + ", прилавок на "
+                        + counter.toShortString());
+            }
+        } finally {
+            demolish(world, stall, stallPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
 

@@ -310,6 +310,10 @@
   "villagepax.profession.weaver": "Weaver",
   "villagepax.building.norman.weavery": "Weavery",
   "villagepax.building.maya.weavery": "Weavers' House",
+  "villagepax.profession.merchant": "Merchant",
+  "villagepax.building.norman.market_stall": "Market Stall",
+  "villagepax.building.maya.market_stall": "Trading Canopy",
+  "villagepax.trade.at_the_stall": "The merchant at the stall handles trade — I speak of other matters.",
   "villagepax.screen.growth.not_yet": "No town hall of that level exists yet — this rank is still ahead.",
   "block.villagepax.chimney": "Chimney"
 }

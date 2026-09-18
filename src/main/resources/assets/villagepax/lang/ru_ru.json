@@ -310,6 +310,10 @@
   "villagepax.profession.weaver": "Ткач",
   "villagepax.building.norman.weavery": "Ткацкая",
   "villagepax.building.maya.weavery": "Дом ткачих",
+  "villagepax.profession.merchant": "Купец",
+  "villagepax.building.norman.market_stall": "Ларёк",
+  "villagepax.building.maya.market_stall": "Торговый навес",
+  "villagepax.trade.at_the_stall": "Торгом ведает купец у ларька — я говорю о делах.",
   "villagepax.screen.growth.not_yet": "Ратуши такого уровня в моде пока нет — эта ступень впереди.",
   "block.villagepax.chimney": "Печная труба"
 }

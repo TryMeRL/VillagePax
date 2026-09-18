@@ -34,11 +34,13 @@ import java.util.UUID;
  * @param people     народ этой деревни: как он смотрит на игрока и на соседей
  * @param gift       что выйдет, если подарить то, что в руках
  * @param truce      война с этим народом: сколько бойцов и чего стоит мир
+ * @param counter    разговор идёт через прилавок: только торг и ничего больше
  */
 public record QuestView(UUID village, String villageName, Identifier giver, String standing,
                         int reputation, Optional<Integer> nextAt, Optional<Offer> quest,
                         List<Stall> stalls, int purse, Optional<UUID> caravan,
-                        People people, Optional<Gift> gift, Optional<Truce> truce) {
+                        People people, Optional<Gift> gift, Optional<Truce> truce,
+                        boolean counter) {
 
     /**
      * Война и цена мира.
@@ -275,7 +277,8 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
             Uuids.STRING_CODEC.optionalFieldOf("caravan").forGetter(QuestView::caravan),
             People.CODEC.fieldOf("people").forGetter(QuestView::people),
             Gift.CODEC.optionalFieldOf("gift").forGetter(QuestView::gift),
-            Truce.CODEC.optionalFieldOf("truce").forGetter(QuestView::truce)
+            Truce.CODEC.optionalFieldOf("truce").forGetter(QuestView::truce),
+            Codec.BOOL.optionalFieldOf("counter", false).forGetter(QuestView::counter)
     ).apply(instance, QuestView::new));
 
     /** Торгует ли эта деревня вообще: по этому решается, есть ли вкладка торга. */

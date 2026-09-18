@@ -578,13 +578,25 @@ public class CitizenEntity extends PathAwareEntity {
         // с прилавком, но без квестов, молчал бы на щелчок, и прилавок
         // остался бы недостижимым.
         //
-        // Но торгует не всякий, а старейшина: иначе нажатие съедал бы
+        // Но торгует не всякий, а купец: иначе нажатие съедал бы
         // каждый житель деревни, и удар кайлом по пахарю открывал бы
-        // прилавок. Тот же, с кем игрок и так разговаривает.
+        // прилавок.
+        //
+        // Именно купец, а не старейшина, — это «разделим обязанности»
+        // заказчика. Пока купца в деревне нет, за прилавком по-прежнему
+        // старейшина: спрашивается об этом одно место на весь мод, иначе
+        // тело и экран разошлись бы во мнениях, и игрок щёлкал бы
+        // по человеку, который открывает пустоту.
         Identifier profession = citizen.profession().get();
         boolean gives = QuestManager.all().values().stream()
                 .anyMatch(quest -> quest.giver().equals(profession));
-        boolean trades = profession.equals(Villages.ELDER)
+        //
+        // И торгуют с игроком только чужие: свой купец за своим прилавком
+        // продавал бы игроку его же зерно за его же монету. Колонии ларёк
+        // всё равно нужен — у него останавливается обоз, — но разговор
+        // с самим собой не разговор.
+        boolean trades = profession.equals(Villages.counterKeeper(village))
+                && village.owner().isAutonomous()
                 && Trading.tableOf(village).isPresent();
         if (!gives && !trades) {
             return ActionResult.PASS;
@@ -595,6 +607,16 @@ public class CitizenEntity extends PathAwareEntity {
         // до следующей ступени и сколько из просимого уже в сумке.
         // Чат при этом остаётся: старейшина говорит, а экран показывает.
         Quests.greet(server, citizen);
+
+        // И сам скажет, куда идти за товаром. Игрок, который помнит
+        // прилавок у старейшины, иначе решит, что торговлю сломали:
+        // молча исчезнувшая возможность выглядит поломкой, даже когда
+        // она просто переехала.
+        if (profession.equals(Villages.ELDER) && !trades
+                && village.owner().isAutonomous()
+                && Trading.tableOf(village).isPresent()) {
+            server.sendMessage(Text.translatable("villagepax.trade.at_the_stall"), true);
+        }
         citizen.profession()
                 .flatMap(giver -> QuestNet.viewOf(manager, village, server.getUuid(),
                         server.getInventory(), giver, Warehouse.of(world, village),

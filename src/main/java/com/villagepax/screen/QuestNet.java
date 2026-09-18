@@ -13,6 +13,7 @@ import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Standing;
+import com.villagepax.sim.Villages;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.diplomacy.Gifts;
 import com.villagepax.sim.diplomacy.Relations;
@@ -240,16 +241,36 @@ public final class QuestNet {
                 .flatMap(QuestManager::get)
                 .map(quest -> offerOf(carried, quest, reputation));
 
+        // Прилавок собирается только тому, кто за ним стоит.
+        //
+        // Решение заказчика: «разделим обязанности». До сих пор старейшина
+        // делал всё — давал квесты, принимал подарки, мирился и торговал, —
+        // и деревня выглядела одним человеком с четырьмя руками. Теперь
+        // товар у купца, а разговор у старейшины, и за каждым делом игрок
+        // идёт к своему лицу.
+        //
+        // Кто именно держит прилавок, решает поселение: пока купца нет,
+        // это по-прежнему старейшина. Правило «разговор не упирается
+        // в тупик» старше разделения обязанностей.
+        boolean keeper = caravan.isPresent() || giver.equals(Villages.counterKeeper(village));
+        List<QuestView.Stall> stalls = keeper
+                ? stalls(village, reputation, carried, wares) : List.of();
+
         return Optional.of(new QuestView(village.id(), village.name(), giver,
                 standing.displayKey(), reputation, nextThreshold(standing), offer,
-                stalls(village, reputation, carried, wares), Trading.purse(wares), caravan,
+                stalls, Trading.purse(wares), caravan,
                 peopleOf(manager, village, id),
                 // У обоза подарка не берут: дарят в глаза деревне, а торговец
                 // — гость на день, и доверие ему не его.
                 caravan.isPresent() ? Optional.empty() : giftOf(village, id, held, today),
                 // У обоза мира не просят по той же причине, что не дарят:
                 // торговец пришёл торговать, а воюет деревня.
-                caravan.isPresent() ? Optional.empty() : truceOf(village, id, carried, today)));
+                caravan.isPresent() ? Optional.empty() : truceOf(village, id, carried, today),
+                // Купцу нечего сказать, кроме цены: экран открывается
+                // сразу на торге и лишних вкладок не показывает. А если
+                // датапак однажды даст купцу квест, разговор вернётся —
+                // молча потерять его нельзя.
+                caravan.isEmpty() && giver.equals(Villages.MERCHANT) && offer.isEmpty()));
     }
 
     /**

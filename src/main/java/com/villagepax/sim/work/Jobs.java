@@ -21,7 +21,7 @@ public final class Jobs {
     private static final Map<Identifier, Job> BY_LOGIC =
             register(new BuilderJob(), new HaulJob(), new GatherJob(), new FarmJob(),
                     new CraftJob(),
-                    new GuardJob());
+                    new GuardJob(), new TradeJob());
 
     private Jobs() {
     }

@@ -99,6 +99,10 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
 
     public QuestScreen(QuestView view) {
         this.view = view;
+        // Разговор с купцом открывается сразу на торге: за этим к нему
+        // и подходят. Пустая вкладка «разговор» первым, что видит игрок,
+        // означала бы, что купец сперва молчит, а товар надо поискать.
+        this.tab = view.counter() ? Tab.TRADE : Tab.TALK;
     }
 
     /**
@@ -166,6 +170,11 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
             // вкладка хуже, чем возврат к разговору.
             tab = Tab.TALK;
         }
+        if (tab != Tab.TRADE && view.counter() && view.trades()) {
+            // И наоборот: у прилавка других вкладок нет вовсе, а вкладка,
+            // которой нет, не должна остаться выбранной после обновления.
+            tab = Tab.TRADE;
+        }
         fillHead();
         fillTabs();
         fillBody();
@@ -199,6 +208,13 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         tabs.clearChildren();
         for (Tab candidate : Tab.values()) {
             if (candidate == Tab.TRADE && !view.trades()) {
+                continue;
+            }
+            // У прилавка одно дело. Купец не выдаёт квестов, не принимает
+            // подарков и не говорит о соседях — за этим к старейшине,
+            // и показывать пустые вкладки значило бы звать игрока туда,
+            // где ему всё равно ответят пустотой.
+            if (candidate != Tab.TRADE && view.counter() && view.trades()) {
                 continue;
             }
             tabs.child(Look.tab(candidate.title(), candidate == tab, TAB_WIDTH, pressed -> {

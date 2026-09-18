@@ -35,6 +35,7 @@
   },
   "buildings": [
     "villagepax:norman/town_hall",
+    "villagepax:norman/market_stall",
     "villagepax:norman/house",
     "villagepax:norman/warehouse",
     "villagepax:norman/builder_hut",

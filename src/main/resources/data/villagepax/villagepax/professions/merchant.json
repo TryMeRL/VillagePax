@@ -1,0 +1,7 @@
+{
+  "display_name": "villagepax.profession.merchant",
+  "job": "villagepax:trade",
+  "needs_workplace": true,
+  "hiring_priority": 10,
+  "workplace": "market_stall"
+}

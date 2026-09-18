@@ -127,6 +127,7 @@ import com.villagepax.screen.Advice;
 import com.villagepax.screen.BuildOrders;
 import com.villagepax.screen.GhostPlan;
 import com.villagepax.screen.Mood;
+import com.villagepax.screen.TownHallConsole;
 import com.villagepax.screen.TownHallView;
 import com.villagepax.sim.work.Assignments;
 import com.villagepax.sim.work.WorkContext;
@@ -11826,6 +11827,126 @@ public class VillagePaxGameTests implements FabricGameTest {
         Allies.dismiss(world, party);
         cleanUpVillage(world, manager, friend, friendAt, List.of());
         cleanUpVillage(world, manager, colony, centre, floor);
+    }
+
+
+    /**
+     * Пульт открывается только хозяину, и это чинит молчащее меню.
+     * <p>
+     * Жалоба заказчика: «не могу заказать постройку и поставить постройку,
+     * не грузит призрак». Причина оказалась не в призраке. Ратуша есть
+     * и у деревни народа, и щелчок по ней открывал <b>полный пульт
+     * колонии</b> — со списком зданий и кнопками «Заказать». Ни одна
+     * из них не работала: сервер отбрасывает намерения по чужому
+     * поселению, потому что распоряжаться можно только своим. Молча.
+     * <p>
+     * Кнопка, которая ничего не делает и ничего не говорит, — худшее,
+     * что бывает в меню: игрок не понимает, сломан мод или он сам.
+     * Теперь чужая ратуша пульта не открывает вовсе и говорит, что
+     * здесь можно на самом деле.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "founding")
+    public void aVillageTownHallIsNotYourConsole(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+        UUID stranger = UUID.randomUUID();
+
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 20, 2));
+        BlockPos mineAt = context.getAbsolutePos(new BlockPos(14, 20, 2));
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", villageAt);
+        Settlement mine = Settlement.found(NORMAN, Owner.of(player), "Моя", mineAt);
+        Settlement theirs = Settlement.found(NORMAN, Owner.of(stranger), "Чужая", mineAt);
+
+        manager.add(village);
+        manager.add(mine);
+
+        try {
+            if (TownHallConsole.yours(village, player)) {
+                context.throwGameTestException("Пульт деревни народа открывается игроку: "
+                        + "в нём все кнопки молчат");
+            }
+            if (TownHallConsole.yours(theirs, player)) {
+                context.throwGameTestException("Пульт чужой колонии открывается игроку");
+            }
+            if (!TownHallConsole.yours(mine, player)) {
+                context.throwGameTestException("Своя колония не пускает хозяина в пульт");
+            }
+
+            // И это ровно тот же признак, по которому сервер решает, чьё
+            // намерение исполнять: два разных ответа на один вопрос
+            // и давали молчащее меню.
+            if (Founding.colonyOf(manager, player).map(Settlement::id)
+                    .filter(mine.id()::equals).isEmpty()) {
+                context.throwGameTestException("Колония игрока не находится по владельцу");
+            }
+            if (Founding.colonyOf(manager, stranger).isPresent()) {
+                context.throwGameTestException("У чужака нашлась колония в этом мире");
+            }
+        } finally {
+            manager.remove(village.id());
+            manager.remove(mine.id());
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * У каждого заказа есть призрак, и он не пустой.
+     * <p>
+     * Призрак — единственное, чем игрок выбирает место: нет призрака —
+     * нет и постройки, и жаловаться он будет ровно теми словами, какими
+     * и пожаловался: «не грузит призрак». Ломается это молча — схема
+     * загрузилась, список заказов полон, а показывать нечего, — и потому
+     * сверяется списком.
+     * <p>
+     * Заодно мерится потолок: призрак в восемь тысяч блоков клиент
+     * обрежет на середине, и здание покажется недостроенным ещё
+     * до стройки.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "orders")
+    public void everyOrderHasAGhostToShow(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            List<String> mute = new ArrayList<>();
+            for (Identifier schematicId : TownHallView.of(world, colony).offers()) {
+                Schematic schematic = SchematicLoader.get(schematicId).orElse(null);
+                if (schematic == null) {
+                    mute.add(schematicId + ": схемы нет вовсе");
+                    continue;
+                }
+                GhostPlan ghost = GhostPlan.of(schematicId, schematic);
+                if (ghost.blocks().isEmpty()) {
+                    mute.add(schematicId + ": призрак пуст");
+                }
+                if (ghost.blocks().size() >= GhostPlan.MAX_BLOCKS) {
+                    mute.add(schematicId + ": призрак упёрся в потолок ("
+                            + ghost.blocks().size() + ")");
+                }
+                if (!ghost.size().equals(schematic.size())) {
+                    mute.add(schematicId + ": размер призрака " + ghost.size()
+                            + " вместо " + schematic.size());
+                }
+            }
+
+            if (!mute.isEmpty()) {
+                context.throwGameTestException("Заказы без призрака: "
+                        + String.join("; ", mute));
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
     }
 
 

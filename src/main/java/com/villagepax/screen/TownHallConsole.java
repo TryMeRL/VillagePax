@@ -21,6 +21,26 @@ import net.minecraft.util.math.BlockPos;
  */
 public final class TownHallConsole implements ExtendedScreenHandlerFactory {
 
+    /**
+     * Твой ли это пульт.
+     * <p>
+     * Ратуша есть и у деревни народа, и щелчок по ней открывал <b>полный
+     * пульт колонии</b>: вкладка стройки со списком зданий, кнопки «Заказать»,
+     * «Улучшить», раздача ремёсел. И ни одна из них не работала — каждое
+     * намерение сервер молча отбрасывал, потому что пульт был чужой.
+     * <p>
+     * Заказчик так и написал: «не могу заказать постройку и поставить
+     * постройку, не грузит призрак». Кнопка, которая ничего не делает
+     * и ничего не говорит, — худшее, что может быть в меню: игрок
+     * не понимает, сломан мод или он сам.
+     * <p>
+     * Поэтому чужая ратуша пульта не открывает вовсе. С деревней говорят
+     * через людей: квесты у старейшины, товар у купца.
+     */
+    public static boolean yours(Settlement settlement, java.util.UUID player) {
+        return settlement.owner().isOwnedBy(player);
+    }
+
     private final ServerWorld world;
     private final Settlement colony;
     private final BlockPos hall;

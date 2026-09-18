@@ -96,6 +96,37 @@ class GuidePagesTest {
         assertTrue(missing.isEmpty(), "страницы книги без перевода: " + missing);
     }
 
+    /**
+     * Оба словаря знают одни и те же ключи.
+     * <p>
+     * Ключ, забытый в одном языке, виден игроку как
+     * {@code villagepax.town_hall.not_yours} посреди чата — и виден только
+     * тому, кто играет на этом языке. Автор мода играет на одном, а
+     * заказчик может на другом; сверять это глазами нельзя, а списком —
+     * секунда.
+     * <p>
+     * Проверяется <b>в обе стороны</b>: пропуск бывает и там, и там,
+     * и найти нужно оба.
+     */
+    @Test
+    void bothLanguagesKnowTheSameKeys() {
+        Set<String> russian = keysOf("ru_ru");
+        Set<String> english = keysOf("en_us");
+
+        List<String> missing = new ArrayList<>();
+        for (String key : russian) {
+            if (!english.contains(key)) {
+                missing.add("en_us: " + key);
+            }
+        }
+        for (String key : english) {
+            if (!russian.contains(key)) {
+                missing.add("ru_ru: " + key);
+            }
+        }
+        assertTrue(missing.isEmpty(), "строки без перевода: " + missing);
+    }
+
     /** Пустая или дважды повторённая страница — это ошибка списка, а не книги. */
     @Test
     void pagesAreDistinctAndPresent() {

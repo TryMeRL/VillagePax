@@ -63,8 +63,17 @@ public class TownHallBlock extends BlockWithEntity {
             Settlement colony = hall.settlementId()
                     .flatMap(id -> SettlementManager.get(serverWorld).byId(id))
                     .orElse(null);
-            if (colony != null) {
+            if (colony != null && TownHallConsole.yours(colony, player.getUuid())) {
                 player.openHandledScreen(new TownHallConsole(serverWorld, colony, pos));
+                return ActionResult.CONSUME;
+            }
+            if (colony != null) {
+                // Чужая ратуша. Пульт у неё не открывается: в нём нет ни одной
+                // работающей кнопки — сервер отбрасывает намерения по чужому
+                // поселению, и игрок остаётся с меню, которое молчит.
+                // Вместо меню — слова о том, что здесь можно на самом деле.
+                player.sendMessage(Text.translatable("villagepax.town_hall.not_yours",
+                        Text.literal(colony.name())), false);
                 return ActionResult.CONSUME;
             }
         }

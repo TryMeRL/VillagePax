@@ -1,5 +1,7 @@
 package com.villagepax.screen;
 
+import com.villagepax.sim.build.BuildStep;
+import com.villagepax.sim.build.Schematic;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.network.PacketByteBuf;
@@ -37,6 +39,29 @@ public record GhostPlan(Identifier schematic, Vec3i size, List<Ghost> blocks) {
 
     public GhostPlan {
         blocks = List.copyOf(blocks);
+    }
+
+    /**
+     * Собрать призрак схемы.
+     * <p>
+     * Живёт здесь, а не в сетевом слое, ровно по той же причине, что и
+     * проверки заказа в {@code BuildOrders}: пакет — только способ
+     * доставки, а <b>что именно видит игрок</b> — свойство схемы. Заодно
+     * это можно спросить без игрока и без сети, то есть проверить.
+     * <p>
+     * Расчистка в призрак не входит: игрок выбирает, как встанет здание,
+     * а не что будет снесено. С расчисткой подхода это стало особенно
+     * важно — иначе призрак торчал бы из здания прозрачными клетками
+     * там, где билдер всего лишь срубит дерево.
+     */
+    public static GhostPlan of(Identifier schematicId, Schematic schematic) {
+        List<Ghost> blocks = new ArrayList<>();
+        for (BuildStep step : schematic.plan().steps()) {
+            if (step.placesBlock() && blocks.size() < MAX_BLOCKS) {
+                blocks.add(new Ghost(step.pos(), schematic.blockAt(step.paletteIndex())));
+            }
+        }
+        return new GhostPlan(schematicId, schematic.size(), blocks);
     }
 
     public void write(PacketByteBuf buf) {

@@ -160,7 +160,12 @@ public final class TownHallNet {
     private static void order(ServerPlayerEntity player, Identifier schematic, BlockPos anchor,
                               BlockRotation rotation) {
         Settlement colony = ownedColony(player);
-        if (colony == null || tooFarToPlace(player, anchor)) {
+        if (colony == null) {
+            tell(player, "villagepax.screen.order.no_colony");
+            return;
+        }
+        if (tooFarToPlace(player, anchor)) {
+            tell(player, "villagepax.screen.order.too_far");
             return;
         }
 
@@ -212,6 +217,7 @@ public final class TownHallNet {
     private static void reorder(ServerPlayerEntity player, UUID building, int shift) {
         Settlement colony = consoleColony(player);
         if (colony == null) {
+            tell(player, "villagepax.screen.console.not_yours");
             return;
         }
 
@@ -230,6 +236,7 @@ public final class TownHallNet {
     private static void upgrade(ServerPlayerEntity player, UUID building) {
         Settlement colony = consoleColony(player);
         if (colony == null) {
+            tell(player, "villagepax.screen.console.not_yours");
             return;
         }
 
@@ -267,6 +274,10 @@ public final class TownHallNet {
      */
     private static void sendPlan(ServerPlayerEntity player, Identifier schematicId) {
         if (ownedColony(player) == null) {
+            // Молчание тут стоило заказчику вечера: он жал «Заказать»,
+            // призрак не появлялся, и понять, что своей колонии у него
+            // просто нет, было неоткуда.
+            tell(player, "villagepax.screen.order.no_colony");
             return;
         }
 
@@ -275,15 +286,8 @@ public final class TownHallNet {
             return;
         }
 
-        List<GhostPlan.Ghost> blocks = new ArrayList<>();
-        for (BuildStep step : schematic.plan().steps()) {
-            if (step.placesBlock() && blocks.size() < GhostPlan.MAX_BLOCKS) {
-                blocks.add(new GhostPlan.Ghost(step.pos(), schematic.blockAt(step.paletteIndex())));
-            }
-        }
-
         PacketByteBuf buf = PacketByteBufs.create();
-        new GhostPlan(schematicId, schematic.size(), blocks).write(buf);
+        GhostPlan.of(schematicId, schematic).write(buf);
         ServerPlayNetworking.send(player, PLAN, buf);
     }
 
@@ -298,6 +302,11 @@ public final class TownHallNet {
                               BlockRotation rotation) {
         Settlement colony = ownedColony(player);
         if (colony == null) {
+            // Приговор вместо молчания: призрак так и скажет, чего не хватает.
+            PacketByteBuf refusal = PacketByteBufs.create();
+            refusal.writeBoolean(false);
+            refusal.writeString("villagepax.hologram.no_colony");
+            ServerPlayNetworking.send(player, VERDICT, refusal);
             return;
         }
 
@@ -335,6 +344,7 @@ public final class TownHallNet {
                                Optional<Identifier> profession) {
         Settlement colony = consoleColony(player);
         if (colony == null) {
+            tell(player, "villagepax.screen.console.not_yours");
             return;
         }
         ServerWorld world = player.getServerWorld();

@@ -70,14 +70,17 @@ public class Settlement {
      * @param lastRaid   день последнего набега <b>на это</b> поселение
      * @param truceUntil до какого дня это поселение никого не посылает
      * @param allies     с кем заключён союз и с какого дня
-     * @param beatenOn   день, когда отряд <b>этого</b> поселения перебили
+     * @param beatenOn     день, когда отряд <b>этого</b> поселения перебили
+     * @param tributeTo    кому платят дань
+     * @param tributeUntil до какого дня платят
      */
     public record War(Optional<WarParty> siege, long lastRaid, long truceUntil,
-                      Map<UUID, Long> allies, long beatenOn) {
+                      Map<UUID, Long> allies, long beatenOn,
+                      Optional<UUID> tributeTo, long tributeUntil) {
 
         /** Мир: никто не стоит у ворот, никто никуда не идёт. */
-        public static final War NONE =
-                new War(Optional.empty(), UNSEEN_DAY, UNSEEN_DAY, Map.of(), UNSEEN_DAY);
+        public static final War NONE = new War(Optional.empty(), UNSEEN_DAY, UNSEEN_DAY,
+                Map.of(), UNSEEN_DAY, Optional.empty(), UNSEEN_DAY);
 
         public War {
             allies = Map.copyOf(allies);
@@ -90,6 +93,16 @@ public class Settlement {
         public War(Optional<WarParty> siege, long lastRaid, long truceUntil,
                    Map<UUID, Long> allies) {
             this(siege, lastRaid, truceUntil, allies, UNSEEN_DAY);
+        }
+
+        public War(Optional<WarParty> siege, long lastRaid, long truceUntil,
+                   Map<UUID, Long> allies, long beatenOn) {
+            this(siege, lastRaid, truceUntil, allies, beatenOn, Optional.empty(), UNSEEN_DAY);
+        }
+
+        /** То же военное положение, но с другой данью. */
+        public War paying(Optional<UUID> to, long until) {
+            return new War(siege, lastRaid, truceUntil, allies, beatenOn, to, until);
         }
 
         public static final Codec<War> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -106,7 +119,13 @@ public class Settlement {
                 // День разгрома лежит здесь же, и это не случайность: дань
                 // берут со страха, а страх у деревни ровно один — тот отряд,
                 // который ушёл и не вернулся.
-                Codec.LONG.optionalFieldOf("beaten_on", UNSEEN_DAY).forGetter(War::beatenOn)
+                Codec.LONG.optionalFieldOf("beaten_on", UNSEEN_DAY).forGetter(War::beatenOn),
+                // Дань лежит рядом с союзом, и это не теснота кодека: союз
+                // и дань — одно и то же отношение, вывернутое наизнанку.
+                // За одного вступаются, от другого откупаются.
+                Uuids.STRING_CODEC.optionalFieldOf("tribute_to").forGetter(War::tributeTo),
+                Codec.LONG.optionalFieldOf("tribute_until", UNSEEN_DAY)
+                        .forGetter(War::tributeUntil)
         ).apply(instance, War::new));
     }
 
@@ -282,9 +301,57 @@ public class Settlement {
         return war.beatenOn();
     }
 
+    /**
+     * Платит ли это поселение дань названному игроку прямо сейчас.
+     * <p>
+     * Срок проверяется здесь, а не при платеже: дань, которая кончилась,
+     * должна и в разговоре выглядеть кончившейся.
+     */
+    public boolean owesTributeTo(UUID player, long today) {
+        return war.tributeTo().filter(player::equals).isPresent() && today < war.tributeUntil();
+    }
+
+    /** Сколько дней дани осталось: ноль, если её нет. */
+    public int tributeDaysLeft(long today) {
+        return war.tributeTo().isPresent() && today < war.tributeUntil()
+                ? (int) Math.min(Integer.MAX_VALUE, war.tributeUntil() - today) : 0;
+    }
+
+    /** Кому платят дань, если платят. */
+    public Optional<UUID> tributeTo() {
+        return war.tributeTo();
+    }
+
+    /** Обложить данью до названного дня. */
+    public void startTribute(UUID player, long until) {
+        this.war = war.paying(Optional.of(player), until);
+    }
+
+    /** Дань кончилась: платить больше некому и нечем. */
+    public void stopTribute() {
+        this.war = war.paying(Optional.empty(), UNSEEN_DAY);
+    }
+
+    /**
+     * Разорвать союз.
+     * <p>
+     * Нужен требованию дани: вступаться за человека и откупаться от него
+     * разом нельзя, и выбирает тут игрок — тем, что пришёл требовать.
+     */
+    public void breakAlly(UUID player) {
+        if (!war.allies().containsKey(player)) {
+            return;
+        }
+        Map<UUID, Long> left = new java.util.LinkedHashMap<>(war.allies());
+        left.remove(player);
+        this.war = new War(war.siege(), war.lastRaid(), war.truceUntil(), left, war.beatenOn(),
+                war.tributeTo(), war.tributeUntil());
+    }
+
     /** Отряд перебит: запомнить день. */
     public void beaten(long today) {
-        this.war = new War(war.siege(), war.lastRaid(), war.truceUntil(), war.allies(), today);
+        this.war = new War(war.siege(), war.lastRaid(), war.truceUntil(), war.allies(), today,
+                war.tributeTo(), war.tributeUntil());
     }
 
     /**
@@ -310,7 +377,7 @@ public class Settlement {
         Map<UUID, Long> allies = new java.util.LinkedHashMap<>(war.allies());
         allies.put(player, today);
         this.war = new War(war.siege(), war.lastRaid(), war.truceUntil(), allies,
-                war.beatenOn());
+                war.beatenOn(), war.tributeTo(), war.tributeUntil());
     }
 
     /** Сколько дней тишины ещё осталось: ноль, если перемирия нет. */
@@ -329,25 +396,26 @@ public class Settlement {
         // UNSEEN_DAY — это «давно прошло», и max с ним возвращает сегодня:
         // отдельной проверки «перемирия ещё не было» не нужно.
         this.war = new War(war.siege(), war.lastRaid(),
-                Math.max(today, war.truceUntil()) + days, war.allies(), war.beatenOn());
+                Math.max(today, war.truceUntil()) + days, war.allies(), war.beatenOn(),
+                war.tributeTo(), war.tributeUntil());
     }
 
     /** Отряд встал у ворот. День запоминается сразу: остывать начинают с прихода. */
     public void besiege(WarParty party, long today) {
         this.war = new War(Optional.of(party), today, war.truceUntil(), war.allies(),
-                war.beatenOn());
+                war.beatenOn(), war.tributeTo(), war.tributeUntil());
     }
 
     /** Отряд поредел или ушёл: пустой отряд снимается с поселения. */
     public void updateSiege(WarParty party) {
         Optional<WarParty> left = party.fighters() <= 0 ? Optional.empty() : Optional.of(party);
         this.war = new War(left, war.lastRaid(), war.truceUntil(), war.allies(),
-                war.beatenOn());
+                war.beatenOn(), war.tributeTo(), war.tributeUntil());
     }
 
     public void liftSiege() {
         this.war = new War(Optional.empty(), war.lastRaid(), war.truceUntil(), war.allies(),
-                war.beatenOn());
+                war.beatenOn(), war.tributeTo(), war.tributeUntil());
     }
 
     // --- гости ---

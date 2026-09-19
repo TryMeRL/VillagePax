@@ -13,8 +13,10 @@ import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
+import com.villagepax.sim.diplomacy.Tribute;
 import com.villagepax.sim.trade.Caravans;
 import com.villagepax.sim.war.Raids;
+import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.work.Workplaces;
 import com.villagepax.sim.trade.Coins;
 import com.villagepax.sim.trade.Trading;
@@ -272,6 +274,11 @@ public final class Villages {
             // сегодня, а не ждёт следующего утра, чтобы им распорядиться.
             Warehouse warehouse = Warehouse.of(world, village);
             earn(world, village, warehouse);
+            // Дань платится ПОСЛЕ выручки и до покупок: деревня отдаёт
+            // из заработанного сегодня, а не из того, что откладывала
+            // на стройку. И только под присмотром — платят сундуком,
+            // а сундук в выгруженном чанке не прочитать.
+            Tribute.pay(world, manager, village, Schedule.dayOf(world.getTimeOfDay()));
             deliver(world, village, warehouse);
         }
 

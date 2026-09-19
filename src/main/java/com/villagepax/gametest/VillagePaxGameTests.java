@@ -70,6 +70,7 @@ import com.villagepax.screen.QuestNet;
 import com.villagepax.sim.work.CraftJob;
 import com.villagepax.sim.war.Peace;
 import com.villagepax.sim.diplomacy.Alliance;
+import com.villagepax.sim.diplomacy.Tribute;
 import com.villagepax.sim.war.Allies;
 import com.villagepax.sim.war.Raids;
 import com.villagepax.sim.war.Siege;
@@ -12013,6 +12014,185 @@ public class VillagePaxGameTests implements FabricGameTest {
             Raids.bodiesOf(world, band).forEach(CitizenEntity::discard);
             cleanUpVillage(world, manager, village, villageAt, List.of());
             cleanUpVillage(world, manager, colony, centre, floor);
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * Дань берут с разбитых, а не с друзей — и не с хутора.
+     * <p>
+     * Лестница ступеней обещала городу «право требовать дань со слабых
+     * соседей», и слово «слабых» тут не украшение: требовать можно только
+     * у той деревни, чей отряд <b>только что</b> лёг под твоими воротами.
+     * Иначе дань стала бы налогом на соседство — подрос и обложил всех,
+     * ничем не рискуя.
+     * <p>
+     * Проверяется каждый отказ по очереди, потому что каждый из них —
+     * отдельное правило, и выпади любое, дань перестанет что-то значить.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "peace")
+    public void tributeIsTakenFromTheBeatenNotFromFriends(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 30, 2));
+        BlockPos colonyAt = context.getAbsolutePos(new BlockPos(16, 30, 2));
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", villageAt);
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", colonyAt);
+        manager.add(village);
+        manager.add(colony);
+
+        try {
+            // Хутор не требует ничего, даже у разбитых.
+            manager.update(village.id(), state -> state.beaten(10L));
+            if (Tribute.judge(manager.byId(village.id()).orElseThrow(), colony, player, 12L)
+                    != Tribute.Verdict.NO_TOWN) {
+                context.throwGameTestException("Хутор требует дань: "
+                        + Tribute.judge(village, colony, player, 12L));
+            }
+
+            colony.setLevel(SettlementLevel.TOWN);
+
+            // Неразбитая деревня не платит.
+            manager.update(village.id(), state -> state.beaten(Settlement.UNSEEN_DAY));
+            if (Tribute.judge(manager.byId(village.id()).orElseThrow(), colony, player, 12L)
+                    != Tribute.Verdict.NOT_BEATEN) {
+                context.throwGameTestException("Дань берут с деревни, которая не воевала");
+            }
+
+            // И давно разбитая тоже: страх не вечен.
+            manager.update(village.id(), state -> state.beaten(10L));
+            if (Tribute.judge(manager.byId(village.id()).orElseThrow(), colony, player,
+                    10L + Tribute.MEMORY + 1) != Tribute.Verdict.NOT_BEATEN) {
+                context.throwGameTestException("Разгром помнят дольше срока памяти");
+            }
+
+            // Друг дани не платит.
+            manager.update(village.id(), state ->
+                    state.addReputation(player, Standing.FRIEND.from()));
+            if (Tribute.judge(manager.byId(village.id()).orElseThrow(), colony, player, 12L)
+                    != Tribute.Verdict.TOO_FRIENDLY) {
+                context.throwGameTestException("С друга берут дань: дружба и дань смешались");
+            }
+
+            // А с обиженного — берут, и требование разрывает союз.
+            manager.update(village.id(), state -> {
+                state.addReputation(player, -Standing.FRIEND.from());
+                state.makeAlly(player, 11L);
+            });
+            Settlement beaten = manager.byId(village.id()).orElseThrow();
+            Tribute.Outcome outcome = Tribute.demand(manager, beaten, colony, player, 12L);
+            if (!outcome.taken()) {
+                context.throwGameTestException("Дань не взята: " + outcome.verdict());
+                return;
+            }
+
+            Settlement paying = manager.byId(village.id()).orElseThrow();
+            if (!paying.owesTributeTo(player, 12L)) {
+                context.throwGameTestException("Дань назначена, а деревня о ней не знает");
+            }
+            if (paying.tributeDaysLeft(12L) != Tribute.DAYS) {
+                context.throwGameTestException("Срок дани " + paying.tributeDaysLeft(12L)
+                        + " вместо " + Tribute.DAYS);
+            }
+            if (paying.isAllyOf(player)) {
+                context.throwGameTestException("Союз пережил требование дани: "
+                        + "деревня и вступается за игрока, и откупается от него");
+            }
+            if (Tribute.judge(paying, colony, player, 12L) != Tribute.Verdict.ALREADY) {
+                context.throwGameTestException("Дань требуют дважды");
+            }
+        } finally {
+            manager.remove(village.id());
+            manager.remove(colony.id());
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * Дань переезжает монетой и копит обиду.
+     * <p>
+     * Дань — не число в сохранении, а <b>серебро из чужого сундука</b>:
+     * обобрать можно только того, у кого есть что взять, и увидеть это
+     * можно, открыв его склад. Разорённая деревня не платит, и это
+     * не сбой, а ответ.
+     * <p>
+     * И каждый платёж роняет доверие. Иначе дань была бы бесплатным
+     * доходом, а она — решение: монета сегодня против отряда у ворот
+     * послезавтра.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "peace")
+    public void tributeMovesCoinAndBreedsResentment(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 35, 2));
+        BlockPos colonyAt = context.getAbsolutePos(new BlockPos(16, 35, 2));
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", villageAt);
+        world.setBlockState(villageAt, ModBlocks.TOWN_HALL.getDefaultState());
+        manager.add(village);
+
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", colonyAt);
+        world.setBlockState(colonyAt, ModBlocks.TOWN_HALL.getDefaultState());
+        manager.add(colony);
+
+        try {
+            Coins.earn(Warehouse.of(world, village).coins(), Tribute.RATE * 3);
+            manager.update(village.id(), state -> state.startTribute(player, 100L));
+            int trustBefore = manager.byId(village.id()).orElseThrow().reputationOf(player);
+            int mineBefore = Coins.total(Warehouse.of(world, colony).coins());
+
+            for (long day = 1; day <= 3; day++) {
+                if (Tribute.pay(world, manager, village, day) != Tribute.RATE) {
+                    context.throwGameTestException("День " + day + ": дань не заплачена");
+                    return;
+                }
+            }
+
+            int mineAfter = Coins.total(Warehouse.of(world, colony).coins());
+            if (mineAfter != mineBefore + Tribute.RATE * 3) {
+                context.throwGameTestException("На склад колонии пришло "
+                        + (mineAfter - mineBefore) + " вместо " + (Tribute.RATE * 3));
+            }
+            if (Coins.total(Warehouse.of(world, village).coins()) != 0) {
+                context.throwGameTestException("У деревни осталась монета: "
+                        + Coins.total(Warehouse.of(world, village).coins())
+                        + " — платили не из её сундука");
+            }
+
+            Settlement paying = manager.byId(village.id()).orElseThrow();
+            if (paying.reputationOf(player) != trustBefore - Tribute.RESENTMENT * 3) {
+                context.throwGameTestException("Обида не копится: доверие "
+                        + paying.reputationOf(player) + " вместо "
+                        + (trustBefore - Tribute.RESENTMENT * 3));
+            }
+
+            // Разорённая деревня не платит, но и дани не лишается.
+            if (Tribute.pay(world, manager, village, 4L) != 0) {
+                context.throwGameTestException("Разорённая деревня всё равно заплатила");
+            }
+            if (!manager.byId(village.id()).orElseThrow().owesTributeTo(player, 4L)) {
+                context.throwGameTestException("Дань кончилась от одного пустого дня");
+            }
+
+            // А срок выходит — и запись убирается сама.
+            Tribute.pay(world, manager, village, 200L);
+            if (manager.byId(village.id()).orElseThrow().tributeTo().isPresent()) {
+                context.throwGameTestException("Срок вышел, а дань в записи осталась");
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, villageAt, List.of());
+            cleanUpVillage(world, manager, colony, colonyAt, List.of());
+            world.setBlockState(villageAt, Blocks.AIR.getDefaultState());
+            world.setBlockState(colonyAt, Blocks.AIR.getDefaultState());
         }
 
         context.complete();

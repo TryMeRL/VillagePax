@@ -1,5 +1,6 @@
 package com.villagepax.client;
 
+import com.villagepax.block.LaundryBlock;
 import com.villagepax.block.entity.RopeBlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -60,11 +61,32 @@ public class RopeBlockEntityRenderer implements BlockEntityRenderer<RopeBlockEnt
             // Через одну — чуть глубже: так они не сливаются в полосу
             // и не спорят гранями, стоя в одной плоскости.
             float depth = slot % 2 == 0 ? 0.46f : 0.54f;
-            matrices.translate(step / 2 + slot * step, 0.66, depth);
+            float along = step / 2 + slot * step;
+
+            // Вдоль бечевы, а не по мировой оси. Верёвку теперь можно
+            // натянуть в любую сторону, и вещи обязаны висеть НА НЕЙ:
+            // счёт по иксу оставил бы их болтаться поперёк, в воздухе
+            // рядом с верёвкой, и это было бы хуже прежней неподвижной.
+            boolean acrossX = rope.getCachedState().get(LaundryBlock.FACING)
+                    .getAxis() == net.minecraft.util.math.Direction.Axis.X;
+            if (acrossX) {
+                matrices.translate(depth, 0.66, along);
+            } else {
+                matrices.translate(along, 0.66, depth);
+            }
 
             float phase = (time + tickDelta) * PACE + (seed + slot * 37) % 628 / 100.0f;
-            matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(
-                    (float) Math.sin(phase) * SWING));
+            // И качается поперёк себя: вещь на верёвке ходит от ветра
+            // вбок, а не вдоль бечевы. Ось качания поворачивается вместе
+            // с верёвкой, иначе повёрнутое бельё колыхалось бы, врезаясь
+            // в собственную бечеву.
+            float swing = (float) Math.sin(phase) * SWING;
+            matrices.multiply(acrossX
+                    ? RotationAxis.POSITIVE_X.rotationDegrees(swing)
+                    : RotationAxis.POSITIVE_Z.rotationDegrees(swing));
+            if (acrossX) {
+                matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(90));
+            }
             matrices.scale(step, step, step);
 
             MinecraftClient.getInstance().getItemRenderer().renderItem(stack,

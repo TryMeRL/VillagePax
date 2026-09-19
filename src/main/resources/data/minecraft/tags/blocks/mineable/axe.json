@@ -5,6 +5,9 @@
     "villagepax:firewood",
     "villagepax:laundry",
     "villagepax:timber_frame_stairs",
-    "villagepax:timber_frame_slab"
+    "villagepax:timber_frame_slab",
+    "villagepax:bench",
+    "villagepax:table",
+    "villagepax:shelf"
   ]
 }

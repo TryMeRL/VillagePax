@@ -63,8 +63,25 @@ MATERIALS = [
     },
 ]
 
-FORM_RU = {"stairs": "ступени", "slab": "плита", "wall": "стена"}
 FORM_EN = {"stairs": "Stairs", "slab": "Slab", "wall": "Wall"}
+
+# Русские имена — по ванильному образцу: прилагательное плюс предмет.
+# «Фахверк: ступени» читается как заголовок таблицы, а не как вещь
+# в инвентаре; ваниль пишет «Дубовые ступени» и «Ступени из песчаника»,
+# и наш блок обязан стоять в этом ряду не выделяясь.
+NAMES_RU = {
+    "timber_frame_stairs": "Фахверковые ступени",
+    "timber_frame_slab": "Фахверковая плита",
+    "plaster_stairs": "Штукатурные ступени",
+    "plaster_slab": "Штукатурная плита",
+    "ochre_plaster_stairs": "Охряные ступени",
+    "ochre_plaster_slab": "Охряная плита",
+    "carved_stone_stairs": "Ступени из резного камня",
+    "carved_stone_slab": "Плита из резного камня",
+    "carved_stone_wall": "Стена из резного камня",
+    "thatch_stairs": "Соломенные ступени",
+    "thatch_slab": "Соломенная плита",
+}
 
 
 def write(path, payload):
@@ -282,7 +299,7 @@ def main():
                 write(DATA / "recipes" / (name + "_from_stonecutting.json"),
                       stonecut(base, name, 2 if form == "slab" else 1))
 
-            lang_ru["block.villagepax." + name] = "%s: %s" % (material["ru"], FORM_RU[form])
+            lang_ru["block.villagepax." + name] = NAMES_RU[name]
             lang_en["block.villagepax." + name] = "%s %s" % (material["en"], FORM_EN[form])
 
     print("Сделано блоков: %d" % len(made))

@@ -199,6 +199,27 @@ LEGEND = {
     # по недостроенному полу.
     "0": ("minecraft:cauldron", {}),
     "v": ("minecraft:barrel", {"facing": "up", "open": "false"}),
+    # --- строительный набор мода: им кроют и им же отделывают ---
+    #
+    # Своими ступенями и плитами дом отделывается изнутри мода, а не
+    # ванильными досками: кровля майя обязана выглядеть соломенной
+    # и по краю, а не обрываться кубом.
+    "1": ("villagepax:thatch_stairs", {"facing": "north", "half": "bottom",
+                                       "shape": "straight", "waterlogged": "false"}),
+    "2": ("villagepax:thatch_stairs", {"facing": "south", "half": "bottom",
+                                       "shape": "straight", "waterlogged": "false"}),
+    "3": ("villagepax:thatch_stairs", {"facing": "east", "half": "bottom",
+                                       "shape": "straight", "waterlogged": "false"}),
+    "4": ("villagepax:thatch_stairs", {"facing": "west", "half": "bottom",
+                                       "shape": "straight", "waterlogged": "false"}),
+    "5": ("villagepax:thatch_slab", {"type": "bottom", "waterlogged": "false"}),
+    "6": ("villagepax:plaster_slab", {"type": "bottom", "waterlogged": "false"}),
+    "7": ("villagepax:timber_frame_slab", {"type": "bottom", "waterlogged": "false"}),
+    "8": ("villagepax:ochre_plaster_slab", {"type": "bottom", "waterlogged": "false"}),
+    "9": ("villagepax:carved_stone_slab", {"type": "bottom", "waterlogged": "false"}),
+    "+": ("villagepax:carved_stone_wall", {"north": "low", "south": "low", "east": "low",
+                                           "west": "low", "up": "true",
+                                           "waterlogged": "false"}),
     "D": ("villagepax:marker_door", {}),
     "K": ("villagepax:marker_workstation", {}),
     "S": ("villagepax:marker_storage", {}),
@@ -207,13 +228,18 @@ LEGEND = {
 }
 
 
-def hip_roof(size, levels):
+def hip_roof(size, levels, ridge=None):
     """Шатровая крыша: кольцо ступеней с настилом внутри, каждый слой уже на блок.
 
     Руками эти слои набирать незачем: они отличаются только отступом от края,
     и любая опечатка даёт дырку в крыше, которую видно только в игре. Скат
     смотрит наружу — ступени северного ряда на север, южного на юг, — тем же
     порядком, что и рукописная крыша домика лесоруба.
+
+    Конёк — плита вдоль хребта поверх настила. Без него крыша кончается
+    плоской площадкой, и дом читается коробкой с крышкой; с ним у силуэта
+    появляется хребет, по которому дом и узнают издалека. Стоит он одну
+    плиту на дом и виден с любого расстояния.
     """
     layers = []
 
@@ -239,6 +265,18 @@ def hip_roof(size, levels):
             rows.append("".join(row))
         layers.append(rows)
 
+    if ridge is not None:
+        middle = size // 2
+        rows = []
+        for z in range(size):
+            row = []
+            for x in range(size):
+                # Хребет идёт по середине от края до края: одна линия,
+                # а не крестовина, — иначе это уже не конёк, а второй этаж.
+                row.append(ridge if z == middle and levels <= x < size - levels else ".")
+            rows.append("".join(row))
+        layers.append(rows)
+
     return layers
 
 
@@ -250,15 +288,43 @@ def pyramid(size, symbol, cap=None):
     Вершина у храма сменяется резным камнем: это гребень, и по нему
     ратуша майя отличается от жилого дома издалека.
     """
+    # Край каждого яруса — СКАТ, а не обрыв.
+    #
+    # Ступенчатая пирамида из кубов читается лестницей: у неё по краю
+    # ровно такие же прямые углы, как у стены, и кровля не отличается
+    # от недостроенного этажа. Ступень по кромке даёт наклон, и крыша
+    # становится крышей — с одного и того же расстояния видно, где
+    # кончается дом и начинается кровля.
+    #
+    # Скат ставится только у соломы: у неё есть своя ступень. Камень
+    # (второй символ этой функции — гребень храма) кроется по-прежнему
+    # кубом, и это правильно: у пирамиды майя ступени каменные и есть.
+    slopes = {"north": "1", "south": "2", "east": "3", "west": "4"} if symbol == "T" else None
+
     layers = []
     inset = 0
     while size - 2 * inset >= 1:
         rows = []
+        low, high = inset, size - 1 - inset
         for z in range(size):
             row = []
             for x in range(size):
-                inside = (inset <= x < size - inset) and (inset <= z < size - inset)
-                row.append(symbol if inside else ".")
+                inside = (low <= x <= high) and (low <= z <= high)
+                if not inside:
+                    row.append(".")
+                elif slopes is None or (low == high):
+                    # Вершина в один блок скатом быть не может.
+                    row.append(symbol)
+                elif z == low:
+                    row.append(slopes["north"])
+                elif z == high:
+                    row.append(slopes["south"])
+                elif x == low:
+                    row.append(slopes["west"])
+                elif x == high:
+                    row.append(slopes["east"])
+                else:
+                    row.append(symbol)
             rows.append("".join(row))
         layers.append(rows)
         inset += 1
@@ -455,6 +521,14 @@ NORMAN_HOUSE = [
      "wPPPe",
      "wPPPe",
      "sssss"],
+    # y=5 — конёк: плита вдоль хребта. Без неё крыша кончается плоской
+    # площадкой, и дом читается коробкой с крышкой; с ней у силуэта
+    # появляется хребет, по которому дом узнают издалека.
+    [".....",
+     ".....",
+     ".777.",
+     ".....",
+     "....."],
 ]
 
 # Домик лесоруба, 10x5x5: жильё слева, огороженная роща справа.
@@ -795,7 +869,7 @@ MAYA_HOUSE = [
     ["VRDRV",
      "RfOfR",
      "RhthR",
-     "R...R",
+     "R..OR",
      "VRRRV"],
     # y=2 — второй ряд стен с проёмами
     ["VR.RV",
@@ -1129,7 +1203,7 @@ NORMAN_BREWERY = [
     # y=1 — котёл, бочки, сундук и место пивовара
     ["BWDWB",
      "W.K.W",
-     "W0..W",
+     "W0.OW",
      "WS.vW",
      "BWWWB"],
     # y=2 — второй ряд стен, окно на улицу
@@ -1150,6 +1224,14 @@ NORMAN_BREWERY = [
      "wPPPe",
      "wPPPe",
      "sssss"],
+    # y=5 — конёк: плита вдоль хребта. Без неё крыша кончается плоской
+    # площадкой, и дом читается коробкой с крышкой; с ней у силуэта
+    # появляется хребет, по которому дом узнают издалека.
+    [".....",
+     ".....",
+     ".777.",
+     ".....",
+     "....."],
 ]
 
 
@@ -1164,7 +1246,7 @@ MAYA_BREWERY = [
     # y=1 — котёл, бочка, сундук и место знахаря
     ["VRDRV",
      "R.K.R",
-     "R0..R",
+     "R0.OR",
      "RS.vR",
      "VRRRV"],
     # y=2 — второй ряд стен с проёмом
@@ -1180,11 +1262,11 @@ MAYA_BREWERY = [
      "u...u",
      "iiiii"],
     # y=4 — пальмовая кровля
-    ["TTTTT",
-     "TaaaT",
-     "TaaaT",
-     "TaaaT",
-     "TTTTT"],
+    ["T111T",
+     "4aaa3",
+     "4aaa3",
+     "4aaa3",
+     "T222T"],
 ]
 
 
@@ -1220,6 +1302,14 @@ NORMAN_WEAVERY = [
      "wPPPe",
      "wPPPe",
      "sssss"],
+    # y=5 — конёк: плита вдоль хребта. Без неё крыша кончается плоской
+    # площадкой, и дом читается коробкой с крышкой; с ней у силуэта
+    # появляется хребет, по которому дом узнают издалека.
+    [".....",
+     ".....",
+     ".777.",
+     ".....",
+     "....."],
 ]
 
 
@@ -1246,11 +1336,11 @@ MAYA_WEAVERY = [
      "u...u",
      "iiiii"],
     # y=4 — пальмовая кровля
-    ["TTTTT",
-     "TaaaT",
-     "TaaaT",
-     "TaaaT",
-     "TTTTT"],
+    ["T111T",
+     "4aaa3",
+     "4aaa3",
+     "4aaa3",
+     "T222T"],
 ]
 
 
@@ -1315,6 +1405,14 @@ NORMAN_BUILDER_HUT = [
      "wPPPe",
      "wPPPe",
      "sssss"],
+    # y=5 — конёк: плита вдоль хребта. Без неё крыша кончается плоской
+    # площадкой, и дом читается коробкой с крышкой; с ней у силуэта
+    # появляется хребет, по которому дом узнают издалека.
+    [".....",
+     ".....",
+     ".777.",
+     ".....",
+     "....."],
 ]
 
 
@@ -1422,6 +1520,14 @@ NORMAN_MARKET_STALL = [
      "wPPPe",
      "wPPPe",
      "sssss"],
+    # y=5 — конёк: плита вдоль хребта. Без неё крыша кончается плоской
+    # площадкой, и дом читается коробкой с крышкой; с ней у силуэта
+    # появляется хребет, по которому дом узнают издалека.
+    [".....",
+     ".....",
+     ".777.",
+     ".....",
+     "....."],
 ]
 
 
@@ -1451,11 +1557,11 @@ MAYA_MARKET_STALL = [
      "u...u",
      "iiiii"],
     # y=4 — пальмовая кровля
-    ["TTTTT",
-     "TaaaT",
-     "TaaaT",
-     "TaaaT",
-     "TTTTT"],
+    ["T111T",
+     "4aaa3",
+     "4aaa3",
+     "4aaa3",
+     "T222T"],
 ]
 
 
@@ -1559,6 +1665,14 @@ NORMAN_MARKET = [
      "wPPPPPe",
      "wPPPPPe",
      "sssssss"],
+    # y=5 — конёк вдоль хребта.
+    [".......",
+     ".......",
+     ".......",
+     ".77777.",
+     ".......",
+     ".......",
+     "......."],
 ]
 
 
@@ -1591,13 +1705,13 @@ MAYA_MARKET = [
      "u.....u",
      "iiiiiii"],
     # y=4 — пальмовая кровля
-    ["TTTTTTT",
-     "TaaaaaT",
-     "TaaaaaT",
-     "TaaaaaT",
-     "TaaaaaT",
-     "TaaaaaT",
-     "TTTTTTT"],
+    ["T11111T",
+     "4aaaaa3",
+     "4aaaaa3",
+     "4aaaaa3",
+     "4aaaaa3",
+     "4aaaaa3",
+     "T22222T"],
 ]
 
 

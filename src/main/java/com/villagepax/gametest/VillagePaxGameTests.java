@@ -1,5 +1,6 @@
 package com.villagepax.gametest;
 
+import com.villagepax.block.LaundryBlock;
 import com.villagepax.block.ModBlocks;
 import com.villagepax.sim.build.Furnishings;
 import com.villagepax.block.entity.RopeBlockEntity;
@@ -12421,6 +12422,62 @@ public class VillagePaxGameTests implements FabricGameTest {
             discardBodies(world, colony);
             manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * Верёвку можно натянуть в любую сторону, и она всё так же держит вещи.
+     * <p>
+     * Заказчик: «сделай, чтоб верёвка могла смотреть в разные стороны».
+     * До этого она шла только с запада на восток, и во дворе, вытянутом
+     * поперёк, висела через проход, а не вдоль стены.
+     * <p>
+     * Проверяется не только поворот, но и то, что он <b>переживает</b>
+     * поворот здания: схемы ставятся всеми четырьмя сторонами, и верёвка,
+     * теряющая направление при повороте дома, повисла бы поперёк комнаты.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "decor")
+    public void theRopeCanBeStrungAnyWay(TestContext context) {
+        ServerWorld world = context.getWorld();
+        BlockPos at = context.getAbsolutePos(new BlockPos(2, 22, 2));
+
+        try {
+            for (Direction facing : Direction.Type.HORIZONTAL) {
+                BlockState strung = ModBlocks.LAUNDRY.getDefaultState()
+                        .with(LaundryBlock.FACING, facing);
+                world.setBlockState(at, strung);
+
+                if (world.getBlockState(at).get(LaundryBlock.FACING) != facing) {
+                    context.throwGameTestException("Верёвка не встала на " + facing);
+                    return;
+                }
+                if (!(world.getBlockEntity(at) instanceof RopeBlockEntity rope)) {
+                    context.throwGameTestException("У повёрнутой верёвки нет блок-сущности");
+                    return;
+                }
+
+                // И держит: поворот не должен отнимать у неё смысл.
+                ItemStack hide = new ItemStack(Items.LEATHER, 1);
+                if (!rope.hang(hide)) {
+                    context.throwGameTestException("Повёрнутая на " + facing
+                            + " верёвка ничего не держит");
+                }
+                if (rope.hung().stream().allMatch(ItemStack::isEmpty)) {
+                    context.throwGameTestException("Вещь не повисла на " + facing);
+                }
+
+                // Поворот здания поворачивает и верёвку.
+                BlockState turned = strung.rotate(BlockRotation.CLOCKWISE_90);
+                if (turned.get(LaundryBlock.FACING) != facing.rotateYClockwise()) {
+                    context.throwGameTestException("Верёвка не поворачивается вместе с домом: "
+                            + facing + " превратилось в " + turned.get(LaundryBlock.FACING));
+                }
+            }
+        } finally {
+            world.setBlockState(at, Blocks.AIR.getDefaultState());
         }
 
         context.complete();

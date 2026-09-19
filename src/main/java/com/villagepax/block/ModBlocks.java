@@ -11,6 +11,7 @@ import net.minecraft.block.PillarBlock;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.sound.BlockSoundGroup;
+import net.minecraft.util.shape.VoxelShape;
 import net.minecraft.util.Identifier;
 
 import java.util.Collections;
@@ -158,6 +159,29 @@ public final class ModBlocks {
     public static final Block THATCH_STAIRS = register("thatch_stairs", stairsOf(THATCH));
     public static final Block THATCH_SLAB = register("thatch_slab", slabOf(THATCH));
 
+
+    /**
+     * Мебель: скамья, стол и полка.
+     * <p>
+     * Заказчик: «добавь мебель». Она не механика и не должна ею быть —
+     * дом без стола и лавки выглядит складом, в котором ночуют, и это
+     * первое, что бросается в глаза, когда заходишь внутрь.
+     * <p>
+     * Вся она в теге {@code villagepax:build_decor}: билдер ставит её
+     * <b>последней</b>, когда коробка дома готова. Мебель, поставленная
+     * посреди стройки, мешала бы ему самому — это уже проверено ковром
+     * и котлом.
+     * <p>
+     * Ставится по взгляду, как сундук: у стола и полки есть лицо, и
+     * поворачивать их руками игрок не должен.
+     */
+    public static final Block BENCH = register("bench", furniture(
+            Block.createCuboidShape(0, 0, 4, 16, 16, 12)));
+    public static final Block TABLE = register("table", furniture(
+            Block.createCuboidShape(0, 0, 0, 16, 16, 16)));
+    public static final Block SHELF = register("shelf", furniture(
+            Block.createCuboidShape(0, 0, 11, 16, 16, 16)));
+
     public static final Block MARKER_WORKSTATION = registerMarker("marker_workstation");
     public static final Block MARKER_BED = registerMarker("marker_bed");
     public static final Block MARKER_STORAGE = registerMarker("marker_storage");
@@ -194,6 +218,20 @@ public final class ModBlocks {
     private static Block wallOf(Block base) {
         return new WallBlock(AbstractBlock.Settings.copy(base)) {
         };
+    }
+
+    /**
+     * Мебель: дерево, поворот по взгляду и свой след.
+     * <p>
+     * Не полный куб, поэтому {@code nonOpaque}: иначе игра сочтёт клетку
+     * глухой и потушит в комнате свет, а соседние грани перестанут
+     * рисоваться.
+     */
+    private static Block furniture(VoxelShape shape) {
+        return new FurnitureBlock(shape, AbstractBlock.Settings.create()
+                .strength(1.5f, 3.0f)
+                .sounds(BlockSoundGroup.WOOD)
+                .nonOpaque());
     }
 
     private static <T extends Block> T register(String name, T block) {

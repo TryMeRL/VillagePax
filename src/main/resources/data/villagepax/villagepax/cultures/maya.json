@@ -56,7 +56,10 @@
     "minecraft:composter",
     "minecraft:cauldron",
     "minecraft:flower_pot",
-    "minecraft:barrel"
+    "minecraft:barrel",
+    "villagepax:bench",
+    "villagepax:table",
+    "villagepax:shelf"
   ],
   "traits": [
     "villagepax:terrace_farming"

@@ -40,6 +40,9 @@
     "minecraft:bookshelf",
     "minecraft:lever",
     "minecraft:water",
-    "villagepax:laundry"
+    "villagepax:laundry",
+    "villagepax:bench",
+    "villagepax:table",
+    "villagepax:shelf"
   ]
 }

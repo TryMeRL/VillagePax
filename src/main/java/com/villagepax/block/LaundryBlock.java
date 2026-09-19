@@ -6,6 +6,13 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockEntityProvider;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ShapeContext;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.BlockRotation;
+import net.minecraft.util.BlockMirror;
+import net.minecraft.state.property.DirectionProperty;
+import net.minecraft.state.StateManager;
+import net.minecraft.item.ItemPlacementContext;
+import net.minecraft.block.HorizontalFacingBlock;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
@@ -46,13 +53,59 @@ public class LaundryBlock extends Block implements BlockEntityProvider {
     /** Раз в сколько тиков в среднем срывается капля с мокрого. */
     private static final int DRIP_CHANCE = 6;
 
+    /**
+     * Куда натянута бечева.
+     * <p>
+     * Заказчик: «сделай, чтоб верёвка могла смотреть в разные стороны».
+     * До этого она всегда шла с запада на восток, и во дворе, вытянутом
+     * поперёк, её было некуда деть: между домами она висела <b>через</b>
+     * проход, а не вдоль стены.
+     * <p>
+     * Свойство горизонтальное, как у сундука или печи, и ставится тем же
+     * способом — по взгляду игрока. Учить этому не нужно: так ведёт себя
+     * половина ванильных блоков.
+     */
+    public static final DirectionProperty FACING = HorizontalFacingBlock.FACING;
+
     /** След верёвки: сама бечева поверху и место под вещами. */
-    private static final VoxelShape SHAPE = VoxelShapes.union(
+    private static final VoxelShape NORTH_SOUTH = VoxelShapes.union(
+            createCuboidShape(7, 14, 0, 9, 16, 16),
+            createCuboidShape(7, 4, 1, 9, 14, 15));
+
+    private static final VoxelShape EAST_WEST = VoxelShapes.union(
             createCuboidShape(0, 14, 7, 16, 16, 9),
             createCuboidShape(1, 4, 7, 15, 14, 9));
 
     public LaundryBlock(Settings settings) {
         super(settings);
+        setDefaultState(getDefaultState().with(FACING, Direction.NORTH));
+    }
+
+    @Override
+    protected void appendProperties(StateManager.Builder<Block, BlockState> builder) {
+        builder.add(FACING);
+    }
+
+    /**
+     * Верёвка натягивается <b>поперёк</b> взгляда, а не вдоль.
+     * <p>
+     * Игрок стоит перед местом, где хочет её видеть, и смотрит на него:
+     * бечева должна лечь слева направо, как он её и представляет. Ставить
+     * её «от себя вдаль» пришлось бы объяснять, а объяснять в игре негде.
+     */
+    @Override
+    public BlockState getPlacementState(ItemPlacementContext context) {
+        return getDefaultState().with(FACING, context.getHorizontalPlayerFacing());
+    }
+
+    @Override
+    public BlockState rotate(BlockState state, BlockRotation rotation) {
+        return state.with(FACING, rotation.rotate(state.get(FACING)));
+    }
+
+    @Override
+    public BlockState mirror(BlockState state, BlockMirror mirror) {
+        return state.rotate(mirror.getRotation(state.get(FACING)));
     }
 
     @Nullable
@@ -64,7 +117,8 @@ public class LaundryBlock extends Block implements BlockEntityProvider {
     @Override
     public VoxelShape getOutlineShape(BlockState state, BlockView world, BlockPos pos,
                                       ShapeContext context) {
-        return SHAPE;
+        Direction facing = state.get(FACING);
+        return facing.getAxis() == Direction.Axis.X ? NORTH_SOUTH : EAST_WEST;
     }
 
     /**

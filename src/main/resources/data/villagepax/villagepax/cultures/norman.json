@@ -58,7 +58,10 @@
     "minecraft:composter",
     "minecraft:cauldron",
     "minecraft:flower_pot",
-    "minecraft:hay_block"
+    "minecraft:hay_block",
+    "villagepax:bench",
+    "villagepax:table",
+    "villagepax:shelf"
   ],
   "traits": [
     "villagepax:stone_masonry"

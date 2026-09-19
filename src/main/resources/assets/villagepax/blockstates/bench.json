@@ -1,18 +1,18 @@
 {
   "variants": {
     "facing=north": {
-      "model": "villagepax:block/laundry"
+      "model": "villagepax:block/bench"
     },
     "facing=east": {
-      "model": "villagepax:block/laundry",
+      "model": "villagepax:block/bench",
       "y": 90
     },
     "facing=south": {
-      "model": "villagepax:block/laundry",
+      "model": "villagepax:block/bench",
       "y": 180
     },
     "facing=west": {
-      "model": "villagepax:block/laundry",
+      "model": "villagepax:block/bench",
       "y": 270
     }
   }

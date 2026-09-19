@@ -61,12 +61,21 @@ public final class Materials {
         List<BuildStep> steps = schematic.plan().steps();
         Map<Item, Integer> needed = new LinkedHashMap<>();
 
-        int last = Math.min(steps.size(), site.nextStep() + lookahead);
-        for (int index = Math.max(0, site.nextStep()); index < last; index++) {
+        // Окно считается по УКЛАДКАМ, а не по шагам плана.
+        //
+        // Расчистка материала не просит, а идёт первой и занимает треть
+        // плана; считая её, курьер смотрел сквозь неё на полтора блока
+        // вперёд и приносил один вид груза вместо четырёх. Поймано конём
+        // на крыше: лишний слой почти из одного воздуха — и заявка дома
+        // разом обмелела до одного вида.
+        int seen = 0;
+        for (int index = Math.max(0, site.nextStep()); index < steps.size() && seen < lookahead;
+                index++) {
             BuildStep step = steps.get(index);
             if (!step.placesBlock()) {
                 continue;
             }
+            seen++;
             itemFor(schematic.blockAt(step.paletteIndex()))
                     .ifPresent(item -> needed.merge(item, 1, Integer::sum));
         }

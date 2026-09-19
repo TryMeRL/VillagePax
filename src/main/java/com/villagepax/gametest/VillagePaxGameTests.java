@@ -2498,10 +2498,15 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Ферма не достроилась");
             }
 
+            // Двадцать три, а не двадцать четыре: одну клетку занял тюк
+            // пугала, которое с этой правки стоит на поле с первого
+            // уровня. Число здесь написано числом намеренно — считать
+            // грядки по той же схеме, которую строит проверка, значит
+            // спрашивать ответ у проверяемого.
             List<BlockPos> plots = FarmJob.plots(farm);
-            if (plots.size() != 24) {
+            if (plots.size() != 23) {
                 context.throwGameTestException("Грядок на ферме " + plots.size()
-                        + ", в схеме двадцать четыре");
+                        + ", в схеме двадцать три");
             }
             for (BlockPos plot : plots) {
                 if (!world.getBlockState(plot).isIn(BlockTags.CROPS)) {
@@ -7270,6 +7275,48 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
         } finally {
             cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Ни одно здание мода не остаётся без источника света.
+     * <p>
+     * Темнота в Minecraft — это не настроение, а правило порождения:
+     * в клетке с освещённостью ноль ночью встаёт моб. Мастерская, склад
+     * и ткацкая стояли глухими коробками без окон и очага, и к утру
+     * внутри ждал скелет — того самого жителя, который придёт работать.
+     * Поэтому свет здесь не украшение, и проверка не «косметическая».
+     * <p>
+     * Проверка одна на все схемы нарочно: фонарь вешает генератор сам,
+     * по одному правилу на весь мод, и новое здание получит его, не
+     * спросив меня. Но правило ищет потолок — у поля и рощи потолка нет,
+     * и там свет написан руками на угловых столбах ограды. Забыть его
+     * в новом уличном здании легче всего, и ловит это ровно эта строка.
+     * <p>
+     * Спрашивается яркость <b>состояния блока</b>, а не список имён:
+     * список пришлось бы дописывать под каждый новый светильник, и он
+     * молча устарел бы на первом же факеле души.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "everything")
+    public void noBuildingIsLeftDark(TestContext context) {
+        List<Identifier> all = new ArrayList<>(SchematicLoader.ids());
+        all.sort(java.util.Comparator.comparing(Identifier::toString));
+
+        List<String> dark = new ArrayList<>();
+        for (Identifier id : all) {
+            Schematic schematic = SchematicLoader.get(id).orElseThrow();
+            boolean lit = schematic.blocks().stream()
+                    .anyMatch(block -> schematic.blockAt(block.paletteIndex()).getLuminance() > 0);
+            if (!lit) {
+                dark.add(id.toString());
+            }
+        }
+
+        if (!dark.isEmpty()) {
+            context.throwGameTestException("Здания, в которых ночью нечем светить:\n  "
+                    + String.join("\n  ", dark));
         }
 
         context.complete();
@@ -12909,9 +12956,11 @@ public class VillagePaxGameTests implements FabricGameTest {
                         + BIGGER_FIELD);
             }
 
-            // Пугало: тюк и тыква на нём. Стоит на юге, в новой части поля.
-            BlockPos straw = BuildJob.worldPos(farm, bigger.size(), new BlockPos(3, 2, 7));
-            BlockPos head = BuildJob.worldPos(farm, bigger.size(), new BlockPos(3, 3, 7));
+            // Пугало: тюк и тыква на нём. Стоит там же, где стояло
+            // на первом уровне, и это половина смысла проверки:
+            // улучшение надстраивает поле, а не переставляет на нём вещи.
+            BlockPos straw = BuildJob.worldPos(farm, bigger.size(), new BlockPos(1, 2, 5));
+            BlockPos head = BuildJob.worldPos(farm, bigger.size(), new BlockPos(1, 3, 5));
             if (!world.getBlockState(straw).isOf(Blocks.HAY_BLOCK)
                     || !world.getBlockState(head).isOf(Blocks.CARVED_PUMPKIN)) {
                 context.throwGameTestException("Пугала на поле нет: "

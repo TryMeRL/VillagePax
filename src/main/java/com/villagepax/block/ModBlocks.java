@@ -3,6 +3,9 @@ package com.villagepax.block;
 import com.villagepax.VillagePax;
 import net.minecraft.block.AbstractBlock;
 import net.minecraft.block.Block;
+import net.minecraft.block.WallBlock;
+import net.minecraft.block.StairsBlock;
+import net.minecraft.block.SlabBlock;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.PillarBlock;
 import net.minecraft.registry.Registries;
@@ -115,6 +118,46 @@ public final class ModBlocks {
                     .strength(0.5f)
                     .sounds(BlockSoundGroup.GRASS)));
 
+
+    /**
+     * Строительный набор: ступени, плиты и стена из наших же материалов.
+     * <p>
+     * Заказчик попросил веселья — и первое веселье строителя не в новых
+     * механиках, а в том, что <b>из материала можно строить</b>. Куб,
+     * у которого нет ступени и плиты, в доме годится на стену и больше
+     * ни на что: ни на скат кровли, ни на карниз, ни на крыльцо.
+     * <p>
+     * И это же — дружба с чужими модами. Ванильная форма ступени понимают
+     * все: кто умеет ставить дубовые ступени, тот без единой правки умеет
+     * и наши, потому что это тот же блок с той же моделью и тем же тегом.
+     * <p>
+     * Анонимные наследники здесь не украшение: у ванильных {@code StairsBlock}
+     * и {@code WallBlock} защищённые конструкторы, и наследник — законный
+     * способ их позвать, не трогая чужой класс.
+     */
+    public static final Block TIMBER_FRAME_STAIRS = register("timber_frame_stairs",
+            stairsOf(TIMBER_FRAME));
+    public static final Block TIMBER_FRAME_SLAB = register("timber_frame_slab",
+            slabOf(TIMBER_FRAME));
+
+    public static final Block PLASTER_STAIRS = register("plaster_stairs", stairsOf(PLASTER));
+    public static final Block PLASTER_SLAB = register("plaster_slab", slabOf(PLASTER));
+
+    public static final Block OCHRE_PLASTER_STAIRS = register("ochre_plaster_stairs",
+            stairsOf(OCHRE_PLASTER));
+    public static final Block OCHRE_PLASTER_SLAB = register("ochre_plaster_slab",
+            slabOf(OCHRE_PLASTER));
+
+    public static final Block CARVED_STONE_STAIRS = register("carved_stone_stairs",
+            stairsOf(CARVED_STONE));
+    public static final Block CARVED_STONE_SLAB = register("carved_stone_slab",
+            slabOf(CARVED_STONE));
+    public static final Block CARVED_STONE_WALL = register("carved_stone_wall",
+            wallOf(CARVED_STONE));
+
+    public static final Block THATCH_STAIRS = register("thatch_stairs", stairsOf(THATCH));
+    public static final Block THATCH_SLAB = register("thatch_slab", slabOf(THATCH));
+
     public static final Block MARKER_WORKSTATION = registerMarker("marker_workstation");
     public static final Block MARKER_BED = registerMarker("marker_bed");
     public static final Block MARKER_STORAGE = registerMarker("marker_storage");
@@ -136,6 +179,21 @@ public final class ModBlocks {
                 .strength(0.2f)
                 .sounds(BlockSoundGroup.WOOL)
                 .nonOpaque()));
+    }
+
+    /** Ступени из того же материала: форма ванильная, чтобы её понимали все. */
+    private static Block stairsOf(Block base) {
+        return new StairsBlock(base.getDefaultState(), AbstractBlock.Settings.copy(base)) {
+        };
+    }
+
+    private static Block slabOf(Block base) {
+        return new SlabBlock(AbstractBlock.Settings.copy(base));
+    }
+
+    private static Block wallOf(Block base) {
+        return new WallBlock(AbstractBlock.Settings.copy(base)) {
+        };
     }
 
     private static <T extends Block> T register(String name, T block) {

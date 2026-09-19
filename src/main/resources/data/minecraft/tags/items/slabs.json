@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "villagepax:timber_frame_slab",
+    "villagepax:plaster_slab",
+    "villagepax:ochre_plaster_slab",
+    "villagepax:carved_stone_slab",
+    "villagepax:thatch_slab"
+  ]
+}

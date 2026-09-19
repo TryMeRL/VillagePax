@@ -1,0 +1,13 @@
+{
+  "variants": {
+    "type=bottom": {
+      "model": "villagepax:block/plaster_slab"
+    },
+    "type=top": {
+      "model": "villagepax:block/plaster_slab_top"
+    },
+    "type=double": {
+      "model": "villagepax:block/plaster"
+    }
+  }
+}

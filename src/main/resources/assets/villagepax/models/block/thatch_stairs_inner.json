@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/inner_stairs",
+  "textures": {
+    "bottom": "villagepax:block/thatch",
+    "top": "villagepax:block/thatch",
+    "side": "villagepax:block/thatch"
+  }
+}

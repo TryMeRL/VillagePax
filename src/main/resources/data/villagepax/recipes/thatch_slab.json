@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "###"
+  ],
+  "key": {
+    "#": {
+      "item": "villagepax:thatch"
+    }
+  },
+  "result": {
+    "item": "villagepax:thatch_slab",
+    "count": 6
+  }
+}

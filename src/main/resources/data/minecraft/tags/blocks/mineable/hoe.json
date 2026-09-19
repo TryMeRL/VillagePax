@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "villagepax:thatch",
+    "villagepax:thatch_stairs",
+    "villagepax:thatch_slab",
+    "villagepax:grain_sack"
+  ]
+}

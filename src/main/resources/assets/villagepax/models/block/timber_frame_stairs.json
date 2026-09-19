@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/stairs",
+  "textures": {
+    "bottom": "villagepax:block/timber_frame",
+    "top": "villagepax:block/timber_frame",
+    "side": "villagepax:block/timber_frame"
+  }
+}

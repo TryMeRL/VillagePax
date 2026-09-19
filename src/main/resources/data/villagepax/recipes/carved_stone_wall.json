@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "###",
+    "###"
+  ],
+  "key": {
+    "#": {
+      "item": "villagepax:carved_stone"
+    }
+  },
+  "result": {
+    "item": "villagepax:carved_stone_wall",
+    "count": 6
+  }
+}

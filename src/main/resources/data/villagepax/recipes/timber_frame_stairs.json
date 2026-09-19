@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "#  ",
+    "## ",
+    "###"
+  ],
+  "key": {
+    "#": {
+      "item": "villagepax:timber_frame"
+    }
+  },
+  "result": {
+    "item": "villagepax:timber_frame_stairs",
+    "count": 4
+  }
+}

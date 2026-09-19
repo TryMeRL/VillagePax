@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": {
+    "item": "villagepax:ochre_plaster"
+  },
+  "result": "villagepax:ochre_plaster_stairs",
+  "count": 1
+}

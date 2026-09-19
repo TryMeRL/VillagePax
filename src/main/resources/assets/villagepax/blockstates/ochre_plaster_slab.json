@@ -1,0 +1,13 @@
+{
+  "variants": {
+    "type=bottom": {
+      "model": "villagepax:block/ochre_plaster_slab"
+    },
+    "type=top": {
+      "model": "villagepax:block/ochre_plaster_slab_top"
+    },
+    "type=double": {
+      "model": "villagepax:block/ochre_plaster"
+    }
+  }
+}

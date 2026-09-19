@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "villagepax:timber_frame",
+    "villagepax:firewood",
+    "villagepax:laundry",
+    "villagepax:timber_frame_stairs",
+    "villagepax:timber_frame_slab"
+  ]
+}

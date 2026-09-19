@@ -1,0 +1,13 @@
+{
+  "variants": {
+    "type=bottom": {
+      "model": "villagepax:block/thatch_slab"
+    },
+    "type=top": {
+      "model": "villagepax:block/thatch_slab_top"
+    },
+    "type=double": {
+      "model": "villagepax:block/thatch"
+    }
+  }
+}

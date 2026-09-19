@@ -6940,6 +6940,23 @@ public class VillagePaxGameTests implements FabricGameTest {
         // кладёт её блок сам, и в схеме её нет.
         used.add(ModBlocks.TOWN_HALL);
 
+        // И третий законный способ быть применённым: РЕЦЕПТ. Блок, который
+        // игрок может скрафтить, живой по определению — он для того
+        // и заведён, чтобы игрок строил им сам. Строительный набор
+        // (ступени, плиты, стены наших материалов) именно таков: деревни
+        // народов кладут стены кубами, а карниз и скат — дело хозяина.
+        //
+        // Правило при этом не размякло: блок без схемы, без декора И без
+        // рецепта достать неоткуда, кроме творческой вкладки, — и проверка
+        // на него по-прежнему падает.
+        for (net.minecraft.recipe.Recipe<?> recipe
+                : context.getWorld().getRecipeManager().values()) {
+            ItemStack made = recipe.getOutput(context.getWorld().getRegistryManager());
+            if (made.getItem() instanceof net.minecraft.item.BlockItem block) {
+                used.add(block.getBlock());
+            }
+        }
+
         List<Identifier> idle = new ArrayList<>();
         ModBlocks.registered().forEach((id, block) -> {
             if (!used.contains(block)) {

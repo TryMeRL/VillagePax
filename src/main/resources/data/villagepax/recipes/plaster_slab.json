@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "###"
+  ],
+  "key": {
+    "#": {
+      "item": "villagepax:plaster"
+    }
+  },
+  "result": {
+    "item": "villagepax:plaster_slab",
+    "count": 6
+  }
+}

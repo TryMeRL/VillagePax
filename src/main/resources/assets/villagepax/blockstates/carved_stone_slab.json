@@ -1,0 +1,13 @@
+{
+  "variants": {
+    "type=bottom": {
+      "model": "villagepax:block/carved_stone_slab"
+    },
+    "type=top": {
+      "model": "villagepax:block/carved_stone_slab_top"
+    },
+    "type=double": {
+      "model": "villagepax:block/carved_stone"
+    }
+  }
+}

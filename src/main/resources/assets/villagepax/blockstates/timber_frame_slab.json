@@ -1,0 +1,13 @@
+{
+  "variants": {
+    "type=bottom": {
+      "model": "villagepax:block/timber_frame_slab"
+    },
+    "type=top": {
+      "model": "villagepax:block/timber_frame_slab_top"
+    },
+    "type=double": {
+      "model": "villagepax:block/timber_frame"
+    }
+  }
+}

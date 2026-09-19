@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    "villagepax:timber_frame_stairs",
+    "villagepax:plaster_stairs",
+    "villagepax:ochre_plaster_stairs",
+    "villagepax:carved_stone_stairs",
+    "villagepax:thatch_stairs"
+  ]
+}

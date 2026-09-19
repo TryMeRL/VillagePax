@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": {
+    "item": "villagepax:plaster"
+  },
+  "result": "villagepax:plaster_slab",
+  "count": 2
+}

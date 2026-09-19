@@ -370,6 +370,13 @@ public final class Raids {
             manager.byId(party.home()).ifPresent(home -> Siege.bringHome(world, home, loot));
         }
 
+        if (left.isEmpty()) {
+            // Отряд ушёл не сам — его положили. Деревня это помнит, и с этого
+            // дня у игрока есть право требовать с неё дань: не «я сильнее
+            // вообще», а «твои люди лежат под моими воротами».
+            manager.update(party.home(), home -> home.beaten(party.leavesOn()));
+        }
+
         left.forEach(CitizenEntity::discard);
         Allies.dismiss(world, party);
         manager.update(colony.id(), Settlement::liftSiege);

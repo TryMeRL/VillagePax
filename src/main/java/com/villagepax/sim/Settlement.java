@@ -70,20 +70,26 @@ public class Settlement {
      * @param lastRaid   день последнего набега <b>на это</b> поселение
      * @param truceUntil до какого дня это поселение никого не посылает
      * @param allies     с кем заключён союз и с какого дня
+     * @param beatenOn   день, когда отряд <b>этого</b> поселения перебили
      */
     public record War(Optional<WarParty> siege, long lastRaid, long truceUntil,
-                      Map<UUID, Long> allies) {
+                      Map<UUID, Long> allies, long beatenOn) {
 
         /** Мир: никто не стоит у ворот, никто никуда не идёт. */
         public static final War NONE =
-                new War(Optional.empty(), UNSEEN_DAY, UNSEEN_DAY, Map.of());
+                new War(Optional.empty(), UNSEEN_DAY, UNSEEN_DAY, Map.of(), UNSEEN_DAY);
 
         public War {
             allies = Map.copyOf(allies);
         }
 
         public War(Optional<WarParty> siege, long lastRaid, long truceUntil) {
-            this(siege, lastRaid, truceUntil, Map.of());
+            this(siege, lastRaid, truceUntil, Map.of(), UNSEEN_DAY);
+        }
+
+        public War(Optional<WarParty> siege, long lastRaid, long truceUntil,
+                   Map<UUID, Long> allies) {
+            this(siege, lastRaid, truceUntil, allies, UNSEEN_DAY);
         }
 
         public static final Codec<War> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -96,7 +102,11 @@ public class Settlement {
                 // остаётся свободное место: у Mojang их ровно шестнадцать,
                 // и одно уже съела война.
                 Codec.unboundedMap(Uuids.STRING_CODEC, Codec.LONG)
-                        .optionalFieldOf("allies", Map.of()).forGetter(War::allies)
+                        .optionalFieldOf("allies", Map.of()).forGetter(War::allies),
+                // День разгрома лежит здесь же, и это не случайность: дань
+                // берут со страха, а страх у деревни ровно один — тот отряд,
+                // который ушёл и не вернулся.
+                Codec.LONG.optionalFieldOf("beaten_on", UNSEEN_DAY).forGetter(War::beatenOn)
         ).apply(instance, War::new));
     }
 
@@ -262,6 +272,22 @@ public class Settlement {
     }
 
     /**
+     * День, когда отряд этого поселения перебили под чужими воротами.
+     * <p>
+     * {@link #UNSEEN_DAY} значит «не били никогда». По этому дню считается
+     * право требовать дань: деревня платит не сильному вообще, а тому,
+     * кто <b>только что</b> положил её людей. Страх не вечен.
+     */
+    public long beatenOn() {
+        return war.beatenOn();
+    }
+
+    /** Отряд перебит: запомнить день. */
+    public void beaten(long today) {
+        this.war = new War(war.siege(), war.lastRaid(), war.truceUntil(), war.allies(), today);
+    }
+
+    /**
      * В союзе ли поселение с этим игроком — и держится ли союз.
      * <p>
      * Союз держится <b>дружбой</b>, а не записью: упало доверие ниже
@@ -283,7 +309,8 @@ public class Settlement {
     public void makeAlly(UUID player, long today) {
         Map<UUID, Long> allies = new java.util.LinkedHashMap<>(war.allies());
         allies.put(player, today);
-        this.war = new War(war.siege(), war.lastRaid(), war.truceUntil(), allies);
+        this.war = new War(war.siege(), war.lastRaid(), war.truceUntil(), allies,
+                war.beatenOn());
     }
 
     /** Сколько дней тишины ещё осталось: ноль, если перемирия нет. */
@@ -302,22 +329,25 @@ public class Settlement {
         // UNSEEN_DAY — это «давно прошло», и max с ним возвращает сегодня:
         // отдельной проверки «перемирия ещё не было» не нужно.
         this.war = new War(war.siege(), war.lastRaid(),
-                Math.max(today, war.truceUntil()) + days, war.allies());
+                Math.max(today, war.truceUntil()) + days, war.allies(), war.beatenOn());
     }
 
     /** Отряд встал у ворот. День запоминается сразу: остывать начинают с прихода. */
     public void besiege(WarParty party, long today) {
-        this.war = new War(Optional.of(party), today, war.truceUntil(), war.allies());
+        this.war = new War(Optional.of(party), today, war.truceUntil(), war.allies(),
+                war.beatenOn());
     }
 
     /** Отряд поредел или ушёл: пустой отряд снимается с поселения. */
     public void updateSiege(WarParty party) {
         Optional<WarParty> left = party.fighters() <= 0 ? Optional.empty() : Optional.of(party);
-        this.war = new War(left, war.lastRaid(), war.truceUntil(), war.allies());
+        this.war = new War(left, war.lastRaid(), war.truceUntil(), war.allies(),
+                war.beatenOn());
     }
 
     public void liftSiege() {
-        this.war = new War(Optional.empty(), war.lastRaid(), war.truceUntil(), war.allies());
+        this.war = new War(Optional.empty(), war.lastRaid(), war.truceUntil(), war.allies(),
+                war.beatenOn());
     }
 
     // --- гости ---

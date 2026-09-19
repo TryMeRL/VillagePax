@@ -11950,6 +11950,75 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    /**
+     * Разбитый отряд деревня помнит, а ушедший — нет.
+     * <p>
+     * С этого дня считается право требовать дань: она берётся не с того,
+     * кто слабее вообще, а с того, чьи люди <b>лежат под твоими воротами</b>.
+     * Разница видна на второй половине проверки: отряд, ушедший целым,
+     * дня разгрома не оставляет — его и не было.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid")
+    public void aBeatenWarBandIsRemembered(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(6, 71, 6));
+        BlockPos musters = context.getAbsolutePos(new BlockPos(9, 71, 6));
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 71, 14));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", centre);
+        Settlement village = Settlement.found(MAYA, Owner.AUTONOMOUS, "Коба", villageAt);
+        manager.add(colony);
+        manager.add(village);
+
+        WarParty band = new WarParty(UUID.randomUUID(), village.id(), MAYA, musters, 1, 20L, 21L);
+
+        try {
+            for (int x = 2; x <= 14; x++) {
+                for (int z = 2; z <= 14; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 70, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            // Отряд пришёл и лёг: тела убираются до срока ухода.
+            manager.update(colony.id(), state -> state.besiege(band, 19L));
+            Raids.watch(world, manager, 20L);
+            Raids.bodiesOf(world, band).forEach(CitizenEntity::discard);
+            Raids.watch(world, manager, 22L);
+
+            long beaten = manager.byId(village.id()).orElseThrow().beatenOn();
+            if (beaten != band.leavesOn()) {
+                context.throwGameTestException("День разгрома не записан: " + beaten
+                        + " вместо " + band.leavesOn() + ". Дань требовать будет не с чего");
+            }
+
+            // А второй отряд уходит целым — и разгрома не случилось.
+            WarParty whole = new WarParty(UUID.randomUUID(), village.id(), MAYA, musters,
+                    1, 30L, 31L);
+            manager.update(village.id(), state -> state.beaten(Settlement.UNSEEN_DAY));
+            manager.update(colony.id(), state -> state.besiege(whole, 29L));
+            Raids.watch(world, manager, 30L);
+            Raids.watch(world, manager, 32L);
+
+            if (manager.byId(village.id()).orElseThrow().beatenOn() != Settlement.UNSEEN_DAY) {
+                context.throwGameTestException("Ушедший целым отряд засчитан разгромом: "
+                        + "дань можно было бы требовать после любого набега");
+            }
+        } finally {
+            Raids.bodiesOf(world, band).forEach(CitizenEntity::discard);
+            cleanUpVillage(world, manager, village, villageAt, List.of());
+            cleanUpVillage(world, manager, colony, centre, floor);
+        }
+
+        context.complete();
+    }
+
+
     /** Сколько хранилищ стоит в следе здания прямо сейчас. */
     private static int containersIn(ServerWorld world, Building building, Schematic schematic) {
         int found = 0;

@@ -346,6 +346,8 @@
   "villagepax.ally.fighter": "Ally from %s",
   "villagepax.ally.here": "Allies from %s have arrived!",
   "villagepax.building.maya.market": "Market Square",
+  "villagepax.building.norman.watchtower": "Watchtower",
+  "villagepax.building.maya.watchtower": "Lookout Tower",
   "villagepax.trade.at_the_stall": "The merchant at the stall handles trade — I speak of other matters.",
   "villagepax.screen.growth.not_yet": "No town hall of that level exists yet — this rank is still ahead.",
   "block.villagepax.chimney": "Chimney"

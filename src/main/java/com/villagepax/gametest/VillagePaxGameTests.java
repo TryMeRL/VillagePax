@@ -12263,6 +12263,153 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    private static final Identifier TOWER_TYPE = new Identifier("villagepax", "norman/watchtower");
+    private static final Identifier TOWER_SCHEMATIC =
+            new Identifier("villagepax", "norman/watchtower_lvl1");
+
+    /**
+     * Башни убавляют отряд, но не отменяют набег.
+     * <p>
+     * Это всё, что делает укрепление, и мерится оно тем, чем игрок его
+     * и почувствует: <b>к воротам пришло меньше людей</b>. Не «плюс десять
+     * к обороне», которых не видно, а двое вместо четверых.
+     * <p>
+     * И не до нуля. Набег, который не приходит, — это выключенная механика,
+     * а не победа: деревня со счётом к игроку пошлёт хотя бы одного.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid")
+    public void towersThinTheWarBandButNeverStopIt(TestContext context) {
+        int angry = Raids.fightersFor(-100);
+        if (angry < 3) {
+            context.throwGameTestException("Проверка рассчитана на полный отряд, а он "
+                    + angry + ": числа набега изменились, поправь проверку");
+        }
+
+        if (Raids.fightersFor(-100, 1) != angry - 1) {
+            context.throwGameTestException("Одна башня убавила " + (angry
+                    - Raids.fightersFor(-100, 1)) + " мечей вместо одного");
+        }
+        if (Raids.fightersFor(-100, 2) != angry - 2) {
+            context.throwGameTestException("Две башни убавили не двоих");
+        }
+        if (Raids.fightersFor(-100, 99) != 1) {
+            context.throwGameTestException("Башни отменили набег совсем: пришло "
+                    + Raids.fightersFor(-100, 99) + " бойцов. Выключенная механика —"
+                    + " не оборона");
+        }
+        if (Raids.fightersFor(0, 5) != 0) {
+            context.throwGameTestException("Башни зовут набег там, где его не было");
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Недостроенная башня мечей не убавляет, а достроенная — считается.
+     * <p>
+     * Обещать оборону, которой ещё нет, — худший вид обмана: игрок
+     * рассчитывает на стены и встречает полный отряд.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid", tickLimit = 600)
+    public void onlyAFinishedTowerCounts(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic plan = schematic(context, TOWER_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 50, 1));
+        BlockPos at = context.getAbsolutePos(new BlockPos(4, 50, 4));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building tower = null;
+
+        try {
+            tower = plan(colony, at, TOWER_TYPE, BlockRotation.NONE);
+            if (Raids.towersOf(colony) != 0) {
+                context.throwGameTestException("Размеченная башня уже считается обороной");
+            }
+
+            stockFor(world, colony, plan);
+            if (BuildJob.advance(world, manager, colony.id(), tower.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Башня не встала: до верха не дотянуться?");
+                return;
+            }
+
+            if (Raids.towersOf(colony) != 1) {
+                context.throwGameTestException("Готовая башня не сочтена: "
+                        + Raids.towersOf(colony));
+            }
+            if (Workplaces.stations(tower).isEmpty()) {
+                context.throwGameTestException("На башне нет поста: страже некуда встать");
+            }
+        } finally {
+            if (tower != null) {
+                demolish(world, tower, plan);
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
+    /**
+     * Страж приходит на башню и стоит там.
+     * <p>
+     * «Работа должна быть видна» — правило дизайн-документа, и до башни
+     * страж его нарушал: мирный обход был ходьбой к дальнему зданию,
+     * то есть кругами по чужим огородам. Башню для того и строят, чтобы
+     * с неё смотреть, и пустая башня рядом с бродящим по улице стражем
+     * была бы насмешкой над обоими.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "guard", tickLimit = 600)
+    public void theGuardStandsOnTheTower(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic plan = schematic(context, TOWER_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 55, 1));
+        BlockPos at = context.getAbsolutePos(new BlockPos(4, 55, 4));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building tower = null;
+
+        try {
+            tower = plan(colony, at, TOWER_TYPE, BlockRotation.NONE);
+            stockFor(world, colony, plan);
+            if (BuildJob.advance(world, manager, colony.id(), tower.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Башня не встала");
+                return;
+            }
+
+            BlockPos post = Workplaces.stations(tower).get(0);
+            Citizen watchman = hireWithBody(world, colony, Villages.GUARD,
+                    hall.add(0, 1, 0));
+            runWork(world, manager, colony, watchman, 8, Schedule.MORNING_WORK);
+
+            CitizenEntity body = bodyOf(world, colony, watchman);
+            double away = body.getBlockPos().getSquaredDistance(post);
+            if (away > WorkContext.ARRIVAL_REACH * WorkContext.ARRIVAL_REACH) {
+                context.throwGameTestException("Страж не на башне: он на "
+                        + body.getBlockPos().toShortString() + ", пост на "
+                        + post.toShortString());
+            }
+        } finally {
+            if (tower != null) {
+                demolish(world, tower, plan);
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
     /** Сколько хранилищ стоит в следе здания прямо сейчас. */
     private static int containersIn(ServerWorld world, Building building, Schematic schematic) {
         int found = 0;

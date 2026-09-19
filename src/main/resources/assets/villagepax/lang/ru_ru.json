@@ -346,6 +346,8 @@
   "villagepax.ally.fighter": "Союзник из %s",
   "villagepax.ally.here": "Союзники из %s пришли на помощь!",
   "villagepax.building.maya.market": "Торговая площадь",
+  "villagepax.building.norman.watchtower": "Сторожевая башня",
+  "villagepax.building.maya.watchtower": "Дозорная башня",
   "villagepax.trade.at_the_stall": "Торгом ведает купец у ларька — я говорю о делах.",
   "villagepax.screen.growth.not_yet": "Ратуши такого уровня в моде пока нет — эта ступень впереди.",
   "block.villagepax.chimney": "Печная труба"

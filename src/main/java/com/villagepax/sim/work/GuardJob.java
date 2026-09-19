@@ -1,8 +1,10 @@
 package com.villagepax.sim.work;
 
 import com.villagepax.VillagePax;
+import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.sim.Building;
+import com.villagepax.sim.Villages;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.util.Identifier;
@@ -10,6 +12,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 
 import java.util.Optional;
+import java.util.List;
 
 /**
  * Стража: ходит по деревне, а на набег идёт с мечом.
@@ -71,7 +74,33 @@ public class GuardJob implements Job {
         if (context.body().getTarget() instanceof CitizenEntity gone && gone.isRaider()) {
             context.body().setTarget(null);
         }
-        return farthestCorner(context);
+        BlockPos post = towerPost(context);
+        return post != null ? Optional.of(post) : farthestCorner(context);
+    }
+
+    /**
+     * Пост на башне, если она в колонии есть.
+     * <p>
+     * До башни мирный обход стража был ходьбой к дальнему зданию — лучше,
+     * чем стоять у ратуши, но всё же выдумка: страж ходил кругами
+     * по чужим огородам. Башню для того и строят, чтобы с неё смотреть,
+     * и пустая башня рядом с ходящим по улице стражем выглядела бы
+     * насмешкой над обоими.
+     * <p>
+     * Пустое значение значит «башни нет» — и тогда прежний обход.
+     */
+    private static BlockPos towerPost(WorkContext context) {
+        for (Building building : context.settlement().buildings()) {
+            if (!building.isOperational()
+                    || !BuildingTypes.employs(building.type(), Villages.GUARD)) {
+                continue;
+            }
+            List<BlockPos> posts = Workplaces.stations(building);
+            if (!posts.isEmpty()) {
+                return posts.get(0);
+            }
+        }
+        return null;
     }
 
     /**

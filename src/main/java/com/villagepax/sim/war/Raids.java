@@ -2,12 +2,15 @@ package com.villagepax.sim.war;
 
 import com.villagepax.VillagePax;
 import com.villagepax.core.war.WarParty;
+import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.entity.Looks;
 import com.villagepax.sim.Ground;
+import com.villagepax.sim.Building;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.Villages;
 import com.villagepax.sim.work.Schedule;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.EquipmentSlot;
@@ -105,11 +108,46 @@ public final class Raids {
      * в набеге, что можно посчитать неправильно молча.
      */
     public static int fightersFor(int trust) {
+        return fightersFor(trust, 0);
+    }
+
+    /**
+     * Сколько мечей придёт, если у колонии столько-то башен.
+     * <p>
+     * Каждая стоящая башня убавляет отряд на бойца. Это и есть всё, что
+     * делает укрепление, и мерится оно тем, чем игрок его и почувствует:
+     * <b>к воротам пришло меньше людей</b>. Не «плюс десять к обороне»,
+     * которых не видно, а двое вместо четверых.
+     * <p>
+     * Но <b>не до нуля</b>. Набег, который не приходит, — это выключенная
+     * механика, а не победа: деревня, у которой к игроку счёт, всё равно
+     * пошлёт хотя бы одного. Башни делают войну посильной, а не отменяют её.
+     */
+    public static int fightersFor(int trust, int towers) {
         if (trust > PATIENCE_ENDS) {
             return 0;
         }
         int over = PATIENCE_ENDS - trust;
-        return Math.min(MOST_FIGHTERS, 1 + over / PER_FIGHTER);
+        int angry = Math.min(MOST_FIGHTERS, 1 + over / PER_FIGHTER);
+        return Math.max(1, angry - Math.max(0, towers));
+    }
+
+    /**
+     * Сколько у поселения готовых башен.
+     * <p>
+     * Считаются только <b>достроенные</b>: половина стены мечей не убавляет,
+     * и обещать иначе значило бы дать игроку оборону, которой у него нет.
+     * Что такое башня, решают данные: здание, в котором работает стража.
+     */
+    public static int towersOf(Settlement colony) {
+        int towers = 0;
+        for (Building building : colony.buildings()) {
+            if (building.isOperational()
+                    && BuildingTypes.employs(building.type(), Villages.GUARD)) {
+                towers++;
+            }
+        }
+        return towers;
     }
 
     /**
@@ -143,8 +181,7 @@ public final class Raids {
 
         for (UUID player : List.copyOf(village.reputation().keySet())) {
             int trust = village.reputationOf(player);
-            int fighters = fightersFor(trust);
-            if (fighters <= 0) {
+            if (fightersFor(trust) <= 0) {
                 continue;
             }
 
@@ -152,6 +189,10 @@ public final class Raids {
             if (colony == null || colony.siege().isPresent()) {
                 continue;
             }
+
+            // Размер отряда считается ПОСЛЕ того, как нашлась колония:
+            // он зависит и от обиды, и от того, что игрок построил.
+            int fighters = fightersFor(trust, towersOf(colony));
             if (colony.center().getSquaredDistance(village.center()) > (double) REACH * REACH) {
                 continue;
             }

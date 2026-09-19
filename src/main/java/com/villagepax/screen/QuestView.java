@@ -5,6 +5,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.villagepax.core.EnumCodecs;
 import com.villagepax.core.Named;
 import com.villagepax.sim.diplomacy.Alliance;
+import com.villagepax.sim.diplomacy.Tribute;
 import com.villagepax.sim.diplomacy.Gifts;
 import net.minecraft.item.Item;
 import net.minecraft.registry.Registries;
@@ -37,12 +38,41 @@ import java.util.UUID;
  * @param truce      война с этим народом: сколько бойцов и чего стоит мир
  * @param counter    разговор идёт через прилавок: только торг и ничего больше
  * @param pact       союз с этой деревней: заключён, предложен или назван целью
+ * @param levy       дань: идёт, доступна или названа целью
  */
 public record QuestView(UUID village, String villageName, Identifier giver, String standing,
                         int reputation, Optional<Integer> nextAt, Optional<Offer> quest,
                         List<Stall> stalls, int purse, Optional<UUID> caravan,
                         People people, Optional<Gift> gift, Optional<Truce> truce,
-                        boolean counter, Optional<Pact> pact) {
+                        boolean counter, Optional<Pact> pact, Optional<Levy> levy) {
+
+    /**
+     * Дань и то, что ей мешает.
+     * <p>
+     * Обратная сторона союза и показывается там же, под ним: игрок должен
+     * видеть обе дороги разом — за эту деревню можно вступиться, а можно
+     * её обобрать, и одно отменяет другое.
+     *
+     * @param days    сколько дней ещё платят; ноль — дань не идёт
+     * @param verdict согласятся ли платить — и если нет, то почему
+     */
+    public record Levy(int days, Tribute.Verdict verdict) {
+
+        public static final Codec<Levy> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.INT.optionalFieldOf("days", 0).forGetter(Levy::days),
+                Tribute.Verdict.CODEC.fieldOf("verdict").forGetter(Levy::verdict)
+        ).apply(instance, Levy::new));
+
+        /** Дань идёт прямо сейчас. */
+        public boolean paying() {
+            return days > 0;
+        }
+
+        /** Потребовать можно сейчас же. */
+        public boolean ready() {
+            return verdict == Tribute.Verdict.YES;
+        }
+    }
 
     /**
      * Союз и то, что ему мешает.
@@ -310,7 +340,8 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
             Gift.CODEC.optionalFieldOf("gift").forGetter(QuestView::gift),
             Truce.CODEC.optionalFieldOf("truce").forGetter(QuestView::truce),
             Codec.BOOL.optionalFieldOf("counter", false).forGetter(QuestView::counter),
-            Pact.CODEC.optionalFieldOf("pact").forGetter(QuestView::pact)
+            Pact.CODEC.optionalFieldOf("pact").forGetter(QuestView::pact),
+            Levy.CODEC.optionalFieldOf("levy").forGetter(QuestView::levy)
     ).apply(instance, QuestView::new));
 
     /** Торгует ли эта деревня вообще: по этому решается, есть ли вкладка торга. */

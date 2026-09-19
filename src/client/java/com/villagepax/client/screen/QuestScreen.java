@@ -296,6 +296,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
 
         fillWar();
         fillPact();
+        fillLevy();
         fillGift();
     }
 
@@ -400,6 +401,61 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         pact.verdict().reasonKey().ifPresent(key -> row.tooltip(Text.translatable(key)));
         card.child(row);
         body.child(card);
+    }
+
+    /**
+     * Карточка дани.
+     * <p>
+     * Стоит <b>сразу под союзом</b>, и это не порядок ради порядка: это
+     * две дороги от одного места. За эту деревню можно вступиться —
+     * и она придёт с мечами; а можно обобрать — и она будет платить
+     * и копить обиду. Видеть их надо рядом, потому что выбрать можно
+     * только одну.
+     */
+    private void fillLevy() {
+        QuestView.Levy levy = view.levy().orElse(null);
+        if (levy == null) {
+            return;
+        }
+
+        FlowLayout card = Look.card("villagepax.people.screen.levy",
+                new ItemStack(ModItems.SILVER_COIN));
+
+        if (levy.paying()) {
+            LabelComponent days = Components.label(
+                    Text.translatable("villagepax.people.screen.levy_days",
+                            Text.literal(String.valueOf(levy.days()))));
+            days.color(Look.GOLD);
+            days.lineHeight(10);
+            card.child(days.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            body.child(card);
+            return;
+        }
+
+        LabelComponent about = Components.label(
+                Text.translatable("villagepax.people.screen.levy_about"));
+        about.color(Look.MUTED);
+        about.lineHeight(10);
+        card.child(about.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+
+        FlowLayout row = Containers.horizontalFlow(Sizing.content(), Sizing.content());
+        row.verticalAlignment(VerticalAlignment.CENTER);
+        row.gap(6);
+        ButtonComponent take = Look.action(
+                Text.translatable("villagepax.people.screen.demand_levy"), 92, button -> levy());
+        take.active(levy.ready());
+        row.child(take);
+        levy.verdict().reasonKey().ifPresent(key -> row.tooltip(Text.translatable(key)));
+        card.child(row);
+        body.child(card);
+    }
+
+    /** «Плати дань»: право на это считает сервер, клиент — только намерение. */
+    private void levy() {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeUuid(view.village());
+        buf.writeIdentifier(view.giver());
+        ClientPlayNetworking.send(QuestNet.LEVY, buf);
     }
 
     /** «Заключим союз»: условия считает сервер, клиент — только намерение. */

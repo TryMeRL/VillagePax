@@ -12199,6 +12199,70 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    /**
+     * Карточка дани говорит сама за себя — и появляется не у всех.
+     * <p>
+     * У мирного соседа её нет вовсе: «сперва разбей их отряд» в разговоре
+     * с деревней, которая тебе ничего не сделала, — это не цель, а подсказка
+     * грабить. Зато у разбитой она есть сразу, и у платящей — тоже:
+     * игрок должен видеть, сколько ему ещё несут.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void theLevyCardSpeaksForItself(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 45, 2));
+        BlockPos colonyAt = context.getAbsolutePos(new BlockPos(16, 45, 2));
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", villageAt);
+        world.setBlockState(villageAt, ModBlocks.TOWN_HALL.getDefaultState());
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", colonyAt);
+        colony.setLevel(SettlementLevel.TOWN);
+        manager.add(village);
+        manager.add(colony);
+
+        SimpleInventory pockets = new SimpleInventory(9);
+        Warehouse wares = Warehouse.of(world, village);
+
+        try {
+            // Мирный сосед: карточки нет.
+            QuestView quiet = QuestNet.viewOf(manager, village, player, pockets,
+                    Villages.ELDER, wares, Optional.empty(), ItemStack.EMPTY, 12L).orElseThrow();
+            if (quiet.levy().isPresent()) {
+                context.throwGameTestException("Дань предлагают у мирной деревни: "
+                        + "это подсказка грабить, а не цель");
+            }
+
+            // Разбитая: карточка есть и говорит «можно».
+            manager.update(village.id(), state -> state.beaten(10L));
+            QuestView beaten = QuestNet.viewOf(manager, village, player, pockets,
+                    Villages.ELDER, wares, Optional.empty(), ItemStack.EMPTY, 12L).orElseThrow();
+            QuestView.Levy levy = beaten.levy().orElse(null);
+            if (levy == null || !levy.ready() || levy.paying()) {
+                context.throwGameTestException("У разбитой деревни карточка дани не готова: "
+                        + levy);
+            }
+
+            // Платящая: карточка считает дни.
+            manager.update(village.id(), state -> state.startTribute(player, 20L));
+            QuestView paying = QuestNet.viewOf(manager, village, player, pockets,
+                    Villages.ELDER, wares, Optional.empty(), ItemStack.EMPTY, 12L).orElseThrow();
+            QuestView.Levy going = paying.levy().orElse(null);
+            if (going == null || !going.paying() || going.days() != 8) {
+                context.throwGameTestException("Карточка не считает дни дани: " + going);
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, villageAt, List.of());
+            cleanUpVillage(world, manager, colony, colonyAt, List.of());
+            world.setBlockState(villageAt, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+
     /** Сколько хранилищ стоит в следе здания прямо сейчас. */
     private static int containersIn(ServerWorld world, Building building, Schematic schematic) {
         int found = 0;

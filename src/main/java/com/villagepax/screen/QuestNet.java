@@ -11,6 +11,7 @@ import com.villagepax.core.trade.TradeTable;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.diplomacy.Alliance;
+import com.villagepax.sim.diplomacy.Tribute;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Standing;
@@ -88,6 +89,7 @@ public final class QuestNet {
      */
     public static final Identifier PEACE = new Identifier(VillagePax.MOD_ID, "quest_peace");
     public static final Identifier PACT = new Identifier(VillagePax.MOD_ID, "quest_pact");
+    public static final Identifier LEVY = new Identifier(VillagePax.MOD_ID, "quest_levy");
 
     /**
      * Насколько близко надо стоять, чтобы отдать.
@@ -125,6 +127,12 @@ public final class QuestNet {
             UUID village = buf.readUuid();
             Identifier giver = buf.readIdentifier();
             server.execute(() -> pact(player, village, giver));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(LEVY, (server, player, handler, buf, sender) -> {
+            UUID village = buf.readUuid();
+            Identifier giver = buf.readIdentifier();
+            server.execute(() -> levy(player, village, giver));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(TRADE, (server, player, handler, buf, sender) -> {
@@ -279,7 +287,31 @@ public final class QuestNet {
                 // датапак однажды даст купцу квест, разговор вернётся —
                 // молча потерять его нельзя.
                 caravan.isEmpty() && giver.equals(Villages.MERCHANT) && offer.isEmpty(),
-                caravan.isPresent() ? Optional.empty() : pactOf(manager, village, id, carried)));
+                caravan.isPresent() ? Optional.empty() : pactOf(manager, village, id, carried),
+                caravan.isPresent() ? Optional.empty() : levyOf(manager, village, id, today)));
+    }
+
+    /**
+     * Дань: идёт, доступна или названа целью.
+     * <p>
+     * Карточки нет вовсе у деревни, с которой не воевали: «дань: сперва
+     * разбей их отряд» в разговоре с мирным соседом — это не цель,
+     * а подсказка грабить. Зато у разбитой она появляется сразу, и у той,
+     * что уже платит, — тоже: игрок должен видеть, сколько ему ещё несут.
+     */
+    private static Optional<QuestView.Levy> levyOf(SettlementManager manager, Settlement village,
+                                                   UUID player, long today) {
+        if (!village.owner().isAutonomous()) {
+            return Optional.empty();
+        }
+        int days = village.owesTributeTo(player, today) ? village.tributeDaysLeft(today) : 0;
+        boolean beaten = village.beatenOn() != Settlement.UNSEEN_DAY
+                && today - village.beatenOn() <= Tribute.MEMORY;
+        if (days <= 0 && !beaten) {
+            return Optional.empty();
+        }
+        return Optional.of(new QuestView.Levy(days,
+                Tribute.judge(village, colonyOf(manager, player), player, today)));
     }
 
     /**
@@ -410,6 +442,43 @@ public final class QuestNet {
             // Отряд, если он уже под воротами, разворачивается сейчас же:
             // «мир куплен, а эти пусть добьют» было бы издевательством.
             Raids.callOff(world, manager, player.getUuid(), village);
+        } else {
+            outcome.verdict().reasonKey().ifPresent(key ->
+                    player.sendMessage(Text.translatable(key), true));
+        }
+        refresh(player, manager, village, giver);
+    }
+
+    /**
+     * Потребовать дань.
+     * <p>
+     * Ни монеты, ни подарка: платят здесь не игроку, а <b>с игрока</b> —
+     * союзом, который разрывается, и доверием, которое будет падать
+     * с каждым платежом. Поэтому кнопка ничего не тратит из сумки,
+     * и поэтому же нажимать её стоит с открытыми глазами.
+     */
+    private static void levy(ServerPlayerEntity player, UUID village, Identifier giver) {
+        ServerWorld world = player.getServerWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Settlement home = manager.byId(village).orElse(null);
+        if (home == null) {
+            return;
+        }
+        if (nearbyGiver(player, home, giver) == null) {
+            player.sendMessage(Text.translatable("villagepax.quest.too_far"), true);
+            return;
+        }
+
+        Tribute.Outcome outcome = Tribute.demand(manager, home,
+                colonyOf(manager, player.getUuid()), player.getUuid(),
+                Schedule.dayOf(world.getTimeOfDay()));
+
+        if (outcome.taken()) {
+            player.sendMessage(Text.translatable("villagepax.tribute.taken",
+                    Text.literal(home.name()),
+                    Text.literal(String.valueOf(outcome.days()))), false);
+            world.playSound(null, player.getBlockPos(), SoundEvents.ENTITY_VILLAGER_NO,
+                    SoundCategory.NEUTRAL, 1.0f, 1.0f);
         } else {
             outcome.verdict().reasonKey().ifPresent(key ->
                     player.sendMessage(Text.translatable(key), true));

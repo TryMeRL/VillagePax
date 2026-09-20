@@ -1,0 +1,29 @@
+{
+  "giver": "villagepax:lumberjack",
+  "culture": "villagepax:norman",
+  "min_reputation": 15,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:bone_meal",
+      "count": 12
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 10
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 24
+    },
+    {
+      "type": "favour",
+      "domain": "harvest",
+      "amount": 25
+    }
+  ],
+  "dialogue": "villagepax.quest.lumberjack_2"
+}

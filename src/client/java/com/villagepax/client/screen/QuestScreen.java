@@ -652,13 +652,14 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         row.verticalAlignment(VerticalAlignment.CENTER);
         row.gap(4);
 
-        if (prize.isTrust()) {
-            LabelComponent trust = Components.label(
-                    Text.translatable("villagepax.quest.screen.reward_trust",
-                            Text.literal("+" + prize.amount())));
-            trust.color(Look.GOOD);
-            trust.shadow(false);
-            row.child(trust);
+        if (!prize.isGoods()) {
+            // Награда без вещи подписывает себя сама: доверие, человек
+            // или благосклонность — у всех трёх значка нет, а слова разные.
+            LabelComponent words = Components.label(
+                    Text.translatable(prize.key(), Text.literal("+" + prize.amount())));
+            words.color(Look.GOOD);
+            words.shadow(false);
+            row.child(words);
             return row;
         }
 
@@ -681,12 +682,20 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         row.gap(4);
         row.verticalAlignment(VerticalAlignment.CENTER);
 
-        ItemComponent picture = Components.item(new ItemStack(need.item()));
-        picture.setTooltipFromStack(true);
-        row.child(picture);
+        // Значок — только если у требования есть вещь. У «поставь склад»
+        // её нет, и пустая рамка на этом месте читалась бы дыркой.
+        need.item().ifPresent(item -> {
+            ItemComponent picture = Components.item(new ItemStack(item));
+            picture.setTooltipFromStack(true);
+            row.child(picture);
+        });
 
-        LabelComponent line = Components.label(Text.translatable("villagepax.quest.screen.need",
-                need.item().getName(), Text.literal(String.valueOf(need.have())),
+        Text about = need.item()
+                .map(item -> (Text) item.getName())
+                .orElseGet(() -> Text.translatable(need.what().orElse("")));
+
+        LabelComponent line = Components.label(Text.translatable(need.key(),
+                about, Text.literal(String.valueOf(need.have())),
                 Text.literal(String.valueOf(need.need()))));
         line.color(need.enough() ? Look.GOOD : Look.BAD);
         row.child(line);

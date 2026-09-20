@@ -98,6 +98,8 @@ import com.villagepax.sim.Standing;
 import com.villagepax.sim.diplomacy.Gifts;
 import com.villagepax.sim.diplomacy.Relations;
 import com.villagepax.sim.quest.Quests;
+import com.villagepax.sim.quest.Progress;
+import com.villagepax.sim.quest.Errands;
 import com.villagepax.sim.trade.Caravans;
 import com.villagepax.sim.trade.Coins;
 import com.villagepax.sim.trade.Trading;
@@ -5287,9 +5289,25 @@ public class VillagePaxGameTests implements FabricGameTest {
                     + Quests.offered(village, player, Villages.ELDER));
         }
 
+        // После чертежа разговор НЕ кончается: у старейшины есть ещё три
+        // шага — своё дерево, свой храм и знакомство с соседями. Раньше он
+        // замолкал здесь навсегда, и это было самое заметное место, где
+        // у мода кончался разговор.
         village.noteQuestDone(player, FOUNDING_3);
+        Identifier fourth = new Identifier("villagepax", "norman/founding_4");
+        if (!Quests.offered(village, player, Villages.ELDER).equals(Optional.of(fourth))) {
+            context.throwGameTestException("После чертежа цепочка оборвалась: предложено "
+                    + Quests.offered(village, player, Villages.ELDER));
+        }
+
+        // Пройти её до конца и убедиться, что конец всё-таки есть:
+        // кольцевая ссылка в датапаке вешала бы обход.
+        for (String step : List.of("norman/founding_4", "norman/founding_5",
+                "norman/founding_6")) {
+            village.noteQuestDone(player, new Identifier("villagepax", step));
+        }
         if (Quests.offered(village, player, Villages.ELDER).isPresent()) {
-            context.throwGameTestException("Цепочка не кончилась: предложено "
+            context.throwGameTestException("Написанная цепочка не кончилась: предложено "
                     + Quests.offered(village, player, Villages.ELDER));
         }
 
@@ -5373,7 +5391,7 @@ public class VillagePaxGameTests implements FabricGameTest {
 
         QuestView empty = QuestNet.viewOf(SettlementManager.get(context.getWorld()), village, player, hands,
                 Villages.ELDER,
-                Warehouse.of(context.getWorld(), village)).orElse(null);
+                Warehouse.of(context.getWorld(), village), Schedule.dayOf(context.getWorld().getTimeOfDay())).orElse(null);
         if (empty == null) {
             context.throwGameTestException("Разговор не собрался вовсе");
             return;
@@ -5405,11 +5423,15 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
 
         // Принесли ровно столько, сколько просят: кнопка обязана включиться.
-        hands.addStack(new ItemStack(need.item(), need.need()));
+        // Требование теперь бывает и без предмета, поэтому вещь спрашивается
+        // явно: у цели «поставь склад» её нет, и падать здесь проверка
+        // должна словами, а не NoSuchElementException.
+        hands.addStack(new ItemStack(need.item().orElseThrow(() -> new AssertionError(
+                "первое требование входного квеста обязано быть вещью")), need.need()));
 
         QuestView full = QuestNet.viewOf(SettlementManager.get(context.getWorld()), village, player, hands,
                 Villages.ELDER,
-                Warehouse.of(context.getWorld(), village)).orElseThrow();
+                Warehouse.of(context.getWorld(), village), Schedule.dayOf(context.getWorld().getTimeOfDay())).orElseThrow();
         QuestView.Offer ready = full.quest().orElseThrow();
         if (!ready.ready()) {
             context.throwGameTestException("Принесено всё, а кнопка выключена");
@@ -5508,10 +5530,14 @@ public class VillagePaxGameTests implements FabricGameTest {
                     + village.standingOf(player).id());
         }
 
-        // Цепочка кончилась: просить больше нечего.
+        // А дальше старейшина просит то, чего бездомному не сделать, —
+        // и говорит об этом словами, а не молчит. Это и есть проверка
+        // правила «отказ обязан назвать причину»: с пустыми руками
+        // и без колонии ответ обязан отличаться от «принесено не всё».
         if (Quests.handIn(village, player, Villages.ELDER, hands, paid::add)
-                != Quests.Handover.NOTHING_OFFERED) {
-            context.throwGameTestException("Деревня просит что-то после конца цепочки");
+                != Quests.Handover.NO_COLONY) {
+            context.throwGameTestException("Просьба к бездомному не названа невыполнимой: "
+                    + Quests.handIn(village, player, Villages.ELDER, hands, paid::add));
         }
 
         context.complete();
@@ -6141,7 +6167,7 @@ public class VillagePaxGameTests implements FabricGameTest {
 
         try {
             QuestView view = QuestNet.viewOf(manager, colony, player, hands, Villages.ELDER,
-                    Warehouse.of(world, colony)).orElseThrow();
+                    Warehouse.of(world, colony), Schedule.dayOf(context.getWorld().getTimeOfDay())).orElseThrow();
             if (!view.trades() || view.stalls().isEmpty()) {
                 context.throwGameTestException("Прилавок не доехал до экрана");
                 return;
@@ -6180,7 +6206,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             // Товар на складе есть, монеты у игрока нет: теперь дело в нём.
             Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 12));
             QuestView stocked = QuestNet.viewOf(manager, colony, player, hands, Villages.ELDER,
-                    Warehouse.of(world, colony)).orElseThrow();
+                    Warehouse.of(world, colony), Schedule.dayOf(context.getWorld().getTimeOfDay())).orElseThrow();
             QuestView.Stall bread = stocked.stalls().stream()
                     .filter(stall -> stall.villageSells() && stall.item() == Items.BREAD)
                     .findFirst().orElseThrow();
@@ -6191,7 +6217,7 @@ public class VillagePaxGameTests implements FabricGameTest {
 
             hands.addStack(new ItemStack(ModItems.COIN, 4));
             QuestView ready = QuestNet.viewOf(manager, colony, player, hands, Villages.ELDER,
-                    Warehouse.of(world, colony)).orElseThrow();
+                    Warehouse.of(world, colony), Schedule.dayOf(context.getWorld().getTimeOfDay())).orElseThrow();
             QuestView.Stall now = ready.stalls().stream()
                     .filter(stall -> stall.villageSells() && stall.item() == Items.BREAD)
                     .findFirst().orElseThrow();
@@ -6208,7 +6234,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             // недоверие называется раньше безденежья.
             hands.addStack(new ItemStack(ModItems.COIN, 48));
             QuestView rich = QuestNet.viewOf(manager, colony, player, hands, Villages.ELDER,
-                    Warehouse.of(world, colony)).orElseThrow();
+                    Warehouse.of(world, colony), Schedule.dayOf(context.getWorld().getTimeOfDay())).orElseThrow();
             QuestView.Stall bell = rich.stalls().stream()
                     .filter(stall -> stall.item() == Items.BELL)
                     .findFirst().orElseThrow();
@@ -7283,6 +7309,522 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
         } finally {
             cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+    // ======================= КВЕСТЫ: ПОРУЧЕНИЯ И НОВЫЕ ЦЕЛИ =======================
+
+    private static final Identifier FOUNDING_4 = new Identifier("villagepax", "norman/founding_4");
+    private static final Identifier FOUNDING_5 = new Identifier("villagepax", "norman/founding_5");
+    private static final Identifier FOUNDING_6 = new Identifier("villagepax", "norman/founding_6");
+
+    /** Пройти всю писаную цепочку старейшины разом: она — не предмет проверки. */
+    private static void chainDone(Settlement village, UUID player) {
+        for (Identifier step : List.of(FOUNDING_1, FOUNDING_2, FOUNDING_3,
+                FOUNDING_4, FOUNDING_5, FOUNDING_6)) {
+            village.noteQuestDone(player, step);
+        }
+    }
+
+    /**
+     * Цепочка кончилась — разговор нет.
+     * <p>
+     * Самая заметная беда старой системы: после третьего квеста старейшина
+     * говорил «просить больше нечего» <b>навсегда</b>, и деревня из соседа
+     * превращалась в лавку. Теперь у него есть поручение на каждый день.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void theErrandComesWhenTheChainRunsOut(TestContext context) {
+        BlockPos where = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", where);
+        UUID player = UUID.randomUUID();
+
+        chainDone(village, player);
+
+        if (Quests.offered(village, player, Villages.ELDER).isPresent()) {
+            context.throwGameTestException("Писаная цепочка не кончилась — проверять нечего");
+        }
+
+        Quests.Task task = Quests.task(village, player, Villages.ELDER, 7).orElse(null);
+        if (task == null) {
+            context.throwGameTestException("После цепочки старейшине нечего сказать");
+            return;
+        }
+        if (!task.errand()) {
+            context.throwGameTestException("Это не поручение: " + task.id());
+        }
+        if (task.quest().objectives().isEmpty()) {
+            context.throwGameTestException("Поручение ничего не просит");
+        }
+        if (task.quest().rewards().isEmpty()) {
+            context.throwGameTestException("За поручение ничего не дают");
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Просьба дня не меняется, пока день тот же.
+     * <p>
+     * Это не придирка к чистоте, а условие работоспособности: окно
+     * показывает одно, а сдача считает другое, и игрок остаётся
+     * с отобранным не тем. Поэтому просьба выводится из дня, деревни
+     * и ремесла — и больше ни из чего.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void theSameDayAlwaysAsksTheSameThing(TestContext context) {
+        BlockPos where = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", where);
+        UUID player = UUID.randomUUID();
+        chainDone(village, player);
+
+        Quest first = Quests.task(village, player, Villages.ELDER, 12).orElseThrow().quest();
+        Quest again = Quests.task(village, player, Villages.ELDER, 12).orElseThrow().quest();
+        if (!first.objectives().equals(again.objectives())) {
+            context.throwGameTestException("За один день просьба изменилась: "
+                    + first.objectives() + " и " + again.objectives());
+        }
+
+        // А за неделю она обязана хоть раз стать другой: одна и та же
+        // просьба каждый день — это не поручение, а оброк.
+        boolean varied = false;
+        for (long day = 13; day <= 19; day++) {
+            Quest later = Quests.task(village, player, Villages.ELDER, day)
+                    .orElseThrow().quest();
+            varied = varied || !later.objectives().equals(first.objectives());
+        }
+        if (!varied) {
+            context.throwGameTestException("Неделю подряд просят одно и то же");
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Одна просьба в день на ремесло — и назавтра снова.
+     * <p>
+     * Предел здесь один и он же единственный: день. Без него поручения
+     * стали бы бесконечным насосом монеты и доверия, с ним — мелкой
+     * услугой, за которую платят мелко.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void oneErrandADayAndNoMore(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos where = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", where);
+        manager.add(village);
+        UUID player = UUID.randomUUID();
+
+        try {
+            chainDone(village, player);
+
+            Quest today = Quests.task(village, player, Villages.ELDER, 30).orElseThrow().quest();
+            Quest.Objective.Deliver ask = (Quest.Objective.Deliver) today.objectives().get(0);
+
+            SimpleInventory hands = new SimpleInventory(9);
+            hands.addStack(new ItemStack(ask.item(), ask.count()));
+            List<ItemStack> paid = new ArrayList<>();
+
+            if (Quests.handIn(manager, village, null, player, Villages.ELDER, hands, 30,
+                    paid::add) != Quests.Handover.DONE) {
+                context.throwGameTestException("Поручение не приняли, хотя принесено всё");
+            }
+            if (paid.isEmpty()) {
+                context.throwGameTestException("За поручение не заплатили");
+            }
+
+            if (Quests.task(village, player, Villages.ELDER, 30).isPresent()) {
+                context.throwGameTestException("Второе поручение в тот же день");
+            }
+            if (Quests.task(village, player, Villages.ELDER, 31).isEmpty()) {
+                context.throwGameTestException("Назавтра просить перестали");
+            }
+        } finally {
+            manager.remove(village.id());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Купец по-прежнему только торгует.
+     * <p>
+     * Решение заказчика: «у торговли своё лицо». Экран купца открывается
+     * сразу на прилавке — дай ему поручение, и вместо товара игрок увидит
+     * вкладки разговора. Проверка стережёт именно это решение: поручения
+     * есть у восьми ремёсел и намеренно нет у девятого.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void theMerchantStillOnlySells(TestContext context) {
+        BlockPos where = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", where);
+        UUID player = UUID.randomUUID();
+
+        if (Quests.task(village, player, Villages.MERCHANT, 5).isPresent()) {
+            context.throwGameTestException("У купца завелось поручение — "
+                    + "экран откроется вкладками вместо товара");
+        }
+        if (Quests.task(village, player, Villages.ELDER, 5).isEmpty()) {
+            context.throwGameTestException("А у старейшины поручения нет вовсе");
+        }
+
+        context.complete();
+    }
+
+    /**
+     * «Поставь у себя мастерскую» смотрит в колонию игрока.
+     * <p>
+     * Первая цель, ради которой мод и затевался: деревня народа и колония
+     * игрока наконец разговаривают. Проверяются обе стороны — и отказ,
+     * пока мастерской нет, и приём, когда она встала.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void theBuildObjectiveLooksAtTheColony(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos where = context.getAbsolutePos(new BlockPos(6, 1, 6));
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", where);
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        UUID player = colony.owner().player().orElseThrow();
+
+        try {
+            village.noteQuestDone(player, FOUNDING_1);
+            village.noteQuestDone(player, FOUNDING_2);
+            village.noteQuestDone(player, FOUNDING_3);
+            village.addReputation(player, 50);
+
+            SimpleInventory hands = new SimpleInventory(9);
+            List<ItemStack> paid = new ArrayList<>();
+
+            if (Quests.handIn(manager, village, colony, player, Villages.ELDER, hands, 3,
+                    paid::add) != Quests.Handover.NOT_ENOUGH) {
+                context.throwGameTestException("Просьбу приняли без мастерской");
+            }
+
+            // Размеченный фундамент не считается, и проверяется это ДО
+            // готового: после удачной сдачи квест уже другой, и «недострой
+            // не годится» подтверждалось бы на чужой просьбе.
+            Building hut = new Building(UUID.randomUUID(),
+                    new Identifier("villagepax", "norman/lumberjack"), 1, hall,
+                    BlockRotation.NONE, BuildProgress.BUILDING, List.of());
+            colony.addBuilding(hut);
+
+            if (Quests.handIn(manager, village, colony, player, Villages.ELDER, hands, 3,
+                    paid::add) != Quests.Handover.NOT_ENOUGH) {
+                context.throwGameTestException("Недостроенная мастерская сошла за готовую");
+            }
+
+            // А достроенная — считается.
+            hut.setProgress(BuildProgress.DONE);
+            if (Quests.handIn(manager, village, colony, player, Villages.ELDER, hands, 3,
+                    paid::add) != Quests.Handover.DONE) {
+                context.throwGameTestException("Мастерская стоит, а просьбу не приняли");
+            }
+            if (paid.stream().noneMatch(stack -> stack.isOf(ModItems.COIN))) {
+                context.throwGameTestException("За мастерскую не заплатили: " + paid);
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * «Помолись» смотрит на богов колонии, а награда молится за игрока.
+     * <p>
+     * Ритуальная цель из дизайн-документа и обратная ей награда: деревня
+     * просит намолить у одного бога и сама замолвливает слово перед другим.
+     * Это то место, где вера и квесты перестают быть двумя разными модами.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void theFavourObjectiveLooksAtTheGods(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos where = context.getAbsolutePos(new BlockPos(6, 1, 6));
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", where);
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        UUID player = colony.owner().player().orElseThrow();
+
+        try {
+            village.noteQuestDone(player, FOUNDING_1);
+            village.noteQuestDone(player, FOUNDING_2);
+            village.noteQuestDone(player, FOUNDING_3);
+            village.noteQuestDone(player, FOUNDING_4);
+            village.addReputation(player, 65);
+
+            SimpleInventory hands = new SimpleInventory(9);
+            List<ItemStack> paid = new ArrayList<>();
+
+            if (Quests.handIn(manager, village, colony, player, Villages.ELDER, hands, 4,
+                    paid::add) != Quests.Handover.NOT_ENOUGH) {
+                context.throwGameTestException("Просьбу приняли без благосклонности");
+            }
+
+            Identifier sower = new Identifier("villagepax", "norman_sower");
+            colony.addFavour(sower, 40);
+
+            if (Quests.handIn(manager, village, colony, player, Villages.ELDER, hands, 4,
+                    paid::add) != Quests.Handover.DONE) {
+                context.throwGameTestException("Намолено, а просьбу не приняли");
+            }
+
+            // Награда — благосклонность у бога камня: деревня помолилась
+            // за игрока, и это видно числом.
+            Identifier mason = new Identifier("villagepax", "norman_mason");
+            if (colony.favourOf(mason) <= 0) {
+                context.throwGameTestException("Деревня обещала помолиться и не помолилась: "
+                        + colony.favourOf(mason));
+            }
+            // А намоленное осталось при нём: подтверждают им, а не платят.
+            if (colony.favourOf(sower) != 40) {
+                context.throwGameTestException("Благосклонность отобрали в уплату: "
+                        + colony.favourOf(sower));
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * «Сходи к соседям» смотрит на чужие деревни, а платит человеком.
+     * <p>
+     * Дипломатическая цель и лучшая награда мода разом. Переселенец
+     * приходит <b>из отпустившего народа</b> — с чужим именем, и это
+     * видно в списке жителей до конца игры.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void theFriendshipObjectivePaysWithAPerson(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos where = context.getAbsolutePos(new BlockPos(6, 1, 6));
+        // Далеко за сеткой площадок: чужие проверки не должны споткнуться
+        // о наши захваченные чанки.
+        BlockPos faraway = context.getAbsolutePos(new BlockPos(0, 1, 0)).add(3000, 0, 3000);
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", where);
+        Settlement strangers = Settlement.found(MAYA, Owner.AUTONOMOUS, "Йашчилан", faraway);
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        UUID player = colony.owner().player().orElseThrow();
+
+        manager.add(strangers);
+        try {
+            for (Identifier step : List.of(FOUNDING_1, FOUNDING_2, FOUNDING_3,
+                    FOUNDING_4, FOUNDING_5)) {
+                village.noteQuestDone(player, step);
+            }
+            village.addReputation(player, 80);
+
+            SimpleInventory hands = new SimpleInventory(9);
+            List<ItemStack> paid = new ArrayList<>();
+            int before = colony.population();
+
+            if (Quests.handIn(manager, village, colony, player, Villages.ELDER, hands, 5,
+                    paid::add) != Quests.Handover.NOT_ENOUGH) {
+                context.throwGameTestException("Просьбу приняли без знакомства с майя");
+            }
+
+            strangers.addReputation(player, 30);
+
+            if (Quests.handIn(manager, village, colony, player, Villages.ELDER, hands, 5,
+                    paid::add) != Quests.Handover.DONE) {
+                context.throwGameTestException("Знакомство есть, а просьбу не приняли");
+            }
+            if (colony.population() != before + 1) {
+                context.throwGameTestException("Человек не переселился: было " + before
+                        + ", стало " + colony.population());
+            }
+
+            Citizen newcomer = colony.citizens().get(colony.citizens().size() - 1);
+            if (!newcomer.culture().equals(NORMAN)) {
+                context.throwGameTestException("Переселенец не из отпустившего народа: "
+                        + newcomer.culture());
+            }
+            if (newcomer.profession().isEmpty()) {
+                context.throwGameTestException("Переселенец приехал без ремесла");
+            }
+        } finally {
+            manager.remove(strangers.id());
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Окно и сдача обязаны говорить одно.
+     * <p>
+     * Ради этого правило «выполнена ли цель» вынесено в {@code Progress}
+     * и зовётся из обоих мест. Проверка гоняет по всем шагам цепочки
+     * старейшины разом: галочка в окне включена ровно тогда, когда сдача
+     * отвечает «принято». Разойдись они — игрок нажмёт готовую кнопку
+     * и получит отказ, и это худший род поломки, потому что винить он
+     * будет себя.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void theWindowAndTheHandoverAgree(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos where = context.getAbsolutePos(new BlockPos(6, 1, 6));
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", where);
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        UUID player = colony.owner().player().orElseThrow();
+        manager.add(village);
+
+        // Соседи нужны последнему шагу цепочки: «сходи к майя» без майя
+        // в мире невыполнимо, и проверка застряла бы на пятом шаге из шести.
+        // Далеко за сеткой площадок, чтобы не занимать чужие чанки.
+        Settlement strangers = Settlement.found(MAYA, Owner.AUTONOMOUS, "Йашчилан",
+                context.getAbsolutePos(new BlockPos(0, 1, 0)).add(4000, 0, 4000));
+        manager.add(strangers);
+
+        try {
+            village.addReputation(player, 100);
+            long today = Schedule.dayOf(world.getTimeOfDay());
+            SimpleInventory hands = new SimpleInventory(9);
+            List<ItemStack> paid = new ArrayList<>();
+
+            // Шесть шагов цепочки, и на каждый уходит два оборота: в первом
+            // окно честно говорит «не готово», во втором — сдача. Четырнадцать
+            // с запасом, а что все шесть пройдены, проверяется числом ниже:
+            // цикл, не дошедший до целей без предмета, подтверждал бы только
+            // «принеси зерна» — то есть ровно то, что работало и раньше.
+            int done = 0;
+            for (int step = 0; step < 14; step++) {
+                QuestView view = QuestNet.viewOf(manager, village, player, hands,
+                        Villages.ELDER, Warehouse.of(world, village), Schedule.dayOf(context.getWorld().getTimeOfDay())).orElse(null);
+                if (view == null || view.quest().isEmpty()) {
+                    context.throwGameTestException("На шаге " + step + " разговор пуст");
+                    return;
+                }
+
+                boolean windowSaysReady = view.quest().orElseThrow().ready();
+                // День берётся у мира, как его берёт и окно. Передай сюда
+                // своё число — и после писаной цепочки окно с поручением
+                // одного дня сверялось бы со сдачей поручения другого:
+                // расхождение было бы мнимым, а искали бы его в коде.
+                Quests.Handover outcome = Quests.handIn(manager, village, colony, player,
+                        Villages.ELDER, hands, today, paid::add);
+                boolean handoverSaysDone = outcome == Quests.Handover.DONE;
+
+                if (windowSaysReady != handoverSaysDone) {
+                    context.throwGameTestException("Шаг " + step + ": окно говорит «"
+                            + windowSaysReady + "», а сдача — «" + outcome + "»");
+                }
+
+                if (handoverSaysDone) {
+                    done++;
+                } else {
+                    // Не готово — выполним требуемое и пойдём дальше.
+                    satisfy(world, manager, village, colony, player, hands);
+                }
+            }
+
+            if (done < 6) {
+                context.throwGameTestException("Цепочка пройдена только на " + done
+                        + " шагов из шести — до целей без предмета проверка не дошла");
+            }
+        } finally {
+            manager.remove(strangers.id());
+            manager.remove(village.id());
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Выполнить то, что просят сейчас: вещи в руки, мастерские и боги — в колонию. */
+    private static void satisfy(ServerWorld world, SettlementManager manager, Settlement village,
+                                Settlement colony, UUID player, SimpleInventory hands) {
+        Quests.Task task = Quests.task(village, player, Villages.ELDER,
+                Schedule.dayOf(world.getTimeOfDay())).orElse(null);
+        if (task == null) {
+            return;
+        }
+        for (Quest.Objective objective : task.quest().objectives()) {
+            if (objective instanceof Quest.Objective.Deliver deliver) {
+                hands.addStack(new ItemStack(deliver.item(), deliver.count()));
+            } else if (objective instanceof Quest.Objective.Build build) {
+                BuildingTypes.all().forEach((type, known) -> {
+                    if (known.employs(build.workplace())
+                            && type.getPath().startsWith("norman/")
+                            && colony.buildings().stream().noneMatch(
+                                    site -> site.type().equals(type))) {
+                        colony.addBuilding(new Building(UUID.randomUUID(), type, build.level(),
+                                colony.center(), BlockRotation.NONE, BuildProgress.DONE,
+                                List.of()));
+                    }
+                });
+            } else if (objective instanceof Quest.Objective.Favour favour) {
+                Gods.inDomain(colony.culture(), favour.domain())
+                        .ifPresent(god -> colony.addFavour(god, favour.amount()));
+            } else if (objective instanceof Quest.Objective.Friendship friendship) {
+                manager.all().stream()
+                        .filter(other -> other.culture().equals(friendship.culture()))
+                        .findFirst()
+                        .ifPresent(other -> other.addReputation(player, friendship.trust()));
+            }
+        }
+    }
+
+    /**
+     * Писаные квесты связаны в цепочки без обрывов и колец.
+     * <p>
+     * Целость данных, а не поведения. Ссылка {@code next} на несуществующий
+     * квест обрывает цепочку молча — игрок просто перестаёт получать
+     * просьбы и никогда не узнает почему; кольцо же вешало бы обход, и от
+     * него в коде стоит ограничитель, который тоже молчит. Двадцать восемь
+     * файлов глазами не сверяет никто.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void everyQuestChainIsWholeAndEnds(TestContext context) {
+        List<String> complaints = new ArrayList<>();
+
+        QuestManager.all().forEach((id, quest) -> quest.next().ifPresent(next -> {
+            if (QuestManager.get(next).isEmpty()) {
+                complaints.add(id + " ведёт в никуда: " + next);
+            }
+        }));
+
+        // Кольца ловятся обходом с ограничителем: длиннее, чем всего
+        // квестов, честная цепочка быть не может.
+        for (Identifier head : QuestManager.all().keySet()) {
+            Identifier at = head;
+            for (int step = 0; step <= QuestManager.all().size(); step++) {
+                Quest quest = QuestManager.get(at).orElse(null);
+                if (quest == null || quest.next().isEmpty()) {
+                    at = null;
+                    break;
+                }
+                at = quest.next().get();
+            }
+            if (at != null) {
+                complaints.add(head + ": цепочка не кончается — похоже на кольцо");
+            }
+        }
+
+        if (QuestManager.all().isEmpty()) {
+            context.throwGameTestException("Квестов не загружено вовсе — проверять нечего");
+        }
+        if (!complaints.isEmpty()) {
+            context.throwGameTestException("Цепочки квестов порваны:\n  "
+                    + String.join("\n  ", complaints));
         }
 
         context.complete();
@@ -11967,9 +12509,9 @@ public class VillagePaxGameTests implements FabricGameTest {
             SimpleInventory pockets = new SimpleInventory(9);
 
             QuestView atCounter = QuestNet.viewOf(manager, village, player, pockets,
-                    Villages.MERCHANT, wares).orElse(null);
+                    Villages.MERCHANT, wares, Schedule.dayOf(context.getWorld().getTimeOfDay())).orElse(null);
             QuestView atElder = QuestNet.viewOf(manager, village, player, pockets,
-                    Villages.ELDER, wares).orElse(null);
+                    Villages.ELDER, wares, Schedule.dayOf(context.getWorld().getTimeOfDay())).orElse(null);
             if (atCounter == null || atElder == null) {
                 context.throwGameTestException("Разговор не собрался: купец=" + atCounter
                         + ", старейшина=" + atElder);
@@ -12044,7 +12586,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             QuestView atElder = QuestNet.viewOf(manager, village, UUID.randomUUID(),
-                    new SimpleInventory(9), Villages.ELDER, Warehouse.of(world, village))
+                    new SimpleInventory(9), Villages.ELDER, Warehouse.of(world, village), Schedule.dayOf(context.getWorld().getTimeOfDay()))
                     .orElse(null);
             if (atElder == null || !atElder.trades()) {
                 context.throwGameTestException("Без купца торговать стало не с кем: "

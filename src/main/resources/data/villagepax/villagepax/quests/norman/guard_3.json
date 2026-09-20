@@ -1,0 +1,23 @@
+{
+  "giver": "villagepax:guard",
+  "culture": "villagepax:norman",
+  "min_reputation": 45,
+  "objectives": [
+    {
+      "type": "build",
+      "workplace": "villagepax:guard",
+      "level": 1
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 20
+    },
+    {
+      "type": "settler",
+      "profession": "villagepax:guard"
+    }
+  ],
+  "dialogue": "villagepax.quest.guard_3"
+}

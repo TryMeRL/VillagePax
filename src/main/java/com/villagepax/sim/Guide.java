@@ -47,7 +47,8 @@ public final class Guide {
             "villagepax.guide.caravan",
             "villagepax.guide.raid",
             "villagepax.guide.peace",
-            "villagepax.guide.faith");
+            "villagepax.guide.faith",
+            "villagepax.guide.errands");
 
     private Guide() {
     }

@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:lumberjack",
+  "culture": "villagepax:norman",
+  "min_reputation": 0,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:oak_sapling",
+      "count": 6
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 8
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 12
+    }
+  ],
+  "dialogue": "villagepax.quest.lumberjack_1",
+  "next": "villagepax:norman/lumberjack_2"
+}

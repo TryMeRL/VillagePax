@@ -20,5 +20,6 @@
       "count": 1
     }
   ],
-  "dialogue": "villagepax.quest.maya_founding_3"
+  "dialogue": "villagepax.quest.maya_founding_3",
+  "next": "villagepax:maya/maya_founding_4"
 }

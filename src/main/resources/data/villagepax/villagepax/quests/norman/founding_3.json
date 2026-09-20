@@ -20,5 +20,6 @@
       "count": 1
     }
   ],
-  "dialogue": "villagepax.quest.founding_3"
+  "dialogue": "villagepax.quest.founding_3",
+  "next": "villagepax:norman/founding_4"
 }

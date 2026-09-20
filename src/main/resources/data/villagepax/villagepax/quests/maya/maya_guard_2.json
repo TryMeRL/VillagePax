@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:guard",
+  "culture": "villagepax:maya",
+  "min_reputation": 30,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:gold_ingot",
+      "count": 2
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 12
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 54
+    }
+  ],
+  "dialogue": "villagepax.quest.maya_guard_2",
+  "next": "villagepax:maya/maya_guard_3"
+}

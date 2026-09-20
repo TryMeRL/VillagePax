@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:maya",
+  "min_reputation": 60,
+  "objectives": [
+    {
+      "type": "favour",
+      "domain": "stone",
+      "amount": 40
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 20
+    },
+    {
+      "type": "favour",
+      "domain": "harvest",
+      "amount": 30
+    }
+  ],
+  "dialogue": "villagepax.quest.maya_founding_5",
+  "next": "villagepax:maya/maya_founding_6"
+}

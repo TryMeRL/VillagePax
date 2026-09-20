@@ -20,6 +20,7 @@ import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.diplomacy.Gifts;
 import com.villagepax.sim.diplomacy.Relations;
 import com.villagepax.sim.quest.Quests;
+import com.villagepax.sim.quest.Progress;
 import com.villagepax.sim.trade.Coins;
 import com.villagepax.sim.war.Peace;
 import com.villagepax.sim.war.Raids;
@@ -231,11 +232,22 @@ public final class QuestNet {
         return guest.withCargo(left, Coins.total(cart));
     }
 
+    /**
+     * Разговор без подарка и без откупа — но <b>со днём</b>.
+     * <p>
+     * День был необязательным ровно до тех пор, пока от него зависела
+     * только оценка подарка: не знаешь дня — не показывай подарок, беды
+     * нет. Теперь от дня зависит само предложение: после писаной цепочки
+     * деревня просит по поручению, а поручение выводится из дня. Короткий
+     * вызов подставлял сюда {@link Settlement#UNSEEN_DAY}, и окно честно
+     * показывало просьбу дня, которого не бывает, — а сдача принимала
+     * просьбу сегодняшнего. Поймано проверкой «окно и сдача говорят одно».
+     */
     public static Optional<QuestView> viewOf(SettlementManager manager, Settlement village,
                                              UUID id, Inventory carried, Identifier giver,
-                                             Warehouse wares) {
+                                             Warehouse wares, long today) {
         return viewOf(manager, village, id, carried, giver, wares, Optional.empty(),
-                ItemStack.EMPTY, Settlement.UNSEEN_DAY);
+                ItemStack.EMPTY, today);
     }
 
     /**
@@ -253,9 +265,13 @@ public final class QuestNet {
         int reputation = village.reputationOf(id);
         Standing standing = Standing.of(reputation);
 
-        Optional<QuestView.Offer> offer = Quests.offered(village, id, giver)
-                .flatMap(QuestManager::get)
-                .map(quest -> offerOf(carried, quest, reputation));
+        // Сегодняшний разговор: писаный квест, а когда цепочка пройдена —
+        // суточное поручение. Через Quests.task, а не Quests.offered,
+        // потому что поручения в датапаке нет: оно выводится из дня.
+        Progress.Seeker seeker = Progress.Seeker.of(id, carried,
+                colonyOf(manager, id), manager);
+        Optional<QuestView.Offer> offer = Quests.task(village, id, giver, today)
+                .map(task -> offerOf(seeker, task.quest(), reputation));
 
         // Прилавок собирается только тому, кто за ним стоит.
         //
@@ -613,24 +629,38 @@ public final class QuestNet {
      * Требования с уже посчитанным «сколько есть» и награды готовыми
      * строками: клиент не должен знать ни про инвентарь, ни про датапак.
      */
-    private static QuestView.Offer offerOf(Inventory carried, Quest quest, int reputation) {
+    private static QuestView.Offer offerOf(Progress.Seeker seeker, Quest quest, int reputation) {
         List<QuestView.Need> needs = new ArrayList<>();
         boolean ready = reputation >= quest.minReputation();
 
+        // Через то же правило, каким считает сдача. Раньше экран считал
+        // «сколько принесено» сам, и пока цель была одна, это сходилось;
+        // с целями «поставь склад» и «подружись с майя» разошлось бы
+        // в первый же день — галочка в окне, отказ при сдаче.
         for (Quest.Objective objective : quest.objectives()) {
-            if (objective instanceof Quest.Objective.Deliver deliver) {
-                int have = carried.count(deliver.item());
-                needs.add(new QuestView.Need(deliver.item(), deliver.count(), have));
-                ready = ready && have >= deliver.count();
-            }
+            Progress.Step step = Progress.of(objective, seeker);
+            needs.add(new QuestView.Need(step.key(), step.item(), step.what(),
+                    step.need(), step.have()));
+            ready = ready && step.enough();
+        }
+
+        if (seeker.colony().isEmpty() && Progress.needsAColony(quest)) {
+            ready = false;
         }
 
         List<QuestView.Prize> rewards = new ArrayList<>();
         for (Quest.Reward reward : quest.rewards()) {
             if (reward instanceof Quest.Reward.Give give) {
-                rewards.add(new QuestView.Prize(Optional.of(give.item()), give.count()));
+                rewards.add(QuestView.Prize.goods(give.item(), give.count()));
             } else if (reward instanceof Quest.Reward.Trust trust) {
-                rewards.add(new QuestView.Prize(Optional.empty(), trust.amount()));
+                rewards.add(QuestView.Prize.trust(trust.amount()));
+            } else if (reward instanceof Quest.Reward.Settler) {
+                // Человек — не вещь и не доверие, и подписан он своим
+                // ключом: «к тебе переселится человек».
+                rewards.add(new QuestView.Prize(QuestView.Prize.SETTLER, Optional.empty(), 1));
+            } else if (reward instanceof Quest.Reward.Grace grace) {
+                rewards.add(new QuestView.Prize(QuestView.Prize.GRACE, Optional.empty(),
+                        grace.amount()));
             }
         }
 

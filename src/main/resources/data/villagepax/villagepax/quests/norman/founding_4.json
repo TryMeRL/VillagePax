@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:norman",
+  "min_reputation": 45,
+  "objectives": [
+    {
+      "type": "build",
+      "workplace": "villagepax:lumberjack",
+      "level": 1
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 36
+    }
+  ],
+  "dialogue": "villagepax.quest.founding_4",
+  "next": "villagepax:norman/founding_5"
+}

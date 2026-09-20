@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:brewer",
+  "culture": "villagepax:norman",
+  "min_reputation": 20,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:glass_bottle",
+      "count": 6
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 10
+    },
+    {
+      "type": "item",
+      "item": "villagepax:ale",
+      "count": 4
+    }
+  ],
+  "dialogue": "villagepax.quest.brewer_2",
+  "next": "villagepax:norman/brewer_3"
+}

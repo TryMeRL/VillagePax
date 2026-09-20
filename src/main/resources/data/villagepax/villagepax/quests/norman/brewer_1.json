@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:brewer",
+  "culture": "villagepax:norman",
+  "min_reputation": 10,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:sugar_cane",
+      "count": 12
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 8
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 12
+    }
+  ],
+  "dialogue": "villagepax.quest.brewer_1",
+  "next": "villagepax:norman/brewer_2"
+}

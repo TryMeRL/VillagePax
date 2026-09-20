@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:norman",
+  "min_reputation": 60,
+  "objectives": [
+    {
+      "type": "favour",
+      "domain": "harvest",
+      "amount": 40
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 20
+    },
+    {
+      "type": "favour",
+      "domain": "stone",
+      "amount": 30
+    }
+  ],
+  "dialogue": "villagepax.quest.founding_5",
+  "next": "villagepax:norman/founding_6"
+}

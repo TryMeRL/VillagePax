@@ -1,0 +1,23 @@
+{
+  "giver": "villagepax:weaver",
+  "culture": "villagepax:maya",
+  "min_reputation": 40,
+  "objectives": [
+    {
+      "type": "build",
+      "workplace": "villagepax:weaver",
+      "level": 1
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 18
+    },
+    {
+      "type": "settler",
+      "profession": "villagepax:weaver"
+    }
+  ],
+  "dialogue": "villagepax.quest.maya_weaver_3"
+}

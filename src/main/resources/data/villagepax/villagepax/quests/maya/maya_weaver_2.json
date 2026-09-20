@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:weaver",
+  "culture": "villagepax:maya",
+  "min_reputation": 20,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:white_wool",
+      "count": 8
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 10
+    },
+    {
+      "type": "item",
+      "item": "villagepax:cloth",
+      "count": 3
+    }
+  ],
+  "dialogue": "villagepax.quest.maya_weaver_2",
+  "next": "villagepax:maya/maya_weaver_3"
+}

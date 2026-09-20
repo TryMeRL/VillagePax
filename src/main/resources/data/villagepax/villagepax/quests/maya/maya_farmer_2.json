@@ -1,0 +1,29 @@
+{
+  "giver": "villagepax:farmer",
+  "culture": "villagepax:maya",
+  "min_reputation": 25,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:bone_meal",
+      "count": 16
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 12
+    },
+    {
+      "type": "item",
+      "item": "villagepax:cacao",
+      "count": 3
+    },
+    {
+      "type": "favour",
+      "domain": "harvest",
+      "amount": 25
+    }
+  ],
+  "dialogue": "villagepax.quest.maya_farmer_2"
+}

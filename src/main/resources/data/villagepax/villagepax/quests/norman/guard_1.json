@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:guard",
+  "culture": "villagepax:norman",
+  "min_reputation": 10,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:arrow",
+      "count": 16
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 8
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 12
+    }
+  ],
+  "dialogue": "villagepax.quest.guard_1",
+  "next": "villagepax:norman/guard_2"
+}

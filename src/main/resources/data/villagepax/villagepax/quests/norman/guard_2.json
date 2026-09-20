@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:guard",
+  "culture": "villagepax:norman",
+  "min_reputation": 25,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:iron_ingot",
+      "count": 3
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 10
+    },
+    {
+      "type": "item",
+      "item": "minecraft:shield",
+      "count": 1
+    }
+  ],
+  "dialogue": "villagepax.quest.guard_2",
+  "next": "villagepax:norman/guard_3"
+}

@@ -3,9 +3,14 @@ package com.villagepax.sim.quest;
 import com.villagepax.core.quest.Quest;
 import com.villagepax.core.quest.QuestManager;
 import com.villagepax.sim.Citizen;
+import com.villagepax.sim.Founding;
+import com.villagepax.core.faith.Gods;
+import com.villagepax.core.culture.CultureManager;
+import com.villagepax.core.culture.Culture;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Standing;
+import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.diplomacy.Relations;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
@@ -56,8 +61,32 @@ public final class Quests {
         /** Доверия не хватает: об этом квесте с игроком пока не говорят. */
         NO_TRUST,
 
-        /** Просить больше нечего — цепочка кончилась. */
-        NOTHING_OFFERED
+        /** Просить больше нечего — ни по писаному, ни по делу. */
+        NOTHING_OFFERED,
+
+        /**
+         * Без своей колонии этого не сделать.
+         * <p>
+         * Отдельный исход, а не «принесено не всё»: игрок, у которого нет
+         * колонии, не принесёт её в сумке, и отказ обязан назвать причину.
+         * Сюда же — просьбы, награда которых переселяет человека: отдать
+         * его некуда.
+         */
+        NO_COLONY
+    }
+
+    /**
+     * О чём сегодня разговор: писаный квест или суточное поручение.
+     * <p>
+     * Опознаватель едет рядом с самим квестом не для удобства. Поручение
+     * <b>не лежит в датапаке</b>: оно выводится из дня, и найти его
+     * по опознавателю в {@link QuestManager} нельзя. Значит, тот, кто
+     * спросил, обязан унести с собой и то и другое — иначе сдача полезла бы
+     * искать в реестре то, чего там нет.
+     *
+     * @param errand поручение это или писаный квест: по нему разнятся слова
+     */
+    public record Task(Identifier id, Quest quest, boolean errand) {
     }
 
     private Quests() {
@@ -91,6 +120,35 @@ public final class Quests {
     }
 
     /**
+     * О чём деревня говорит с этим игроком сегодня.
+     * <p>
+     * Сперва писаное: у цепочки есть начало, конец и смысл, и перебивать
+     * её поручением было бы всё равно что перебить рассказ просьбой
+     * подержать сумку. Кончилась цепочка — начинаются поручения, и вот
+     * они не кончаются уже никогда.
+     * <p>
+     * Это и есть лекарство от старой беды: раньше после третьего квеста
+     * старейшина говорил «просить больше нечего» — навсегда, — и деревня
+     * превращалась в лавку.
+     */
+    public static Optional<Task> task(Settlement village, UUID player, Identifier giver,
+                                      long today) {
+        Identifier written = offered(village, player, giver).orElse(null);
+        if (written != null) {
+            return QuestManager.get(written).map(quest -> new Task(written, quest, false));
+        }
+
+        Identifier errand = Errands.idFor(giver, today);
+        if (village.questsDone(player).contains(errand)) {
+            // Сегодня уже носил. Одна просьба в день на ремесло — и это
+            // единственный предел, который поручениям нужен.
+            return Optional.empty();
+        }
+        return Errands.forToday(village, giver, today)
+                .map(quest -> new Task(errand, quest, true));
+    }
+
+    /**
      * Сдать то, что предложено, — если принесено.
      * <p>
      * Изъятие «всё или ничего»: сперва считаем, потом забираем. Частичное
@@ -101,34 +159,100 @@ public final class Quests {
      */
     public static Handover handIn(Settlement village, UUID player, Identifier giver,
                                   Inventory carried, Consumer<ItemStack> payout) {
-        Identifier questId = offered(village, player, giver).orElse(null);
-        if (questId == null) {
+        return handIn(null, village, null, player, giver, carried, 0, payout);
+    }
+
+    /**
+     * Сдать то, что предложено, — если сделано.
+     * <p>
+     * «Если принесено» стало «если сделано»: цели теперь смотрят не только
+     * в сумку, но и на колонию игрока, на его богов и на его знакомства.
+     * Всё, что для этого нужно, приходит сюда <b>значениями</b>, а не
+     * добывается изнутри: тогда всю цепочку можно прогнать игровым тестом,
+     * где игрока нет вовсе.
+     * <p>
+     * Изъятие «всё или ничего»: сперва считаем, потом забираем. Частичное
+     * было бы хуже отказа — у игрока отобрали бы половину даром.
+     *
+     * @param manager все поселения: нужен целям про другие народы
+     * @param colony  колония игрока, если она есть
+     * @param carried где искать принесённое
+     * @param today   какой сегодня день: по нему выводится поручение
+     * @param payout  куда отдать награду
+     */
+    public static Handover handIn(SettlementManager manager, Settlement village,
+                                  Settlement colony, UUID player, Identifier giver,
+                                  Inventory carried, long today, Consumer<ItemStack> payout) {
+        Task task = task(village, player, giver, today).orElse(null);
+        if (task == null) {
             return Handover.NOTHING_OFFERED;
         }
 
-        Quest quest = QuestManager.get(questId).orElseThrow();
+        Quest quest = task.quest();
         if (village.reputationOf(player) < quest.minReputation()) {
             return Handover.NO_TRUST;
         }
-        if (!hasAll(carried, quest)) {
-            return Handover.NOT_ENOUGH;
+        if (colony == null && Progress.needsAColony(quest)) {
+            return Handover.NO_COLONY;
         }
 
+        Progress.Seeker seeker = Progress.Seeker.of(player, carried, colony, manager);
+        for (Quest.Objective objective : quest.objectives()) {
+            if (!Progress.of(objective, seeker).enough()) {
+                return Handover.NOT_ENOUGH;
+            }
+        }
+
+        // Забирается только принесённое руками. Построенное здание,
+        // намоленная благосклонность и заведённое знакомство остаются
+        // при игроке: их не отдают, ими подтверждают.
         for (Quest.Objective objective : quest.objectives()) {
             if (objective instanceof Quest.Objective.Deliver deliver) {
                 take(carried, deliver.item(), deliver.count());
             }
         }
 
-        village.noteQuestDone(player, questId);
+        village.noteQuestDone(player, task.id());
         for (Quest.Reward reward : quest.rewards()) {
             if (reward instanceof Quest.Reward.Trust trust) {
                 village.addReputation(player, trust.amount());
             } else if (reward instanceof Quest.Reward.Give give) {
                 payout.accept(new ItemStack(give.item(), give.count()));
+            } else if (reward instanceof Quest.Reward.Settler settler && colony != null) {
+                settle(village, colony, settler);
+            } else if (reward instanceof Quest.Reward.Grace grace && colony != null) {
+                Gods.inDomain(colony.culture(), grace.domain())
+                        .ifPresent(god -> colony.addFavour(god, grace.amount()));
             }
         }
         return Handover.DONE;
+    }
+
+    /**
+     * Человек из деревни переселяется в колонию игрока.
+     * <p>
+     * Имя и пол берутся у <b>отпустившего</b> народа, а не у принявшего:
+     * пришлый норманн в майяской колонии так и останется норманном,
+     * и это видно в списке жителей до конца игры. Ради этого награда
+     * и заведена — она делает деревню соседом, а не лавкой.
+     * <p>
+     * Случайность здесь безобидна: награда выдаётся один раз, и повторить
+     * бросок некому. Но зерно всё равно взято от поселения и числа
+     * жителей, а не от часов, — чтобы сдача квеста в тесте была
+     * повторяемой.
+     */
+    private static void settle(Settlement village, Settlement colony,
+                               Quest.Reward.Settler settler) {
+        Culture culture = CultureManager.get(village.culture());
+        if (culture == null) {
+            return;
+        }
+        java.util.Random random = new java.util.Random(village.id().getLeastSignificantBits()
+                ^ (colony.population() * 1_000_003L));
+
+        Citizen newcomer = Founding.newCitizen(village.culture(), culture, random);
+        settler.profession().ifPresent(newcomer::setProfession);
+        colony.addCitizen(newcomer);
     }
 
     /**
@@ -163,6 +287,8 @@ public final class Quests {
         }
 
         UUID id = player.getUuid();
+        long today = Schedule.dayOf(player.getServerWorld().getTimeOfDay());
+        Settlement colony = Founding.colonyOf(manager, id).orElse(null);
         int trustBefore = village.reputationOf(id);
         Standing before = Standing.of(trustBefore);
         // Снимок народов — до сдачи: доверие поднимется в нескольких
@@ -170,8 +296,8 @@ public final class Quests {
         Map<Identifier, Integer> peopleBefore = Relations.trustByPeople(manager, id);
 
         Handover[] outcome = new Handover[1];
-        manager.update(village.id(), state -> outcome[0] = handIn(state, id, profession,
-                player.getInventory(),
+        manager.update(village.id(), state -> outcome[0] = handIn(manager, state, colony, id,
+                profession, player.getInventory(), today,
                 // Не влезло в руки — падает под ноги: награду терять нельзя.
                 stack -> player.getInventory().offerOrDrop(stack)));
 
@@ -182,12 +308,19 @@ public final class Quests {
             case NO_TRUST -> say(player, giver, "villagepax.quest.not_yet",
                     Text.translatable(before.displayKey()));
 
+            // Без своей колонии просьбу не выполнить, и молчать об этом
+            // нельзя: игрок принёс бы всё требуемое и не понял, почему
+            // у него не берут.
+            case NO_COLONY -> say(player, giver, "villagepax.quest.needs_colony");
+
             case NOT_ENOUGH -> {
-                Quest quest = offered(village, id, profession)
-                        .flatMap(QuestManager::get).orElse(null);
-                if (quest != null) {
-                    say(player, giver, quest.dialogue());
-                    quest.objectives().forEach(objective -> askFor(player, objective));
+                Task task = task(village, id, profession, today).orElse(null);
+                if (task != null) {
+                    say(player, giver, task.quest().dialogue());
+                    Progress.Seeker seeker = Progress.Seeker.of(id, player.getInventory(),
+                            colony, manager);
+                    task.quest().objectives().forEach(objective ->
+                            askFor(player, objective, seeker));
                 }
             }
 
@@ -223,16 +356,6 @@ public final class Quests {
         }
     }
 
-    private static boolean hasAll(Inventory carried, Quest quest) {
-        for (Quest.Objective objective : quest.objectives()) {
-            if (objective instanceof Quest.Objective.Deliver deliver
-                    && carried.count(deliver.item()) < deliver.count()) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private static void take(Inventory carried, Item item, int count) {
         int left = count;
         for (int slot = 0; slot < carried.size() && left > 0; slot++) {
@@ -244,13 +367,23 @@ public final class Quests {
         carried.markDirty();
     }
 
-    private static void askFor(ServerPlayerEntity player, Quest.Objective objective) {
-        if (objective instanceof Quest.Objective.Deliver deliver) {
-            player.sendMessage(Text.translatable(objective.describeKey(),
-                    Text.translatable(deliver.item().getTranslationKey()),
-                    Text.literal(String.valueOf(deliver.count())),
-                    Text.literal(String.valueOf(player.getInventory().count(deliver.item())))), false);
-        }
+    /**
+     * Назвать одно требование словами.
+     * <p>
+     * Через то же правило, каким считает и сдача, и экран. Раньше здесь
+     * жил свой подсчёт «сколько в сумке», и пока цель была одна, это
+     * сходилось; теперь целей четыре, и три из них в сумку не смотрят.
+     */
+    private static void askFor(ServerPlayerEntity player, Quest.Objective objective,
+                               Progress.Seeker seeker) {
+        Progress.Step step = Progress.of(objective, seeker);
+        Text about = step.item()
+                .map(item -> (Text) Text.translatable(item.getTranslationKey()))
+                .orElseGet(() -> Text.translatable(step.what().orElse("")));
+
+        player.sendMessage(Text.translatable(step.key(), about,
+                Text.literal(String.valueOf(step.have())),
+                Text.literal(String.valueOf(step.need()))), false);
     }
 
     /** Слова жителя. Имя впереди, чтобы было видно, кто говорит. */

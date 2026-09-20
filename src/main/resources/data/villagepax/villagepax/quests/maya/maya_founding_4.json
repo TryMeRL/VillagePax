@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:maya",
+  "min_reputation": 45,
+  "objectives": [
+    {
+      "type": "build",
+      "workplace": "villagepax:farmer",
+      "level": 1
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 36
+    }
+  ],
+  "dialogue": "villagepax.quest.maya_founding_4",
+  "next": "villagepax:maya/maya_founding_5"
+}

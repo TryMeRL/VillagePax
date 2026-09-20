@@ -213,18 +213,45 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
      * опознаватель может только клиент — язык у него, — а значит вещь
      * обязана доехать вещью.
      *
-     * @param goods  что дают; пусто — награда в доверии
-     * @param amount сколько штук или сколько очков доверия
+     * Род награды назван <b>ключом</b>, а не выведен из того, пусто ли
+     * поле вещи. Раньше «нет вещи» означало «доверие», и этого хватало,
+     * пока наград было две. С переселенцем и благосклонностью такой
+     * признак начал врать: у обоих вещи нет, а говорят они разное.
+     *
+     * @param key    чем подписать награду
+     * @param goods  что дают; пусто — награда не в вещах
+     * @param amount сколько штук, очков доверия или благосклонности
      */
-    public record Prize(Optional<Item> goods, int amount) {
+    public record Prize(String key, Optional<Item> goods, int amount) {
+
+        /** Вещи. */
+        public static final String GOODS = "villagepax.quest.screen.reward_goods";
+
+        /** Доверие деревни. */
+        public static final String TRUST = "villagepax.quest.screen.reward_trust";
+
+        /** Человек: житель чужого народа переселяется в колонию. */
+        public static final String SETTLER = "villagepax.quest.screen.reward_settler";
+
+        /** «Мы помолимся за тебя»: благосклонность бога. */
+        public static final String GRACE = "villagepax.quest.screen.reward_grace";
 
         public static final Codec<Prize> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.STRING.optionalFieldOf("key", TRUST).forGetter(Prize::key),
                 Registries.ITEM.getCodec().optionalFieldOf("goods").forGetter(Prize::goods),
                 Codec.INT.fieldOf("amount").forGetter(Prize::amount)
         ).apply(instance, Prize::new));
 
-        public boolean isTrust() {
-            return goods.isEmpty();
+        public static Prize goods(Item item, int count) {
+            return new Prize(GOODS, Optional.of(item), count);
+        }
+
+        public static Prize trust(int amount) {
+            return new Prize(TRUST, Optional.empty(), amount);
+        }
+
+        public boolean isGoods() {
+            return goods.isPresent();
         }
     }
 
@@ -240,19 +267,34 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
     }
 
     /**
-     * Одно требование: что, сколько надо и сколько уже в руках.
+     * Одно требование: что, сколько надо и сколько уже есть.
      * <p>
      * «Сколько есть» считает сервер и присылает числом. Клиент мог бы
-     * посчитать сам по своему инвентарю — но тогда правило «сколько
-     * считается принесённым» жило бы в двух местах и разошлось бы.
+     * посчитать сам по своему инвентарю — но у половины требований
+     * инвентарь ни при чём: «поставь склад» и «подружись с майя» клиент
+     * посчитать не может вовсе, а «принеси зерна» посчитал бы по своему
+     * правилу, и оно разошлось бы с серверным.
+     * <p>
+     * Предмет необязателен, и в этом весь смысл правки: у цели «построй»
+     * вещи нет, а строка и счёт есть. {@code key} — чем подписать,
+     * {@code what} — ключ того, о чём речь (здание, домен бога, народ).
      */
-    public record Need(Item item, int need, int have) {
+    public record Need(String key, Optional<Item> item, Optional<String> what,
+                       int need, int have) {
 
         public static final Codec<Need> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-                Registries.ITEM.getCodec().fieldOf("item").forGetter(Need::item),
+                Codec.STRING.fieldOf("key").forGetter(Need::key),
+                Registries.ITEM.getCodec().optionalFieldOf("item").forGetter(Need::item),
+                Codec.STRING.optionalFieldOf("what").forGetter(Need::what),
                 Codec.INT.fieldOf("need").forGetter(Need::need),
                 Codec.INT.fieldOf("have").forGetter(Need::have)
         ).apply(instance, Need::new));
+
+        /** Старый вид требования: принести вещь. */
+        public static Need ofItem(Item item, int need, int have) {
+            return new Need("villagepax.quest.objective.deliver", Optional.of(item),
+                    Optional.empty(), need, have);
+        }
 
         public boolean enough() {
             return have >= need;

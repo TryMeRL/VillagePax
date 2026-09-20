@@ -1,0 +1,23 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:maya",
+  "min_reputation": 75,
+  "objectives": [
+    {
+      "type": "friendship",
+      "culture": "villagepax:norman",
+      "trust": 30
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 25
+    },
+    {
+      "type": "settler",
+      "profession": "villagepax:farmer"
+    }
+  ],
+  "dialogue": "villagepax.quest.maya_founding_6"
+}

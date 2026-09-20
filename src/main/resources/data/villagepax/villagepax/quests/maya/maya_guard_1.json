@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:guard",
+  "culture": "villagepax:maya",
+  "min_reputation": 10,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:feather",
+      "count": 12
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 8
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 12
+    }
+  ],
+  "dialogue": "villagepax.quest.maya_guard_1",
+  "next": "villagepax:maya/maya_guard_2"
+}

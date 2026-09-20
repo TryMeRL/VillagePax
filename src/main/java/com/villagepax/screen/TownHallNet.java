@@ -10,6 +10,7 @@ import com.villagepax.sim.Founding;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.trade.Wages;
 import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.faith.Miracles;
 import com.villagepax.sim.faith.Faith;
@@ -65,6 +66,7 @@ public final class TownHallNet {
     public static final Identifier ASSIGN = new Identifier(VillagePax.MOD_ID, "town_hall_assign");
     public static final Identifier UPGRADE = new Identifier(VillagePax.MOD_ID, "town_hall_upgrade");
     public static final Identifier PRIORITY = new Identifier(VillagePax.MOD_ID, "town_hall_priority");
+    public static final Identifier TAX = new Identifier(VillagePax.MOD_ID, "town_hall_tax");
 
     /**
      * Просьбы к небу: благословение и чудо.
@@ -125,6 +127,11 @@ public final class TownHallNet {
         ServerPlayNetworking.registerGlobalReceiver(UPGRADE, (server, player, handler, buf, sender) -> {
             UUID building = buf.readUuid();
             server.execute(() -> upgrade(player, building));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(TAX, (server, player, handler, buf, sender) -> {
+            int shift = buf.readInt();
+            server.execute(() -> tax(player, shift));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(BLESS, (server, player, handler, buf, sender) -> {
@@ -261,6 +268,40 @@ public final class TownHallNet {
      * Требует открытого пульта: улучшение заказывается кнопкой в экране,
      * а не голограммой — место уже выбрано, здание растёт от своего угла.
      */
+    /**
+     * Сдвинуть ставку налога.
+     * <p>
+     * Шагом, а не числом: ползунка в этом интерфейсе нет, а поле ввода
+     * потребовало бы разбирать чужой текст и отказывать на «сто пятьдесят».
+     * Две кнопки по четверти дают ровно те пять положений, между которыми
+     * и есть выбор, — и ни одного, которое нужно объяснять.
+     * <p>
+     * Предел кладёт сама запись показателей: сеть говорит «сдвинь»,
+     * а до скольки можно, решает правило, а не пакет.
+     */
+    private static void tax(ServerPlayerEntity player, int shift) {
+        Settlement colony = consoleColony(player);
+        if (colony == null) {
+            tell(player, "villagepax.screen.console.not_yours");
+            return;
+        }
+        if (colony.level().ordinal() < Wages.NEEDS.ordinal()) {
+            tell(player, "villagepax.screen.tax.no_village");
+            return;
+        }
+
+        SettlementManager manager = SettlementManager.get(player.getServerWorld());
+        int[] rate = new int[1];
+        manager.update(colony.id(), state -> {
+            state.setTaxRate(state.taxRate() + shift);
+            rate[0] = state.taxRate();
+        });
+        // Пульт обновится сам: открытый экран пересылает снимок, когда
+        // тот изменился, — тем же порядком, что и после смены очереди
+        // стройки. Слать его отсюда значило бы завести второй способ.
+        tell(player, "villagepax.screen.tax.set", Text.literal(String.valueOf(rate[0])));
+    }
+
     private static void upgrade(ServerPlayerEntity player, UUID building) {
         Settlement colony = consoleColony(player);
         if (colony == null) {

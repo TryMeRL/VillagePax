@@ -17,6 +17,7 @@ import com.villagepax.sim.Settlement;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.work.FarmJob;
+import com.villagepax.sim.trade.Wages;
 import com.villagepax.sim.work.Housing;
 import com.villagepax.sim.work.Schedule;
 import net.minecraft.server.world.ServerWorld;
@@ -63,6 +64,8 @@ public final class Advice {
     // villagepax.advice.no_temple, и это хуже молчания.
     private static final String SIEGE = "villagepax.advice.under_siege";
     private static final String UNDER_YOKE = "villagepax.advice.under_yoke";
+    private static final String EMPTY_PURSE = "villagepax.advice.empty_purse";
+    private static final String COIN_LEAKS = "villagepax.advice.coin_leaks";
     private static final String DESERTED = "villagepax.advice.deserted";
     private static final String NO_STORAGE = "villagepax.advice.no_storage";
     private static final String NO_FOOD = "villagepax.advice.no_food";
@@ -79,8 +82,8 @@ public final class Advice {
     /** Все советы, какие мод умеет дать: их проверяет словарь. */
     public static List<String> keys() {
         return List.of(SIEGE, UNDER_YOKE, DESERTED, NO_STORAGE, NO_FOOD, NO_BUILDER,
-                NO_BEDS, NO_FARM, IDLE_HANDS, NO_NEIGHBOURS, NO_TEMPLE, NO_FAITH,
-                NOTHING_BUILDING, RAISE_THE_HALL);
+                NO_BEDS, NO_FARM, EMPTY_PURSE, IDLE_HANDS, COIN_LEAKS, NO_NEIGHBOURS,
+                NO_TEMPLE, NO_FAITH, NOTHING_BUILDING, RAISE_THE_HALL);
     }
 
     private Advice() {
@@ -125,6 +128,13 @@ public final class Advice {
         if (!has(colony, FarmJob.FARMER) && standing(colony, "farm").isEmpty()) {
             return Optional.of(NO_FARM);
         }
+        if (Wages.billOf(colony) > 0
+                && Wages.treasuryOf(world, colony) < Wages.billOf(colony)) {
+            // Ниже всего съестного, и это взвешено: без еды колония теряет
+            // человека насовсем, без жалования — только темп. Потеря
+            // человека дороже, и голод потому говорит первым.
+            return Optional.of(EMPTY_PURSE);
+        }
 
         // --- дальше начинается долгая игра ---
         //
@@ -137,6 +147,12 @@ public final class Advice {
             // в этом списке, которую видно числом: колония кормит того,
             // кто ничего не приносит.
             return Optional.of(IDLE_HANDS);
+        }
+        if (Wages.billOf(colony) > 0 && !Wages.hasMarket(colony)) {
+            // Без рынка жалование утекает целиком, и ставка налога
+            // не возвращает ни медяка. Молчать об этом нельзя: игрок
+            // крутил бы ставку впустую и решил, что налог не работает.
+            return Optional.of(COIN_LEAKS);
         }
         if (!knowsAnybody(world, colony)) {
             // Соседи — это ворота ко всему: просьбы, торг, чертежи, союзы.

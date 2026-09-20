@@ -544,5 +544,18 @@
   "villagepax.quest.pony_herder_1": "Зерно ушло на посев, а лошадей кормить сегодня. Привези пшеницы — отдам монетой.",
   "villagepax.quest.pony_herder_2": "Повод рвётся там, где кожа тонкая. Привези толстой — свяжу тебе такой, что жеребца удержит.",
   "villagepax.quest.pony_watcher_1": "Кремень кончился, а без него ни огня, ни наконечника. Привези — заточу.",
-  "villagepax.quest.pony_watcher_2": "Поставь вышку и смотри сам. Поставишь — пришлю своего: он с седла видит дальше, чем ты с крыши."
+  "villagepax.quest.pony_watcher_2": "Поставь вышку и смотри сам. Поставишь — пришлю своего: он с седла видит дальше, чем ты с крыши.",
+  "villagepax.wages.unpaid": "Казна пуста: жалование не получили %s человек. Работать вполсилы они начнут завтра.",
+  "villagepax.screen.overview.section_purse": "Казна",
+  "villagepax.screen.overview.treasury_name": "Монеты",
+  "villagepax.screen.overview.wages_name": "Жалование в день",
+  "villagepax.screen.overview.market_name": "Торг",
+  "villagepax.screen.overview.market_yes": "есть у кого купить",
+  "villagepax.screen.overview.market_no": "монета утекает",
+  "villagepax.screen.overview.tax_name": "Налог",
+  "villagepax.screen.overview.tax_value": "%s%%",
+  "villagepax.screen.tax.set": "Ставка налога: %s%%.",
+  "villagepax.screen.tax.no_village": "Деньги пойдут с деревни. У хутора их нет и брать не с кого.",
+  "villagepax.advice.empty_purse": "Казна пуста, а жалование платить завтра. Продайте что-нибудь соседям — или снимите людей с ремёсел.",
+  "villagepax.advice.coin_leaks": "Монета уходит из колонии: тратить её жителям не у кого. Поставьте ларёк и дайте кому-нибудь ремесло купца."
 }

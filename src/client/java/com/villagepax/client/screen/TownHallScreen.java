@@ -3,6 +3,7 @@ package com.villagepax.client.screen;
 import com.villagepax.client.hologram.Placement;
 import com.villagepax.screen.Mood;
 import com.villagepax.block.ModBlocks;
+import com.villagepax.item.ModItems;
 import com.villagepax.screen.PanelMetrics;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.screen.TownHallNet;
@@ -371,6 +372,7 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
                 number(view.containers()), CAPTION,
                 view.containers() > 0 ? Look.INK : Look.BAD));
 
+
         // Пустая колония — не руина: об этом надо сказать прямо, иначе
         // игрок будет сидеть над недостроенным домом и не понимать,
         // почему никто не строит.
@@ -383,6 +385,44 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
             colony.child(deserted.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
         }
         body.child(colony);
+
+        // Казна — своей карточкой, а не строкой в быту: у неё есть кнопки,
+        // а карточка с кнопками посреди чисел читается как ошибка вёрстки.
+        // Появляется она вместе с деньгами: у хутора денег нет, и пустая
+        // карточка «жалование 0» только сбивала бы с толку.
+        if (view.wages() > 0) {
+            FlowLayout purse = Look.card("villagepax.screen.overview.section_purse",
+                    new ItemStack(ModItems.SILVER_COIN));
+            purse.child(Look.stat(new ItemStack(ModItems.SILVER_COIN),
+                    Text.translatable("villagepax.screen.overview.treasury_name"),
+                    number(view.coins()), CAPTION,
+                    view.coins() >= view.wages() ? Look.INK : Look.BAD));
+            purse.child(Look.stat(new ItemStack(Items.CLOCK),
+                    Text.translatable("villagepax.screen.overview.wages_name"),
+                    number(view.wages()), CAPTION,
+                    view.coins() >= view.wages() ? Look.INK : Look.BAD));
+
+            // Рынок назван прямо, а не оставлен догадке: без него ставка
+            // не возвращает ни медяка, и игрок, покрутив её впустую,
+            // решит, что налог не работает.
+            purse.child(Look.stat(new ItemStack(Items.EMERALD),
+                    Text.translatable("villagepax.screen.overview.market_name"),
+                    Text.translatable(view.hasMarket()
+                            ? "villagepax.screen.overview.market_yes"
+                            : "villagepax.screen.overview.market_no"),
+                    CAPTION, view.hasMarket() ? Look.INK : Look.BAD));
+
+            FlowLayout rate = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+            rate.verticalAlignment(VerticalAlignment.CENTER);
+            rate.gap(4);
+            rate.child(Look.stat(Text.translatable("villagepax.screen.overview.tax_name"),
+                    Text.translatable("villagepax.screen.overview.tax_value",
+                            number(view.taxRate())), CAPTION));
+            rate.child(Look.action(Text.literal("−"), 18, button -> tax(-25)));
+            rate.child(Look.action(Text.literal("+"), 18, button -> tax(25)));
+            purse.child(rate);
+            body.child(purse);
+        }
 
         TownHallView.Construction construction = view.construction().orElse(null);
         if (construction == null) {
@@ -721,6 +761,13 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
     }
 
     /** Подвинуть стройку в очереди: вверх — раньше, вниз — позже. */
+    /** Ставка двигается шагом: правило предела живёт на сервере. */
+    private void tax(int shift) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeInt(shift);
+        ClientPlayNetworking.send(TownHallNet.TAX, buf);
+    }
+
     private void reorder(UUID building, int shift) {
         PacketByteBuf buf = PacketByteBufs.create();
         buf.writeUuid(building);

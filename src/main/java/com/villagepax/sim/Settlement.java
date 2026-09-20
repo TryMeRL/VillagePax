@@ -704,6 +704,16 @@ public class Settlement {
         return stats;
     }
 
+    /** Какую долю заработанного колония забирает себе. */
+    public int taxRate() {
+        return stats.taxRate();
+    }
+
+    /** Поменять ставку. Ограничение живёт в самой записи, а не здесь. */
+    public void setTaxRate(int rate) {
+        this.stats = stats.withTaxRate(rate);
+    }
+
     public void setStats(SettlementStats stats) {
         this.stats = stats;
     }

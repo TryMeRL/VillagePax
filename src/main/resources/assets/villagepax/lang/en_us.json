@@ -544,5 +544,18 @@
   "villagepax.quest.pony_herder_1": "The grain went to seed and the horses eat today. Bring wheat and I will pay in coin.",
   "villagepax.quest.pony_herder_2": "A lead breaks where the hide is thin. Bring me thick leather and I will braid one that holds a stallion.",
   "villagepax.quest.pony_watcher_1": "The flint is gone, and without it there is neither fire nor arrowhead. Bring some and I will knap it.",
-  "villagepax.quest.pony_watcher_2": "Raise a lookout and watch for yourself. Raise it, and I will send you one of mine: from the saddle he sees further than you do from a roof."
+  "villagepax.quest.pony_watcher_2": "Raise a lookout and watch for yourself. Raise it, and I will send you one of mine: from the saddle he sees further than you do from a roof.",
+  "villagepax.wages.unpaid": "The treasury is empty: %s went unpaid. They will work at half strength from tomorrow.",
+  "villagepax.screen.overview.section_purse": "Treasury",
+  "villagepax.screen.overview.treasury_name": "Coin",
+  "villagepax.screen.overview.wages_name": "Wages a day",
+  "villagepax.screen.overview.market_name": "Trade",
+  "villagepax.screen.overview.market_yes": "someone to buy from",
+  "villagepax.screen.overview.market_no": "coin leaks away",
+  "villagepax.screen.overview.tax_name": "Tax",
+  "villagepax.screen.overview.tax_value": "%s%%",
+  "villagepax.screen.tax.set": "Tax rate: %s%%.",
+  "villagepax.screen.tax.no_village": "Money starts with the village. A hamlet has none, and nobody to take it from.",
+  "villagepax.advice.empty_purse": "The treasury is empty and wages fall due tomorrow. Sell something to the neighbours — or take people off their crafts.",
+  "villagepax.advice.coin_leaks": "Coin is leaving the colony: your people have nobody to spend it with. Raise a stall and give someone the merchant's craft."
 }

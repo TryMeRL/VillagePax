@@ -8,6 +8,7 @@ import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Comfort;
 import com.villagepax.sim.life.Natures;
 import com.villagepax.sim.faith.Faith;
+import com.villagepax.sim.trade.Wages;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Warehouse;
@@ -156,9 +157,14 @@ public final class Needs {
                 // и без этого первые двадцать дней здание просто занимало бы
                 // место. «Нам есть куда пойти и нас слышат» — это ровно то,
                 // за что житель любит своё поселение.
+                // Налог вычитается здесь же, рядом с прибавками, и это
+                // не бухгалтерия: игрок задаёт ставку и обязан увидеть,
+                // во что она обошлась, — а увидеть можно только там, где
+                // числа складываются в одно.
                 citizen.setHappiness(citizen.happiness() + HAPPINESS_FED
                         + Comfort.of(world, settlement, citizen)
-                        + Faith.solace(world, settlement));
+                        + Faith.solace(world, settlement)
+                        - Wages.discontentOf(settlement));
                 citizen.contented();
             }
 

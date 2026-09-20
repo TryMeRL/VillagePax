@@ -112,6 +112,7 @@ import com.villagepax.sim.quest.Progress;
 import com.villagepax.sim.quest.Errands;
 import com.villagepax.sim.trade.Caravans;
 import com.villagepax.sim.trade.Coins;
+import com.villagepax.sim.trade.Wages;
 import com.villagepax.sim.trade.Trading;
 import com.villagepax.item.ModItems;
 import com.villagepax.item.PurseItem;
@@ -7406,7 +7407,8 @@ public class VillagePaxGameTests implements FabricGameTest {
             // начинается вторая половина, и «совет не замолкает» проверялось
             // бы советами про еду и кровати — то есть тем, что работало
             // и раньше.
-            for (String rung : List.of("villagepax.advice.no_neighbours",
+            for (String rung : List.of("villagepax.advice.empty_purse",
+                    "villagepax.advice.coin_leaks", "villagepax.advice.no_neighbours",
                     "villagepax.advice.no_temple", "villagepax.advice.no_faith")) {
                 if (!said.contains(rung)) {
                     context.throwGameTestException("Совет «" + rung
@@ -7457,6 +7459,24 @@ public class VillagePaxGameTests implements FabricGameTest {
                         citizen.setProfession(FarmJob.FARMER);
                     }
                 });
+                return true;
+            }
+            case "villagepax.advice.empty_purse" -> {
+                // Казна наполняется монетой, а не числом: жалование платится
+                // из сундуков, и проверка обязана снимать причину тем же
+                // способом, каким её снимет игрок.
+                Coins.earn(Warehouse.of(world, colony).coins(), Coins.SILVER * 8);
+                return true;
+            }
+            case "villagepax.advice.coin_leaks" -> {
+                Citizen trader = evenNewborn("Купец", "", NORMAN, Gender.MALE);
+                trader.setProfession(Villages.MERCHANT);
+                colony.addCitizen(trader);
+                Building stall = new Building(UUID.randomUUID(),
+                        new Identifier("villagepax", "norman/market_stall"), 1,
+                        colony.center(), BlockRotation.NONE, BuildProgress.DONE, List.of());
+                colony.addBuilding(stall);
+                trader.setWorkplace(stall.id());
                 return true;
             }
             case "villagepax.advice.no_neighbours" -> {
@@ -10674,6 +10694,194 @@ public class VillagePaxGameTests implements FabricGameTest {
         });
     }
 
+
+    // ======================= ЖАЛОВАНИЕ, НАЛОГ И КРУГ МОНЕТЫ =======================
+
+    /** Колония-деревня с работниками и казной. */
+    private static Settlement payroll(ServerWorld world, SettlementManager manager,
+                                      BlockPos hall, int workers, int coin) {
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        colony.setLevel(SettlementLevel.VILLAGE);
+        for (int at = 0; at < workers - 1; at++) {
+            Citizen hand = evenNewborn("Работник" + at, "", NORMAN, Gender.FEMALE);
+            hand.setProfession(FarmJob.FARMER);
+            hand.setLived(Ages.grownAt());
+            colony.addCitizen(hand);
+        }
+        if (coin > 0) {
+            Coins.earn(Warehouse.of(world, colony).coins(), coin);
+        }
+        return colony;
+    }
+
+    /** Прилавок с купцом за ним: без человека прилавок не торгует. */
+    private static void openStall(Settlement colony) {
+        Citizen trader = evenNewborn("Купец", "", NORMAN, Gender.MALE);
+        trader.setProfession(Villages.MERCHANT);
+        trader.setLived(Ages.grownAt());
+        colony.addCitizen(trader);
+        Building stall = new Building(UUID.randomUUID(),
+                new Identifier("villagepax", "norman/market_stall"), 1,
+                colony.center(), BlockRotation.NONE, BuildProgress.DONE, List.of());
+        colony.addBuilding(stall);
+        trader.setWorkplace(stall.id());
+    }
+
+    /**
+     * Жалование уходит из казны, а рынок возвращает свою долю.
+     * <p>
+     * Весь круг одной проверкой, потому что порознь каждая половина
+     * согласилась бы с поломкой: «не возвращается ничего» проходит первую,
+     * «возвращается всегда» — вторую. Между ними и лежит смысл рынка:
+     * он не приносит дохода, он <b>не даёт монете утечь</b>.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "wages")
+    public void theMarketKeepsTheCoinAtHome(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = payroll(world, manager, hall, 4, Coins.SILVER * 8);
+
+        try {
+            manager.update(colony.id(), state -> state.setTaxRate(50));
+
+            // Без рынка не возвращается ничего, сколько ставку ни задирай.
+            Wages.Payroll leaky = Wages.newDay(world, manager, colony);
+            if (leaky.paid() != Wages.WAGE * 4) {
+                context.throwGameTestException("Заплачено " + leaky.paid() + " вместо "
+                        + (Wages.WAGE * 4));
+            }
+            if (leaky.returned() != 0) {
+                context.throwGameTestException("Без рынка вернулось " + leaky.returned()
+                        + ": монета обязана утекать, иначе ларёк не нужен");
+            }
+            if (!leaky.allPaid()) {
+                context.throwGameTestException("При полной казне кому-то не заплатили");
+            }
+
+            // А с купцом за прилавком — доля по ставке.
+            openStall(colony);
+            Wages.Payroll closed = Wages.newDay(world, manager, colony);
+            int expected = closed.paid() * 50 / 100;
+            if (closed.returned() != expected) {
+                context.throwGameTestException("С рынком вернулось " + closed.returned()
+                        + " вместо " + expected);
+            }
+
+            // И ставка решает, сколько именно: ноль возвращает ноль.
+            manager.update(colony.id(), state -> state.setTaxRate(0));
+            if (Wages.newDay(world, manager, colony).returned() != 0) {
+                context.throwGameTestException("При нулевой ставке казна всё равно "
+                        + "что-то взяла: налога, которого не задавали, не бывает");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Пустая казна стоит довольства, а хутор не платит никому.
+     * <p>
+     * Вторая половина важнее первой: денежное обращение начинается
+     * с деревни, и хутор из шести человек, которому нечем платить,
+     * не должен бунтовать за то, чего игрок не мог предотвратить.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "wages")
+    public void anEmptyTreasuryCostsContentButAHamletPaysNobody(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = payroll(world, manager, hall, 3, 0);
+
+        try {
+            Citizen worker = Wages.earners(colony).get(0);
+            int before = worker.happiness();
+
+            Wages.Payroll broke = Wages.newDay(world, manager, colony);
+            if (broke.allPaid() || broke.unpaid() != 3) {
+                context.throwGameTestException("Из пустой казны кому-то заплатили: "
+                        + "без денег остались " + broke.unpaid() + " из трёх");
+            }
+            // Число написано от руки, а не взято у {@code Wages}: спроси
+            // проверка размер удара у того, кого проверяет, она
+            // согласилась бы и с нулём. Двенадцать выбраны так, чтобы
+            // перевесить самый сытый и уютный день.
+            int promised = 12;
+            if (before - worker.happiness() != promised) {
+                context.throwGameTestException("Неоплаченный потерял "
+                        + (before - worker.happiness()) + " довольства вместо " + promised);
+            }
+
+            // А на хуторе расчёта нет вовсе.
+            manager.update(colony.id(), state -> state.setLevel(SettlementLevel.HAMLET));
+            int calm = worker.happiness();
+            Wages.Payroll hamlet = Wages.newDay(world, manager, colony);
+            if (hamlet.owed() != 0 || worker.happiness() != calm) {
+                context.throwGameTestException("Хутор платит жалование: должен "
+                        + hamlet.owed() + ", довольство " + worker.happiness());
+            }
+            if (Wages.billOf(colony) != 0) {
+                context.throwGameTestException("Хутору выставили счёт: " + Wages.billOf(colony));
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Высокая ставка бьёт по счастью — и бьёт в тех же сутках.
+     * <p>
+     * Считается не отдельно, а прямо в суточных нуждах, рядом с прибавкой
+     * за сытость: там же, где игрок и увидит их разницу. Проверяется
+     * поэтому через нужды, а не через саму ставку — иначе проверка
+     * согласилась бы с числом, которое никуда не идёт.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "wages")
+    public void aHighRateIsPaidForInContent(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = payroll(world, manager, hall, 2, 0);
+
+        try {
+            Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 64));
+            Citizen worker = Wages.earners(colony).get(0);
+
+            worker.setSaturation(40);
+            worker.setHappiness(50);
+            manager.update(colony.id(), state -> state.setTaxRate(0));
+            Needs.newDay(world, manager, colony);
+            int free = worker.happiness() - 50;
+
+            worker.setSaturation(40);
+            worker.setHappiness(50);
+            manager.update(colony.id(), state -> state.setTaxRate(100));
+            Needs.newDay(world, manager, colony);
+            int taxed = worker.happiness() - 50;
+
+            // Число написано от руки: спроси проверка его у самой ставки,
+            // она согласилась бы с любой поломкой.
+            int promised = 4;
+            if (free - taxed != promised) {
+                context.throwGameTestException("Полная ставка стоила " + (free - taxed)
+                        + " очков довольства вместо " + promised);
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
 
     // ======================= ТРЕТИЙ НАРОД =======================
 

@@ -21,6 +21,7 @@ import com.villagepax.sim.life.Nature;
 import com.villagepax.sim.life.Natures;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
+import com.villagepax.sim.trade.Wages;
 import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.faith.Faith;
 import com.villagepax.core.faith.Gods;
@@ -321,15 +322,54 @@ public record TownHallView(
      * @param daysOfFood на сколько дней их хватит
      * @param containers сколько хранилищ у колонии
      */
-    public record Household(int beds, int freeBeds, int meals, int daysOfFood, int containers) {
+    /**
+     * Быт колонии одной записью: кровати, еда, хранилища и казна.
+     * <p>
+     * Казна и счёт лежат здесь же, потому что это тот же быт: сколько
+     * у колонии есть и на сколько ей хватит. А ставка — потому, что
+     * читать её отдельно от счёта бессмысленно: одно число объясняет
+     * другое.
+     *
+     * @param coins   сколько монеты в сундуках колонии
+     * @param wages   сколько уйдёт завтра на жалование; ноль — деньги
+     *                в колонии ещё не ходят
+     * @param taxRate какую долю заработанного колония забирает себе
+     * @param market  есть ли кому продать своё: без этого монета утекает
+     */
+    public record Household(int beds, int freeBeds, int meals, int daysOfFood, int containers,
+                            int coins, int wages, int taxRate, boolean market) {
+
+        public Household(int beds, int freeBeds, int meals, int daysOfFood, int containers) {
+            this(beds, freeBeds, meals, daysOfFood, containers, 0, 0, 0, false);
+        }
 
         public static final Codec<Household> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.INT.fieldOf("beds").forGetter(Household::beds),
                 Codec.INT.fieldOf("free_beds").forGetter(Household::freeBeds),
                 Codec.INT.fieldOf("meals").forGetter(Household::meals),
                 Codec.INT.fieldOf("days_of_food").forGetter(Household::daysOfFood),
-                Codec.INT.fieldOf("containers").forGetter(Household::containers)
+                Codec.INT.fieldOf("containers").forGetter(Household::containers),
+                Codec.INT.optionalFieldOf("coins", 0).forGetter(Household::coins),
+                Codec.INT.optionalFieldOf("wages", 0).forGetter(Household::wages),
+                Codec.INT.optionalFieldOf("tax_rate", 0).forGetter(Household::taxRate),
+                Codec.BOOL.optionalFieldOf("market", false).forGetter(Household::market)
         ).apply(instance, Household::new));
+    }
+
+    public int coins() {
+        return household.coins();
+    }
+
+    public int wages() {
+        return household.wages();
+    }
+
+    public int taxRate() {
+        return household.taxRate();
+    }
+
+    public boolean hasMarket() {
+        return household.market();
     }
 
     public int beds() {
@@ -381,7 +421,11 @@ public record TownHallView(
                         Housing.freeSpots(world, settlement),
                         meals(stock),
                         daysOfFood(stock, settlement.population()),
-                        warehouse.containerCount()),
+                        warehouse.containerCount(),
+                        Wages.treasuryOf(world, settlement),
+                        Wages.billOf(settlement),
+                        settlement.taxRate(),
+                        Wages.hasMarket(settlement)),
                 construction(world, settlement, warehouse),
                 buildings(settlement),
                 citizens(settlement),

@@ -7,6 +7,7 @@ import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.life.Life;
 import com.villagepax.sim.diplomacy.Yoke;
+import com.villagepax.sim.trade.Wages;
 import com.villagepax.sim.faith.Faith;
 import com.villagepax.sim.war.Campaigns;
 import com.villagepax.sim.Villages;
@@ -128,6 +129,11 @@ public final class WorkTicker {
                     // на второй.
                     Life.newDay(world, manager, state,
                             new java.util.Random(world.getRandom().nextLong()));
+                    // Расчёт — до нужд: невыплата бьёт по довольству, а нужды
+                    // в тот же день прибавляют за сытость. Порядок выбран так,
+                    // чтобы игрок видел разницу одним числом, а не гадал,
+                    // что из двух случилось раньше.
+                    Wages.newDay(world, manager, state);
                     Needs.newDay(world, manager, state);
                     // Дань, если колония под ярмом. Здесь, а не в суточном
                     // решении деревни: платит колония, и платит со своего

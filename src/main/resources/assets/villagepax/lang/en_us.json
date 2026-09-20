@@ -465,5 +465,10 @@
   "villagepax.errand.guard": "The watch needs this. I'm not asking for myself.",
   "villagepax.errand.builder": "The work has stopped. We're short of the plainest thing.",
   "villagepax.errand.courier": "The road is long and I've nothing to set out with.",
-  "villagepax.guide.errands": "§lErrands§r\n\nThere is someone to talk to: the elder has his chain, and the woodcutter, the watchman, the brewer and the weaver have theirs. Each asks by his trade.\n\nWhen a chain ends, the asking doesn't. Every trade has an errand for the day: a small thing, a coin, a grain of trust. And so every day.\n\nLater they ask for more than goods: raise the same workplace of your own, earn a god's favour, go and meet the neighbours. And they pay with a person."
+  "villagepax.guide.errands": "§lErrands§r\n\nThere is someone to talk to: the elder has his chain, and the woodcutter, the watchman, the brewer and the weaver have theirs. Each asks by his trade.\n\nWhen a chain ends, the asking doesn't. Every trade has an errand for the day: a small thing, a coin, a grain of trust. And so every day.\n\nLater they ask for more than goods: raise the same workplace of your own, earn a god's favour, go and meet the neighbours. And they pay with a person.",
+  "villagepax.advice.idle_hands": "People sit idle while workplaces stand empty. Hand out crafts in the Citizens tab.",
+  "villagepax.advice.no_neighbours": "You know no one. Find a village (/villagepax locate) and speak to its elder: they have errands, goods and blueprints.",
+  "villagepax.advice.no_temple": "Your people have nowhere to go and you have no one to speak to. Raise a temple.",
+  "villagepax.advice.no_faith": "The temple stands empty. Lay on the altar what the local gods take, and they will notice you.",
+  "villagepax.advice.raise_the_hall": "All is running well. Raise the town hall: the next tier opens what the colony has never had."
 }

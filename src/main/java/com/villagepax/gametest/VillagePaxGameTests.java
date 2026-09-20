@@ -7314,6 +7314,165 @@ public class VillagePaxGameTests implements FabricGameTest {
         context.complete();
     }
 
+    /**
+     * Совет не замолкает, когда колония выжила.
+     * <p>
+     * Прежде лестница кончалась на «нечего строить», и колония, у которой
+     * всё построено, получала пустую строку — ровно в тот миг, когда
+     * у мода начинается долгая игра. Игрок решал, что мод кончился.
+     * <p>
+     * Проверяется и <b>порядок</b>: беда всегда перебивает направление.
+     * Лестница советов — это и есть сам совет, и перепутанные ступени
+     * отправили бы голодную колонию строить храм.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void theAdviceNeverFallsSilent(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        UUID player = colony.owner().player().orElseThrow();
+
+        // Ратуша зданием, а не только блоком: по ней считается и ступень,
+        // и последний совет «подними ратушу». Ступень ставится деревней —
+        // с неё открывается храм, а без него две ступени лестницы
+        // проверка просто не увидела бы.
+        raisedTownHall(colony, hall);
+        colony.setLevel(SettlementLevel.VILLAGE);
+
+        try {
+            // Голодная колония получает совет про еду, а не про соседей:
+            // беда перебивает направление.
+            Warehouse warehouse = Warehouse.of(world, colony);
+            String hungry = Advice.nextStep(world, colony).orElse(null);
+            if (!"villagepax.advice.no_food".equals(hungry)) {
+                context.throwGameTestException("Голодной колонии советуют не еду, а «"
+                        + hungry + "»");
+            }
+
+            warehouse.add(new ItemStack(Items.BREAD, 32));
+
+            // Накормлена, но одинока: совет обязан позвать к соседям,
+            // а не замолчать.
+            String next = Advice.nextStep(world, colony).orElse(null);
+            if (next == null) {
+                context.throwGameTestException("Совет замолчал у выжившей колонии");
+            }
+            if (!Advice.keys().contains(next)) {
+                context.throwGameTestException("Совет вне лестницы: " + next);
+            }
+
+            // И на каждой следующей ступени он тоже что-то говорит:
+            // пройдём лестницу до конца, снимая причину за причиной.
+            List<String> said = new ArrayList<>();
+            for (int step = 0; step < Advice.keys().size(); step++) {
+                String advice = Advice.nextStep(world, colony).orElse(null);
+                if (advice == null) {
+                    break;
+                }
+                if (said.contains(advice)) {
+                    context.throwGameTestException("Совет «" + advice
+                            + "» повторился, хотя причину сняли: " + said);
+                }
+                said.add(advice);
+                if (!relieve(world, manager, colony, player, advice)) {
+                    break;
+                }
+            }
+
+            // Долгая игра названа поимённо, и это главное в проверке:
+            // без этих ступеней лестница обрывалась ровно там, где у мода
+            // начинается вторая половина, и «совет не замолкает» проверялось
+            // бы советами про еду и кровати — то есть тем, что работало
+            // и раньше.
+            for (String rung : List.of("villagepax.advice.no_neighbours",
+                    "villagepax.advice.no_temple", "villagepax.advice.no_faith")) {
+                if (!said.contains(rung)) {
+                    context.throwGameTestException("Совет «" + rung
+                            + "» не прозвучал ни разу. Сказано было: " + said);
+                }
+            }
+
+            // И последним словом — направление, а не пустота.
+            String last = Advice.nextStep(world, colony).orElse(null);
+            if (!"villagepax.advice.raise_the_hall".equals(last)) {
+                context.throwGameTestException("У здоровой колонии совет замолчал: " + last);
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Снять причину совета, чтобы лестница шагнула дальше.
+     *
+     * @return удалось ли: ступени, которые в проверке не снимаются,
+     *         честно обрывают обход
+     */
+    private static boolean relieve(ServerWorld world, SettlementManager manager,
+                                   Settlement colony, UUID player, String advice) {
+        switch (advice) {
+            case "villagepax.advice.no_beds" -> {
+                // Жителю некуда лечь, а строить негде: проще перестать
+                // ждать новых, чем ставить дом в проверке про совет.
+                while (colony.hasRoomForCitizen()) {
+                    Citizen extra = Citizen.newborn("Гость", "", NORMAN, Gender.FEMALE);
+                    colony.addCitizen(extra);
+                }
+                return true;
+            }
+            case "villagepax.advice.no_farm" -> {
+                Citizen farmer = Citizen.newborn("Пахарь", "", NORMAN, Gender.MALE);
+                farmer.setProfession(FarmJob.FARMER);
+                colony.addCitizen(farmer);
+                return true;
+            }
+            case "villagepax.advice.idle_hands" -> {
+                colony.citizens().forEach(citizen -> {
+                    if (citizen.profession().isEmpty()) {
+                        citizen.setProfession(FarmJob.FARMER);
+                    }
+                });
+                return true;
+            }
+            case "villagepax.advice.no_neighbours" -> {
+                Settlement neighbours = Settlement.found(MAYA, Owner.AUTONOMOUS, "Йашчилан",
+                        colony.center().add(5000, 0, 5000));
+                neighbours.addReputation(player, Standing.KNOWN.from());
+                manager.add(neighbours);
+                return true;
+            }
+            case "villagepax.advice.no_temple" -> {
+                Identifier temple = Faith.templeType(colony.culture()).orElse(null);
+                if (temple == null) {
+                    return false;
+                }
+                colony.addBuilding(new Building(UUID.randomUUID(), temple, 1, colony.center(),
+                        BlockRotation.NONE, BuildProgress.DONE, List.of()));
+                return true;
+            }
+            case "villagepax.advice.no_faith" -> {
+                Gods.of(colony.culture()).stream().findFirst().ifPresent(god ->
+                        colony.addFavour(god, Faith.Tier.NOTICED.from()));
+                return true;
+            }
+            case "villagepax.advice.nothing_building" -> {
+                colony.addBuilding(new Building(UUID.randomUUID(), HOUSE_TYPE, 1,
+                        colony.center(), BlockRotation.NONE, BuildProgress.PLANNED, List.of()));
+                return true;
+            }
+            // «Подними ратушу» — направление, а не беда: снимать его
+            // в проверке нечем и незачем.
+            default -> {
+                return false;
+            }
+        }
+    }
+
     // ======================= КВЕСТЫ: ПОРУЧЕНИЯ И НОВЫЕ ЦЕЛИ =======================
 
     private static final Identifier FOUNDING_4 = new Identifier("villagepax", "norman/founding_4");

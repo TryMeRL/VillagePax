@@ -31,7 +31,9 @@
       "Coba",
       "Xunantunich",
       "Naranjo"
-    ]
+    ],
+    "son_of": "u-mehen %s",
+    "daughter_of": "u-al %s"
   },
   "buildings": [
     "villagepax:maya/town_hall",

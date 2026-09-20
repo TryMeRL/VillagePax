@@ -31,7 +31,9 @@
       "Sainte-Ombre",
       "Fontenay",
       "Clairbois"
-    ]
+    ],
+    "son_of": "fils de %s",
+    "daughter_of": "fille de %s"
   },
   "buildings": [
     "villagepax:norman/town_hall",

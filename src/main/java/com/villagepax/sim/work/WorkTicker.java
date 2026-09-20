@@ -5,6 +5,7 @@ import com.villagepax.entity.CitizenEntity;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.life.Life;
 import com.villagepax.sim.faith.Faith;
 import com.villagepax.sim.Villages;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -112,6 +113,12 @@ public final class WorkTicker {
             } else {
                 // Голод, приток и уходы — только под присмотром: см. выше.
                 if (seen) {
+                    // Жизнь — перед нуждами: рождённый сегодня обязан
+                    // попасть в тот же подсчёт голода, что и все. Иначе
+                    // первый день он не ест вовсе, и это видно числом
+                    // на второй.
+                    Life.newDay(world, manager, state,
+                            new java.util.Random(world.getRandom().nextLong()));
                     Needs.newDay(world, manager, state);
                     // Утро под благословением урожая: посевы подрастают сами.
                     // Здесь, а не в суточном решении деревни, потому что поле

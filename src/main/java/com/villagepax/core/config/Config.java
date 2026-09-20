@@ -50,11 +50,14 @@ public record Config(
         boolean citizenLabels,
         boolean buildingLabels,
         int carrySlots,
-        boolean greetNewcomers
+        boolean greetNewcomers,
+        int childDays,
+        int lifeDays,
+        boolean mortality
 ) {
 
     public static final Config DEFAULT = new Config(
-            true, 0, 1.0, 4, 6, 64, 16, 16, 10, true, true, 4, true);
+            true, 0, 1.0, 4, 6, 64, 16, 16, 10, true, true, 4, true, 8, 120, true);
 
     // Допустимые значения объявлены по одному разу и здесь: из них собирается
     // и кодек, и таблица RANGES, по которой игроку сообщают о непринятом.
@@ -88,7 +91,10 @@ public record Config(
             Map.entry("citizen_labels", Codec.BOOL),
             Map.entry("building_labels", Codec.BOOL),
             Map.entry("carry_slots", SLOTS),
-            Map.entry("greet_newcomers", Codec.BOOL));
+            Map.entry("greet_newcomers", Codec.BOOL),
+            Map.entry("child_days", DAYS),
+            Map.entry("life_days", DAYS),
+            Map.entry("mortality", Codec.BOOL));
 
     public static final Codec<Config> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.BOOL.optionalFieldOf("autonomous_villages", DEFAULT.autonomousVillages)
@@ -116,7 +122,23 @@ public record Config(
             SLOTS.optionalFieldOf("carry_slots", DEFAULT.carrySlots)
                     .forGetter(Config::carrySlots),
             Codec.BOOL.optionalFieldOf("greet_newcomers", DEFAULT.greetNewcomers)
-                    .forGetter(Config::greetNewcomers)
+                    .forGetter(Config::greetNewcomers),
+            // Восемь дней детства: примерно два с половиной часа игры
+            // на глазах у игрока. Меньше — и ребёнка не успеешь заметить;
+            // больше — и колония стоит, кормя того, кто не работает.
+            DAYS.optionalFieldOf("child_days", DEFAULT.childDays)
+                    .forGetter(Config::childDays),
+            // Сто двадцать дней жизни. Старость начинается с восьмидесяти
+            // (последняя треть), и это тот срок, за который житель успевает
+            // вырастить двоих и запомниться игроку по имени.
+            DAYS.optionalFieldOf("life_days", DEFAULT.lifeDays)
+                    .forGetter(Config::lifeDays),
+            // Выключатель смертности стоял в дизайн-документе с первого дня
+            // и до сих пор отсутствовал — потому что выключать было нечего.
+            // Теперь есть: кому смерть от старости мешает, тот её снимает,
+            // и колония живёт вечно, только не растёт сама.
+            Codec.BOOL.optionalFieldOf("mortality", DEFAULT.mortality)
+                    .forGetter(Config::mortality)
     ).apply(instance, Config::new));
 
     /**

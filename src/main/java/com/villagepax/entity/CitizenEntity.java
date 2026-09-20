@@ -11,6 +11,7 @@ import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import com.villagepax.sim.Citizen;
+import com.villagepax.sim.life.Ages;
 import com.villagepax.sim.Hazards;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
@@ -387,6 +388,22 @@ public class CitizenEntity extends PathAwareEntity {
     private static final TrackedData<String> LOOK =
             DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.STRING);
 
+    /**
+     * Ребёнок ли это тело.
+     * <p>
+     * Отслеживаемым полем по той же причине, что и облик: возраст живёт
+     * в записи жителя <b>на сервере</b>, а рисует тело клиент. Считать
+     * рост по чему-то своему клиент не может — у него нет ни поселения,
+     * ни жителя.
+     * <p>
+     * И это не украшение. Ребёнок, не отличимый от взрослого, есть только
+     * в списке жителей — то есть его нет: игрок не открывает список,
+     * чтобы посмотреть, кто бегает по улице. Разница в росте видна
+     * с другого конца деревни и не требует ни одного слова.
+     */
+    private static final TrackedData<Boolean> CHILD =
+            DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+
     private UUID raidId;
     private UUID raidHost;
 
@@ -515,8 +532,11 @@ public class CitizenEntity extends PathAwareEntity {
         }
         guard = citizen.profession().filter(Villages.GUARD::equals).isPresent();
         // И облик заодно: ремесло игрок меняет на ходу, и человек должен
-        // переодеться при жизни, а не в следующей.
+        // переодеться при жизни, а не в следующей. Тем же вызовом —
+        // и рост: ребёнок однажды просто оказывается взрослым, и тело
+        // обязано это заметить без отдельного дня взросления.
         setLook(Looks.of(citizen));
+        setChild(Ages.isChild(citizen));
     }
 
     /**
@@ -544,6 +564,41 @@ public class CitizenEntity extends PathAwareEntity {
         String value = dataTracker.get(LOOK);
         return value == null || value.isEmpty() ? Looks.UNKNOWN.toString() : value;
     }
+
+    /**
+     * Ростом ли это дитя.
+     * <p>
+     * Ставится сервером при каждом суточном ходе — вместе с обликом,
+     * тем же вызовом. Отдельного дня взросления нет: пора жизни выводится
+     * из прожитых дней, и тело просто однажды оказывается взрослым.
+     */
+    public void setChild(boolean child) {
+        if (dataTracker.get(CHILD) != child) {
+            dataTracker.set(CHILD, child);
+            calculateDimensions();
+        }
+    }
+
+    public boolean isChildBody() {
+        return dataTracker.get(CHILD);
+    }
+
+    /**
+     * Ребёнок ниже и уже взрослого.
+     * <p>
+     * Множитель, а не свои размеры: ваниль так же уменьшает детёнышей,
+     * и след тела обязан совпасть с тем, что видит игрок, — иначе
+     * ребёнок застрянет в дверном проёме, в который пролез его взгляд.
+     */
+    @Override
+    public net.minecraft.entity.EntityDimensions getDimensions(
+            net.minecraft.entity.EntityPose pose) {
+        net.minecraft.entity.EntityDimensions grown = super.getDimensions(pose);
+        return isChildBody() ? grown.scaled(CHILD_SCALE) : grown;
+    }
+
+    /** Во сколько раз ребёнок меньше взрослого. */
+    public static final float CHILD_SCALE = 0.6f;
 
     /**
      * Забытая кукла уходит сама.
@@ -679,6 +734,7 @@ public class CitizenEntity extends PathAwareEntity {
     public void applyFrom(Citizen citizen) {
         label(citizen, Configs.get().citizenLabels());
         setLook(Looks.of(citizen));
+        setChild(Ages.isChild(citizen));
         setHealth(citizen.health());
         // И ремесло сразу, раз запись всё равно в руках: иначе у только
         // что появившегося стража была бы секунда, в которую он считает
@@ -964,6 +1020,7 @@ public class CitizenEntity extends PathAwareEntity {
     protected void initDataTracker() {
         super.initDataTracker();
         dataTracker.startTracking(LOOK, Looks.UNKNOWN.toString());
+        dataTracker.startTracking(CHILD, false);
     }
 
     @Override

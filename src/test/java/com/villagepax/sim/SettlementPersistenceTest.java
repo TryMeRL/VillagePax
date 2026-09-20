@@ -26,6 +26,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SettlementPersistenceTest {
 
+    // Родня записана опознавателями руками: так видно, что именно
+    // должно пережить круг, и случайные значения не спрячут потерю.
+    private static final UUID WIFE = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
+    private static final UUID FATHER = UUID.fromString("00000000-0000-0000-0000-0000000000c1");
+    private static final UUID MOTHER = UUID.fromString("00000000-0000-0000-0000-0000000000c2");
+
     private static final Identifier NORMAN = new Identifier("villagepax", "norman");
     private static final UUID PLAYER = UUID.fromString("11111111-2222-3333-4444-555555555555");
 
@@ -61,7 +67,8 @@ class SettlementPersistenceTest {
 
         Citizen builder = new Citizen(
                 UUID.fromString("00000000-0000-0000-0000-0000000000a1"),
-                "Rollo", "de Beauvoir", NORMAN, Gender.MALE, 480_000L,
+                "Rollo", "de Beauvoir", NORMAN, Gender.MALE,
+                new Citizen.Life(41, Optional.of(WIFE), List.of(FATHER, MOTHER)),
                 Optional.of(new Identifier("villagepax", "builder")),
                 77, 14,
                 Optional.of(townHall.id()),
@@ -130,7 +137,13 @@ class SettlementPersistenceTest {
         Citizen builder = after.citizens().get(0);
         assertEquals("Rollo de Beauvoir", builder.fullName());
         assertEquals(Gender.MALE, builder.gender());
-        assertEquals(480_000L, builder.ageTicks(), "возраст нужен для старения и смены поколений");
+        // Прожитые дни, супруг и родители обязаны пережить запись: на них
+        // держится вся жизнь колонии. Раньше здесь стояло поле age_ticks,
+        // которое никто никогда не читал, — проверка честно стерегла
+        // заглушку. Теперь стережёт то, ради чего заглушку заводили.
+        assertEquals(41, builder.lived(), "прожитые дни не пережили запись");
+        assertEquals(Optional.of(WIFE), builder.spouse(), "супруг не пережил запись");
+        assertEquals(List.of(FATHER, MOTHER), builder.parents(), "родители не пережили запись");
         assertEquals(Optional.of(new Identifier("villagepax", "builder")), builder.profession());
         assertEquals(77, builder.happiness());
         assertTrue(builder.home().isPresent());

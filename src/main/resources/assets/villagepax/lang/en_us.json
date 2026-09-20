@@ -470,5 +470,17 @@
   "villagepax.advice.no_neighbours": "You know no one. Find a village (/villagepax locate) and speak to its elder: they have errands, goods and blueprints.",
   "villagepax.advice.no_temple": "Your people have nowhere to go and you have no one to speak to. Raise a temple.",
   "villagepax.advice.no_faith": "The temple stands empty. Lay on the altar what the local gods take, and they will notice you.",
-  "villagepax.advice.raise_the_hall": "All is running well. Raise the town hall: the next tier opens what the colony has never had."
+  "villagepax.advice.raise_the_hall": "All is running well. Raise the town hall: the next tier opens what the colony has never had.",
+  "villagepax.age.child": "Child",
+  "villagepax.age.adult": "Adult",
+  "villagepax.age.elder": "Elder",
+  "villagepax.life.wedding": "%s and %s now live together.",
+  "villagepax.life.birth": "%2$s and %3$s have a child — %1$s.",
+  "villagepax.life.grown_up": "%s has grown up and taken to work.",
+  "villagepax.life.died": "%s died of old age. Days lived: %s.",
+  "villagepax.screen.citizens.age": "Age",
+  "villagepax.screen.citizens.age_value": "%s, days: %s",
+  "villagepax.screen.citizens.kin": "Kin",
+  "villagepax.screen.assign.too_young": "This is a child. They will take up a trade when they grow.",
+  "villagepax.guide.life": "§lLife§r\n\nPeople age — but only on the days the colony lived before your eyes. Spend a month in a mine and no one grows older.\n\nTwo unwed adults come together on their own. A couple has children when there is a free bed and room under the population cap. A child eats and sleeps but does not work — for eight days.\n\nAn elder works at half strength and one day dies. That is no disaster: his son has already grown. If death bothers you, switch it off in config/villagepax.json."
 }

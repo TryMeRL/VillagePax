@@ -84,7 +84,8 @@ class CitizenTest {
     }
 
     private static Citizen citizen(int happiness, float health) {
-        return new Citizen(UUID.randomUUID(), "Rollo", "de Bayeux", NORMAN, Gender.MALE, 0L,
+        return new Citizen(UUID.randomUUID(), "Rollo", "de Bayeux", NORMAN, Gender.MALE,
+                Citizen.Life.UNKNOWN,
                 Optional.empty(), happiness, 20, Optional.empty(), Optional.empty(), Optional.empty(),
                 health);
     }

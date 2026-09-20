@@ -8,6 +8,7 @@ import net.minecraft.util.Uuids;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,7 +35,7 @@ public class Citizen {
             Codec.STRING.optionalFieldOf("last_name", "").forGetter(Citizen::lastName),
             Identifier.CODEC.fieldOf("culture").forGetter(Citizen::culture),
             Gender.CODEC.fieldOf("gender").forGetter(Citizen::gender),
-            Codec.LONG.optionalFieldOf("age_ticks", 0L).forGetter(Citizen::ageTicks),
+            Life.CODEC.optionalFieldOf("life", Life.UNKNOWN).forGetter(Citizen::life),
             Identifier.CODEC.optionalFieldOf("profession").forGetter(Citizen::profession),
             Codec.INT.optionalFieldOf("happiness", 70).forGetter(Citizen::happiness),
             Codec.INT.optionalFieldOf("saturation", 20).forGetter(Citizen::saturation),
@@ -47,12 +48,63 @@ public class Citizen {
             Codec.INT.optionalFieldOf("discontent", 0).forGetter(Citizen::discontent)
     ).apply(instance, Citizen::new));
 
+    /**
+     * Жизнь жителя: когда родился, с кем живёт, чей он сын.
+     * <p>
+     * Запись, а не три поля, по той же причине, что война и вера
+     * у поселения: у кодека Mojang ровно шестнадцать полей в группе,
+     * и все шестнадцать были заняты. Место нашлось под {@code age_ticks} —
+     * полем, которое <b>никто никогда не читал</b>: у него были геттер
+     * и прибавлялка, и ни одного вызова во всём моде. Заглушка уступила
+     * место тому, ради чего её когда-то завели.
+     * <p>
+     * <b>Прожитые дни, а не день рождения.</b> Соблазн был записать день
+     * мира и вычитать — одно число вместо ежедневной записи. Но тогда
+     * возраст шёл бы и в те сутки, когда колонию никто не видит: игрок
+     * ушёл на сто дней в шахту — вернулся к кладбищу. Мод это уже
+     * проходил с голодом, который считался везде, а поесть житель мог
+     * только рядом с игроком; вывод записан: <b>жизнь идёт там, где
+     * на неё смотрят</b>. Поэтому здесь счётчик, и растёт он только
+     * в те сутки, которые колония прожила на глазах.
+     *
+     * @param lived   сколько дней прожито; {@link #UNAGED} — «возраста
+     *                не помнит»
+     * @param spouse  супруг, если есть
+     * @param parents отец и мать; пусто у всех, кто не родился в колонии
+     */
+    public record Life(int lived, Optional<UUID> spouse, List<UUID> parents) {
+
+        /**
+         * «Возраста не помнит».
+         * <p>
+         * Так помечены все, кто был в мире до этой правки. Считать их
+         * младенцами нельзя — они работают; стариками тем более. Значит,
+         * возраста у них нет вовсе, и старость их не берёт. Это честнее,
+         * чем выдумать им годы задним числом и уморить тех, кто строил
+         * колонию с первого дня.
+         */
+        public static final int UNAGED = -1;
+
+        public static final Life UNKNOWN = new Life(UNAGED, Optional.empty(), List.of());
+
+        public Life {
+            parents = List.copyOf(parents);
+        }
+
+        public static final Codec<Life> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.INT.optionalFieldOf("lived", UNAGED).forGetter(Life::lived),
+                Uuids.STRING_CODEC.optionalFieldOf("spouse").forGetter(Life::spouse),
+                Uuids.STRING_CODEC.listOf().optionalFieldOf("parents", List.of())
+                        .forGetter(Life::parents)
+        ).apply(instance, Life::new));
+    }
+
     private final UUID id;
     private String firstName;
     private String lastName;
     private final Identifier culture;
     private final Gender gender;
-    private long ageTicks;
+    private Life life;
     private Optional<Identifier> profession;
     private int happiness;
     private int saturation;
@@ -91,23 +143,23 @@ public class Citizen {
     private UUID entityUuid;
 
     public Citizen(UUID id, String firstName, String lastName, Identifier culture, Gender gender,
-                   long ageTicks, Optional<Identifier> profession, int happiness, int saturation,
+                   Life life, Optional<Identifier> profession, int happiness, int saturation,
                    Optional<UUID> home, Optional<UUID> workplace, Optional<Vec3d> position,
                    float health) {
-        this(id, firstName, lastName, culture, gender, ageTicks, profession, happiness, saturation,
+        this(id, firstName, lastName, culture, gender, life, profession, happiness, saturation,
                 home, workplace, position, health, JobState.IDLE, Optional.empty(), 0);
     }
 
     public Citizen(UUID id, String firstName, String lastName, Identifier culture, Gender gender,
-                   long ageTicks, Optional<Identifier> profession, int happiness, int saturation,
+                   Life life, Optional<Identifier> profession, int happiness, int saturation,
                    Optional<UUID> home, Optional<UUID> workplace, Optional<Vec3d> position,
                    float health, JobState jobState) {
-        this(id, firstName, lastName, culture, gender, ageTicks, profession, happiness, saturation,
+        this(id, firstName, lastName, culture, gender, life, profession, happiness, saturation,
                 home, workplace, position, health, jobState, Optional.empty(), 0);
     }
 
     public Citizen(UUID id, String firstName, String lastName, Identifier culture, Gender gender,
-                   long ageTicks, Optional<Identifier> profession, int happiness, int saturation,
+                   Life life, Optional<Identifier> profession, int happiness, int saturation,
                    Optional<UUID> home, Optional<UUID> workplace, Optional<Vec3d> position,
                    float health, JobState jobState, Optional<BlockPos> bed, int discontent) {
         this.id = id;
@@ -115,7 +167,7 @@ public class Citizen {
         this.lastName = lastName;
         this.culture = culture;
         this.gender = gender;
-        this.ageTicks = ageTicks;
+        this.life = life;
         this.profession = profession;
         // Через конструктор идёт декодирование из NBT, поэтому ограничения
         // стоят здесь, а не только в сеттерах: житель с happiness = 250 из
@@ -145,7 +197,7 @@ public class Citizen {
     }
 
     public static Citizen newborn(String firstName, String lastName, Identifier culture, Gender gender) {
-        return new Citizen(UUID.randomUUID(), firstName, lastName, culture, gender, 0L,
+        return new Citizen(UUID.randomUUID(), firstName, lastName, culture, gender, Life.UNKNOWN,
                 Optional.empty(), 70, 20, Optional.empty(), Optional.empty(), Optional.empty(), MAX_HEALTH);
     }
 
@@ -159,6 +211,17 @@ public class Citizen {
 
     public String lastName() {
         return lastName;
+    }
+
+    /**
+     * Дать прозвище.
+     * <p>
+     * Нужно ровно при родах: ребёнок получает имя по отцу, и получить
+     * его заранее он не мог — отца тогда не знали. Больше прозвище
+     * не меняется никогда.
+     */
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
     }
 
     public String fullName() {
@@ -178,12 +241,66 @@ public class Citizen {
         return gender;
     }
 
-    public long ageTicks() {
-        return ageTicks;
+    // --- жизнь ---
+
+    public Life life() {
+        return life;
     }
 
-    public void addAge(long ticks) {
-        this.ageTicks += ticks;
+    /** Сколько дней прожито; {@link Life#UNAGED} — «возраста не помнит». */
+    public int lived() {
+        return life.lived();
+    }
+
+    /**
+     * Поставить возраст.
+     * <p>
+     * Зовётся дважды за жизнь: ноль новорождённому и грань взрослости
+     * тому, кто пришёл в колонию уже работником. Дальше его двигает
+     * только суточный ход.
+     */
+    public void setLived(int days) {
+        this.life = new Life(Math.max(Life.UNAGED, days), life.spouse(), life.parents());
+    }
+
+    /**
+     * Прожить ещё сутки.
+     * <p>
+     * Тот, у кого возраста нет, его и не наживает: {@link Life#UNAGED}
+     * значит «не считаем», а не «ноль». Иначе старожилы мира начали бы
+     * стареть с нуля и пережили бы собственных внуков.
+     */
+    public void liveADay() {
+        if (life.lived() != Life.UNAGED) {
+            this.life = new Life(life.lived() + 1, life.spouse(), life.parents());
+        }
+    }
+
+    public Optional<UUID> spouse() {
+        return life.spouse();
+    }
+
+    public void marry(UUID other) {
+        this.life = new Life(life.lived(), Optional.of(other), life.parents());
+    }
+
+    /** Супруга не стало: запись снимается с обоих, а не остаётся висеть. */
+    public void widow() {
+        this.life = new Life(life.lived(), Optional.empty(), life.parents());
+    }
+
+    /** Отец и мать; пусто у всех, кто не родился в колонии. */
+    public List<UUID> parents() {
+        return life.parents();
+    }
+
+    public void setParents(UUID father, UUID mother) {
+        this.life = new Life(life.lived(), life.spouse(), List.of(father, mother));
+    }
+
+    /** Ребёнок ли это <b>вот этих</b> двоих. */
+    public boolean isChildOf(UUID one, UUID other) {
+        return life.parents().contains(one) && life.parents().contains(other);
     }
 
     public Optional<Identifier> profession() {

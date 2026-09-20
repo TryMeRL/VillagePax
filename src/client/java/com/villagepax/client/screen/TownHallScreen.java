@@ -518,6 +518,26 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
             card.child(title);
             card.child(Look.rule());
 
+            // Возраст строкой, а не значком: «Ребёнок, 3 дня» игрок
+            // прочитает и поймёт, а маленькая иконка требует объяснения,
+            // которому в интерфейсе места нет.
+            //
+            // Дням у тех, кто пришёл взрослым, взяться неоткуда: они
+            // жили в мире до того, как мод стал считать возраст, и врать
+            // им число было бы хуже, чем не называть его вовсе.
+            card.child(Look.stat(Text.translatable("villagepax.screen.citizens.age"),
+                    citizen.days() < 0
+                            ? Text.translatable(citizen.stage())
+                            : Text.translatable("villagepax.screen.citizens.age_value",
+                                    Text.translatable(citizen.stage()),
+                                    number(citizen.days())),
+                    CAPTION));
+
+            if (!citizen.kin().isBlank()) {
+                card.child(Look.stat(Text.translatable("villagepax.screen.citizens.kin"),
+                        Text.literal(citizen.kin()), CAPTION));
+            }
+
             List<Text> troubles = new ArrayList<>();
             if (!citizen.housed()) {
                 troubles.add(Text.translatable("villagepax.screen.citizens.homeless"));

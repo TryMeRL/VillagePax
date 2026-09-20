@@ -15,6 +15,8 @@ import com.villagepax.sim.SettlementLevel;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
+import com.villagepax.sim.life.Families;
+import com.villagepax.sim.life.Ages;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.work.Schedule;
@@ -218,9 +220,19 @@ public record TownHallView(
      * настроением: «уйдёт скоро» — не самочувствие, а предупреждение,
      * и оно бывает при любом настроении.
      */
+    /**
+     * Житель в списке — и его возраст с роднёй.
+     * <p>
+     * Пора жизни едет <b>ключом</b>, а число дней — числом: клиент
+     * подпишет ребёнка ребёнком на своём языке, а «41 день» переводить
+     * нечего. Имя супруга строкой, а не опознавателем, по той же причине,
+     * по какой строкой едет имя жителя: перевести имя нельзя, оно и есть
+     * человек.
+     */
     public record CitizenLine(UUID id, String name, Optional<Identifier> profession,
                               boolean housed, Optional<Identifier> workplace,
-                              Mood mood, boolean leavingSoon) {
+                              Mood mood, boolean leavingSoon,
+                              String stage, int days, String kin) {
 
         public static final Codec<CitizenLine> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Uuids.CODEC.fieldOf("id").forGetter(CitizenLine::id),
@@ -229,7 +241,11 @@ public record TownHallView(
                 Codec.BOOL.fieldOf("housed").forGetter(CitizenLine::housed),
                 Identifier.CODEC.optionalFieldOf("workplace").forGetter(CitizenLine::workplace),
                 Mood.CODEC.fieldOf("mood").forGetter(CitizenLine::mood),
-                Codec.BOOL.fieldOf("leaving_soon").forGetter(CitizenLine::leavingSoon)
+                Codec.BOOL.fieldOf("leaving_soon").forGetter(CitizenLine::leavingSoon),
+                Codec.STRING.optionalFieldOf("stage", "villagepax.age.adult")
+                        .forGetter(CitizenLine::stage),
+                Codec.INT.optionalFieldOf("days", -1).forGetter(CitizenLine::days),
+                Codec.STRING.optionalFieldOf("kin", "").forGetter(CitizenLine::kin)
         ).apply(instance, CitizenLine::new));
     }
 
@@ -443,9 +459,35 @@ public record TownHallView(
                     !citizen.isHomeless(),
                     citizen.workplace().flatMap(settlement::building).map(Building::type),
                     moodOf(citizen),
-                    citizen.discontent() >= Needs.warnAfterDays()));
+                    citizen.discontent() >= Needs.warnAfterDays(),
+                    Ages.stageOf(citizen).key(),
+                    Ages.daysOf(citizen),
+                    kinOf(settlement, citizen)));
         }
         return lines;
+    }
+
+    /**
+     * Кем этот житель кому приходится — одной строкой.
+     * <p>
+     * Строкой, а не списком опознавателей, и это решение по смыслу.
+     * Клиенту нужно <b>показать</b> родню, а не рассуждать о ней: имена
+     * не переводятся, а кто кому муж, сервер знает и так. Список же
+     * заставил бы клиента искать жителей по опознавателям — то есть
+     * держать у себя половину поселения.
+     * <p>
+     * Пусто — значит одинок, и это тоже сведение: в колонии, где никто
+     * ни с кем не сошёлся, детей не будет.
+     */
+    private static String kinOf(Settlement settlement, Citizen citizen) {
+        String spouse = Families.spouseOf(settlement, citizen)
+                .map(Citizen::fullName).orElse("");
+        int children = Families.childrenOf(settlement, citizen).size();
+
+        if (spouse.isEmpty()) {
+            return children > 0 ? String.valueOf(children) : "";
+        }
+        return children > 0 ? spouse + " (" + children + ")" : spouse;
     }
 
     private static Mood moodOf(Citizen citizen) {

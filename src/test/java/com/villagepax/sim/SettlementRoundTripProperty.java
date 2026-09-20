@@ -103,7 +103,11 @@ class SettlementRoundTripProperty {
             assertEquals(a.lastName(), b.lastName(), "житель " + i + ": фамилия");
             assertEquals(a.culture(), b.culture(), "житель " + i + ": народ");
             assertEquals(a.gender(), b.gender(), "житель " + i + ": пол");
-            assertEquals(a.ageTicks(), b.ageTicks(), "житель " + i + ": возраст");
+            // Вся жизнь целиком: прожитые дни, супруг и родители.
+            // Поле у них одно (запись Life), и терять его целиком
+            // проще всего — именно так теряются вложенные записи
+            // с optionalFieldOf.
+            assertEquals(a.life(), b.life(), "житель " + i + ": жизнь");
             assertEquals(a.profession(), b.profession(), "житель " + i + ": профессия");
             assertEquals(a.happiness(), b.happiness(), "житель " + i + ": счастье");
             assertEquals(a.saturation(), b.saturation(), "житель " + i + ": сытость");
@@ -205,7 +209,7 @@ class SettlementRoundTripProperty {
                         Arbitraries.strings().alpha().ofMaxLength(12),
                         identifiers(),
                         Arbitraries.of(Gender.values()),
-                        Arbitraries.longs().between(0, 20_000_000L),
+                        lives(),
                         identifiers().optional(),
                         Arbitraries.integers().between(0, 100))
                 .as(CitizenDraft::new)
@@ -218,12 +222,27 @@ class SettlementRoundTripProperty {
                                 jobStates())
                         .as((saturation, home, work, pos, health, job) -> new Citizen(
                                 draft.id(), draft.first(), draft.last(), draft.culture(), draft.gender(),
-                                draft.age(), draft.profession(), draft.happiness(), saturation,
+                                draft.life(), draft.profession(), draft.happiness(), saturation,
                                 home, work, pos, health, job)));
     }
 
     private record CitizenDraft(UUID id, String first, String last, Identifier culture, Gender gender,
-                                long age, Optional<Identifier> profession, int happiness) {
+                                Citizen.Life life, Optional<Identifier> profession, int happiness) {
+    }
+
+    /**
+     * Жизнь наугад: и «возраста не помнит», и обычный возраст, и родня.
+     * <p>
+     * Отрицательное значение в выборке нарочно: {@link Citizen.Life#UNAGED}
+     * — не крайний случай, а состояние всех, кто жил в мире до появления
+     * возраста, и круг обязан переносить его наравне с остальными.
+     */
+    private Arbitrary<Citizen.Life> lives() {
+        return Combinators.combine(
+                        Arbitraries.integers().between(Citizen.Life.UNAGED, 400),
+                        uuids().optional(),
+                        uuids().list().ofMaxSize(2))
+                .as(Citizen.Life::new);
     }
 
     private Arbitrary<UUID> uuids() {

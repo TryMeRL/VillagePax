@@ -74,6 +74,10 @@ import com.villagepax.sim.diplomacy.Alliance;
 import com.villagepax.sim.diplomacy.Tribute;
 import com.villagepax.sim.war.Allies;
 import com.villagepax.sim.war.Raids;
+import com.villagepax.sim.life.Mortality;
+import com.villagepax.sim.life.Life;
+import com.villagepax.sim.life.Families;
+import com.villagepax.sim.life.Ages;
 import com.villagepax.sim.faith.Offering;
 import com.villagepax.sim.faith.Miracles;
 import com.villagepax.sim.faith.Faith;
@@ -5194,7 +5198,9 @@ public class VillagePaxGameTests implements FabricGameTest {
             Configs.override(new Config(false, 48, 2.0,
                     Config.DEFAULT.hungerWarnDays(), 30,
                     Config.DEFAULT.villageTradePerDay(), Config.DEFAULT.villageIncomePerDay(),
-                    8, 3, false, false, Config.DEFAULT.carrySlots(), false));
+                    8, 3, false, false, Config.DEFAULT.carrySlots(), false,
+                    Config.DEFAULT.childDays(), Config.DEFAULT.lifeDays(),
+                    Config.DEFAULT.mortality()));
 
             WorkTicker.decide(world, manager, colony, worker, Schedule.MORNING_WORK);
             if (body.getCustomName() != null || body.isCustomNameVisible()) {
@@ -6066,7 +6072,9 @@ public class VillagePaxGameTests implements FabricGameTest {
                     Config.DEFAULT.hungerWarnDays(), Config.DEFAULT.hungerLeaveDays(),
                     Config.DEFAULT.villageTradePerDay(), 0,
                     Config.DEFAULT.roadReserve(), Config.DEFAULT.ticksPerDecision(),
-                    true, true, Config.DEFAULT.carrySlots(), true));
+                    true, true, Config.DEFAULT.carrySlots(), true,
+                    Config.DEFAULT.childDays(), Config.DEFAULT.lifeDays(),
+                    Config.DEFAULT.mortality()));
 
             for (int x = -20; x <= 20; x++) {
                 for (int z = -20; z <= 20; z++) {
@@ -7471,6 +7479,416 @@ public class VillagePaxGameTests implements FabricGameTest {
                 return false;
             }
         }
+    }
+
+    // ============================ ЖИЗНЬ ============================
+
+    /** Колония с двумя взрослыми, домом и едой: с неё начинается род. */
+    private static Settlement household(ServerWorld world, SettlementManager manager,
+                                        TestContext context, BlockPos hall) {
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        raisedTownHall(colony, hall);
+
+        // Оба — взрослые с возрастом: без возраста они «не помнят лет»,
+        // а такие не стареют и не умирают, и проверять на них нечего.
+        colony.citizens().forEach(citizen -> citizen.setLived(Ages.grownAt()));
+
+        Citizen wife = Citizen.newborn("Аделиза", "", NORMAN, Gender.FEMALE);
+        wife.setLived(Ages.grownAt());
+        colony.addCitizen(wife);
+
+        Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 64));
+        return colony;
+    }
+
+    /** Кровати для всех: роды и приход требуют свободного места. */
+    private static void bedsFor(Settlement colony, int many) {
+        for (int at = 0; at < many; at++) {
+            Citizen sleeper = colony.citizens().size() > at ? colony.citizens().get(at) : null;
+            if (sleeper != null) {
+                sleeper.setBed(null);
+            }
+        }
+    }
+
+    /**
+     * Двое взрослых сходятся, и у них родится ребёнок.
+     * <p>
+     * Главная проверка всей затеи: до неё колония <b>набиралась</b>
+     * пришлыми, у которых нет ни прошлого, ни родни. Здесь у ребёнка
+     * есть отец, мать и прозвище по отцу — то есть он отличим от
+     * следующего, а в этом и был весь смысл.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "life")
+    public void twoAdultsWedAndHaveAChild(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = household(world, manager, context, hall);
+
+        try {
+            if (Families.wed(world, colony).isEmpty()) {
+                context.throwGameTestException("Двое свободных взрослых не сошлись");
+            }
+
+            Citizen husband = colony.citizens().get(0);
+            if (husband.spouse().isEmpty()) {
+                context.throwGameTestException("Женился, а записи нет");
+            }
+            Citizen wife = Families.spouseOf(colony, husband).orElse(null);
+            if (wife == null || wife.spouse().isEmpty()) {
+                context.throwGameTestException("Запись о браке односторонняя");
+                return;
+            }
+
+            int before = colony.population();
+            Citizen child = Families.birth(world, colony, new java.util.Random(7)).orElse(null);
+            if (child == null) {
+                context.throwGameTestException("У пары не родился ребёнок");
+                return;
+            }
+            if (colony.population() != before + 1) {
+                context.throwGameTestException("Ребёнок родился мимо колонии");
+            }
+            if (Ages.daysOf(child) != 0 || !Ages.isChild(child)) {
+                context.throwGameTestException("Новорождённому " + Ages.daysOf(child)
+                        + " дней, и он " + Ages.stageOf(child).id());
+            }
+            if (child.parents().size() != 2) {
+                context.throwGameTestException("У ребёнка не двое родителей: "
+                        + child.parents());
+            }
+            if (child.profession().isPresent()) {
+                context.throwGameTestException("Новорождённого сразу взяли на работу: "
+                        + child.profession().get());
+            }
+            // Прозвище по отцу: примета народа, взятая из датапака.
+            if (child.lastName().isBlank()) {
+                context.throwGameTestException("Ребёнок остался без имени по отцу");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Ребёнок вырастает и сам берётся за дело.
+     * <p>
+     * Без этого вчерашний ребёнок сидел бы без ремесла навсегда: ремесло
+     * в моде раздаётся пришедшим извне и рукой игрока, а выросшему
+     * не досталось бы ни того, ни другого.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "life")
+    public void theChildGrowsUpAndTakesATrade(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = household(world, manager, context, hall);
+
+        try {
+            Citizen child = Citizen.newborn("Тибо", "", NORMAN, Gender.MALE);
+            child.setLived(0);
+            colony.addCitizen(child);
+
+            if (Assignments.set(world, manager, colony, child.id(),
+                    Optional.of(FarmJob.FARMER)) != Assignments.Result.TOO_YOUNG) {
+                context.throwGameTestException("Ребёнку дали ремесло");
+            }
+
+            // Прожить детство день за днём — ровно так, как это делает мир.
+            for (int day = 0; day < Ages.grownAt(); day++) {
+                Families.newDay(world, colony, new java.util.Random(day));
+            }
+
+            if (!Ages.isAdult(child)) {
+                context.throwGameTestException("За " + Ages.grownAt() + " дней не вырос: "
+                        + Ages.stageOf(child).id() + ", дней " + Ages.daysOf(child));
+            }
+            if (child.profession().isEmpty()) {
+                context.throwGameTestException("Вырос и остался без дела");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Родня не женится.
+     * <p>
+     * Правило скучное, но его отсутствие игрок заметил бы сразу —
+     * и не так, как хотелось бы. Проверяются обе стороны: и «мои
+     * родители», и «общий родитель».
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "life")
+    public void kinDoNotWed(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            Citizen father = colony.citizens().get(0);
+            father.setLived(Ages.grownAt());
+
+            Citizen mother = Citizen.newborn("Аделиза", "", NORMAN, Gender.FEMALE);
+            mother.setLived(Ages.grownAt());
+            colony.addCitizen(mother);
+
+            Citizen son = Citizen.newborn("Тибо", "", NORMAN, Gender.MALE);
+            son.setLived(Ages.grownAt());
+            son.setParents(father.id(), mother.id());
+            colony.addCitizen(son);
+
+            Citizen daughter = Citizen.newborn("Сибилла", "", NORMAN, Gender.FEMALE);
+            daughter.setLived(Ages.grownAt());
+            daughter.setParents(father.id(), mother.id());
+            colony.addCitizen(daughter);
+
+            if (!Families.areKin(son, daughter)) {
+                context.throwGameTestException("Брат с сестрой не считаются роднёй");
+            }
+            if (!Families.areKin(son, mother)) {
+                context.throwGameTestException("Сын с матерью не считаются роднёй");
+            }
+
+            // Свободных не-родственников в колонии двое: отец и мать.
+            // Они и сойдутся, а дети — нет.
+            Families.wed(world, colony);
+            if (son.spouse().isPresent() && son.spouse().get().equals(daughter.id())) {
+                context.throwGameTestException("Брат женился на сестре");
+            }
+            if (father.spouse().isEmpty() || mother.spouse().isEmpty()) {
+                context.throwGameTestException("Неродные друг другу не сошлись");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Роды идут в очередь по младшему ребёнку.
+     * <p>
+     * Памяти о прошлых родах в моде нет — кодек поселения полон, — и её
+     * заменяет сам младший ребёнок: он ходит по колонии и помнит свой
+     * возраст. Без этого правила пара рожала бы каждые сутки, и колония
+     * упиралась бы в предел населения за неделю.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "life")
+    public void birthsWaitForTheYoungestToGrow(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = household(world, manager, context, hall);
+
+        try {
+            Families.wed(world, colony);
+            Citizen first = Families.birth(world, colony, new java.util.Random(1)).orElse(null);
+            if (first == null) {
+                context.throwGameTestException("Первый ребёнок не родился");
+                return;
+            }
+
+            // Крыша над головой в этой проверке не при чём: её стережёт
+            // своя проверка, а здесь роды упёрлись бы в неё раньше, чем
+            // в очередь по младшему, и проверка подтверждала бы не то.
+            colony.citizens().forEach(citizen -> citizen.setBed(null));
+
+            if (Families.birth(world, colony, new java.util.Random(2)).isPresent()) {
+                context.throwGameTestException("Второй ребёнок родился в тот же день");
+            }
+
+            // Подождём, пока младший подрастёт.
+            for (int day = 0; day < Families.BETWEEN_BIRTHS; day++) {
+                colony.citizens().forEach(Citizen::liveADay);
+            }
+            colony.citizens().forEach(citizen -> citizen.setBed(null));
+            if (Families.birth(world, colony, new java.util.Random(3)).isEmpty()) {
+                context.throwGameTestException("Младший подрос, а второго так и нет");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Без крыши детей не бывает.
+     * <p>
+     * Ребёнок ест и спит ровно как взрослый, и притворяться, будто он
+     * бесплатен, мод не станет: условия родов — те же, по которым
+     * в колонию приходит пришлый. Иначе колония рожала бы под открытым
+     * небом и упиралась бы в голод вместо предела населения.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "life")
+    public void thereAreNoChildrenWithoutARoof(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = household(world, manager, context, hall);
+
+        try {
+            Families.wed(world, colony);
+
+            // Занять все места для сна: свободных не осталось. Бездомным
+            // в этом моде считается тот, у кого нет КРОВАТИ, а не записи
+            // о доме, — и роды спрашивают именно кровати.
+            BlockPos somewhere = hall.up();
+            colony.citizens().forEach(citizen -> citizen.setBed(somewhere));
+
+            if (Families.birth(world, colony, new java.util.Random(4)).isPresent()) {
+                context.throwGameTestException("Ребёнок родился, хотя спать негде");
+            }
+
+            colony.citizens().forEach(citizen -> citizen.setBed(null));
+            if (Families.birth(world, colony, new java.util.Random(4)).isEmpty()) {
+                context.throwGameTestException("Место освободилось, а ребёнка нет");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Умирает старейший, и вдова снова свободна.
+     * <p>
+     * Вторая половина важнее первой. Оставленная запись о супруге — не
+     * мелочь: вдова с мёртвым мужем в записи не выйдет замуж больше
+     * никогда, и колония тихо перестанет расти. Такую поломку в игре
+     * не видно вовсе — видно только то, что детей больше нет.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "life")
+    public void theEldestDiesAndTheWidowIsFreed(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = household(world, manager, context, hall);
+
+        try {
+            Families.wed(world, colony);
+            Citizen husband = colony.citizens().get(0);
+            Citizen wife = Families.spouseOf(colony, husband).orElseThrow();
+
+            // Молодой не умирает, даже когда смертность включена.
+            if (Mortality.newDay(world, colony).isPresent()) {
+                context.throwGameTestException("Умер тот, кто не дожил");
+            }
+
+            husband.setLived(Ages.diesAt());
+            Citizen gone = Mortality.newDay(world, colony).orElse(null);
+            if (gone == null || !gone.id().equals(husband.id())) {
+                context.throwGameTestException("Умер не тот: " + gone);
+            }
+            if (colony.citizen(husband.id()).isPresent()) {
+                context.throwGameTestException("Умерший остался в списке жителей");
+            }
+            if (wife.spouse().isPresent()) {
+                context.throwGameTestException("Вдова осталась с записью о муже — "
+                        + "замуж больше не выйдет никогда");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Смертность выключается настройкой.
+     * <p>
+     * Обещано дизайн-документом с первого дня. Заодно это проверка того,
+     * что выключатель <b>действительно</b> выключает: настройка, которая
+     * ничего не меняет, хуже отсутствующей.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "life")
+    public void mortalityCanBeSwitchedOff(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = household(world, manager, context, hall);
+
+        try {
+            colony.citizens().forEach(citizen -> citizen.setLived(Ages.diesAt() + 10));
+
+            Configs.override(new Config(true, 0, 1.0,
+                    Config.DEFAULT.hungerWarnDays(), Config.DEFAULT.hungerLeaveDays(),
+                    Config.DEFAULT.villageTradePerDay(), Config.DEFAULT.villageIncomePerDay(),
+                    Config.DEFAULT.roadReserve(), Config.DEFAULT.ticksPerDecision(),
+                    true, true, Config.DEFAULT.carrySlots(), true,
+                    Config.DEFAULT.childDays(), Config.DEFAULT.lifeDays(), false));
+
+            int before = colony.population();
+            Life.newDay(world, manager, colony, new java.util.Random(5));
+            if (colony.population() < before) {
+                context.throwGameTestException("Смертность выключена, а кто-то умер");
+            }
+
+            Configs.override(Config.DEFAULT);
+            Life.newDay(world, manager, colony, new java.util.Random(6));
+            if (colony.population() >= before) {
+                context.throwGameTestException("Смертность включена, а никто не умер: "
+                        + colony.population() + " из " + before);
+            }
+        } finally {
+            Configs.override(Config.DEFAULT);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Старик работает вполсилы — тем же замедлением, что и недовольный.
+     * <p>
+     * Одно на двоих нарочно: два разных однажды сложились бы, и
+     * недовольный старик встал бы на месте.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "life")
+    public void theElderWorksAtHalfStrength(TestContext context) {
+        Citizen young = Citizen.newborn("Роллон", "", NORMAN, Gender.MALE);
+        young.setLived(Ages.grownAt());
+        if (!Needs.worksAtFullStrength(young)) {
+            context.throwGameTestException("Взрослый работает вполсилы ни с того ни с сего");
+        }
+
+        young.setLived(Ages.oldAt());
+        if (Needs.worksAtFullStrength(young)) {
+            context.throwGameTestException("Старик работает в полную силу");
+        }
+
+        // А тот, кто возраста не помнит, старым не становится никогда:
+        // иначе все, кто строил колонию до этой правки, слегли бы разом.
+        Citizen oldTimer = Citizen.newborn("Фульк", "", NORMAN, Gender.MALE);
+        for (int day = 0; day < Ages.diesAt() * 2; day++) {
+            oldTimer.liveADay();
+        }
+        if (!Needs.worksAtFullStrength(oldTimer)) {
+            context.throwGameTestException("Старожил мира состарился, хотя возраста у него нет");
+        }
+
+        context.complete();
     }
 
     // ======================= КВЕСТЫ: ПОРУЧЕНИЯ И НОВЫЕ ЦЕЛИ =======================

@@ -388,6 +388,13 @@ public final class TownHallNet {
             tell(player, "villagepax.screen.assign.locked");
             return;
         }
+        if (result == Assignments.Result.TOO_YOUNG) {
+            // Кнопка ремесла стоит у каждого жителя в списке, и ребёнок
+            // в нём ничем от взрослого не отличается. Нажал — и обязан
+            // услышать почему.
+            tell(player, "villagepax.screen.assign.too_young");
+            return;
+        }
         if (result != Assignments.Result.DONE || citizen == null) {
             return;
         }

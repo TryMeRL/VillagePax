@@ -8,6 +8,7 @@ import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Founding;
+import com.villagepax.sim.life.Ages;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.build.BuildJob;
@@ -178,6 +179,11 @@ public final class Housing {
                 ? Citizen.newborn("Пришлый", "", settlement.culture(), com.villagepax.sim.Gender.MALE)
                 : Founding.newCitizen(settlement.culture(), culture, random);
 
+        // Пришёл работником, а не младенцем: возраст ставится на грань
+        // взросления. Оставить его без возраста было бы проще, но тогда
+        // колония наполнилась бы бессмертными пришлыми, и вся жизнь
+        // свелась бы к детям, умирающим раньше родителей.
+        Ages.arrivedGrown(newcomer);
         neededProfession(settlement).ifPresent(newcomer::setProfession);
         newcomer.setPosition(Vec3d.ofBottomCenter(settlement.center().up()));
         settlement.addCitizen(newcomer);
@@ -196,7 +202,12 @@ public final class Housing {
      * курьер», — и она упиралась в третьего жителя. Теперь порядок задают
      * данные, и новая профессия встраивается в него одним файлом.
      */
-    private static Optional<Identifier> neededProfession(Settlement settlement) {
+    /**
+     * Открыт наружу с тех пор, как дети вырастают: выросшему нужно то же
+     * самое ремесло, что и пришедшему извне, и считать его вторым способом
+     * значило бы завести два разных ответа на один вопрос.
+     */
+    public static Optional<Identifier> neededProfession(Settlement settlement) {
         Set<Identifier> filled = new HashSet<>();
         for (Citizen citizen : settlement.citizens()) {
             citizen.profession().ifPresent(filled::add);

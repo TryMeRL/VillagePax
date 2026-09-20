@@ -25,7 +25,8 @@ class ConfigTest {
 
     @Test
     void roundTripsThroughJson() {
-        Config config = new Config(false, 32, 2.5, 3, 9, 128, 24, 4, 20, false, false, 7, false);
+        Config config = new Config(false, 32, 2.5, 3, 9, 128, 24, 4, 20, false, false, 7, false,
+                6, 90, false);
 
         DataResult<com.google.gson.JsonElement> encoded =
                 Config.CODEC.encodeStart(JsonOps.INSTANCE, config);
@@ -134,7 +135,8 @@ class ConfigTest {
     @Test
     void everyFieldHasAnAllowedRange() {
         com.google.gson.JsonElement full = Config.CODEC.encodeStart(JsonOps.INSTANCE,
-                new Config(false, 32, 2.5, 3, 9, 128, 24, 4, 20, false, false, 7, false))
+                new Config(false, 32, 2.5, 3, 9, 128, 24, 4, 20, false, false, 7, false,
+                6, 90, false))
                 .result().orElseThrow();
 
         for (String key : full.getAsJsonObject().keySet()) {

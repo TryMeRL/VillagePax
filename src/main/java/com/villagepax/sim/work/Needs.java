@@ -6,6 +6,7 @@ import com.villagepax.entity.CitizenEntity;
 import com.villagepax.core.config.Configs;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Comfort;
+import com.villagepax.sim.life.Ages;
 import com.villagepax.sim.faith.Faith;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
@@ -179,9 +180,17 @@ public final class Needs {
                 citizen.fullName(), settlement.name(), citizen.discontent());
     }
 
-    /** Работает ли житель в полную силу. Недовольный тянет вполсилы. */
+    /**
+     * Работает ли житель в полную силу.
+     * <p>
+     * Вполсилы тянут двое: недовольный и старик. Замедление у них
+     * <b>одно</b>, и это нарочно — два разных однажды сложились бы,
+     * и недовольный старик встал бы на месте. Причины разные, следствие
+     * общее: работа идёт через решение, но цель не сбрасывается, и житель
+     * не замирает, а просто медленнее делает дело.
+     */
     public static boolean worksAtFullStrength(Citizen citizen) {
-        return !citizen.isUnhappy();
+        return !citizen.isUnhappy() && !Ages.worksSlowly(citizen);
     }
 
     /** Сообщение хозяину колонии. Автономная деревня никому не жалуется. */

@@ -12,6 +12,7 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.life.Ages;
+import com.villagepax.sim.life.Natures;
 import com.villagepax.sim.Hazards;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
@@ -282,15 +283,23 @@ public class CitizenEntity extends PathAwareEntity {
         // У мирного жителя цели не бывает — её ставят только тем, кто
         // воюет, — и потому эта цель для пахаря всё равно что нет её.
         goalSelector.add(1, new MeleeAttackGoal(this, 1.0, false));
+        // А трус бежит от того, кого прочие ещё не заметили. Выше общего
+        // бегства, потому что иначе оба спорили бы за ноги: побеждает
+        // старший, и старшим должен быть тот, у кого шире круг. Для всех
+        // остальных эта цель не начинается никогда — предикат спрашивает
+        // характер.
+        goalSelector.add(2, new FleeEntityGoal<>(this, CitizenEntity.class, COWARD_FLEES, 0.8, 1.0,
+                who -> coward && who instanceof CitizenEntity fighter && fighter.isRaider()
+                        && !isFighter()));
         // А мирный житель от бойца бежит. Бегство важнее работы по той же
         // причине, по которой драка важнее: и то и другое про жизнь.
-        goalSelector.add(2, new FleeEntityGoal<>(this, CitizenEntity.class, 10.0f, 0.7, 0.9,
+        goalSelector.add(3, new FleeEntityGoal<>(this, CitizenEntity.class, FLEES, 0.7, 0.9,
                 who -> who instanceof CitizenEntity fighter && fighter.isRaider()
                         && !isFighter()));
-        goalSelector.add(3, new CitizenWorkGoal(this));
-        goalSelector.add(4, new WanderAroundFarGoal(this, 0.5));
-        goalSelector.add(5, new LookAtEntityGoal(this, PlayerEntity.class, 6.0f));
-        goalSelector.add(6, new LookAroundGoal(this));
+        goalSelector.add(4, new CitizenWorkGoal(this));
+        goalSelector.add(5, new WanderAroundFarGoal(this, 0.5));
+        goalSelector.add(6, new LookAtEntityGoal(this, PlayerEntity.class, 6.0f));
+        goalSelector.add(7, new LookAroundGoal(this));
 
         // Кого искать глазами. Предикаты спрашивают состояние, а не тип:
         // список целей строится один раз при появлении тела, а кем это
@@ -731,8 +740,22 @@ public class CitizenEntity extends PathAwareEntity {
         return ActionResult.SUCCESS;
     }
 
+    /**
+     * Трус ли это.
+     * <p>
+     * Полем, а не спросом у записи каждый тик: цель бегства спрашивает
+     * предикат по многу раз в секунду, а запись жителя лежит в другом
+     * слое и достаётся через управляющего поселениями. Ровно так же
+     * и по той же причине здесь живёт {@code guard}.
+     */
+    private boolean coward;
+
     public void applyFrom(Citizen citizen) {
         label(citizen, Configs.get().citizenLabels());
+        // Характер — тоже часть облика тела, и ставится он здесь по той же
+        // причине, что и ремесло: у только что появившегося труса иначе
+        // была бы секунда, в которую он считает себя храбрецом.
+        coward = Natures.isCoward(citizen);
         setLook(Looks.of(citizen));
         setChild(Ages.isChild(citizen));
         setHealth(citizen.health());
@@ -742,6 +765,17 @@ public class CitizenEntity extends PathAwareEntity {
         // ему навстречу.
         guard = citizen.profession().filter(Villages.GUARD::equals).isPresent();
     }
+
+    /** Насколько далеко житель замечает налётчика и пускается бежать. */
+    private static final float FLEES = 10.0f;
+
+    /**
+     * И насколько далеко — трус.
+     * <p>
+     * Вдвое: меньше было бы не видно вовсе, больше — и трус убегал бы
+     * из колонии от отряда, которого в ней ещё нет.
+     */
+    private static final float COWARD_FLEES = FLEES * 2.0f;
 
     /**
      * Подпись над жителем: имя и ремесло.

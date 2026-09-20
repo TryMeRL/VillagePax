@@ -84,7 +84,7 @@ public final class Families {
             if (Ages.daysOf(citizen) != Ages.grownAt() || citizen.profession().isPresent()) {
                 continue;
             }
-            Housing.neededProfession(settlement).ifPresent(craft -> {
+            Housing.neededProfession(settlement, citizen).ifPresent(craft -> {
                 citizen.setProfession(craft);
                 Life.tell(world, settlement, "villagepax.life.grown_up", citizen.fullName());
             });

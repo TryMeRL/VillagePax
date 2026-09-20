@@ -395,6 +395,14 @@ public final class TownHallNet {
             tell(player, "villagepax.screen.assign.too_young");
             return;
         }
+        if (result == Assignments.Result.WRONG_NATURE) {
+            // С именем, а не безлично: отказал не мод, отказал Роллон,
+            // и в следующий раз игрок посмотрит в характер прежде, чем
+            // выбирать, кому дать меч.
+            tell(player, "villagepax.screen.assign.wrong_nature",
+                    Text.literal(citizen == null ? "?" : citizen.fullName()));
+            return;
+        }
         if (result != Assignments.Result.DONE || citizen == null) {
             return;
         }

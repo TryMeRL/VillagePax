@@ -43,6 +43,11 @@ public final class Life {
     public static void newDay(ServerWorld world, SettlementManager manager, Settlement settlement,
                               Random random) {
         Families.newDay(world, settlement, random);
+        // Характеры — после семей и до смертей: набожный, родившийся
+        // сегодня, в храм не пойдёт (он ребёнок), а набожный, которому
+        // сегодня умирать, последнюю жертву донесёт. Порядок выбран так,
+        // чтобы мёртвый ничего не делал, а живой успел.
+        Natures.newDay(world, settlement);
         if (Configs.get().mortality()) {
             Mortality.newDay(world, settlement);
         }

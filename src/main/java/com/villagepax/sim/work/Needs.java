@@ -6,7 +6,7 @@ import com.villagepax.entity.CitizenEntity;
 import com.villagepax.core.config.Configs;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Comfort;
-import com.villagepax.sim.life.Ages;
+import com.villagepax.sim.life.Natures;
 import com.villagepax.sim.faith.Faith;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
@@ -54,6 +54,22 @@ public final class Needs {
 
     public static int leaveAfterDays() {
         return Configs.get().hungerLeaveDays();
+    }
+
+    /**
+     * Сроки этого жителя: у ленивого вдвое дольше, у честолюбивого вдвое
+     * короче.
+     * <p>
+     * Множителем поверх настройки, а не своими числами: иначе у сроков
+     * стало бы два источника правды, и они разошлись бы в тот день,
+     * когда игрок правит настройку.
+     */
+    public static int warnAfterDays(Citizen citizen) {
+        return Natures.warnAfterDays(citizen);
+    }
+
+    public static int leaveAfterDays(Citizen citizen) {
+        return Natures.leaveAfterDays(citizen);
     }
 
     private static final int HAPPINESS_STARVING = 20;
@@ -146,9 +162,9 @@ public final class Needs {
                 citizen.contented();
             }
 
-            if (citizen.discontent() >= leaveAfterDays()) {
+            if (citizen.discontent() >= leaveAfterDays(citizen)) {
                 leaving.add(citizen);
-            } else if (citizen.discontent() == warnAfterDays()) {
+            } else if (citizen.discontent() == warnAfterDays(citizen)) {
                 tell(world, settlement, "villagepax.citizen.hungry", citizen.fullName());
             }
         }
@@ -183,14 +199,17 @@ public final class Needs {
     /**
      * Работает ли житель в полную силу.
      * <p>
-     * Вполсилы тянут двое: недовольный и старик. Замедление у них
-     * <b>одно</b>, и это нарочно — два разных однажды сложились бы,
-     * и недовольный старик встал бы на месте. Причины разные, следствие
-     * общее: работа идёт через решение, но цель не сбрасывается, и житель
-     * не замирает, а просто медленнее делает дело.
+     * Вполсилы тянут трое: недовольный, старик и ленивый. Замедление
+     * у них <b>одно</b>, и это нарочно — три разных однажды сложились бы,
+     * и недовольный ленивый старик встал бы на месте. Причины разные,
+     * следствие общее: работа идёт через решение, но цель не сбрасывается,
+     * и житель не замирает, а просто медленнее делает дело.
+     * <p>
+     * Годы и характер сведены в {@link Natures#worksSlowly}: там же лежит
+     * и единственное исключение — честолюбивому старость не помеха.
      */
     public static boolean worksAtFullStrength(Citizen citizen) {
-        return !citizen.isUnhappy() && !Ages.worksSlowly(citizen);
+        return !citizen.isUnhappy() && !Natures.worksSlowly(citizen);
     }
 
     /** Сообщение хозяину колонии. Автономная деревня никому не жалуется. */

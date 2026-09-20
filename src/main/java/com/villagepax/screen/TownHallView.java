@@ -17,6 +17,8 @@ import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.life.Families;
 import com.villagepax.sim.life.Ages;
+import com.villagepax.sim.life.Nature;
+import com.villagepax.sim.life.Natures;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.work.Schedule;
@@ -232,7 +234,7 @@ public record TownHallView(
     public record CitizenLine(UUID id, String name, Optional<Identifier> profession,
                               boolean housed, Optional<Identifier> workplace,
                               Mood mood, boolean leavingSoon,
-                              String stage, int days, String kin) {
+                              String stage, int days, String kin, String nature) {
 
         public static final Codec<CitizenLine> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Uuids.CODEC.fieldOf("id").forGetter(CitizenLine::id),
@@ -245,7 +247,13 @@ public record TownHallView(
                 Codec.STRING.optionalFieldOf("stage", "villagepax.age.adult")
                         .forGetter(CitizenLine::stage),
                 Codec.INT.optionalFieldOf("days", -1).forGetter(CitizenLine::days),
-                Codec.STRING.optionalFieldOf("kin", "").forGetter(CitizenLine::kin)
+                Codec.STRING.optionalFieldOf("kin", "").forGetter(CitizenLine::kin),
+                // Именем характера, а не самим перечислением: клиенту надо
+                // характер показать, а не рассуждать о нём, и второй
+                // список характеров на той стороне однажды разошёлся бы
+                // с первым.
+                Codec.STRING.optionalFieldOf("nature", Nature.EVEN.id())
+                        .forGetter(CitizenLine::nature)
         ).apply(instance, CitizenLine::new));
     }
 
@@ -459,10 +467,16 @@ public record TownHallView(
                     !citizen.isHomeless(),
                     citizen.workplace().flatMap(settlement::building).map(Building::type),
                     moodOf(citizen),
-                    citizen.discontent() >= Needs.warnAfterDays(),
+                    // Срок спрашивается у жителя, а не у настройки: ленивый
+                    // терпит вдвое дольше, и общий срок обещал бы игроку
+                    // уход, которого не будет. Окно и правило обязаны
+                    // говорить одно и то же — этот урок мод уже получал
+                    // на поручениях.
+                    citizen.discontent() >= Needs.warnAfterDays(citizen),
                     Ages.stageOf(citizen).key(),
                     Ages.daysOf(citizen),
-                    kinOf(settlement, citizen)));
+                    kinOf(settlement, citizen),
+                    Natures.of(citizen).id()));
         }
         return lines;
     }

@@ -482,5 +482,17 @@
   "villagepax.screen.citizens.age_value": "%s, days: %s",
   "villagepax.screen.citizens.kin": "Kin",
   "villagepax.screen.assign.too_young": "This is a child. They will take up a trade when they grow.",
-  "villagepax.guide.life": "§lLife§r\n\nPeople age — but only on the days the colony lived before your eyes. Spend a month in a mine and no one grows older.\n\nTwo unwed adults come together on their own. A couple has children when there is a free bed and room under the population cap. A child eats and sleeps but does not work — for eight days.\n\nAn elder works at half strength and one day dies. That is no disaster: his son has already grown. If death bothers you, switch it off in config/villagepax.json."
+  "villagepax.guide.life": "§lLife§r\n\nPeople age — but only on the days the colony lived before your eyes. Spend a month in a mine and no one grows older.\n\nTwo unwed adults come together on their own. A couple has children when there is a free bed and room under the population cap. A child eats and sleeps but does not work — for eight days.\n\nAn elder works at half strength and one day dies. That is no disaster: his son has already grown. If death bothers you, switch it off in config/villagepax.json.",
+  "villagepax.screen.citizens.nature": "Nature",
+  "villagepax.screen.assign.wrong_nature": "%s will not take a sword — that is who they are. Give the craft to someone else.",
+  "villagepax.nature.even": "Even-tempered",
+  "villagepax.nature.even.what": "An ordinary person: no faster and no slower than the rest.",
+  "villagepax.nature.lazy": "Lazy",
+  "villagepax.nature.lazy.what": "Works at half strength — but endures twice as long and is the last to leave.",
+  "villagepax.nature.ambitious": "Ambitious",
+  "villagepax.nature.ambitious.what": "Age is no hindrance: works at full strength even as an elder. Leaves twice as fast when unhappy.",
+  "villagepax.nature.pious": "Pious",
+  "villagepax.nature.pious.what": "While the colony has an altar, carries one thing to it a day — faith grows without you.",
+  "villagepax.nature.coward": "Coward",
+  "villagepax.nature.coward.what": "Will not take a sword, and flees a raider sooner and further than anyone."
 }

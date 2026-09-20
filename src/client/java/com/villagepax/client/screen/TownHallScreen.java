@@ -538,6 +538,16 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
                         Text.literal(citizen.kin()), CAPTION));
             }
 
+            // Характер строкой, а подсказкой к ней — что он меняет. Одно
+            // название игроку не говорит ничего: «честолюбивый» — это
+            // похвала или беда? Характер, о действии которого негде
+            // прочесть, принимают за украшение один раз и навсегда.
+            Component nature = Look.stat(
+                    Text.translatable("villagepax.screen.citizens.nature"),
+                    Text.translatable("villagepax.nature." + citizen.nature()), CAPTION);
+            nature.tooltip(Text.translatable("villagepax.nature." + citizen.nature() + ".what"));
+            card.child(nature);
+
             List<Text> troubles = new ArrayList<>();
             if (!citizen.housed()) {
                 troubles.add(Text.translatable("villagepax.screen.citizens.homeless"));

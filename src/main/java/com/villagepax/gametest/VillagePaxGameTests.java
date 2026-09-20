@@ -78,6 +78,8 @@ import com.villagepax.sim.life.Mortality;
 import com.villagepax.sim.life.Life;
 import com.villagepax.sim.life.Families;
 import com.villagepax.sim.life.Ages;
+import com.villagepax.sim.life.Nature;
+import com.villagepax.sim.life.Natures;
 import com.villagepax.sim.faith.Offering;
 import com.villagepax.sim.faith.Miracles;
 import com.villagepax.sim.faith.Faith;
@@ -2048,16 +2050,22 @@ public class VillagePaxGameTests implements FabricGameTest {
             int startingHappiness = victim.happiness();
             boolean sawWarning = false;
 
-            for (int day = 0; day < 10 && colony.population() > 0; day++) {
+            // Сроки спрашиваются у жителя, а не у настройки: с появлением
+            // характеров ленивый терпит вдвое дольше общего срока, и
+            // десяти дней ему мало. Проверка от этого не ослабла — она
+            // перестала зависеть от того, кем родился курьер.
+            int patience = Needs.leaveAfterDays() * 2 + 2;
+            for (int day = 0; day < patience && colony.population() > 0; day++) {
                 Needs.newDay(world, manager, colony);
-                if (colony.population() > 0 && victim.discontent() == Needs.warnAfterDays()) {
+                if (colony.population() > 0
+                        && victim.discontent() == Needs.warnAfterDays(victim)) {
                     sawWarning = true;
                 }
             }
 
             if (colony.population() != 0) {
-                context.throwGameTestException("Житель не ушёл за десять голодных дней: "
-                        + "недовольство " + victim.discontent());
+                context.throwGameTestException("Житель не ушёл за " + patience
+                        + " голодных дней: недовольство " + victim.discontent());
             }
             if (!sawWarning) {
                 context.throwGameTestException("Ухода не предупредили: день предупреждения не наступал");
@@ -7867,8 +7875,10 @@ public class VillagePaxGameTests implements FabricGameTest {
      */
     @GameTest(templateName = EMPTY_STRUCTURE, batchId = "life")
     public void theElderWorksAtHalfStrength(TestContext context) {
-        Citizen young = Citizen.newborn("Роллон", "", NORMAN, Gender.MALE);
-        young.setLived(Ages.grownAt());
+        // Ровный нарочно: замедление зависит и от характера, а проверять
+        // здесь надо годы. С {@code newborn} житель раз в пять рождался бы
+        // ленивым, и проверка мерцала бы, обвиняя старость в чужом.
+        Citizen young = grownWith(Nature.EVEN, "Роллон", Gender.MALE);
         if (!Needs.worksAtFullStrength(young)) {
             context.throwGameTestException("Взрослый работает вполсилы ни с того ни с сего");
         }
@@ -7880,12 +7890,309 @@ public class VillagePaxGameTests implements FabricGameTest {
 
         // А тот, кто возраста не помнит, старым не становится никогда:
         // иначе все, кто строил колонию до этой правки, слегли бы разом.
-        Citizen oldTimer = Citizen.newborn("Фульк", "", NORMAN, Gender.MALE);
+        Citizen oldTimer = someoneWith(Nature.EVEN, "Фульк", Gender.MALE);
         for (int day = 0; day < Ages.diesAt() * 2; day++) {
             oldTimer.liveADay();
         }
         if (!Needs.worksAtFullStrength(oldTimer)) {
             context.throwGameTestException("Старожил мира состарился, хотя возраста у него нет");
+        }
+
+        context.complete();
+    }
+
+    // ======================= ХАРАКТЕРЫ =======================
+
+    /**
+     * Житель с нужным характером.
+     * <p>
+     * Перебором по рождению, а не подобранным руками опознавателем:
+     * подобранный пришлось бы переписывать после любой правки смешивания,
+     * и проверки характеров молча стали бы проверками одного и того же
+     * ровного. Пять характеров равными долями — перебор кончается
+     * на пятом жителе.
+     */
+    private static Citizen someoneWith(Nature nature, String name, Gender gender) {
+        return someoneWith(nature, name, gender, NORMAN);
+    }
+
+    private static Citizen someoneWith(Nature nature, String name, Gender gender,
+                                       Identifier culture) {
+        for (int tries = 0; tries < 1000; tries++) {
+            Citizen who = Citizen.newborn(name, "", culture, gender);
+            if (Natures.of(who) == nature) {
+                return who;
+            }
+        }
+        throw new IllegalStateException("характер " + nature + " не достаётся никому");
+    }
+
+    /** Он же, но взрослый: ремесло детям не дают, и в храм они не ходят. */
+    private static Citizen grownWith(Nature nature, String name, Gender gender) {
+        Citizen who = someoneWith(nature, name, gender);
+        who.setLived(Ages.grownAt());
+        return who;
+    }
+
+    /**
+     * Трус не возьмёт меча — ни от игрока, ни от колонии.
+     * <p>
+     * Отказ, а не молчание: кнопка ремесла стоит у каждого жителя, и трус
+     * в списке ничем от храбреца не отличается. Вторая половина важнее
+     * первой: если бы колония назначала стражу сама, не спрашивая
+     * характера, правило существовало бы только для игрока — то есть
+     * не существовало бы вовсе.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "natures")
+    public void theCowardWillNotTakeASword(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            Citizen coward = grownWith(Nature.COWARD, "Тибо", Gender.MALE);
+            Citizen steady = grownWith(Nature.EVEN, "Роллон", Gender.MALE);
+            colony.addCitizen(coward);
+            colony.addCitizen(steady);
+
+            if (Assignments.set(world, manager, colony, coward.id(),
+                    Optional.of(Villages.GUARD)) != Assignments.Result.WRONG_NATURE) {
+                context.throwGameTestException("Трусу дали меч: " + coward.profession());
+            }
+            if (coward.profession().isPresent()) {
+                context.throwGameTestException("Отказали, а ремесло всё же записали: "
+                        + coward.profession().get());
+            }
+            // Тот же приказ тому же ремеслу, но другому жителю: без этого
+            // проверка согласилась бы и с колонией, где стражу не дают
+            // никому вовсе.
+            if (Assignments.set(world, manager, colony, steady.id(),
+                    Optional.of(Villages.GUARD)) != Assignments.Result.DONE) {
+                context.throwGameTestException("Ровному тоже не дали меча");
+            }
+            // И мирное ремесло трусу по-прежнему даётся: отказ про меч,
+            // а не про характер вообще.
+            if (Assignments.set(world, manager, colony, coward.id(),
+                    Optional.of(FarmJob.FARMER)) != Assignments.Result.DONE) {
+                context.throwGameTestException("Трусу отказали в мотыге");
+            }
+
+            // А теперь то же самое рукой колонии. Оставляем незанятой одну
+            // стражу: всё, что нужнее её, уже роздано.
+            Settlement bare = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Пусто",
+                    hall.add(3000, 0, 3000));
+            manager.add(bare);
+            try {
+                for (Identifier craft : ProfessionManager.byHiringPriority()) {
+                    if (Villages.GUARD.equals(craft)) {
+                        continue;
+                    }
+                    Citizen filler = Citizen.newborn("Занято", "", NORMAN, Gender.FEMALE);
+                    filler.setProfession(craft);
+                    bare.addCitizen(filler);
+                }
+
+                Citizen braveOne = someoneWith(Nature.EVEN, "Гийом", Gender.MALE);
+                if (!Housing.neededProfession(bare, braveOne)
+                        .filter(Villages.GUARD::equals).isPresent()) {
+                    context.throwGameTestException("Колонии не нужна стража даже от храбреца: "
+                            + Housing.neededProfession(bare, braveOne));
+                }
+                Citizen scaredOne = someoneWith(Nature.COWARD, "Одон", Gender.MALE);
+                if (Housing.neededProfession(bare, scaredOne)
+                        .filter(Villages.GUARD::equals).isPresent()) {
+                    context.throwGameTestException("Колония назначила трусу стражу сама");
+                }
+            } finally {
+                manager.remove(bare.id());
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Набожный сам носит на алтарь — и несёт то, чего не жалко.
+     * <p>
+     * Это единственный способ, которым вера в моде растёт без игрока,
+     * и он же — причина держать храм. Проверяются обе половины решения:
+     * берётся <b>самое дешёвое</b> из того, что боги принимают (иначе
+     * набожный вынес бы эль и резной камень), и <b>дневной черёд бога
+     * не занимается</b> — иначе суточный ход, случающийся на рассвете,
+     * молча отнимал бы у игрока его жертву.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "natures", tickLimit = 600)
+    public void thePiousBringOfferingsThemselves(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic chapelPlan = schematic(context, CHAPEL_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building chapel = plan(colony, anchor, CHAPEL_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, chapelPlan);
+            if (BuildJob.advance(world, manager, colony.id(), chapel.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Часовня не достроилась");
+                return;
+            }
+
+            // Колония из одного набожного: строитель родился с каким
+            // придётся характером, и второй набожный в ней сделал бы
+            // числа в проверке неопределёнными.
+            for (Citizen anyone : List.copyOf(colony.citizens())) {
+                colony.removeCitizen(anyone.id());
+            }
+            Citizen pious = grownWith(Nature.PIOUS, "Аделиза", Gender.FEMALE);
+            colony.addCitizen(pious);
+
+            Warehouse warehouse = Warehouse.of(world, colony);
+            warehouse.add(new ItemStack(Items.COBBLESTONE, 1));
+            warehouse.add(new ItemStack(ModItems.ALE, 1));
+
+            long today = Schedule.dayOf(world.getTimeOfDay());
+            Natures.newDay(world, colony);
+
+            if (colony.favourOf(MASON) != 1) {
+                context.throwGameTestException("Набожный отнёс камень, а благосклонность "
+                        + colony.favourOf(MASON));
+            }
+            if (colony.favourOf(SOWER) != 0) {
+                context.throwGameTestException("Набожный вынес эль: у сеятеля "
+                        + colony.favourOf(SOWER));
+            }
+            if (Warehouse.of(world, colony).count(ModItems.ALE) != 1) {
+                context.throwGameTestException("Эль со склада всё-таки ушёл");
+            }
+            if (Warehouse.of(world, colony).count(Items.COBBLESTONE) != 0) {
+                context.throwGameTestException("Благосклонность выросла, а камень на месте: "
+                        + "жертва взялась из воздуха");
+            }
+            if (colony.offeredToday(MASON, today)) {
+                context.throwGameTestException("Житель занял дневной черёд бога — "
+                        + "игроку сегодня положить уже нечего");
+            }
+
+            // А без алтаря носить некуда, и ничего не происходит.
+            Settlement godless = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Без храма",
+                    hall.add(4000, 0, 4000));
+            manager.add(godless);
+            try {
+                godless.addCitizen(grownWith(Nature.PIOUS, "Эмма", Gender.FEMALE));
+                Warehouse.of(world, godless).add(new ItemStack(Items.COBBLESTONE, 1));
+                Natures.newDay(world, godless);
+                if (godless.favourOf(MASON) != 0) {
+                    context.throwGameTestException("Молились без алтаря: "
+                            + godless.favourOf(MASON));
+                }
+            } finally {
+                manager.remove(godless.id());
+            }
+        } finally {
+            demolish(world, chapel, chapelPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Ленивый уходит последним, честолюбивый — первым.
+     * <p>
+     * Проверяется не арифметика сроков (её держит модульная проверка),
+     * а то, что суточный подсчёт спрашивает срок <b>у жителя</b>.
+     * Пока он спрашивал его у настройки, все трое уходили в один день,
+     * и терпение ленивого было словом в таблице.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "natures", tickLimit = 400)
+    public void theIdleEndureAndTheProudLeaveFirst(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            for (Citizen anyone : List.copyOf(colony.citizens())) {
+                colony.removeCitizen(anyone.id());
+            }
+            Citizen idle = grownWith(Nature.LAZY, "Одон", Gender.MALE);
+            Citizen proud = grownWith(Nature.AMBITIOUS, "Гийом", Gender.MALE);
+            Citizen plain = grownWith(Nature.EVEN, "Роллон", Gender.MALE);
+            for (Citizen citizen : List.of(idle, proud, plain)) {
+                citizen.setSaturation(0);
+                colony.addCitizen(citizen);
+            }
+
+            int idleGone = -1;
+            int proudGone = -1;
+            int plainGone = -1;
+            int warnedInWindow = -1;
+            boolean idleWarnedTooEarly = false;
+            int patience = Needs.leaveAfterDays() * 2 + 2;
+            for (int day = 1; day <= patience; day++) {
+                Needs.newDay(world, manager, colony);
+
+                for (TownHallView.CitizenLine line : TownHallView.of(world, colony).citizens()) {
+                    if (!line.leavingSoon()) {
+                        continue;
+                    }
+                    if (line.id().equals(proud.id()) && warnedInWindow < 0) {
+                        warnedInWindow = day;
+                    }
+                    if (line.id().equals(idle.id()) && day < Needs.warnAfterDays(idle)) {
+                        idleWarnedTooEarly = true;
+                    }
+                }
+                if (idleGone < 0 && colony.citizen(idle.id()).isEmpty()) {
+                    idleGone = day;
+                }
+                if (proudGone < 0 && colony.citizen(proud.id()).isEmpty()) {
+                    proudGone = day;
+                }
+                if (plainGone < 0 && colony.citizen(plain.id()).isEmpty()) {
+                    plainGone = day;
+                }
+            }
+
+            if (proudGone < 0 || plainGone < 0 || idleGone < 0) {
+                context.throwGameTestException("За " + patience + " голодных дней ушли не все: "
+                        + "честолюбивый " + proudGone + ", ровный " + plainGone
+                        + ", ленивый " + idleGone);
+                return;
+            }
+            // И окно говорит то же самое. Строка «скоро уйдёт» считалась
+            // по общей настройке, и у ленивого она загоралась за четыре
+            // дня до срока, которого ему ещё восемь: окно обещало уход,
+            // которого не будет. Окно и правило обязаны совпадать — этот
+            // урок мод уже получал на поручениях.
+            if (warnedInWindow < 0) {
+                context.throwGameTestException("Честолюбивого не предупредили в окне ни разу");
+            }
+            if (idleWarnedTooEarly) {
+                context.throwGameTestException("Окно обещало уход ленивого прежде срока: "
+                        + "правило и окно разошлись");
+            }
+
+            if (!(proudGone < plainGone && plainGone < idleGone)) {
+                context.throwGameTestException("Порядок ухода не тот: честолюбивый "
+                        + proudGone + ", ровный " + plainGone + ", ленивый " + idleGone
+                        + " — а ждали, что гордый уйдёт первым, ленивый последним");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
 
         context.complete();
@@ -10331,6 +10638,82 @@ public class VillagePaxGameTests implements FabricGameTest {
                 }
             } finally {
                 cleanUpFight(world, manager, colony, hall, floor, peaceful, raider, brother);
+            }
+            context.complete();
+        });
+    }
+
+    /**
+     * Трус бежит от того, кого прочие ещё не заметили.
+     * <p>
+     * Проверяется тактикой, прогоном тиков, потому что бегство — цель
+     * ванильного поиска, и убедиться надо в том, что <b>круг</b> у труса
+     * действительно шире, а не в том, что цель заведена.
+     * <p>
+     * Налётчику выключен разум нарочно: живой пошёл бы на одного из двоих,
+     * сам сократил бы расстояние до общего круга бегства, и побежали бы
+     * оба — проверка сравнивала бы двух бегущих. Здесь он стоит ровно
+     * на пятнадцати шагах: ближе общего круга не подойти, шире трусова —
+     * не уйти.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid_fight", tickLimit = 200)
+    public void theCowardRunsSooner(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        List<BlockPos> floor = new ArrayList<>();
+        for (int x = 0; x <= 34; x++) {
+            for (int z = 0; z <= 8; z++) {
+                BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                world.setBlockState(at, Blocks.STONE.getDefaultState());
+                floor.add(at);
+            }
+        }
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Citizen scared = grownWith(Nature.COWARD, "Одон", Gender.MALE);
+        Citizen steady = grownWith(Nature.EVEN, "Роллон", Gender.MALE);
+        scared.setPosition(Vec3d.ofBottomCenter(context.getAbsolutePos(new BlockPos(3, 2, 3))));
+        steady.setPosition(Vec3d.ofBottomCenter(context.getAbsolutePos(new BlockPos(3, 2, 5))));
+        colony.addCitizen(scared);
+        colony.addCitizen(steady);
+
+        CitizenEntity coward = CitizenSpawner.spawnBody(world, colony, scared);
+        CitizenEntity plain = CitizenSpawner.spawnBody(world, colony, steady);
+        CitizenEntity raider = CitizenSpawner.spawnPuppet(world,
+                context.getAbsolutePos(new BlockPos(18, 2, 4)));
+
+        if (coward == null || plain == null || raider == null) {
+            cleanUpFight(world, manager, colony, hall, floor, coward, plain, raider);
+            context.throwGameTestException("Тела не появились");
+            return;
+        }
+
+        UUID party = UUID.randomUUID();
+        raider.linkRaid(colony.id(), party);
+        raider.setAiDisabled(true);
+        rememberRaid(manager, colony, party, raider.getBlockPos(), 1);
+
+        double cowardWas = coward.getPos().distanceTo(raider.getPos());
+        double plainWas = plain.getPos().distanceTo(raider.getPos());
+
+        context.runAtTick(120, () -> {
+            try {
+                double cowardGained = coward.getPos().distanceTo(raider.getPos()) - cowardWas;
+                double plainGained = plain.getPos().distanceTo(raider.getPos()) - plainWas;
+
+                if (cowardGained < 5.0) {
+                    context.throwGameTestException("Трус не побежал: отошёл на "
+                            + Math.round(cowardGained) + " шагов от налётчика в пятнадцати");
+                }
+                if (cowardGained - plainGained < 4.0) {
+                    context.throwGameTestException("Круг труса не шире общего: он отошёл на "
+                            + Math.round(cowardGained) + ", ровный на "
+                            + Math.round(plainGained));
+                }
+            } finally {
+                cleanUpFight(world, manager, colony, hall, floor, coward, plain, raider);
             }
             context.complete();
         });
@@ -15261,7 +15644,10 @@ public class VillagePaxGameTests implements FabricGameTest {
      */
     private static Citizen hireWithBody(ServerWorld world, Settlement colony, Identifier profession,
                                         BlockPos at) {
-        Citizen citizen = Citizen.newborn("Работник", "", NORMAN, Gender.FEMALE);
+        // Ровный по той же причине, что и билдер: работник в проверке
+        // нанят ради своего ремесла, а не ради характера.
+        Citizen citizen = someoneWith(Nature.EVEN, "Работник", Gender.FEMALE);
+        citizen.setLived(Ages.grownAt());
         citizen.setProfession(profession);
         citizen.setPosition(Vec3d.ofBottomCenter(at));
         colony.addCitizen(citizen);
@@ -15287,7 +15673,12 @@ public class VillagePaxGameTests implements FabricGameTest {
                                                 BlockPos center, Identifier culture) {
         world.setBlockState(center, ModBlocks.TOWN_HALL.getDefaultState());
         Settlement colony = Settlement.found(culture, Owner.of(UUID.randomUUID()), "Стройка", center);
-        Citizen builder = Citizen.newborn("Rollo", "le Macon", NORMAN, Gender.MALE);
+        // Ровный нарочно: полсилы зависят и от характера, а здесь
+        // проверяется ремесло. Ленивый билдер, доставшийся раз в пять
+        // рождений, превратил бы половину проверок мода в мерцающие —
+        // и обвиняли бы в этом стройку, а не характер.
+        Citizen builder = someoneWith(Nature.EVEN, "Rollo", Gender.MALE);
+        builder.setLived(Ages.grownAt());
         builder.setProfession(BuildJob.BUILDER);
         colony.addCitizen(builder);
         manager.add(colony);

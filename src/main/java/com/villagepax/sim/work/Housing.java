@@ -9,6 +9,7 @@ import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Founding;
 import com.villagepax.sim.life.Ages;
+import com.villagepax.sim.life.Natures;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.build.BuildJob;
@@ -184,7 +185,7 @@ public final class Housing {
         // колония наполнилась бы бессмертными пришлыми, и вся жизнь
         // свелась бы к детям, умирающим раньше родителей.
         Ages.arrivedGrown(newcomer);
-        neededProfession(settlement).ifPresent(newcomer::setProfession);
+        neededProfession(settlement, newcomer).ifPresent(newcomer::setProfession);
         newcomer.setPosition(Vec3d.ofBottomCenter(settlement.center().up()));
         settlement.addCitizen(newcomer);
 
@@ -207,7 +208,7 @@ public final class Housing {
      * самое ремесло, что и пришедшему извне, и считать его вторым способом
      * значило бы завести два разных ответа на один вопрос.
      */
-    public static Optional<Identifier> neededProfession(Settlement settlement) {
+    public static Optional<Identifier> neededProfession(Settlement settlement, Citizen who) {
         Set<Identifier> filled = new HashSet<>();
         for (Citizen citizen : settlement.citizens()) {
             citizen.profession().ifPresent(filled::add);
@@ -222,6 +223,13 @@ public final class Housing {
             // не нужна вовсе.
             if (ProfessionManager.get(profession)
                     .filter(known -> known.hiringPriority() <= 0).isPresent()) {
+                continue;
+            }
+            // Характер спрашивается тем же правилом, что и кнопка игрока:
+            // трус, которому колония назначила стражу автоматически, стоял
+            // бы с мечом и бегал от налётчиков — то есть правило
+            // существовало бы только для игрока, а это не правило.
+            if (Natures.refuses(who, profession)) {
                 continue;
             }
             return Optional.of(profession);

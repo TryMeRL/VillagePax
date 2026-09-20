@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:maya",
+  "display_name": "villagepax.god.maya.night_jaguar",
+  "domain": "watch",
+  "offerings": {
+    "minecraft:gold_ingot": 5,
+    "minecraft:arrow": 1,
+    "minecraft:feather": 1,
+    "villagepax:cloth": 6
+  },
+  "artifact": "villagepax:watchers_eye"
+}

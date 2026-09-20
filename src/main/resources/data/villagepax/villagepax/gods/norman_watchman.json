@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:norman",
+  "display_name": "villagepax.god.norman.watchman",
+  "domain": "watch",
+  "offerings": {
+    "minecraft:iron_ingot": 4,
+    "minecraft:shield": 9,
+    "minecraft:arrow": 1,
+    "villagepax:cloth": 6
+  },
+  "artifact": "villagepax:watchers_eye"
+}

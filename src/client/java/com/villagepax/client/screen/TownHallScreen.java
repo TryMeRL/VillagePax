@@ -67,7 +67,8 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         OVERVIEW("overview"),
         BUILDINGS("buildings"),
         CITIZENS("citizens"),
-        STOCK("stock");
+        STOCK("stock"),
+        FAITH("faith");
 
         private final String id;
 
@@ -233,6 +234,7 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
             case BUILDINGS -> buildings(view);
             case CITIZENS -> citizens(view);
             case STOCK -> stock(view);
+            case FAITH -> faith(view);
         }
     }
 
@@ -559,7 +561,108 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         body.child(card);
     }
 
+    /**
+     * Вкладка веры: кто слушает, сколько набрано и что можно попросить.
+     * <p>
+     * Полоса до следующей ступени — главное, что здесь есть. Число
+     * «сто двадцать» само по себе не говорит ничего; полоса, которая
+     * ползёт от жертвы к жертве, говорит всё, и именно она превращает
+     * медленное накопление в цель, а не в ожидание.
+     * <p>
+     * Кнопки <b>не запираются</b> никогда, даже когда очков заведомо мало.
+     * Серая кнопка объясняет ровно столько же, сколько молчащая, то есть
+     * ничего; нажатая отвечает словами — «бог ещё не заметил», «не хватает
+     * благосклонности», «просить нечего». Это то самое правило, которым
+     * мод расплатился за чужую ратушу с мёртвыми кнопками.
+     */
+    private void faith(TownHallView view) {
+        TownHallView.FaithView faith = view.faith();
+
+        if (faith.gods().isEmpty()) {
+            body.child(muted("villagepax.screen.faith.no_pantheon"));
+            return;
+        }
+
+        if (!faith.temple()) {
+            FlowLayout hint = Look.card("villagepax.screen.faith.section_temple");
+            hint.child(Look.hint(Text.translatable("villagepax.screen.faith.needs_temple"),
+                    TEXT_WIDTH));
+            body.child(hint);
+        }
+
+        for (TownHallView.GodLine god : faith.gods()) {
+            FlowLayout card = Look.card(null);
+
+            FlowLayout title = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+            title.verticalAlignment(VerticalAlignment.CENTER);
+            title.gap(4);
+
+            LabelComponent name = Components.label(Text.translatable(god.displayName()));
+            name.color(Look.INK);
+            name.shadow(true);
+            title.child(name.horizontalSizing(Sizing.fixed(150)));
+            title.child(Look.pill(Text.translatable(god.tier()),
+                    god.alwaysOn() ? Look.GOOD : Look.GOLD));
+            card.child(title);
+
+            card.child(Look.stat(Text.translatable("villagepax.screen.faith.domain"),
+                    Text.translatable("villagepax.faith.domain." + god.domain()), CAPTION));
+
+            // Полоса до следующей ступени. У высшей полосы нет: расти
+            // больше некуда, и рисовать пустой жёлоб значило бы обещать
+            // ступень, которой не существует.
+            if (god.nextAt() > 0) {
+                card.child(Look.stat(Text.translatable("villagepax.screen.faith.favour"),
+                        Text.translatable("villagepax.screen.faith.favour_value",
+                                number(god.favour()), number(god.nextAt())), CAPTION));
+                card.child(Look.bar(Math.min(god.favour(), god.nextAt()), god.nextAt(),
+                        TEXT_WIDTH));
+            } else {
+                card.child(Look.stat(Text.translatable("villagepax.screen.faith.favour"),
+                        Text.translatable("villagepax.screen.faith.favour_top",
+                                number(god.favour())), CAPTION));
+            }
+
+            Text blessing;
+            if (god.alwaysOn()) {
+                blessing = Text.translatable("villagepax.screen.faith.blessing_always");
+            } else if (god.blessedDays() > 0) {
+                blessing = Text.translatable("villagepax.screen.faith.blessing_days",
+                        number(god.blessedDays()));
+            } else {
+                blessing = Text.translatable("villagepax.screen.faith.blessing_none");
+            }
+            card.child(Look.stat(Text.translatable("villagepax.screen.faith.blessing"),
+                    blessing, CAPTION));
+
+            FlowLayout controls = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+            controls.verticalAlignment(VerticalAlignment.CENTER);
+            controls.gap(3);
+            controls.child(Look.action(Text.translatable("villagepax.screen.faith.bless"), 96,
+                    button -> bless(god.domain())));
+            controls.child(Look.action(Text.translatable("villagepax.screen.faith.miracle"), 96,
+                    button -> miracle(god.domain())));
+            card.child(controls);
+
+            body.child(card);
+        }
+    }
+
     // --- намерения ---
+
+    /** Просьба о благословении. Ответ приходит в чат — и приходит всегда. */
+    private void bless(String domain) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeString(domain);
+        ClientPlayNetworking.send(TownHallNet.BLESS, buf);
+    }
+
+    private void miracle(String domain) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeString(domain);
+        ClientPlayNetworking.send(TownHallNet.MIRACLE, buf);
+    }
+
 
     /**
      * Выбор здания включает режим установки, а экран закрывается: место

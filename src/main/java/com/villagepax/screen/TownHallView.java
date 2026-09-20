@@ -7,20 +7,8 @@ import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.core.building.BuildingType;
 import com.villagepax.core.building.BuildingTypes;
-import com.villagepax.core.building.BuildingType;
-import com.villagepax.core.building.BuildingTypes;
-import com.villagepax.core.building.BuildingType;
-import com.villagepax.core.building.BuildingTypes;
-import com.villagepax.core.culture.Culture;
-import com.villagepax.core.culture.CultureManager;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.sim.build.SchematicLoader;
-import com.villagepax.sim.Levels;
-import com.villagepax.sim.Milestones;
-import com.villagepax.sim.SettlementLevel;
-import com.villagepax.sim.Levels;
-import com.villagepax.sim.Milestones;
-import com.villagepax.sim.SettlementLevel;
 import com.villagepax.sim.Levels;
 import com.villagepax.sim.Milestones;
 import com.villagepax.sim.SettlementLevel;
@@ -28,13 +16,15 @@ import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.ItemTally;
-import com.villagepax.sim.Levels;
 import com.villagepax.sim.Settlement;
+import com.villagepax.sim.work.Schedule;
+import com.villagepax.sim.faith.Faith;
+import com.villagepax.core.faith.Gods;
+import com.villagepax.core.faith.God;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Schematic;
-import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.work.Housing;
 import com.villagepax.sim.work.Needs;
 import net.minecraft.item.Item;
@@ -86,7 +76,61 @@ public record TownHallView(
         List<Identifier> offers,
         List<ProfessionLine> professions,
         Optional<String> advice,
-        Growth growth) {
+        Growth growth,
+        FaithView faith) {
+
+    /**
+     * Вера колонии: кому здесь молятся и что уже выпросили.
+     *
+     * @param gods   пантеон народа с набранным у каждого
+     * @param temple стоит ли в колонии достроенный храм
+     */
+    public record FaithView(List<GodLine> gods, boolean temple) {
+
+        /** Колония народа, у которого нет богов, — законное состояние. */
+        public static final FaithView NONE = new FaithView(List.of(), false);
+
+        public FaithView {
+            gods = List.copyOf(gods);
+        }
+
+        public static final Codec<FaithView> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                GodLine.CODEC.listOf().fieldOf("gods").forGetter(FaithView::gods),
+                Codec.BOOL.fieldOf("temple").forGetter(FaithView::temple)
+        ).apply(instance, FaithView::new));
+    }
+
+    /**
+     * Один бог в пульте.
+     * <p>
+     * Кнопки здесь <b>не заперты</b>, и это правило, а не лень. Серая
+     * кнопка объясняет ровно столько же, сколько молчащая, — то есть
+     * ничего; нажатая же отвечает словами, почему нельзя. Поэтому
+     * снимок не несёт «можно ли», а несёт только состояние.
+     *
+     * @param id          опознаватель бога: им и просят
+     * @param displayName ключ имени
+     * @param domain      домен строкой: по нему зовут благословение
+     * @param favour      набрано очков
+     * @param tier        ключ названия ступени
+     * @param nextAt      сколько очков до следующей ступени; ноль — выше некуда
+     * @param blessedDays сколько дней благословения осталось
+     * @param alwaysOn    держится ли благословение само (высшая ступень)
+     */
+    public record GodLine(Identifier id, String displayName, String domain, int favour,
+                          String tier, int nextAt, int blessedDays, boolean alwaysOn) {
+
+        public static final Codec<GodLine> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Identifier.CODEC.fieldOf("id").forGetter(GodLine::id),
+                Codec.STRING.fieldOf("display_name").forGetter(GodLine::displayName),
+                Codec.STRING.fieldOf("domain").forGetter(GodLine::domain),
+                Codec.INT.fieldOf("favour").forGetter(GodLine::favour),
+                Codec.STRING.fieldOf("tier").forGetter(GodLine::tier),
+                Codec.INT.fieldOf("next_at").forGetter(GodLine::nextAt),
+                Codec.INT.fieldOf("blessed_days").forGetter(GodLine::blessedDays),
+                Codec.BOOL.fieldOf("always_on").forGetter(GodLine::alwaysOn)
+        ).apply(instance, GodLine::new));
+    }
 
     /**
      * Рост колонии: где она сейчас, что дальше и что это даст.
@@ -203,7 +247,8 @@ public record TownHallView(
             Identifier.CODEC.listOf().fieldOf("offers").forGetter(TownHallView::offers),
             ProfessionLine.CODEC.listOf().fieldOf("professions").forGetter(TownHallView::professions),
             Codec.STRING.optionalFieldOf("advice").forGetter(TownHallView::advice),
-            Growth.CODEC.fieldOf("growth").forGetter(TownHallView::growth)
+            Growth.CODEC.fieldOf("growth").forGetter(TownHallView::growth),
+            FaithView.CODEC.optionalFieldOf("faith", FaithView.NONE).forGetter(TownHallView::faith)
     ).apply(instance, TownHallView::new));
 
     /**
@@ -296,7 +341,8 @@ public record TownHallView(
                 // Совет считается здесь же: ему нужны и склад, и здания,
                 // и жители — всё то, что уже собрано этим снимком.
                 Advice.nextStep(world, settlement),
-                growthOf(settlement));
+                growthOf(settlement),
+                faithOf(world, settlement));
     }
 
     /**
@@ -522,5 +568,35 @@ public record TownHallView(
                     .ifPresent(type -> offers.add(schematic));
         }
         return offers;
+    }
+
+    /**
+     * Вера колонии для пульта.
+     * <p>
+     * Считается при каждом снимке, и это дёшево: богов у народа трое,
+     * а всё, что о них надо знать, лежит в самом поселении. Ни одного
+     * обращения к миру — в отличие от кроватей и склада.
+     */
+    private static FaithView faithOf(ServerWorld world, Settlement settlement) {
+        long today = Schedule.dayOf(world.getTimeOfDay());
+        List<GodLine> lines = new ArrayList<>();
+
+        for (Identifier id : Gods.of(settlement.culture())) {
+            God god = Gods.get(id).orElse(null);
+            if (god == null) {
+                continue;
+            }
+            int favour = settlement.favourOf(id);
+            Faith.Tier tier = Faith.tierOf(favour);
+            boolean alwaysOn = tier.reached(Faith.Tier.CHOSEN);
+
+            lines.add(new GodLine(id, god.displayName(), god.domain().id(), favour,
+                    tier.key(),
+                    tier.next().map(Faith.Tier::from).orElse(0),
+                    settlement.blessingDaysLeft(god.domain().id(), today),
+                    alwaysOn));
+        }
+
+        return new FaithView(lines, Faith.hasTemple(settlement));
     }
 }

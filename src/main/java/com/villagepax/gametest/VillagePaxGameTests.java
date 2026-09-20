@@ -74,6 +74,14 @@ import com.villagepax.sim.diplomacy.Alliance;
 import com.villagepax.sim.diplomacy.Tribute;
 import com.villagepax.sim.war.Allies;
 import com.villagepax.sim.war.Raids;
+import com.villagepax.sim.faith.Offering;
+import com.villagepax.sim.faith.Miracles;
+import com.villagepax.sim.faith.Faith;
+import com.villagepax.sim.faith.Blessings;
+import com.villagepax.sim.faith.Artifacts;
+import com.villagepax.item.ArtifactItem;
+import com.villagepax.core.faith.Gods;
+import com.villagepax.core.faith.Domain;
 import com.villagepax.sim.war.Siege;
 import com.villagepax.sim.work.Hauling;
 import com.villagepax.core.config.Config;
@@ -7275,6 +7283,615 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
         } finally {
             cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+    // ============================ ФАЗА 4: ВЕРА ============================
+
+    private static final Identifier SOWER = new Identifier("villagepax", "norman_sower");
+    private static final Identifier MASON = new Identifier("villagepax", "norman_mason");
+    private static final Identifier WATCHMAN = new Identifier("villagepax", "norman_watchman");
+    private static final Identifier CHAPEL_TYPE = new Identifier("villagepax", "norman/chapel");
+    private static final Identifier CHAPEL_SCHEMATIC =
+            new Identifier("villagepax", "norman/chapel_lvl1");
+
+    /**
+     * Бог принимает одну жертву в день — и берёт из стопки одну вещь.
+     * <p>
+     * Это единственное, что держит веру долгой целью. Сундук пшеницы,
+     * высыпанный на алтарь разом, купил бы избранничество за минуту,
+     * и весь пантеон свёлся бы к «принеси стопку». Проверяются обе
+     * половины правила: и «одна в день», и «одна из стопки», — потому
+     * что сломать можно каждую по отдельности.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "faith")
+    public void theGodTakesOneOfferingADay(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            ItemStack wheat = new ItemStack(Items.WHEAT, 8);
+
+            Offering.Judgement first = Offering.accept(world, manager, colony, wheat, 10);
+            if (first.verdict() != Offering.Verdict.TAKEN) {
+                context.throwGameTestException("Зерно не принято: " + first.verdict());
+            }
+            if (colony.favourOf(SOWER) != 2) {
+                context.throwGameTestException("За зерно дали " + colony.favourOf(SOWER)
+                        + " благосклонности, а в датапаке два");
+            }
+            if (wheat.getCount() != 7) {
+                context.throwGameTestException("Из стопки ушло " + (8 - wheat.getCount())
+                        + " вещей, а жертва — одна");
+            }
+
+            Offering.Judgement again = Offering.accept(world, manager, colony, wheat, 10);
+            if (again.verdict() != Offering.Verdict.ALREADY_TODAY) {
+                context.throwGameTestException("Вторую жертву за день приняли: " + again.verdict());
+            }
+            if (colony.favourOf(SOWER) != 2 || wheat.getCount() != 7) {
+                context.throwGameTestException("Отказ всё-таки что-то изменил: "
+                        + colony.favourOf(SOWER) + " очков, в стопке " + wheat.getCount());
+            }
+
+            Offering.Judgement tomorrow = Offering.accept(world, manager, colony, wheat, 11);
+            if (tomorrow.verdict() != Offering.Verdict.TAKEN || colony.favourOf(SOWER) != 4) {
+                context.throwGameTestException("Назавтра жертву не приняли: " + tomorrow.verdict()
+                        + ", очков " + colony.favourOf(SOWER));
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Бога выбирает вещь, и чужого бог не берёт.
+     * <p>
+     * На этом правиле стоит весь алтарь: списка богов на экране нет,
+     * и узнаётся пантеон руками. Сломайся оно — и зерно ушло бы
+     * каменотёсу, а игрок так и не понял бы, почему растёт не то.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "faith")
+    public void eachGodTakesOnlyItsOwn(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            Offering.Judgement grain = Offering.judge(colony, new ItemStack(Items.WHEAT), 5);
+            if (!grain.god().filter(SOWER::equals).isPresent()) {
+                context.throwGameTestException("Зерно ушло не Сеятелю: " + grain.god());
+            }
+
+            Offering.Judgement stone = Offering.judge(colony, new ItemStack(Items.COBBLESTONE), 5);
+            if (!stone.god().filter(MASON::equals).isPresent()) {
+                context.throwGameTestException("Камень ушёл не Камнетёсу: " + stone.god());
+            }
+
+            // Гнилая плоть не нужна никому, и отказ обязан это сказать.
+            Offering.Judgement rot = Offering.judge(colony, new ItemStack(Items.ROTTEN_FLESH), 5);
+            if (rot.verdict() != Offering.Verdict.NOT_THEIRS) {
+                context.throwGameTestException("Гнилую плоть приняли: " + rot.verdict());
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Внутри народа жертвы не пересекаются.
+     * <p>
+     * Целостность данных, а не поведения. Два бога, принимающие пшеницу,
+     * делают правило «что кладёшь — тому и молишься» неопределённым,
+     * и мод вынужден выбирать за игрока. Увидеть это в игре можно только
+     * по тому, что благосклонность растёт не у того, — то есть никогда.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "faith")
+    public void noTwoGodsOfOnePeopleShareAnOffering(TestContext context) {
+        Map<Identifier, Map<Identifier, Identifier>> taken = new java.util.LinkedHashMap<>();
+        List<String> clashes = new ArrayList<>();
+
+        Gods.all().forEach((id, god) -> {
+            Map<Identifier, Identifier> mine =
+                    taken.computeIfAbsent(god.culture(), key -> new java.util.LinkedHashMap<>());
+            god.offerings().keySet().forEach(item -> {
+                Identifier already = mine.put(item, id);
+                if (already != null) {
+                    clashes.add(god.culture() + ": " + item + " берут и " + already + ", и " + id);
+                }
+            });
+        });
+
+        if (Gods.all().isEmpty()) {
+            context.throwGameTestException("Богов не загружено вовсе — проверять нечего");
+        }
+        if (!clashes.isEmpty()) {
+            context.throwGameTestException("Боги делят жертву:\n  "
+                    + String.join("\n  ", clashes));
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Обещанный артефакт существует предметом — и тем самым, что нужно.
+     * <p>
+     * Опознаватель в датапаке проверяется только здесь: в игре его
+     * неправильность видна на пятидесятый день, когда бог вручает пустоту
+     * тому, кто полсотни дней носил ему хлеб. Сверяется и домен: серп
+     * от бога войны был бы опечаткой, которую иначе не поймать.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "faith")
+    public void everyGodPromisesAnArtifactThatExists(TestContext context) {
+        List<String> broken = new ArrayList<>();
+
+        Gods.all().forEach((id, god) -> god.artifact().ifPresent(artifact -> {
+            Item item = Registries.ITEM.get(artifact);
+            if (item == Items.AIR) {
+                broken.add(id + " вручает " + artifact + ", но такого предмета нет");
+                return;
+            }
+            if (!(item instanceof ArtifactItem known)) {
+                broken.add(id + " вручает " + artifact + " — это не артефакт");
+                return;
+            }
+            if (known.domain() != god.domain()) {
+                broken.add(id + " (" + god.domain().id() + ") вручает артефакт домена "
+                        + known.domain().id());
+            }
+        }));
+
+        if (!broken.isEmpty()) {
+            context.throwGameTestException("Обещания богов не исполнимы:\n  "
+                    + String.join("\n  ", broken));
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Чужой алтарь отказывает словами, а не молчанием.
+     * <p>
+     * То же правило, что у чужой ратуши, и оплачено оно той же жалобой:
+     * «не могу заказать постройку, не грузит призрак». Благосклонность
+     * лежит в поселении, и жертва в чужом храме подняла бы чужое небо —
+     * игрок ждал бы своего и не понимал, куда делись очки.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "faith")
+    public void aForeignAltarRefusesInWords(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            UUID owner = colony.owner().player().orElseThrow();
+            UUID stranger = UUID.randomUUID();
+            ItemStack wheat = new ItemStack(Items.WHEAT);
+
+            Offering.Judgement mine = Offering.judgeFor(colony, owner, wheat, 3);
+            if (mine.verdict() != Offering.Verdict.TAKEN) {
+                context.throwGameTestException("Хозяину свой алтарь отказал: " + mine.verdict());
+            }
+
+            Offering.Judgement theirs = Offering.judgeFor(colony, stranger, wheat, 3);
+            if (theirs.verdict() != Offering.Verdict.NOT_YOURS) {
+                context.throwGameTestException("Чужой алтарь принял жертву: " + theirs.verdict());
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Благословение дозора убавляет отряд, но никогда до нуля.
+     * <p>
+     * Второе правило важнее первого. Набег, который не приходит, —
+     * это выключенная механика, а не победа; бог тут ничем не отличается
+     * от каменной башни, и предел у них общий.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "faith")
+    public void theWatchBlessingThinsTheRaidButNeverToNothing(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            // Доверие на дне: деревня посылает полный отряд.
+            int angry = -120;
+            int plain = Raids.fightersFor(angry, Raids.defence(colony, 7));
+            if (plain != Raids.MOST_FIGHTERS) {
+                context.throwGameTestException("Без благословения пришло " + plain
+                        + " бойцов, а злобы хватает на " + Raids.MOST_FIGHTERS);
+            }
+
+            colony.bless(Domain.WATCH.id(), 7, Faith.BLESSING_DAYS);
+            int blessed = Raids.fightersFor(angry, Raids.defence(colony, 7));
+            if (blessed != plain - 1) {
+                context.throwGameTestException("Благословение убавило отряд с " + plain
+                        + " до " + blessed + ", а должно было на одного");
+            }
+
+            // Мягкая злоба и благословение: до нуля всё равно нельзя.
+            int barely = Raids.fightersFor(Raids.PATIENCE_ENDS, Raids.defence(colony, 7));
+            if (barely < 1) {
+                context.throwGameTestException("Набег отменился совсем: бойцов " + barely);
+            }
+
+            // А назавтра после срока благословения его уже нет.
+            int expired = Raids.fightersFor(angry, Raids.defence(colony, 7 + Faith.BLESSING_DAYS));
+            if (expired != plain) {
+                context.throwGameTestException("Благословение пережило свой срок: " + expired);
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Благословение камня прибавляет билдеру блок — поверх черты народа.
+     * <p>
+     * Числа написаны руками, а не выведены той же арифметикой: иначе
+     * проверка подтверждала бы код, а не проверяла его. Норманн кладёт
+     * один блок дерева и два камня; под благословением — два и три.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "faith")
+    public void theStoneBlessingSpeedsTheBuilder(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            BlockState wood = Blocks.OAK_PLANKS.getDefaultState();
+            BlockState stone = Blocks.COBBLESTONE.getDefaultState();
+
+            if (BuilderJob.pace(colony, wood, 4) != 1 || BuilderJob.pace(colony, stone, 4) != 2) {
+                context.throwGameTestException("Без благословения темп "
+                        + BuilderJob.pace(colony, wood, 4) + "/"
+                        + BuilderJob.pace(colony, stone, 4) + ", а ждали 1/2");
+            }
+
+            colony.bless(Domain.STONE.id(), 4, Faith.BLESSING_DAYS);
+
+            if (BuilderJob.pace(colony, wood, 4) != 2 || BuilderJob.pace(colony, stone, 4) != 3) {
+                context.throwGameTestException("Под благословением темп "
+                        + BuilderJob.pace(colony, wood, 4) + "/"
+                        + BuilderJob.pace(colony, stone, 4) + ", а ждали 2/3");
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Утро под благословением урожая поднимает посевы — но не всё поле.
+     * <p>
+     * Ограничение здесь несущее: поле, поспевшее за ночь целиком, отняло бы
+     * у фермера работу, а вместе с ней и вид работы, ради которого в моде
+     * вообще есть жители. Проверяется и то, что без благословения не растёт
+     * ничего: врезка в суточный перекат обязана молчать, пока её не звали.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "faith", tickLimit = 400)
+    public void theHarvestBlessingGrowsTheCropsAtDawn(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic farmPlan = schematic(context, FARM_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building farm = plan(colony, anchor, FARM_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, farmPlan);
+            if (BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Ферма не достроилась");
+            }
+
+            if (Faith.growCrops(world, colony, 12) != 0) {
+                context.throwGameTestException("Посевы подросли без благословения");
+            }
+
+            colony.bless(Domain.HARVEST.id(), 12, Faith.BLESSING_DAYS);
+            int grown = Faith.growCrops(world, colony, 12);
+
+            // Восемь написаны здесь ЧИСЛОМ, а не взяты из Faith.BLESSED_GROWTH,
+            // и это не небрежность. Взятое из кода число меняется вместе
+            // с кодом: убавь щедрость благословения вдвое — и проверка
+            // молча согласится, потому что сравнивает константу сама с собой.
+            // Сколько грядок поднимает бог — решение по игре, и пинать его
+            // должна проверка, а не наоборот.
+            int promised = 8;
+            if (grown != promised) {
+                context.throwGameTestException("Подросло грядок " + grown + ", а обещано "
+                        + promised);
+            }
+
+            // И подросли они по-настоящему: ровно столько грядок ушло
+            // со стадии «только посеяно».
+            int sprouted = 0;
+            for (BlockPos plot : FarmJob.plots(farm)) {
+                BlockState state = world.getBlockState(plot);
+                if (state.getBlock() instanceof CropBlock crop && crop.getAge(state) > 0) {
+                    sprouted++;
+                }
+            }
+            if (sprouted != promised) {
+                context.throwGameTestException("В поле проросло " + sprouted
+                        + " грядок, а благословение тронуло " + grown);
+            }
+        } finally {
+            demolish(world, farm, farmPlan);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Артефакт вручается один раз и остаётся после траты.
+     * <p>
+     * Иначе игрок оказался бы перед выбором «пользоваться подарком или
+     * не потерять его», а подарок, которым страшно пользоваться, —
+     * не награда, а залог. Проверяется и обратное: до ступени не дают.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "faith")
+    public void theArtifactComesOnceAndStaysAfterSpending(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            colony.addFavour(SOWER, Artifacts.FROM.from() - 1);
+            if (Artifacts.earned(colony, SOWER).isPresent()) {
+                context.throwGameTestException("Артефакт дали до ступени «"
+                        + Artifacts.FROM.id() + "»");
+            }
+
+            colony.addFavour(SOWER, 1);
+            Identifier artifact = Artifacts.earned(colony, SOWER).orElse(null);
+            if (artifact == null) {
+                context.throwGameTestException("На ступени «" + Artifacts.FROM.id()
+                        + "» артефакт не полагается");
+            }
+
+            colony.noteArtifact(artifact);
+            if (Artifacts.earned(colony, SOWER).isPresent()) {
+                context.throwGameTestException("Артефакт вручили второй раз");
+            }
+
+            // Потратили всё до нуля — подарок остаётся.
+            colony.addFavour(SOWER, -10_000);
+            if (colony.favourOf(SOWER) != 0) {
+                context.throwGameTestException("Благосклонность ушла ниже нуля: "
+                        + colony.favourOf(SOWER));
+            }
+            if (!colony.hasArtifact(artifact)) {
+                context.throwGameTestException("Трата отобрала артефакт");
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Храм и услышанные боги греют колонию — до предела.
+     * <p>
+     * Без этого правила храм окупался бы только к пятидесятому дню,
+     * и первые двадцать здание просто занимало бы место. Предел нужен
+     * по той же причине, по какой он есть у уюта: иначе шесть богов
+     * решали бы настроение целиком, и всё остальное — еда, дом, работа —
+     * перестало бы значить что-либо.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "faith", tickLimit = 600)
+    public void theTempleAndTheHeardGodsComfortTheColony(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic chapelPlan = schematic(context, CHAPEL_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building chapel = plan(colony, anchor, CHAPEL_TYPE, BlockRotation.NONE);
+
+        try {
+            if (Faith.solace(world, colony) != 0) {
+                context.throwGameTestException("Недостроенная часовня уже греет");
+            }
+
+            stockFor(world, colony, chapelPlan);
+            if (BuildJob.advance(world, manager, colony.id(), chapel.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Часовня не достроилась");
+            }
+
+            if (!Faith.hasTemple(colony)) {
+                context.throwGameTestException("Часовня построена, а храмом не считается");
+            }
+            if (Faith.solace(world, colony) != 1) {
+                context.throwGameTestException("Храм даёт " + Faith.solace(world, colony)
+                        + " очков покоя, а обещал одно");
+            }
+
+            colony.addFavour(SOWER, Faith.Tier.HEARD.from());
+            if (Faith.solace(world, colony) != 2) {
+                context.throwGameTestException("Услышанный бог не прибавил покоя: "
+                        + Faith.solace(world, colony));
+            }
+
+            colony.addFavour(MASON, Faith.Tier.HEARD.from());
+            colony.addFavour(WATCHMAN, Faith.Tier.HEARD.from());
+            if (Faith.solace(world, colony) != Faith.MOST_SOLACE) {
+                context.throwGameTestException("Покой перевалил за предел: "
+                        + Faith.solace(world, colony));
+            }
+        } finally {
+            demolish(world, chapel, chapelPlan);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * У народа с пантеоном есть храм, а у храма — пантеон.
+     * <p>
+     * Целость в обе стороны, и обе половины уже ломались в этом моде
+     * на других системах: культура объявляла здание без схемы, и ступень
+     * обещала ратушу, которой нет. Боги без храма — это жертвы, которые
+     * некуда положить; храм без богов — здание, в котором нечего делать.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "faith")
+    public void everyPantheonHasATempleAndEveryTempleAPantheon(TestContext context) {
+        List<String> complaints = new ArrayList<>();
+
+        for (Map.Entry<Identifier, Culture> entry : CultureManager.all().entrySet()) {
+            Identifier culture = entry.getKey();
+            boolean pantheon = !Gods.of(culture).isEmpty();
+            Identifier temple = Faith.templeType(culture).orElse(null);
+
+            if (pantheon && temple == null) {
+                complaints.add(culture + ": боги есть, а алтарь ставить негде");
+            }
+            if (!pantheon && temple != null) {
+                complaints.add(culture + ": храм " + temple + " есть, а молиться некому");
+            }
+            if (temple != null && !entry.getValue().buildings().contains(temple)) {
+                complaints.add(culture + ": храм " + temple + " не объявлен культуре — "
+                        + "его не закажешь");
+            }
+        }
+
+        if (!complaints.isEmpty()) {
+            context.throwGameTestException("Вера объявлена наполовину:\n  "
+                    + String.join("\n  ", complaints));
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Чудо отказывает <b>до</b> списания, а не после.
+     * <p>
+     * Чудо стоит трёх благословений, то есть полусотни игровых дней.
+     * «Нажал, а ничего не случилось» тут не мелкая досада: это ровно
+     * тот случай, когда молчащая кнопка стоит игроку прохождения.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "faith")
+    public void theMiracleRefusesBeforeItSpends(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            colony.addFavour(MASON, Faith.MIRACLE_COST + 10);
+
+            // Стройки нет — просить нечего.
+            Miracles.Verdict nothing = Miracles.call(world, manager, colony, Domain.STONE, 6);
+            if (nothing != Miracles.Verdict.NOTHING_TO_DO) {
+                context.throwGameTestException("Чудо на пустом месте: " + nothing);
+            }
+            if (colony.favourOf(MASON) != Faith.MIRACLE_COST + 10) {
+                context.throwGameTestException("Отказ всё-таки списал очки: "
+                        + colony.favourOf(MASON));
+            }
+
+            // И у бога, которого поселение ещё не услышало, — свой отказ.
+            Miracles.Verdict deaf = Miracles.call(world, manager, colony, Domain.WATCH, 6);
+            if (deaf != Miracles.Verdict.NOT_HEARD) {
+                context.throwGameTestException("Неуслышанный бог сотворил чудо: " + deaf);
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Благословение просят со второй ступени, и оно стоит очков.
+     * <p>
+     * Плата — единственное, ради чего у благосклонности вообще есть цена:
+     * без неё копить было бы незачем, а выбор «помощь сегодня или
+     * избранничество когда-нибудь» исчез бы вместе с ней.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "faith")
+    public void theBlessingCostsFavourAndNeedsATier(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            if (Blessings.invoke(manager, colony, Domain.HARVEST, 2)
+                    != Blessings.Verdict.NOT_NOTICED) {
+                context.throwGameTestException("Незамеченная колония выпросила благословение");
+            }
+
+            // Ровно на пороге ступени — и ровно на одно благословение.
+            // Сорок написаны числом: цена ступени решение по игре,
+            // и пинать его должна проверка, а не наоборот.
+            colony.addFavour(SOWER, 40);
+            int before = colony.favourOf(SOWER);
+            if (Blessings.invoke(manager, colony, Domain.HARVEST, 2) != Blessings.Verdict.DONE) {
+                context.throwGameTestException("На пороге ступени благословение не легло");
+            }
+            if (colony.favourOf(SOWER) != 0) {
+                context.throwGameTestException("После платы осталось "
+                        + colony.favourOf(SOWER) + ", а платили всем, что было (" + before + ")");
+            }
+            if (!Faith.blessed(colony, Domain.HARVEST, 2)) {
+                context.throwGameTestException("Заплатили, а благословения нет");
+            }
+            if (Faith.blessed(colony, Domain.HARVEST, 2 + Faith.BLESSING_DAYS)) {
+                context.throwGameTestException("Благословение не кончается");
+            }
+
+            // Избранника не благословляют за деньги: у него держится само.
+            colony.addFavour(SOWER, Faith.Tier.CHOSEN.from());
+            if (Blessings.invoke(manager, colony, Domain.HARVEST, 99)
+                    != Blessings.Verdict.ALWAYS_ON) {
+                context.throwGameTestException("С избранника взяли плату за то, что и так есть");
+            }
+            if (!Faith.blessed(colony, Domain.HARVEST, 99)) {
+                context.throwGameTestException("У избранника благословение не держится");
+            }
+        } finally {
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
 
         context.complete();

@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:maya",
+  "display_name": "villagepax.god.maya.sky_holder",
+  "domain": "stone",
+  "offerings": {
+    "minecraft:cobblestone": 1,
+    "minecraft:clay_ball": 2,
+    "villagepax:ochre_plaster": 5,
+    "villagepax:carved_stone": 6
+  },
+  "artifact": "villagepax:builders_plumb"
+}

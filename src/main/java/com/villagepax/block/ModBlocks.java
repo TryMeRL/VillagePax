@@ -182,6 +182,26 @@ public final class ModBlocks {
     public static final Block SHELF = register("shelf", furniture(
             Block.createCuboidShape(0, 0, 11, 16, 16, 16)));
 
+    /**
+     * Алтарь: единственное место в моде, где говорят с небом.
+     * <p>
+     * Светится слабо (пять из пятнадцати) и намеренно слабо: алтарь
+     * не должен освещать храм — он должен быть в нём заметен. Ровный
+     * тёплый отсвет в полумраке читается как «здесь что-то есть»
+     * куда вернее, чем полный свет, в котором блок теряется.
+     * <p>
+     * Прочность как у камня и без взрывоустойчивости сверх обычной:
+     * набег ломает стены и ломает алтарь тоже. Неразрушимый блок
+     * в моде, где война разоряет здания, выглядел бы читерством —
+     * а благосклонность лежит в поселении и сноса не боится.
+     */
+    public static final Block ALTAR = register("altar",
+            new AltarBlock(AbstractBlock.Settings.create()
+                    .strength(2.5f, 6.0f)
+                    .sounds(BlockSoundGroup.STONE)
+                    .luminance(state -> 5)
+                    .nonOpaque()));
+
     public static final Block MARKER_WORKSTATION = registerMarker("marker_workstation");
     public static final Block MARKER_BED = registerMarker("marker_bed");
     public static final Block MARKER_STORAGE = registerMarker("marker_storage");

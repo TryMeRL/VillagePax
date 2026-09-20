@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:norman",
+  "display_name": "villagepax.god.norman.sower",
+  "domain": "harvest",
+  "offerings": {
+    "minecraft:wheat": 2,
+    "minecraft:bread": 4,
+    "minecraft:carrot": 1,
+    "villagepax:ale": 9
+  },
+  "artifact": "villagepax:sickle_of_plenty"
+}

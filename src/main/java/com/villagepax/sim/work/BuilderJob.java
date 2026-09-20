@@ -2,6 +2,7 @@ package com.villagepax.sim.work;
 
 import com.villagepax.VillagePax;
 import com.villagepax.core.culture.Traits;
+import com.villagepax.sim.faith.Blessings;
 import com.villagepax.screen.TownHallNet;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Hazards;
@@ -143,10 +144,8 @@ public final class BuilderJob implements Job {
         // семнадцать сотен булыжника вместо двадцати пяти.
         state = context.state();
 
-        // Сколько блоков за решение — дело народа. У мастеров по камню
-        // каменный шаг идёт вдвое быстрее, и это видно на цоколе.
-        int pace = Traits.blocksPerTurn(context.settlement().culture(),
-                nextBlockState(site).orElse(null));
+        int pace = pace(context.settlement(), nextBlockState(site).orElse(null),
+                Schedule.dayOf(context.world().getTimeOfDay()));
 
         BuildJob.Outcome outcome = BuildJob.advance(context.world(), context.manager(),
                 context.settlement().id(), site.id(), pace, context.position());
@@ -593,6 +592,25 @@ public final class BuilderJob implements Job {
      * Нужно черте народа: темп зависит от материала <b>следующего</b> шага,
      * а не от здания в среднем. Пусто у расчистки — там ставить нечего.
      */
+    /**
+     * Сколько блоков билдер кладёт за одно решение.
+     * <p>
+     * Дело народа: у мастеров по камню каменный шаг идёт вдвое быстрее,
+     * и это видно на цоколе. А под рукой своего бога — ещё на блок
+     * больше; прибавка <b>складывается</b> с чертой народа, а не заменяет
+     * её. Народ, который умеет с камнем, под благословением кладёт втрое,
+     * и так черта и вера остаются двумя разными вещами, а не спорят
+     * за одно число.
+     * <p>
+     * Названной функцией, а не выражением внутри хода, чтобы проверка
+     * спрашивала ровно то же, что спрашивает билдер. Выражение на месте
+     * проверялось бы повтором той же арифметики в тесте — то есть никак.
+     */
+    public static int pace(Settlement settlement, BlockState next, long today) {
+        return Traits.blocksPerTurn(settlement.culture(), next)
+                + Blessings.buildBonus(settlement, today);
+    }
+
     private static Optional<BlockState> nextBlockState(Building site) {
         Schematic schematic = SchematicLoader.get(BuildJob.schematicId(site)).orElse(null);
         if (schematic == null) {

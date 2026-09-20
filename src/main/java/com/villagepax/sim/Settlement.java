@@ -51,8 +51,56 @@ public class Settlement {
                     .forGetter(Settlement::visitors),
             Codec.unboundedMap(Uuids.STRING_CODEC, Codec.LONG)
                     .optionalFieldOf("gift_days", Map.of()).forGetter(Settlement::giftDays),
-            War.CODEC.optionalFieldOf("war", War.NONE).forGetter(Settlement::war)
+            War.CODEC.optionalFieldOf("war", War.NONE).forGetter(Settlement::war),
+            Faith.CODEC.optionalFieldOf("faith", Faith.NONE).forGetter(Settlement::faith)
     ).apply(instance, Settlement::new));
+
+    /**
+     * Вера, какой её помнит поселение: кому молятся, когда клали в последний
+     * раз, до какого дня хранит бог и что уже вручено.
+     * <p>
+     * Запись, а не четыре поля, по той же причине, что и война: у кодека
+     * Mojang ровно шестнадцать полей в группе, пятнадцать заняты, и вере
+     * досталось последнее. Запись вдобавок честно называет то, что и так
+     * было четырьмя половинами одного, — отношения поселения с небом.
+     * <p>
+     * Благосклонность лежит <b>в поселении</b>, а не на игроке, и это то же
+     * решение, что с доверием деревни: молится не человек вообще, а вот эта
+     * колония вот этому богу. Перенеси её на игрока — и вторая колония
+     * начинала бы с чужой святостью.
+     *
+     * @param favour       бог → набранная благосклонность
+     * @param lastOffering бог → день, когда ему последний раз клали
+     * @param blessedUntil домен → день, до которого держится благословение
+     * @param artifacts    что уже вручено: второй раз не дают
+     */
+    public record Faith(Map<Identifier, Integer> favour, Map<Identifier, Long> lastOffering,
+                        Map<String, Long> blessedUntil, List<Identifier> artifacts) {
+
+        /** Небо молчит: никому не молились, ничего не просили. */
+        public static final Faith NONE = new Faith(Map.of(), Map.of(), Map.of(), List.of());
+
+        public Faith {
+            favour = Map.copyOf(favour);
+            lastOffering = Map.copyOf(lastOffering);
+            blessedUntil = Map.copyOf(blessedUntil);
+            artifacts = List.copyOf(artifacts);
+        }
+
+        public static final Codec<Faith> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.unboundedMap(Identifier.CODEC, Codec.INT)
+                        .optionalFieldOf("favour", Map.of()).forGetter(Faith::favour),
+                Codec.unboundedMap(Identifier.CODEC, Codec.LONG)
+                        .optionalFieldOf("last_offering", Map.of()).forGetter(Faith::lastOffering),
+                // Домен — строка, а не опознаватель: он не из реестра,
+                // а из закрытого списка кода, и опознаватель тут врал бы
+                // о том, что его можно добавить датапаком.
+                Codec.unboundedMap(Codec.STRING, Codec.LONG)
+                        .optionalFieldOf("blessed_until", Map.of()).forGetter(Faith::blessedUntil),
+                Identifier.CODEC.listOf()
+                        .optionalFieldOf("artifacts", List.of()).forGetter(Faith::artifacts)
+        ).apply(instance, Faith::new));
+    }
 
     /**
      * Война, какой её помнит поселение: кто у ворот, когда приходили
@@ -195,6 +243,16 @@ public class Settlement {
      */
     private War war = War.NONE;
 
+    /**
+     * Чем поселение обязано небу и что небо ему должно.
+     * <p>
+     * Лежит здесь, а не в отдельном хранилище, по тому же правилу, что
+     * и всё остальное состояние: поселение — единственная запись, которая
+     * переживает перезаход в мир, и вера обязана переживать его вместе
+     * с ним. Отдельная карта «поселение → вера» умеет разойтись с этой.
+     */
+    private Faith faith = Faith.NONE;
+
     public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
                       SettlementLevel level, SettlementStats stats,
                       List<Building> buildings, List<Citizen> citizens) {
@@ -237,11 +295,21 @@ public class Settlement {
                 reputation, questsDone, visitors, giftDays, new War(siege, lastRaid, UNSEEN_DAY));
     }
 
+    /** Поселение без веры: небо о нём ещё не знает. */
     public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
                       SettlementLevel level, SettlementStats stats,
                       List<Building> buildings, List<Citizen> citizens, long lastDay,
                       Map<UUID, Integer> reputation, Map<UUID, List<Identifier>> questsDone,
                       List<Caravan> visitors, Map<UUID, Long> giftDays, War war) {
+        this(id, culture, owner, name, center, level, stats, buildings, citizens, lastDay,
+                reputation, questsDone, visitors, giftDays, war, Faith.NONE);
+    }
+
+    public Settlement(UUID id, Identifier culture, Owner owner, String name, BlockPos center,
+                      SettlementLevel level, SettlementStats stats,
+                      List<Building> buildings, List<Citizen> citizens, long lastDay,
+                      Map<UUID, Integer> reputation, Map<UUID, List<Identifier>> questsDone,
+                      List<Caravan> visitors, Map<UUID, Long> giftDays, War war, Faith faith) {
         this.id = id;
         this.culture = culture;
         this.owner = owner;
@@ -258,6 +326,101 @@ public class Settlement {
         this.visitors = new ArrayList<>(visitors);
         this.giftDays = new LinkedHashMap<>(giftDays);
         this.war = war;
+        this.faith = faith;
+    }
+
+    // --- вера ---
+
+    public Faith faith() {
+        return faith;
+    }
+
+    /** Сколько благосклонности набрано у этого бога. */
+    public int favourOf(Identifier god) {
+        return faith.favour().getOrDefault(god, 0);
+    }
+
+    /**
+     * Прибавить (или убавить) благосклонность.
+     * <p>
+     * Ниже нуля не падает, и это решение по игре: бог мода не гневается.
+     * Заказчик сказал прямо — «жертва одному не злит другого»; отрицательная
+     * благосклонность была бы той же обидой, только с другой стороны,
+     * и превращала бы пантеон в счёт долгов.
+     */
+    public void addFavour(Identifier god, int amount) {
+        Map<Identifier, Integer> next = new LinkedHashMap<>(faith.favour());
+        next.merge(god, amount, Integer::sum);
+        next.put(god, Math.max(0, next.get(god)));
+        this.faith = new Faith(next, faith.lastOffering(), faith.blessedUntil(), faith.artifacts());
+    }
+
+    /** В какой день этому богу последний раз клали на алтарь. */
+    public long offeredOn(Identifier god) {
+        return faith.lastOffering().getOrDefault(god, UNSEEN_DAY);
+    }
+
+    /**
+     * Принимал ли этот бог жертву сегодня.
+     * <p>
+     * День, а не счётчик: жертва принимается раз в сутки, и хранить
+     * «сколько уже положили» значило бы обнулять счётчик на смене дня —
+     * то есть помнить день всё равно, только двумя полями вместо одного.
+     * Тот же выбор, что у подарков деревне.
+     */
+    public boolean offeredToday(Identifier god, long today) {
+        return offeredOn(god) == today;
+    }
+
+    public void noteOffering(Identifier god, long today) {
+        Map<Identifier, Long> next = new LinkedHashMap<>(faith.lastOffering());
+        next.put(god, today);
+        this.faith = new Faith(faith.favour(), next, faith.blessedUntil(), faith.artifacts());
+    }
+
+    /** До какого дня держится благословение этого домена. */
+    public long blessedUntil(String domain) {
+        return faith.blessedUntil().getOrDefault(domain, UNSEEN_DAY);
+    }
+
+    /** Держится ли благословение этого домена сегодня. */
+    public boolean isBlessed(String domain, long today) {
+        return today < blessedUntil(domain);
+    }
+
+    /** Сколько дней благословения осталось: ноль, если его нет. */
+    public int blessingDaysLeft(String domain, long today) {
+        return isBlessed(domain, today)
+                ? (int) Math.min(Integer.MAX_VALUE, blessedUntil(domain) - today) : 0;
+    }
+
+    /**
+     * Благословить до названного дня.
+     * <p>
+     * От <b>сегодня</b> или от конца уже идущего благословения, смотря что
+     * дальше: второй призыв должен добавлять дней, а не отсчитывать их
+     * заново. То же правило, что у перемирия, и по той же причине —
+     * иначе игрок, призвавший дважды, терял бы оплаченное.
+     */
+    public void bless(String domain, long today, int days) {
+        Map<String, Long> next = new LinkedHashMap<>(faith.blessedUntil());
+        next.put(domain, Math.max(today, blessedUntil(domain)) + days);
+        this.faith = new Faith(faith.favour(), faith.lastOffering(), next, faith.artifacts());
+    }
+
+    /** Вручён ли уже этот артефакт. */
+    public boolean hasArtifact(Identifier artifact) {
+        return faith.artifacts().contains(artifact);
+    }
+
+    /** Запомнить, что артефакт вручён: второго не дают никогда. */
+    public void noteArtifact(Identifier artifact) {
+        if (hasArtifact(artifact)) {
+            return;
+        }
+        List<Identifier> next = new ArrayList<>(faith.artifacts());
+        next.add(artifact);
+        this.faith = new Faith(faith.favour(), faith.lastOffering(), faith.blessedUntil(), next);
     }
 
     // --- осада ---

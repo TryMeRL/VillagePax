@@ -9,6 +9,7 @@ import com.villagepax.core.trade.TradeTables;
 import com.villagepax.sim.trade.Caravans;
 import com.villagepax.sim.war.Raids;
 import com.villagepax.core.culture.CultureManager;
+import com.villagepax.core.faith.Gods;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.core.quest.QuestManager;
 import com.villagepax.entity.CitizenSpawner;
@@ -72,6 +73,8 @@ public class VillagePax implements ModInitializer {
                 .registerReloadListener(new QuestManager());
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
                 .registerReloadListener(new TradeTables());
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+                .registerReloadListener(new Gods());
 
         // Разложенные по выходу рецепты забываются на перезагрузке датапака:
         // иначе колония крафтила бы по рецепту, которого там уже нет.

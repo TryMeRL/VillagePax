@@ -5,6 +5,7 @@ import com.villagepax.entity.CitizenEntity;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.faith.Faith;
 import com.villagepax.sim.Villages;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.Entity;
@@ -112,6 +113,11 @@ public final class WorkTicker {
                 // Голод, приток и уходы — только под присмотром: см. выше.
                 if (seen) {
                     Needs.newDay(world, manager, state);
+                    // Утро под благословением урожая: посевы подрастают сами.
+                    // Здесь, а не в суточном решении деревни, потому что поле
+                    // есть и у колонии игрока, а деревня своего решения
+                    // для неё не принимает.
+                    Faith.growCrops(world, state, today);
                     // Молчание — худшее, что мод может ответить на «почему
                     // ничего не строится». Раз в день, и только когда стройка
                     // действительно ждёт.

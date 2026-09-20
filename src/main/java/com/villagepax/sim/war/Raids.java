@@ -8,6 +8,7 @@ import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.entity.Looks;
 import com.villagepax.sim.Ground;
 import com.villagepax.sim.Building;
+import com.villagepax.sim.faith.Blessings;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Villages;
@@ -151,6 +152,22 @@ public final class Raids {
     }
 
     /**
+     * На скольких бойцов убавляется пришедший отряд.
+     * <p>
+     * Камень и бог считаются вместе и упираются в одно правило — «никогда
+     * до нуля». Башня и благословение дозора делают войну посильной,
+     * а не отменяют её, и складывать их поэтому можно без опаски: предел
+     * стоит не здесь, а в {@link #fightersFor}.
+     * <p>
+     * Названной функцией, а не выражением на месте, чтобы проверка
+     * спрашивала ровно то же, что спрашивает набег. Выражение в теле цикла
+     * проверялось бы повтором той же арифметики в тесте — то есть никак.
+     */
+    public static int defence(Settlement colony, long today) {
+        return towersOf(colony) + Blessings.watchBonus(colony, today);
+    }
+
+    /**
      * Суточное решение деревни: не пора ли послать людей.
      * <p>
      * Зовётся оттуда же, откуда деревня решает всё остальное, — на смене
@@ -192,7 +209,7 @@ public final class Raids {
 
             // Размер отряда считается ПОСЛЕ того, как нашлась колония:
             // он зависит и от обиды, и от того, что игрок построил.
-            int fighters = fightersFor(trust, towersOf(colony));
+            int fighters = fightersFor(trust, defence(colony, today));
             if (colony.center().getSquaredDistance(village.center()) > (double) REACH * REACH) {
                 continue;
             }

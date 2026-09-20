@@ -10,6 +10,11 @@ import com.villagepax.sim.Founding;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.work.Schedule;
+import com.villagepax.sim.faith.Miracles;
+import com.villagepax.sim.faith.Faith;
+import com.villagepax.sim.faith.Blessings;
+import com.villagepax.core.faith.Domain;
 import com.villagepax.sim.build.BuildStep;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
@@ -61,6 +66,17 @@ public final class TownHallNet {
     public static final Identifier UPGRADE = new Identifier(VillagePax.MOD_ID, "town_hall_upgrade");
     public static final Identifier PRIORITY = new Identifier(VillagePax.MOD_ID, "town_hall_priority");
 
+    /**
+     * Просьбы к небу: благословение и чудо.
+     * <p>
+     * Два канала, а не один с признаком: они стоят разных денег и
+     * отказывают по разным причинам, и склеивать их значило бы писать
+     * одну ветку с развилкой внутри — то самое место, где однажды
+     * перепутается цена.
+     */
+    public static final Identifier BLESS = new Identifier(VillagePax.MOD_ID, "town_hall_bless");
+    public static final Identifier MIRACLE = new Identifier(VillagePax.MOD_ID, "town_hall_miracle");
+
     /** Голограмма: клиент просит план схемы, потом примеряет место. */
     public static final Identifier PLAN_REQUEST = new Identifier(VillagePax.MOD_ID, "plan_request");
     public static final Identifier PLAN = new Identifier(VillagePax.MOD_ID, "plan");
@@ -72,7 +88,8 @@ public final class TownHallNet {
             0, 0, new TownHallView.Household(0, 0, 0, 0, 0), Optional.empty(),
             List.of(), List.of(), new ItemTally(), List.of(), List.of(), Optional.empty(),
             new TownHallView.Growth("villagepax.level.hamlet", Optional.empty(), 0, 1,
-                    List.of(), true));
+                    List.of(), true),
+            TownHallView.FaithView.NONE);
 
     private TownHallNet() {
     }
@@ -107,6 +124,16 @@ public final class TownHallNet {
         ServerPlayNetworking.registerGlobalReceiver(UPGRADE, (server, player, handler, buf, sender) -> {
             UUID building = buf.readUuid();
             server.execute(() -> upgrade(player, building));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(BLESS, (server, player, handler, buf, sender) -> {
+            String domain = buf.readString(32);
+            server.execute(() -> bless(player, domain));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(MIRACLE, (server, player, handler, buf, sender) -> {
+            String domain = buf.readString(32);
+            server.execute(() -> miracle(player, domain));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(ASSIGN, (server, player, handler, buf, sender) -> {
@@ -403,6 +430,79 @@ public final class TownHallNet {
         return BuildingTypes.displayName(type);
     }
 
+
+    // --- вера ---
+
+    /**
+     * Позвать благословение.
+     * <p>
+     * Кнопка в пульте не заперта никогда, и весь смысл этой ветки в том,
+     * чтобы на каждое нажатие был <b>ответ словами</b>. Запертая кнопка
+     * объясняет ровно столько же, сколько молчащая, а это в моде уже
+     * считается поломкой.
+     */
+    private static void bless(ServerPlayerEntity player, String domain) {
+        Settlement colony = consoleColony(player);
+        if (colony == null) {
+            tell(player, Blessings.Verdict.NOT_YOURS.key());
+            return;
+        }
+
+        Domain which = domainOf(domain);
+        if (which == null) {
+            tell(player, Blessings.Verdict.NO_GOD.key());
+            return;
+        }
+
+        ServerWorld world = player.getServerWorld();
+        long today = Schedule.dayOf(world.getTimeOfDay());
+        Blessings.Verdict verdict = Blessings.invoke(SettlementManager.get(world), colony,
+                which, today);
+
+        tell(player, verdict.key(), Text.translatable(which.key()),
+                Text.literal(String.valueOf(Faith.BLESSING_COST)),
+                Text.literal(String.valueOf(Faith.BLESSING_DAYS)));
+    }
+
+    /** Попросить чудо. Отказ «просить нечего» приходит до списания очков. */
+    private static void miracle(ServerPlayerEntity player, String domain) {
+        Settlement colony = consoleColony(player);
+        if (colony == null) {
+            tell(player, Miracles.Verdict.NOT_YOURS.key());
+            return;
+        }
+
+        Domain which = domainOf(domain);
+        if (which == null) {
+            tell(player, Miracles.Verdict.NO_GOD.key());
+            return;
+        }
+
+        ServerWorld world = player.getServerWorld();
+        long today = Schedule.dayOf(world.getTimeOfDay());
+        Miracles.Verdict verdict = Miracles.call(world, SettlementManager.get(world), colony,
+                which, today);
+
+        tell(player, verdict.key(), Text.translatable(which.key()),
+                Text.literal(String.valueOf(Faith.MIRACLE_COST)));
+    }
+
+    /**
+     * Домен по строке из пакета.
+     * <p>
+     * Клиент прислать может что угодно — хоть из своего мода, хоть
+     * из битого пакета. Неизвестное имя тут не падение, а обычный отказ
+     * «нет такого бога»: сервер не обязан верить клиенту, но и ронять
+     * себя из-за него не должен.
+     */
+    private static Domain domainOf(String id) {
+        for (Domain domain : Domain.values()) {
+            if (domain.id().equals(id)) {
+                return domain;
+            }
+        }
+        return null;
+    }
 
     private static void tell(ServerPlayerEntity player, String key, Text... args) {
         player.sendMessage(Text.translatable(key, (Object[]) args), false);

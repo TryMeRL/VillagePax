@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:norman",
+  "display_name": "villagepax.god.norman.mason",
+  "domain": "stone",
+  "offerings": {
+    "minecraft:cobblestone": 1,
+    "minecraft:stone_bricks": 3,
+    "villagepax:timber_frame": 5,
+    "villagepax:carved_stone": 6
+  },
+  "artifact": "villagepax:builders_plumb"
+}

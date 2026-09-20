@@ -2,6 +2,7 @@ package com.villagepax.item;
 
 import com.villagepax.VillagePax;
 import com.villagepax.block.ModBlocks;
+import com.villagepax.core.faith.Domain;
 import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
 import net.minecraft.block.Block;
 import net.minecraft.entity.effect.StatusEffectInstance;
@@ -113,6 +114,39 @@ public final class ModItems {
      * иметь в виду, и вешается на бельевую верёвку уже сейчас.
      */
     public static final Item CLOTH = register("cloth", new Item(new Item.Settings()));
+
+    /**
+     * Артефакты: три вещи, которых нельзя добыть, скрафтить и купить.
+     * <p>
+     * Рецепта у них нет и не будет — это не упущение, а весь смысл.
+     * Единственная дорога в мир у артефакта одна: поселение полсотни
+     * игровых дней носило жертвы одному богу и дошло до ступени
+     * «Хранимый». До сих пор самой дальней целью мода была ратуша
+     * четвёртого уровня, после которой строить нечего; теперь дальше
+     * есть куда идти.
+     * <p>
+     * По одной вещи на домен, а не по одной на бога, и это решение
+     * по содержанию. Бог норманнов и бог майя, отвечающие за урожай, —
+     * разные лица одного дела; серп у них поэтому один. Народы
+     * различаются тем, <b>как</b> к нему идёшь: одним нужен эль,
+     * другим какао.
+     * <p>
+     * Редкость эпическая и {@code maxCount(1)}: артефакт не складывается
+     * в стопку, потому что второго такого в мире нет.
+     */
+    public static final Item SICKLE_OF_PLENTY = register("sickle_of_plenty",
+            new ArtifactItem(Domain.HARVEST, artifact()));
+
+    public static final Item BUILDERS_PLUMB = register("builders_plumb",
+            new ArtifactItem(Domain.STONE, artifact()));
+
+    public static final Item WATCHERS_EYE = register("watchers_eye",
+            new ArtifactItem(Domain.WATCH, artifact()));
+
+    /** Общие свойства артефакта: один в стопке, эпический, не горит. */
+    private static Item.Settings artifact() {
+        return new Item.Settings().maxCount(1).rarity(Rarity.EPIC).fireproof();
+    }
 
     public static final ItemGroup GROUP = Registry.register(
             Registries.ITEM_GROUP,

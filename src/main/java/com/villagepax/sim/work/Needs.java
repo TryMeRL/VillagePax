@@ -6,6 +6,7 @@ import com.villagepax.entity.CitizenEntity;
 import com.villagepax.core.config.Configs;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Comfort;
+import com.villagepax.sim.faith.Faith;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Warehouse;
@@ -132,8 +133,15 @@ public final class Needs {
                 // Сытость — основа, уют — прибавка. Голодному никакой
                 // фонарь не поможет, и складывать их поэтому нельзя:
                 // уют достаётся только тому, кто поел.
+                //
+                // Вера — прибавка того же рода и по той же причине здесь:
+                // храм стоит дорого, а благосклонность копится долго,
+                // и без этого первые двадцать дней здание просто занимало бы
+                // место. «Нам есть куда пойти и нас слышат» — это ровно то,
+                // за что житель любит своё поселение.
                 citizen.setHappiness(citizen.happiness() + HAPPINESS_FED
-                        + Comfort.of(world, settlement, citizen));
+                        + Comfort.of(world, settlement, citizen)
+                        + Faith.solace(world, settlement));
                 citizen.contented();
             }
 

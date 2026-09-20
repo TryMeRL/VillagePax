@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:pony",
+  "display_name": "villagepax.god.pony.farwind",
+  "domain": "watch",
+  "offerings": {
+    "minecraft:lead": 4,
+    "minecraft:saddle": 12,
+    "minecraft:leather": 2,
+    "villagepax:cloth": 6
+  },
+  "artifact": "villagepax:watchers_eye"
+}

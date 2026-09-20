@@ -1,0 +1,99 @@
+{
+  "culture": "villagepax:pony",
+  "sells": [
+    {
+      "item": "minecraft:hay_block",
+      "count": 4,
+      "price": 1
+    },
+    {
+      "item": "minecraft:wheat",
+      "count": 12,
+      "price": 1
+    },
+    {
+      "item": "minecraft:carrot",
+      "count": 12,
+      "price": 1
+    },
+    {
+      "item": "minecraft:acacia_log",
+      "count": 8,
+      "price": 1
+    },
+    {
+      "item": "minecraft:leather",
+      "count": 4,
+      "price": 1
+    },
+    {
+      "item": "minecraft:lead",
+      "count": 2,
+      "price": 2
+    },
+    {
+      "item": "minecraft:white_wool",
+      "count": 8,
+      "price": 1
+    },
+    {
+      "item": "minecraft:saddle",
+      "count": 1,
+      "price": 12,
+      "min_reputation": 20
+    },
+    {
+      "item": "minecraft:diamond",
+      "count": 1,
+      "price": 20,
+      "min_reputation": 45
+    }
+  ],
+  "buys": [
+    {
+      "item": "villagepax:cloth",
+      "count": 2,
+      "price": 5
+    },
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 4,
+      "price": 3
+    },
+    {
+      "item": "villagepax:ale",
+      "count": 2,
+      "price": 4
+    },
+    {
+      "item": "minecraft:bread",
+      "count": 6,
+      "price": 2
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 16,
+      "price": 1
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 6,
+      "price": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 2,
+      "price": 2
+    },
+    {
+      "item": "villagepax:timber_frame",
+      "count": 4,
+      "price": 2
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 2,
+      "price": 1
+    }
+  ]
+}

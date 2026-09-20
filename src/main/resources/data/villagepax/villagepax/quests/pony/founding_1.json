@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:pony",
+  "min_reputation": 0,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:acacia_log",
+      "count": 16
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 9
+    }
+  ],
+  "dialogue": "villagepax.quest.pony_founding_1",
+  "next": "villagepax:pony/founding_2"
+}

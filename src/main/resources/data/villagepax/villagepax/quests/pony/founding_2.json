@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:pony",
+  "min_reputation": 10,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:hay_block",
+      "count": 8
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 12
+    }
+  ],
+  "dialogue": "villagepax.quest.pony_founding_2",
+  "next": "villagepax:pony/founding_3"
+}

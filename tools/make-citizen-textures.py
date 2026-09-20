@@ -71,7 +71,26 @@ MAYA = {
     "accent": rgb(0x3E8C6A),
 }
 
-CULTURES = {"norman": NORMAN, "maya": MAYA}
+# Пони — луговые коневоды, третий народ мода. Масть, а не загар:
+# пшеничная кожа и льняная грива взяты у их же лошадей, и рядом
+# с бурым норманном и смуглым майя народ читается с одного взгляда.
+# Зелёная тесьма — луг, на котором они живут.
+PONY = {
+    "skin": rgb(0xE0C08A),
+    "skin_dark": rgb(0xC09E68),
+    "hair": rgb(0xD8C48A),
+    "hair_dark": rgb(0xB09A5E),
+    "cloth": rgb(0xB8C49A),
+    "cloth_dark": rgb(0x94A078),
+    "cloth_lit": rgb(0xD2DCB4),
+    "trousers": rgb(0x7A5C3A),
+    "trousers_dark": rgb(0x5E462C),
+    "boots": rgb(0x4A3520),
+    "belt": rgb(0x8A6A3C),
+    "accent": rgb(0x4E8A3E),
+}
+
+CULTURES = {"norman": NORMAN, "maya": MAYA, "pony": PONY}
 
 EYE = rgb(0x2B2B33)
 EYE_WHITE = rgb(0xE6E6DE)

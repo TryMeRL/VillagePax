@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:pony",
+  "min_reputation": 40,
+  "objectives": [
+    {
+      "type": "build",
+      "workplace": "villagepax:pony/farm",
+      "level": 1
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "minecraft:wheat_seeds",
+      "count": 16
+    }
+  ],
+  "dialogue": "villagepax.quest.pony_founding_4",
+  "next": "villagepax:pony/founding_5"
+}

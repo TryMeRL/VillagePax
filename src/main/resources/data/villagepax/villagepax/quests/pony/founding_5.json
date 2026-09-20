@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:pony",
+  "min_reputation": 55,
+  "objectives": [
+    {
+      "type": "favour",
+      "domain": "harvest",
+      "amount": 40
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 20
+    },
+    {
+      "type": "favour",
+      "domain": "harvest",
+      "amount": 20
+    }
+  ],
+  "dialogue": "villagepax.quest.pony_founding_5",
+  "next": "villagepax:pony/founding_6"
+}

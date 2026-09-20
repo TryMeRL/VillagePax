@@ -253,6 +253,43 @@ LEGEND = {
     # наоборот: с «north» ряды смотрели бы в дверь, спиной к алтарю.
     # Такую мелочь в игре видно сразу, а в схеме — никогда.
     "=": ("villagepax:bench", {"facing": "south"}),
+    # --- пони ---
+    # Третий народ живёт в саванне и строит из АКАЦИИ: ни тёмного дуба
+    # норманнов, ни дерева джунглей майя. Рыжее дерево узнаётся издалека
+    # не хуже фахверка и охры.
+    #
+    # Порода выбрана не по цвету, а по правилу, которому подчиняются
+    # и первые два народа: <b>строят из того, что растёт под боком</b>.
+    # В саванне растёт акация; поставь им ель — и лесоруб носил бы
+    # на склад акацию, а билдер ждал бы ели, которой взять негде.
+    # Ровно так однажды встала стройка на фонаре.
+    "o": ("minecraft:acacia_log", {"axis": "y"}),
+    "m": ("minecraft:acacia_log", {"axis": "x"}),
+    "N": ("minecraft:acacia_log", {"axis": "z"}),
+    "I": ("minecraft:acacia_planks", {}),
+    # Жердь — главная примета народа, который держит лошадей. У пони
+    # огорожено всё, включая двор ратуши: изгородь им важнее стены.
+    "&": ("minecraft:acacia_fence", {"north": "false", "east": "false", "south": "false",
+                                     "west": "false", "waterlogged": "false"}),
+    # Калитка, как у обоих соседей, ставится сразу открытой: закрытую
+    # ванильный поиск пути считает непроходимой.
+    "(": ("minecraft:acacia_fence_gate", {"facing": "east", "open": "true",
+                                          "in_wall": "false", "powered": "false"}),
+    # Саженец акации в делянке: лесоруб сажает то же, что рубит.
+    ")": ("minecraft:acacia_sapling", {"stage": "0"}),
+    # Тёс на скаты и конёк.
+    #
+    # Не сено, хотя сенная кровля пони и шла бы. Сноп стоит девять зёрен,
+    # на кровлю их уходит два десятка — почти две сотни пшеницы на один
+    # дом, а колония растит морковь. Так уже вставала стройка на фонаре,
+    # и второй раз наступать на это незачем: пони кроют тем, что рубят.
+    # Сено осталось там, где его немного и оно к месту, — снопом в загоне,
+    # в сенях сходни и перед алтарём.
+    "[": ("minecraft:acacia_stairs", {"facing": "north", "half": "bottom",
+                                      "shape": "straight", "waterlogged": "false"}),
+    "]": ("minecraft:acacia_stairs", {"facing": "south", "half": "bottom",
+                                      "shape": "straight", "waterlogged": "false"}),
+    "_": ("minecraft:acacia_slab", {"type": "bottom", "waterlogged": "false"}),
     "D": ("villagepax:marker_door", {}),
     "K": ("villagepax:marker_workstation", {}),
     "S": ("villagepax:marker_storage", {}),
@@ -309,6 +346,42 @@ def hip_roof(size, levels, ridge=None):
                 row.append(ridge if z == middle and levels <= x < size - levels else ".")
             rows.append("".join(row))
         layers.append(rows)
+
+    return layers
+
+
+def gable(width, depth, levels, ridge=None, body="I", north="[", south="]"):
+    """Двускатная кровля: скаты на север и юг, конёк вдоль длинной стороны.
+
+    Третий силуэт мода и третий способ накрыть дом. У норманнов шатёр
+    из ступеней, у майя ступенчатая пирамида — обе сходятся в точку.
+    У пони кровля сходится в ЛИНИЮ, и этого хватает, чтобы их деревню
+    отличали от чужой с того же расстояния, с какого отличают две первые.
+
+    Тело кровли — тёс той же акации, из которой сложен сруб: народ
+    кроет тем, что рубит. Край — ступень, а не обрыв куба: ступень даёт
+    наклон, и кровля читается кровлей, а не недостроенным этажом.
+    """
+    layers = []
+
+    for inset in range(levels):
+        low, high = inset, depth - 1 - inset
+        rows = []
+        for z in range(depth):
+            if z < low or z > high:
+                rows.append("." * width)
+            elif z == low:
+                rows.append(north * width)
+            elif z == high:
+                rows.append(south * width)
+            else:
+                rows.append(body * width)
+        layers.append(rows)
+
+    if ridge is not None:
+        middle = depth // 2
+        layers.append([(ridge * width) if z == middle else ("." * width)
+                       for z in range(depth)])
 
     return layers
 
@@ -1920,7 +1993,7 @@ MAYA_WATCHTOWER = [
 # стена, ступень и плита её дают, а решётка, лестница, забор и маркер —
 # нет. Список белый, а не чёрный, намеренно: забытый символ оставит
 # здание без света, забытое исключение — уронит факел на пол.
-SOLID = set("CdBHZWXMPARVTiuja#123456789nsew")
+SOLID = set("CdBHZWXMPARVTiuja#123456789nsewomNI[]_")
 
 # Куда смотрит факел, прислонённый к стене с этой стороны.
 # Стена на севере — факел смотрит на юг: он торчит ОТ стены, а не в неё.
@@ -2085,6 +2158,480 @@ MAYA_SHRINE = [
 ] + pyramid(7, "T")
 
 
+# ======================= ПОНИ: ТРЕТИЙ НАРОД =======================
+#
+# Проверка главного тезиса мода: народ добавляется данными, а не кодом.
+# Здесь — его облик; всё остальное (имена, здания, боги, торговля,
+# квесты) лежит в датапаке и не трогает ни строчки в моде.
+#
+# Кто они. Степные коневоды: пони — это их низкорослые лошади, а со
+# временем и прозвище самих хозяев. Четвероногими их не сделать без
+# своей модели, и выдумывать её ради проверки тезиса незачем; зато
+# мир вокруг них читается сразу — рыжий сруб, сено и жерди до горизонта.
+
+# --- ратуша пони, уровень 1: длинный дом 7x7 ---
+PONY_TOWN_HALL = [
+    # y=0 — цоколь
+    ["CCCCCCC"] * 7,
+    # y=1 — стены, вход с севера, очаг посреди зала и снопы по сторонам
+    ["oIIDIIo",
+     "IO...OI",
+     "I..A..I",
+     "o..c..o",
+     "I..A..I",
+     "IK.E.SI",
+     "oIIIIIo"],
+    # y=2 — второй ряд стен с окнами
+    ["oIG.GIo",
+     "I.....I",
+     "G.....G",
+     "o.....o",
+     "G.....G",
+     "I.....I",
+     "oIGIGIo"],
+    # y=3 — обвязка
+    ["mmmmmmm",
+     "N.....N",
+     "N.....N",
+     "N.....N",
+     "N.....N",
+     "N.....N",
+     "mmmmmmm"],
+] + gable(7, 7, 2, ridge="_")
+
+# --- дом пони, 5x5 ---
+PONY_HOUSE = [
+    ["CCCCC"] * 5,
+    # y=1 — две кровати, вход и два слота убранства
+    ["oIDIo",
+     "IfOfI",
+     "Ih.hI",
+     "I.O.I",
+     "oIIIo"],
+    ["oI.Io",
+     "I...I",
+     "G...G",
+     "I...I",
+     "oIGIo"],
+    ["mmmmm",
+     "N...N",
+     "N...N",
+     "N...N",
+     "mmmmm"],
+] + gable(5, 5, 2, ridge="_")
+
+# --- дом пони, уровень 2 ---
+#
+# Тот же след, надстроенный светёлкой: ещё две кровати и слот убранства.
+# Лаз идёт по западной стене — единственной, у которой нашлась свободная
+# клетка в обоих рядах первого этажа.
+PONY_HOUSE_2 = storey(
+    PONY_HOUSE,
+    # y=3 — пол светёлки с проёмом под лаз
+    ["mmmmm",
+     "NIIIN",
+     "NIIIN",
+     "NkIIN",
+     "mmmmm"],
+    [
+        # y=4 — две кровати наверху
+        ["oI.Io",
+         "If.fI",
+         "Ih.hI",
+         "I.O.I",
+         "oIIIo"],
+        # y=5 — верхний ряд стен с окнами
+        ["oI.Io",
+         "I...I",
+         "G...G",
+         "I...I",
+         "oIGIo"],
+    ],
+    0,
+    extra=((1, 1, 3, "k"), (2, 1, 3, "k")),
+    roof=gable(5, 5, 2, ridge="_"))
+
+# --- ратуша пони, уровень 2 ---
+PONY_TOWN_HALL_2 = storey(
+    PONY_TOWN_HALL,
+    # y=3 — пол второго этажа
+    ["mmmmmmm",
+     "NlIIIIN",
+     "NIIIIIN",
+     "NIIIIIN",
+     "NIIIIIN",
+     "NIIIIIN",
+     "mmmmmmm"],
+    [
+        # y=4 — верхний зал: две кровати, сундуки и убранство
+        ["oIIIIIo",
+         "Ifl..fI",
+         "Ih...hI",
+         "o..A..o",
+         "IS...SI",
+         "IO...OI",
+         "oIIIIIo"],
+        # y=5 — второй ряд верхних стен с окнами
+        ["oIGIGIo",
+         "I.....I",
+         "G.....G",
+         "o.....o",
+         "G.....G",
+         "I.....I",
+         "oIGIGIo"],
+    ],
+    0,
+    extra=((1, 2, 1, "l"), (2, 2, 1, "l")),
+    roof=gable(7, 7, 2, ridge="_"))
+
+# --- ратуша пони, уровень 3 ---
+#
+# Нижний ярус кровли второго уровня служит полом третьему — тот же
+# приём, что у обоих соседей, и по той же причине: сплошной настил
+# уже есть, и класть поверх него второй значило бы поднять зал
+# на лишний блок, до которого билдеру не дотянуться.
+PONY_TOWN_HALL_3 = third_storey(
+    PONY_TOWN_HALL_2,
+    7,
+    [
+        # y=7 — зал совета
+        ["oIIIIIo",
+         "IOl..OI",
+         "I.....I",
+         "o..A..o",
+         "I.....I",
+         "IS...SI",
+         "oIIIIIo"],
+        # y=8 — обвязка под кровлей с окнами
+        ["mmmmmmm",
+         "NIIIIIN",
+         "GIIIIIG",
+         "NIIIIIN",
+         "GIIIIIG",
+         "NIIIIIN",
+         "mmmmmmm"],
+    ],
+    gable(7, 7, 2),
+    ladders=((5, 2, 1, "l"), (6, 2, 1, ".")))
+
+# --- ратуша пони, уровень 4: гульбище на жердях ---
+PONY_TOWN_HALL_4 = gallery(PONY_TOWN_HALL_3, "C", "o", "m", "I")
+
+# --- загон пони, 7x7 ---
+#
+# Не поле, а ЗАГОН: то же назначение, что у норманнской пашни и
+# террасы майя, но обнесено жердями по кругу и с двумя снопами внутри.
+# Народ, который держит лошадей, косит и сеет на одном и том же клине.
+PONY_FARM = [
+    ["ddddddd"] * 7,
+    # y=1 — грядки и колодец посередине
+    ["ddddddd",
+     "dFFFFFd",
+     "dFF~FFd",
+     "dFFFFFd",
+     "dFFFFFd",
+     "dFFFFFd",
+     "ddddddd"],
+    # y=2 — жерди, калитка, морковь, снопы и место фермера
+    ["&&&&&&&",
+     "(*****&",
+     "&**.**&",
+     "&*A*A*&",
+     "&**K**&",
+     "&*****&",
+     "&&&&&&&"],
+    # y=3 — факелы на угловых столбах: тёмный загон к утру зарастает
+    # мобами, а фермер выходит на рассвете и встречает их первым
+    ["!.....!",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     "!.....!"],
+]
+
+# --- загон пони, уровень 2 ---
+#
+# Растёт на восток и на юг, якорь тот же. Старая изгородь, оказавшаяся
+# посреди загона, превращается в грядки — переделка законная, ровно та
+# же, что у соседей.
+PONY_FARM_2 = [
+    ["ddddddddd"] * 9,
+    ["ddddddddd",
+     "dFFFFFdFd",
+     "dFF~FFdFd",
+     "dFFFFFdFd",
+     "dFFFFFdFd",
+     "dFFFFFdFd",
+     "dddddddFd",
+     "dFFFFFFFd",
+     "ddddddddd"],
+    ["&&&&&&&&&",
+     "(*******&",
+     "&**.****&",
+     "&*A*A***&",
+     "&**K****&",
+     "&*******&",
+     "&*******&",
+     "&*******&",
+     "&&&&&&&&&"],
+    ["!.......!",
+     ".........",
+     ".........",
+     ".........",
+     ".........",
+     ".........",
+     ".........",
+     ".........",
+     "!.......!"],
+]
+
+# --- домик лесоруба пони, 10x5 ---
+PONY_LUMBERJACK = [
+    ["CCCCCddddd"] * 5,
+    ["oIDIo&&&&&",
+     "IK.SI&).)&",
+     "I...I&.O.(",
+     "I.O.I&).)&",
+     "oIIIo&&&&&"],
+    ["oI.Io!...!",
+     "I...I.....",
+     "G...G.....",
+     "I...I.....",
+     "oIGIo!...!"],
+    ["mmmmm.....",
+     "N...N.....",
+     "N...N.....",
+     "N...N.....",
+     "mmmmm....."],
+    ["[[[[[.....",
+     "IIIII.....",
+     "IIIII.....",
+     "IIIII.....",
+     "]]]]]....."],
+    ["..........",
+     "[[[[[.....",
+     "IIIII.....",
+     "]]]]].....",
+     ".........."],
+    ["..........",
+     "..........",
+     "_____.....",
+     "..........",
+     ".........."],
+]
+
+# --- склад пони, 7x5 ---
+PONY_WAREHOUSE = [
+    ["CCCCCCC"] * 5,
+    ["oIIDIIo",
+     "IS...SI",
+     "I..O..I",
+     "IS...SI",
+     "oIIIIIo"],
+    ["oI.I.Io",
+     "I.....I",
+     "G.....G",
+     "I.....I",
+     "oIGIGIo"],
+    ["mmmmmmm",
+     "N.....N",
+     "N.....N",
+     "N.....N",
+     "mmmmmmm"],
+] + gable(7, 5, 2, ridge="_")
+
+# --- мастерская строителя пони, 5x5 ---
+PONY_BUILDER_HUT = [
+    ["CCCCC"] * 5,
+    ["oIDIo",
+     "IK.SI",
+     "I...I",
+     "IS.OI",
+     "oIIIo"],
+    ["oI.Io",
+     "I...I",
+     "G...G",
+     "I...I",
+     "oIGIo"],
+    ["mmmmm",
+     "N...N",
+     "N...N",
+     "N...N",
+     "mmmmm"],
+] + gable(5, 5, 2, ridge="_")
+
+# --- пивоварня пони, 5x5 ---
+PONY_BREWERY = [
+    ["CCCCC"] * 5,
+    ["oIDIo",
+     "I.K.I",
+     "I0.OI",
+     "IS.vI",
+     "oIIIo"],
+    ["oI.Io",
+     "I...I",
+     "G...G",
+     "I...I",
+     "oIGIo"],
+    ["mmmmm",
+     "N...N",
+     "N...N",
+     "N...N",
+     "mmmmm"],
+] + gable(5, 5, 2, ridge="_")
+
+# --- ткацкая пони, 5x5 ---
+PONY_WEAVERY = [
+    ["CCCCC"] * 5,
+    ["oIDIo",
+     "I.K.I",
+     "I@..I",
+     "IS.#I",
+     "oIIIo"],
+    ["oI.Io",
+     "I...I",
+     "G...G",
+     "I...I",
+     "oIGIo"],
+    ["mmmmm",
+     "N...N",
+     "N...N",
+     "N...N",
+     "mmmmm"],
+] + gable(5, 5, 2, ridge="_")
+
+# --- ларёк пони, 5x5 ---
+#
+# Без стен, как у обоих соседей, и по той же причине: прилавок должен
+# быть виден с улицы. Вход с задней стороны — через прилавок не ходят.
+PONY_MARKET_STALL = [
+    ["CCCCC"] * 5,
+    ["oIIIo",
+     "..K..",
+     ".S.O.",
+     ".....",
+     "o.D.o"],
+    ["o!.!o",
+     ".....",
+     ".....",
+     ".....",
+     "o...o"],
+    ["mmmmm",
+     "N...N",
+     "N...N",
+     "N...N",
+     "mmmmm"],
+] + gable(5, 5, 2)
+
+# --- рынок пони, 7x7 ---
+PONY_MARKET = [
+    ["CCCCCCC"] * 7,
+    ["oIIIIIo",
+     "..K.K..",
+     ".S...S.",
+     ".O...O.",
+     ".......",
+     ".......",
+     "o..D..o"],
+    ["o!...!o",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     "o.....o"],
+    ["mmmmmmm",
+     "N.....N",
+     "N.....N",
+     "N.....N",
+     "N.....N",
+     "N.....N",
+     "mmmmmmm"],
+] + gable(7, 7, 2)
+
+# --- сторожевая вышка пони, 5x9x5 ---
+#
+# Лаз идёт по западной стене: ванили нужна полная грань позади
+# лестницы, и в срубе такая есть только у стены.
+PONY_WATCHTOWER = [
+    ["CCCCC"] * 5,
+    ["oIDIo",
+     "I...I",
+     "Ix..I",
+     "I...I",
+     "oIIIo"],
+    ["oIGIo",
+     "I...I",
+     "Ix..I",
+     "I...I",
+     "oIGIo"],
+    ["oIIIo",
+     "I...I",
+     "Ix..I",
+     "I...I",
+     "oIIIo"],
+    ["oIGIo",
+     "I...I",
+     "Ix..I",
+     "I...I",
+     "oIGIo"],
+    ["oIIIo",
+     "I...I",
+     "Ix..I",
+     "I...I",
+     "oIIIo"],
+    # y=6 — настил с лазом
+    ["oIIIo",
+     "IIIII",
+     "IxIII",
+     "IIIII",
+     "oIIIo"],
+    # y=7 — площадка дозора
+    ["o...o",
+     ".....",
+     ".xK..",
+     ".....",
+     "o...o"],
+    # y=8 — гребень с проёмами
+    ["oI.Io",
+     "I...I",
+     "o...o",
+     "I...I",
+     "oI.Io"],
+]
+
+# --- святилище пони, 7x7 ---
+#
+# Алтарь в южном конце зала, дверь на севере, скамьи лицом к алтарю
+# и сноп перед ним: народ приносит богам то, чем живёт.
+PONY_SHRINE = [
+    ["CCCCCCC"] * 7,
+    ["oIIDIIo",
+     "I=...=I",
+     "I=...=I",
+     "I.....I",
+     "I..A..I",
+     "I..$..I",
+     "oIIIIIo"],
+    ["oIG.GIo",
+     "I.....I",
+     "G.....G",
+     "o.....o",
+     "G.....G",
+     "I.....I",
+     "oIGIGIo"],
+    ["mmmmmmm",
+     "N.....N",
+     "N.....N",
+     "N.....N",
+     "N.....N",
+     "N.....N",
+     "mmmmmmm"],
+] + gable(7, 7, 2, ridge="_")
+
+
 RAW_SCHEMATICS = {
     "norman/town_hall_lvl1": NORMAN_TOWN_HALL,
     "norman/town_hall_lvl2": NORMAN_TOWN_HALL_2,
@@ -2120,6 +2667,23 @@ RAW_SCHEMATICS = {
     "maya/watchtower_lvl1": MAYA_WATCHTOWER,
     "norman/chapel_lvl1": NORMAN_CHAPEL,
     "maya/shrine_lvl1": MAYA_SHRINE,
+    "pony/town_hall_lvl1": PONY_TOWN_HALL,
+    "pony/town_hall_lvl2": PONY_TOWN_HALL_2,
+    "pony/town_hall_lvl3": PONY_TOWN_HALL_3,
+    "pony/town_hall_lvl4": PONY_TOWN_HALL_4,
+    "pony/house_lvl1": PONY_HOUSE,
+    "pony/house_lvl2": PONY_HOUSE_2,
+    "pony/farm_lvl1": PONY_FARM,
+    "pony/farm_lvl2": PONY_FARM_2,
+    "pony/lumberjack_lvl1": PONY_LUMBERJACK,
+    "pony/warehouse_lvl1": PONY_WAREHOUSE,
+    "pony/builder_hut_lvl1": PONY_BUILDER_HUT,
+    "pony/brewery_lvl1": PONY_BREWERY,
+    "pony/weavery_lvl1": PONY_WEAVERY,
+    "pony/market_stall_lvl1": PONY_MARKET_STALL,
+    "pony/market_lvl1": PONY_MARKET,
+    "pony/watchtower_lvl1": PONY_WATCHTOWER,
+    "pony/shrine_lvl1": PONY_SHRINE,
 }
 
 
@@ -2222,7 +2786,11 @@ def main():
                       ("maya/house_lvl1", "maya/house_lvl2"),
                       ("maya/farm_lvl1", "maya/farm_lvl2"),
                       ("norman/town_hall_lvl3", "norman/town_hall_lvl4"),
-                      ("maya/town_hall_lvl3", "maya/town_hall_lvl4")):
+                      ("maya/town_hall_lvl3", "maya/town_hall_lvl4"),
+                      ("pony/town_hall_lvl1", "pony/town_hall_lvl2"),
+                      ("pony/house_lvl1", "pony/house_lvl2"),
+                      ("pony/farm_lvl1", "pony/farm_lvl2"),
+                      ("pony/town_hall_lvl3", "pony/town_hall_lvl4")):
         pair = (low, SCHEMATICS[low], SCHEMATICS[high])
         kept, changed = containment_check(*pair)
         print(f"{pair[0]}: второй уровень сохраняет {kept - changed} блоков первого этажа "

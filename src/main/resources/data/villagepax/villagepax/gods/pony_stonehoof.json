@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:pony",
+  "display_name": "villagepax.god.pony.stonehoof",
+  "domain": "stone",
+  "offerings": {
+    "minecraft:cobblestone": 1,
+    "minecraft:acacia_log": 2,
+    "minecraft:flint": 3,
+    "villagepax:carved_stone": 6
+  },
+  "artifact": "villagepax:builders_plumb"
+}

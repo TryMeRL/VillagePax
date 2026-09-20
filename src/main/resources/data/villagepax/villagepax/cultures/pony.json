@@ -1,0 +1,73 @@
+{
+  "display_name": "villagepax.culture.pony",
+  "kind": "fantasy",
+  "spawn": {
+    "biomes": "#villagepax:pony_home",
+    "weight": 10,
+    "min_distance_chunks": 32
+  },
+  "name_pools": {
+    "male": [
+      "Тополь",
+      "Гнедко",
+      "Буян",
+      "Серко",
+      "Вихорь",
+      "Пегаш",
+      "Овсень"
+    ],
+    "female": [
+      "Вербена",
+      "Гречиха",
+      "Зорька",
+      "Мальва",
+      "Росинка",
+      "Пижма"
+    ],
+    "settlement": [
+      "Стожары",
+      "Выгон",
+      "Овсяное",
+      "Пегий Брод",
+      "Подкова",
+      "Травень"
+    ],
+    "son_of": "%s сын",
+    "daughter_of": "%s дочь"
+  },
+  "buildings": [
+    "villagepax:pony/town_hall",
+    "villagepax:pony/market_stall",
+    "villagepax:pony/market",
+    "villagepax:pony/watchtower",
+    "villagepax:pony/shrine",
+    "villagepax:pony/house",
+    "villagepax:pony/farm",
+    "villagepax:pony/lumberjack",
+    "villagepax:pony/warehouse",
+    "villagepax:pony/builder_hut",
+    "villagepax:pony/brewery",
+    "villagepax:pony/weavery"
+  ],
+  "road": [
+    "minecraft:dirt_path",
+    "minecraft:coarse_dirt"
+  ],
+  "decor": [
+    "minecraft:hay_block",
+    "villagepax:grain_sack",
+    "minecraft:composter",
+    "minecraft:cauldron",
+    "minecraft:flower_pot",
+    "minecraft:barrel",
+    "villagepax:bench",
+    "villagepax:table",
+    "villagepax:shelf",
+    "villagepax:laundry_rope"
+  ],
+  "traits": [],
+  "diplomacy_defaults": {
+    "villagepax:norman": 5,
+    "villagepax:maya": 0
+  }
+}

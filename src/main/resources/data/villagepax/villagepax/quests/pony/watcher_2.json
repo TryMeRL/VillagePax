@@ -1,0 +1,23 @@
+{
+  "giver": "villagepax:guard",
+  "culture": "villagepax:pony",
+  "min_reputation": 20,
+  "objectives": [
+    {
+      "type": "build",
+      "workplace": "villagepax:pony/watchtower",
+      "level": 1
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 20
+    },
+    {
+      "type": "settler",
+      "profession": "villagepax:guard"
+    }
+  ],
+  "dialogue": "villagepax.quest.pony_watcher_2"
+}

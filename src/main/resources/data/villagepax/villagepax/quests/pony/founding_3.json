@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:pony",
+  "min_reputation": 25,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:carrot",
+      "count": 24
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 20
+    },
+    {
+      "type": "item",
+      "item": "villagepax:town_hall_blueprint",
+      "count": 1
+    }
+  ],
+  "dialogue": "villagepax.quest.pony_founding_3",
+  "next": "villagepax:pony/founding_4"
+}

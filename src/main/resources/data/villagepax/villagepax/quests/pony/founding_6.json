@@ -1,0 +1,23 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:pony",
+  "min_reputation": 70,
+  "objectives": [
+    {
+      "type": "friendship",
+      "culture": "villagepax:maya",
+      "trust": 20
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 25
+    },
+    {
+      "type": "settler",
+      "profession": "villagepax:farmer"
+    }
+  ],
+  "dialogue": "villagepax.quest.pony_founding_6"
+}

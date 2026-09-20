@@ -1,0 +1,22 @@
+{
+  "display_name": "villagepax.building.pony.weavery",
+  "role": "workplace",
+  "profession": "villagepax:weaver",
+  "min_level": "town",
+  "crafts": [
+    {
+      "from": {
+        "minecraft:white_wool": 3
+      },
+      "to": "villagepax:cloth",
+      "count": 1
+    },
+    {
+      "from": {
+        "minecraft:string": 8
+      },
+      "to": "villagepax:cloth",
+      "count": 1
+    }
+  ]
+}

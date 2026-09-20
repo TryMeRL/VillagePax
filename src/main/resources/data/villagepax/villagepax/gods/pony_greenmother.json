@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:pony",
+  "display_name": "villagepax.god.pony.greenmother",
+  "domain": "harvest",
+  "offerings": {
+    "minecraft:wheat_seeds": 1,
+    "minecraft:hay_block": 5,
+    "minecraft:apple": 3,
+    "villagepax:ale": 9
+  },
+  "artifact": "villagepax:sickle_of_plenty"
+}

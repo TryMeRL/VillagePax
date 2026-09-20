@@ -17,6 +17,7 @@ import com.villagepax.block.entity.TownHallBlockEntity;
 import net.minecraft.server.world.ServerWorld;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.entity.CitizenSpawner;
+import com.villagepax.entity.Looks;
 import com.villagepax.entity.ModEntities;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Vec3d;
@@ -10673,6 +10674,155 @@ public class VillagePaxGameTests implements FabricGameTest {
         });
     }
 
+
+    // ======================= ТРЕТИЙ НАРОД =======================
+
+    private static final Identifier PONY_HOUSE_TYPE = new Identifier("villagepax", "pony/house");
+    private static final Identifier PONY_HOUSE_SCHEMATIC =
+            new Identifier("villagepax", "pony/house_lvl1");
+    private static final Identifier PONY = new Identifier("villagepax", "pony");
+
+    /**
+     * Дом третьего народа встаёт из сырья, которое колония добывает сама.
+     * <p>
+     * Главная проверка всей затеи, и написана она по следам настоящей
+     * ошибки: пони сперва строили из ели, а живут в саванне, где растёт
+     * акация. Лесоруб носил бы на склад акацию, билдер ждал бы ели —
+     * и стройка встала бы на первом же блоке, ровно как однажды встала
+     * на фонаре. Отсюда правило, которому подчиняются все три народа:
+     * <b>строят из того, что растёт под боком</b>.
+     * <p>
+     * Завозится только сырьё: бревно, булыжник, тростник, зерно, песок,
+     * шерсть и уголь. Всё остальное — доски, оконницу, кровать, сноп,
+     * соломенную ступень — колония складывает сама. Проверка посылки
+     * стоит отдельно: готового в завозе нет, иначе она проверяла бы
+     * доставку, а не ремесло.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "pony", tickLimit = 600)
+    public void theThirdPeopleBuildsFromWhatGrowsNearby(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, PONY_HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall, PONY);
+        Building site = plan(colony, anchor, PONY_HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            Warehouse warehouse = Warehouse.of(world, colony);
+            raw(world, warehouse, hall, Items.ACACIA_LOG, 128);
+            raw(world, warehouse, hall, Items.COBBLESTONE, 64);
+            raw(world, warehouse, hall, Items.SAND, 64);
+            raw(world, warehouse, hall, Items.GLASS, 16);
+            raw(world, warehouse, hall, Items.RED_WOOL, 32);
+            // Уголь на очаг и на факел: колония сложит и то и другое,
+            // но угля ей взять негде — он в шахте.
+            raw(world, warehouse, hall, Items.COAL, 16);
+
+            Warehouse stocked = Warehouse.of(world, colony);
+            for (Item ready : List.of(Items.ACACIA_PLANKS, Items.ACACIA_STAIRS,
+                    Items.ACACIA_SLAB, Items.GLASS_PANE, Items.RED_BED)) {
+                if (stocked.count(ready) > 0) {
+                    context.throwGameTestException("Посылка теста не выполнена: на складе "
+                            + "уже лежит готовое — " + ready);
+                }
+            }
+
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Изба пони не встала из сырья: шаг "
+                        + site.nextStep() + " из " + housePlan.plan().steps().size()
+                        + ", не хватает " + Materials.shortfall(housePlan, site, 200));
+            }
+        } finally {
+            demolish(world, site, housePlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Третий народ живёт по тем же правилам, что и первые два.
+     * <p>
+     * Не «пони работают», а <b>ничего для них не написано особо</b>:
+     * роли зданий, ремёсла, ступени, пантеон и цепочка квестов у них те же,
+     * и проверяется это сравнением с соседями, а не списком ожидаемого.
+     * Список пришлось бы править при каждой правке данных, а сравнение
+     * ловит ровно то, ради чего затевался третий народ: <b>народ
+     * добавляется данными</b>.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "pony")
+    public void theThirdPeopleNeededNoCode(TestContext context) {
+        List<String> complaints = new ArrayList<>();
+
+        Culture pony = CultureManager.get(PONY);
+        Culture norman = CultureManager.get(NORMAN);
+        if (pony == null || norman == null) {
+            context.throwGameTestException("Народа нет в датапаке");
+            return;
+        }
+
+        // Столько же зданий и те же роли: если у третьего народа роль
+        // не нашлась, значит она заведена под первые два.
+        Set<String> theirRoles = new HashSet<>();
+        Set<String> ourRoles = new HashSet<>();
+        for (Identifier type : norman.buildings()) {
+            BuildingTypes.get(type).ifPresent(known -> ourRoles.add(known.role().id()));
+        }
+        for (Identifier type : pony.buildings()) {
+            BuildingTypes.get(type).ifPresent(known -> theirRoles.add(known.role().id()));
+        }
+        if (!theirRoles.equals(ourRoles)) {
+            complaints.add("роли зданий разошлись: у пони " + theirRoles
+                    + ", у норманнов " + ourRoles);
+        }
+
+        // Пантеон: три домена, как и у соседей, и ни одного лишнего.
+        Set<Domain> theirs = new HashSet<>();
+        for (Identifier god : Gods.of(PONY)) {
+            Gods.get(god).ifPresent(known -> theirs.add(known.domain()));
+        }
+        if (theirs.size() != Domain.values().length) {
+            complaints.add("у пони " + theirs.size() + " доменов из "
+                    + Domain.values().length + ": молиться будет некому");
+        }
+        if (Faith.templeType(PONY).isEmpty()) {
+            complaints.add("у пони есть боги, а храма нет");
+        }
+
+        // Своё имя, свой облик, своя земля: народ, неотличимый от соседа,
+        // ничего не доказывает.
+        if (pony.namePools().male().isEmpty() || pony.namePools().settlement().isEmpty()) {
+            complaints.add("у пони нет своих имён");
+        }
+        if (Looks.of(PONY, Gender.MALE, Optional.empty())
+                .equals(Looks.of(NORMAN, Gender.MALE, Optional.empty()))) {
+            complaints.add("пони выглядят норманнами");
+        }
+        if (pony.spawn().biomes().equals(norman.spawn().biomes())) {
+            complaints.add("пони селятся там же, где норманны");
+        }
+
+        // И цепочка квестов, которая доводит до своей колонии.
+        long chains = QuestManager.all().values().stream()
+                .filter(quest -> quest.culture().filter(PONY::equals).isPresent())
+                .count();
+        if (chains < 6) {
+            complaints.add("у пони " + chains + " квестов: цепочки основания нет");
+        }
+
+        if (!complaints.isEmpty()) {
+            context.throwGameTestException("Третий народ вышел неполным:\n  "
+                    + String.join("\n  ", complaints));
+        }
+
+        context.complete();
+    }
 
     // ======================= ВАССАЛИТЕТ: ЗАХВАТ, ЯРМО, ПОХОД =======================
 

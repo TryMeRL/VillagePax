@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:farmer",
+  "culture": "villagepax:pony",
+  "min_reputation": 0,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:wheat",
+      "count": 20
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 10
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 8
+    }
+  ],
+  "dialogue": "villagepax.quest.pony_herder_1",
+  "next": "villagepax:pony/herder_2"
+}

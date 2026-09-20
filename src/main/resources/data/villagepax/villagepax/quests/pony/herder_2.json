@@ -1,0 +1,24 @@
+{
+  "giver": "villagepax:farmer",
+  "culture": "villagepax:pony",
+  "min_reputation": 15,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:leather",
+      "count": 8
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 12
+    },
+    {
+      "type": "item",
+      "item": "minecraft:lead",
+      "count": 2
+    }
+  ],
+  "dialogue": "villagepax.quest.pony_herder_2"
+}

@@ -320,6 +320,23 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
             body.child(hint);
         });
 
+        // Ярмо — сразу за советом и красным: это состояние, а не событие,
+        // и «почему у меня каждое утро пропадает серебро» обязано иметь
+        // ответ там же, где игрок смотрит всё остальное.
+        if (view.yoke().paying()) {
+            FlowLayout yoke = Look.card("villagepax.screen.overview.section_yoke",
+                    new ItemStack(Items.IRON_SWORD));
+            LabelComponent line = Components.label(
+                    Text.translatable("villagepax.screen.overview.yoke_line",
+                            Text.literal(view.yoke().lord()),
+                            number(view.yoke().days())));
+            line.color(Look.BAD);
+            line.shadow(false);
+            line.lineHeight(9);
+            yoke.child(line.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            body.child(yoke);
+        }
+
         fillGrowth(view);
 
         FlowLayout colony = Look.card("villagepax.screen.overview.section_colony",

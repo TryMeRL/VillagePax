@@ -89,7 +89,8 @@ public final class TownHallNet {
             List.of(), List.of(), new ItemTally(), List.of(), List.of(), Optional.empty(),
             new TownHallView.Growth("villagepax.level.hamlet", Optional.empty(), 0, 1,
                     List.of(), true),
-            TownHallView.FaithView.NONE);
+            TownHallView.FaithView.NONE,
+            TownHallView.Yoke.NONE);
 
     private TownHallNet() {
     }

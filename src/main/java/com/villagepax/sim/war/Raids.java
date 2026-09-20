@@ -83,7 +83,13 @@ public final class Raids {
      * он не свяжет набег ни с чем, а необъяснимое наказание хуже,
      * чем никакое.
      */
-    private static final int REACH = 1024;
+    /**
+     * Открыто наружу с тех пор, как ходит и игрок: «столько отряд
+     * пройдёт» — правило войны, а не набега, и знать его обязаны обе
+     * стороны. Два разных числа означали бы, что до тебя дойти можно,
+     * а до них нет.
+     */
+    public static final int REACH = 1024;
 
     /** Сколько дней колония отдыхает между набегами. */
     public static final int COOLDOWN_DAYS = 5;
@@ -261,14 +267,23 @@ public final class Raids {
                 continue;
             }
             if (party.isOver(today)) {
-                withdraw(world, manager, settlement, party);
+                withdraw(world, manager, settlement, party, today);
                 continue;
             }
             if (party.hasArrived(today) && world.isChunkLoaded(party.musters())) {
-                muster(world, manager, settlement, party);
-                // И подмога — тем же порядком и в тот же миг: союзники
-                // приходят к воротам, а не выходят из них.
-                Allies.callUp(world, manager, settlement, party);
+                // Кто пришёл — решает отряд, а не осаждённый. К колонии
+                // приходят куклы чужой деревни; к деревне — настоящие
+                // стражи колонии, с именами и записями. Дальше всё
+                // одинаково: и разоряют, и уносят, и уходят они одним
+                // и тем же кодом, потому что это одно и то же событие.
+                if (isCampaign(manager, party)) {
+                    Campaigns.muster(world, manager, settlement, party);
+                } else {
+                    muster(world, manager, settlement, party);
+                    // И подмога — тем же порядком и в тот же миг: союзники
+                    // приходят к воротам, а не выходят из них.
+                    Allies.callUp(world, manager, settlement, party);
+                }
                 ruin(world, manager, settlement, party);
             }
         }
@@ -383,6 +398,11 @@ public final class Raids {
         manager.update(party.home(), state -> state.restFor(today, Peace.MOURNING_DAYS));
 
         if (thinner.fighters() <= 0) {
+            // Ярмо держится страхом — там же и кончается. Без этого выхода
+            // побеждённому оставалось бы только ждать конца срока, а
+            // ждать — это не игра.
+            manager.byId(party.home()).ifPresent(lord ->
+                    Conquest.free(world, manager, colony, Conquest.owedTo(lord), today));
             announce(world, colony, "villagepax.raid.repelled", Formatting.GREEN);
             manager.byId(party.home()).ifPresent(home -> tell(world, colony,
                     Text.translatable("villagepax.raid.mourning", Text.literal(home.name()),
@@ -416,9 +436,14 @@ public final class Raids {
         return true;
     }
 
-    /** Отряд уходит: тела убрать, запись снять. */
+    /**
+     * Отряд уходит: рассудить, тела убрать, запись снять.
+     * <p>
+     * День принимается числом, как и везде в этом коде: им решается
+     * захват, а проверка не умеет ждать суток.
+     */
     private static void withdraw(ServerWorld world, SettlementManager manager, Settlement colony,
-                                 WarParty party) {
+                                 WarParty party, long today) {
         List<CitizenEntity> left = bodiesOf(world, party);
 
         if (!left.isEmpty()) {
@@ -435,15 +460,42 @@ public final class Raids {
             manager.update(party.home(), home -> home.beaten(party.leavesOn()));
         }
 
-        left.forEach(CitizenEntity::discard);
-        Allies.dismiss(world, party);
-        manager.update(colony.id(), Settlement::liftSiege);
+        // Приговор — прежде тел: захват решается тем, пролилась ли кровь
+        // отряда, а не тем, кто стоит сейчас. Отряд, потерявший бойца
+        // и всё же доживший до срока, уходит с добычей и без поселения.
+        boolean taken = party.tookTheTown(today)
+                && Conquest.take(world, manager, colony, party, today);
 
-        if (!left.isEmpty()) {
-            // Молча уходят только те, кого уже перебили: об этом игроку
-            // сказали, когда пал последний.
-            announce(world, colony, "villagepax.raid.left", Formatting.GRAY);
+        if (isCampaign(manager, party)) {
+            // Свои уходят домой сами, и прежде, чем их тела уберут:
+            // выжившему надо вернуть запись к родной ратуше, иначе
+            // он навсегда останется лежать у чужих ворот.
+            Campaigns.comeHome(world, manager, colony, party);
+        } else {
+            left.forEach(CitizenEntity::discard);
+            Allies.dismiss(world, party);
+            if (!left.isEmpty() && !taken) {
+                // Молча уходят только те, кого уже перебили: об этом игроку
+                // сказали, когда пал последний. А взявшим колонию сказали
+                // словами потяжелее.
+                announce(world, colony, "villagepax.raid.left", Formatting.GRAY);
+            }
         }
+        manager.update(colony.id(), Settlement::liftSiege);
+    }
+
+    /**
+     * Чей это отряд — деревни или колонии игрока.
+     * <p>
+     * Спрашивается у дома отряда, а не у осаждаемого: осаждать колонию
+     * может только деревня, а деревню — только колония, но правило должно
+     * опираться на то, <b>кто вышел</b>, а не на то, к кому пришли.
+     * Второй игрок однажды сломает вторую формулировку и не сломает эту.
+     */
+    private static boolean isCampaign(SettlementManager manager, WarParty party) {
+        return manager.byId(party.home())
+                .filter(home -> !home.owner().isAutonomous())
+                .isPresent();
     }
 
     /** Колония этого игрока — та, к которой и пойдут. */

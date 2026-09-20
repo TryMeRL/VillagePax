@@ -6,6 +6,7 @@ import com.villagepax.core.EnumCodecs;
 import com.villagepax.core.Named;
 import com.villagepax.sim.diplomacy.Alliance;
 import com.villagepax.sim.diplomacy.Tribute;
+import com.villagepax.sim.war.Campaigns;
 import com.villagepax.sim.diplomacy.Gifts;
 import net.minecraft.item.Item;
 import net.minecraft.registry.Registries;
@@ -53,14 +54,27 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
      * видеть обе дороги разом — за эту деревню можно вступиться, а можно
      * её обобрать, и одно отменяет другое.
      *
+     * <b>Поход лежит здесь же</b>, а не отдельной карточкой, и это
+     * не теснота кодека (хотя и она: у снимка разговора ровно шестнадцать
+     * полей, и все заняты). Дань и поход — одна и та же дорога, пройденная
+     * с разных концов: у разбитой деревни дань требуют, а небитую сперва
+     * надо разбить. Показывать их порознь значило бы прятать от игрока,
+     * что это один выбор.
+     *
      * @param days    сколько дней ещё платят; ноль — дань не идёт
      * @param verdict согласятся ли платить — и если нет, то почему
+     * @param march   поход: сколько мечей уйдёт и что этому мешает
      */
-    public record Levy(int days, Tribute.Verdict verdict) {
+    public record Levy(int days, Tribute.Verdict verdict, March march) {
+
+        public Levy(int days, Tribute.Verdict verdict) {
+            this(days, verdict, March.NONE);
+        }
 
         public static final Codec<Levy> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.INT.optionalFieldOf("days", 0).forGetter(Levy::days),
-                Tribute.Verdict.CODEC.fieldOf("verdict").forGetter(Levy::verdict)
+                Tribute.Verdict.CODEC.fieldOf("verdict").forGetter(Levy::verdict),
+                March.CODEC.optionalFieldOf("march", March.NONE).forGetter(Levy::march)
         ).apply(instance, Levy::new));
 
         /** Дань идёт прямо сейчас. */
@@ -71,6 +85,49 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
         /** Потребовать можно сейчас же. */
         public boolean ready() {
             return verdict == Tribute.Verdict.YES;
+        }
+    }
+
+    /**
+     * Поход и то, что ему мешает.
+     * <p>
+     * Приговор целиком, а не «можно/нельзя»: серая кнопка без причины —
+     * это загадка, а не правило. Игрок обязан прочесть, чего ему
+     * не хватает: города, второго стража или расстояния.
+     *
+     * @param fighters сколько мечей уйдёт, если выступить сейчас
+     * @param verdict  можно ли — и если нет, то почему
+     */
+    public record March(int fighters, Campaigns.Verdict verdict) {
+
+        /** Походу здесь не бывать: игрок деревне никто, или она своя. */
+        public static final March NONE = new March(0, Campaigns.Verdict.NOT_A_NEIGHBOUR);
+
+        public static final Codec<March> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.INT.optionalFieldOf("fighters", 0).forGetter(March::fighters),
+                Campaigns.Verdict.CODEC.fieldOf("verdict").forGetter(March::verdict)
+        ).apply(instance, March::new));
+
+        public boolean ready() {
+            return verdict.ready();
+        }
+
+        /**
+         * Показывать ли кнопку вовсе.
+         * <p>
+         * Деревня, на которую походом не ходят в принципе — своя колония
+         * или уже платящая, — про поход и не слышит: предложение,
+         * которого не бывает, это шум.
+         */
+        public boolean worthShowing() {
+            return verdict != Campaigns.Verdict.NOT_A_NEIGHBOUR
+                    && verdict != Campaigns.Verdict.PAYING
+                    && verdict != Campaigns.Verdict.TOO_FRIENDLY
+                    // Хутору о войне не говорят вовсе: это тот же шум,
+                    // что и «союз: сперва подружиться» в первом разговоре
+                    // с первой деревней. Предложение, до которого игрок
+                    // не дорос, он читает как непонятную серую кнопку.
+                    && verdict != Campaigns.Verdict.NO_TOWN;
         }
     }
 

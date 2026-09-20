@@ -34,14 +34,21 @@ import java.util.UUID;
  * @param wrecked   сколько зданий уже разорено: по одному на бойца
  * @param arrivesOn день, в который они придут: о набеге предупреждают заранее
  * @param leavesOn  день, в который уйдут ни с чем
+ * @param bled      пролилась ли кровь отряда: по этому и решается захват
  */
 public record WarParty(UUID id, UUID home, Identifier culture, BlockPos musters,
-                       int fighters, int wrecked, long arrivesOn, long leavesOn) {
+                       int fighters, int wrecked, long arrivesOn, long leavesOn,
+                       boolean bled) {
 
-    /** Отряд, ещё ничего не разоривший. */
+    /** Отряд, ещё ничего не разоривший и никого не потерявший. */
     public WarParty(UUID id, UUID home, Identifier culture, BlockPos musters,
                     int fighters, long arrivesOn, long leavesOn) {
-        this(id, home, culture, musters, fighters, 0, arrivesOn, leavesOn);
+        this(id, home, culture, musters, fighters, 0, arrivesOn, leavesOn, false);
+    }
+
+    public WarParty(UUID id, UUID home, Identifier culture, BlockPos musters,
+                    int fighters, int wrecked, long arrivesOn, long leavesOn) {
+        this(id, home, culture, musters, fighters, wrecked, arrivesOn, leavesOn, false);
     }
 
     public static final Codec<WarParty> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -52,18 +59,39 @@ public record WarParty(UUID id, UUID home, Identifier culture, BlockPos musters,
             Codec.INT.optionalFieldOf("fighters", 0).forGetter(WarParty::fighters),
             Codec.INT.optionalFieldOf("wrecked", 0).forGetter(WarParty::wrecked),
             Codec.LONG.fieldOf("arrives_on").forGetter(WarParty::arrivesOn),
-            Codec.LONG.fieldOf("leaves_on").forGetter(WarParty::leavesOn)
+            Codec.LONG.fieldOf("leaves_on").forGetter(WarParty::leavesOn),
+            // Не «сколько вышло минус сколько осталось», а отдельная
+            // отметка. Разница видна на отряде, который потерял бойца
+            // и получил подмогу: счёт сошёлся бы, а кровь пролилась.
+            Codec.BOOL.optionalFieldOf("bled", false).forGetter(WarParty::bled)
     ).apply(instance, WarParty::new));
 
-    /** Тот же отряд, поредевший. Заменой, а не правкой: запись неизменяема. */
+    /**
+     * Тот же отряд, поредевший.
+     * <p>
+     * Заменой, а не правкой: запись неизменяема. Заодно здесь, и только
+     * здесь, отряд узнаёт, что потерял человека: захват решается этим,
+     * и ставить отметку в двух местах значило бы однажды забыть об одном.
+     */
     public WarParty withFighters(int left) {
         return new WarParty(id, home, culture, musters, Math.max(0, left), wrecked,
-                arrivesOn, leavesOn);
+                arrivesOn, leavesOn, bled || left < fighters);
     }
 
     /** Тот же отряд, разоривший ещё один дом. */
     public WarParty withWrecked(int done) {
-        return new WarParty(id, home, culture, musters, fighters, done, arrivesOn, leavesOn);
+        return new WarParty(id, home, culture, musters, fighters, done, arrivesOn, leavesOn,
+                bled);
+    }
+
+    /**
+     * Сделал ли отряд всё, зачем приходил.
+     * <p>
+     * Ушёл до срока — не сделал: перебитый отряд не берёт поселений,
+     * и это то самое место, где решается, за что игрок дерётся.
+     */
+    public boolean tookTheTown(long today) {
+        return !bled && fighters > 0 && today > leavesOn;
     }
 
     /**

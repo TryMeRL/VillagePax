@@ -12,6 +12,7 @@ import com.villagepax.sim.Citizen;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.diplomacy.Alliance;
 import com.villagepax.sim.diplomacy.Tribute;
+import com.villagepax.sim.war.Campaigns;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Standing;
@@ -91,6 +92,7 @@ public final class QuestNet {
     public static final Identifier PEACE = new Identifier(VillagePax.MOD_ID, "quest_peace");
     public static final Identifier PACT = new Identifier(VillagePax.MOD_ID, "quest_pact");
     public static final Identifier LEVY = new Identifier(VillagePax.MOD_ID, "quest_levy");
+    public static final Identifier MARCH = new Identifier(VillagePax.MOD_ID, "quest_march");
 
     /**
      * Насколько близко надо стоять, чтобы отдать.
@@ -134,6 +136,12 @@ public final class QuestNet {
             UUID village = buf.readUuid();
             Identifier giver = buf.readIdentifier();
             server.execute(() -> levy(player, village, giver));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(MARCH, (server, player, handler, buf, sender) -> {
+            UUID village = buf.readUuid();
+            Identifier giver = buf.readIdentifier();
+            server.execute(() -> march(player, village, giver));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(TRADE, (server, player, handler, buf, sender) -> {
@@ -323,11 +331,19 @@ public final class QuestNet {
         int days = village.owesTributeTo(player, today) ? village.tributeDaysLeft(today) : 0;
         boolean beaten = village.beatenOn() != Settlement.UNSEEN_DAY
                 && today - village.beatenOn() <= Tribute.MEMORY;
-        if (days <= 0 && !beaten) {
+
+        Settlement colony = colonyOf(manager, player);
+        QuestView.March march = new QuestView.March(Campaigns.fightersFor(colony),
+                Campaigns.judge(colony, village, player, today));
+
+        // Карточка появляется и ради похода: деревню, которую ещё не били,
+        // обобрать нельзя — но на неё можно пойти, и узнать об этом игрок
+        // должен здесь же, а не из документации.
+        if (days <= 0 && !beaten && !march.worthShowing()) {
             return Optional.empty();
         }
         return Optional.of(new QuestView.Levy(days,
-                Tribute.judge(village, colonyOf(manager, player), player, today)));
+                Tribute.judge(village, colony, player, today), march));
     }
 
     /**
@@ -497,6 +513,39 @@ public final class QuestNet {
                     SoundCategory.NEUTRAL, 1.0f, 1.0f);
         } else {
             outcome.verdict().reasonKey().ifPresent(key ->
+                    player.sendMessage(Text.translatable(key), true));
+        }
+        refresh(player, manager, village, giver);
+    }
+
+    /**
+     * Отдать приказ о походе.
+     * <p>
+     * Тем же порядком, что и требование дани, и рядом с ним: это одна
+     * и та же дорога. Разница в том, что дань берут словом, а поход
+     * стоит людей, — и потому приговор считает сервер, а не кнопка.
+     */
+    private static void march(ServerPlayerEntity player, UUID village, Identifier giver) {
+        ServerWorld world = player.getServerWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Settlement home = manager.byId(village).orElse(null);
+        if (home == null) {
+            return;
+        }
+        if (nearbyGiver(player, home, giver) == null) {
+            player.sendMessage(Text.translatable("villagepax.quest.too_far"), true);
+            return;
+        }
+
+        Campaigns.Verdict verdict = Campaigns.march(world, manager,
+                colonyOf(manager, player.getUuid()), home, player.getUuid(),
+                Schedule.dayOf(world.getTimeOfDay()));
+
+        if (verdict.ready()) {
+            world.playSound(null, player.getBlockPos(), SoundEvents.ENTITY_VILLAGER_NO,
+                    SoundCategory.NEUTRAL, 1.0f, 0.7f);
+        } else {
+            verdict.reasonKey().ifPresent(key ->
                     player.sendMessage(Text.translatable(key), true));
         }
         refresh(player, manager, village, giver);

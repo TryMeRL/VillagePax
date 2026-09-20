@@ -6,7 +6,9 @@ import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.life.Life;
+import com.villagepax.sim.diplomacy.Yoke;
 import com.villagepax.sim.faith.Faith;
+import com.villagepax.sim.war.Campaigns;
 import com.villagepax.sim.Villages;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.Entity;
@@ -62,6 +64,13 @@ public final class WorkTicker {
             rollOverDay(world, manager, settlement, today);
 
             for (Citizen citizen : settlement.citizens()) {
+                if (Campaigns.isAway(settlement, citizen)) {
+                    // Страж в походе решений не принимает. Иначе стратегия
+                    // каждые полсекунды велела бы ему идти патрулировать
+                    // родную колонию — и он шёл бы домой через всю карту
+                    // прямо из-под стен осаждаемой деревни.
+                    continue;
+                }
                 if (isItsTurn(time, citizen)) {
                     decide(world, manager, settlement, citizen, part);
                 }
@@ -120,6 +129,11 @@ public final class WorkTicker {
                     Life.newDay(world, manager, state,
                             new java.util.Random(world.getRandom().nextLong()));
                     Needs.newDay(world, manager, state);
+                    // Дань, если колония под ярмом. Здесь, а не в суточном
+                    // решении деревни: платит колония, и платит со своего
+                    // склада — то есть из сундуков, а сундуки бывают только
+                    // в загруженных чанках.
+                    Yoke.pay(world, manager, state, today);
                     // Утро под благословением урожая: посевы подрастают сами.
                     // Здесь, а не в суточном решении деревни, потому что поле
                     // есть и у колонии игрока, а деревня своего решения

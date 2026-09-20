@@ -69,7 +69,8 @@ class TownHallViewCodecTest {
                         "villagepax.profession.builder", false, "villagepax.level.hamlet")),
                 Optional.of("villagepax.advice.no_farm"),
                 GROWTH,
-                FAITH);
+                FAITH,
+                new TownHallView.Yoke("Бовуар", 7));
     }
 
     @Test
@@ -127,7 +128,7 @@ class TownHallViewCodecTest {
                 view.population(), view.maxCitizens(), view.household(), view.construction(),
                 view.buildings(), view.citizens(), view.stock(), view.offers(),
                 view.professions(), view.advice(), view.growth(),
-                TownHallView.FaithView.NONE);
+                TownHallView.FaithView.NONE, TownHallView.Yoke.NONE);
 
         assertTrue(!view.equals(godless),
                 "снимки с разной верой обязаны различаться, иначе вкладка замрёт");
@@ -152,7 +153,7 @@ class TownHallViewCodecTest {
         TownHallView empty = new TownHallView("", new Identifier("villagepax", "norman"), "hamlet",
                 0, 4, new TownHallView.Household(0, 0, 0, 0, 0), Optional.empty(),
                 List.of(), List.of(), new ItemTally(), List.of(), List.of(), Optional.empty(), GROWTH,
-                TownHallView.FaithView.NONE);
+                TownHallView.FaithView.NONE, TownHallView.Yoke.NONE);
 
         NbtElement encoded = TownHallView.CODEC.encodeStart(NbtOps.INSTANCE, empty).result().orElseThrow();
         assertEquals(empty, TownHallView.CODEC.parse(NbtOps.INSTANCE, encoded).result().orElseThrow());
@@ -170,12 +171,12 @@ class TownHallViewCodecTest {
                 "hamlet", 1, 4, new TownHallView.Household(1, 0, 2, 1, 1), Optional.empty(),
                 List.of(), List.of(),
                 new ItemTally(Map.of(new Identifier("minecraft", "bread"), 2)), List.of(),
-                List.of(), Optional.empty(), GROWTH, TownHallView.FaithView.NONE);
+                List.of(), Optional.empty(), GROWTH, TownHallView.FaithView.NONE, TownHallView.Yoke.NONE);
         TownHallView same = new TownHallView("Бовуар", new Identifier("villagepax", "norman"),
                 "hamlet", 1, 4, new TownHallView.Household(1, 0, 2, 1, 1), Optional.empty(),
                 List.of(), List.of(),
                 new ItemTally(Map.of(new Identifier("minecraft", "bread"), 2)), List.of(),
-                List.of(), Optional.empty(), GROWTH, TownHallView.FaithView.NONE);
+                List.of(), Optional.empty(), GROWTH, TownHallView.FaithView.NONE, TownHallView.Yoke.NONE);
 
         assertEquals(one, same, "снимки с одинаковым содержимым обязаны быть равны");
 
@@ -183,7 +184,7 @@ class TownHallViewCodecTest {
                 "hamlet", 1, 4, new TownHallView.Household(1, 0, 2, 1, 1), Optional.empty(),
                 List.of(), List.of(),
                 new ItemTally(Map.of(new Identifier("minecraft", "bread"), 3)), List.of(),
-                List.of(), Optional.empty(), GROWTH, TownHallView.FaithView.NONE);
+                List.of(), Optional.empty(), GROWTH, TownHallView.FaithView.NONE, TownHallView.Yoke.NONE);
 
         assertTrue(!one.equals(other), "разный склад — разные снимки, иначе экран замрёт");
     }

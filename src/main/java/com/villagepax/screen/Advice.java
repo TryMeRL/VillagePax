@@ -18,6 +18,7 @@ import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.work.FarmJob;
 import com.villagepax.sim.work.Housing;
+import com.villagepax.sim.work.Schedule;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 
@@ -61,6 +62,7 @@ public final class Advice {
     // на обоих языках. Совет без перевода выглядит в пульте как
     // villagepax.advice.no_temple, и это хуже молчания.
     private static final String SIEGE = "villagepax.advice.under_siege";
+    private static final String UNDER_YOKE = "villagepax.advice.under_yoke";
     private static final String DESERTED = "villagepax.advice.deserted";
     private static final String NO_STORAGE = "villagepax.advice.no_storage";
     private static final String NO_FOOD = "villagepax.advice.no_food";
@@ -76,9 +78,9 @@ public final class Advice {
 
     /** Все советы, какие мод умеет дать: их проверяет словарь. */
     public static List<String> keys() {
-        return List.of(SIEGE, DESERTED, NO_STORAGE, NO_FOOD, NO_BUILDER, NO_BEDS, NO_FARM,
-                IDLE_HANDS, NO_NEIGHBOURS, NO_TEMPLE, NO_FAITH, NOTHING_BUILDING,
-                RAISE_THE_HALL);
+        return List.of(SIEGE, UNDER_YOKE, DESERTED, NO_STORAGE, NO_FOOD, NO_BUILDER,
+                NO_BEDS, NO_FARM, IDLE_HANDS, NO_NEIGHBOURS, NO_TEMPLE, NO_FAITH,
+                NOTHING_BUILDING, RAISE_THE_HALL);
     }
 
     private Advice() {
@@ -95,6 +97,13 @@ public final class Advice {
             // а голод — через неделю. И это единственная беда, у которой
             // есть срок: заплатить можно, пока они идут.
             return Optional.of(SIEGE);
+        }
+        if (colony.tributeDaysLeft(Schedule.dayOf(world.getTimeOfDay())) > 0
+                && !colony.owner().isAutonomous()) {
+            // Ниже отряда у ворот, но выше всего остального: дань уносит
+            // серебро каждое утро, и игрок должен знать не только о том,
+            // что оно уходит, но и как это прекратить.
+            return Optional.of(UNDER_YOKE);
         }
         if (colony.citizens().isEmpty()) {
             return Optional.of(DESERTED);

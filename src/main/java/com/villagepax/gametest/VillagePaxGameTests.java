@@ -73,6 +73,9 @@ import com.villagepax.sim.war.Peace;
 import com.villagepax.sim.diplomacy.Alliance;
 import com.villagepax.sim.diplomacy.Tribute;
 import com.villagepax.sim.war.Allies;
+import com.villagepax.sim.war.Campaigns;
+import com.villagepax.sim.war.Conquest;
+import com.villagepax.sim.diplomacy.Yoke;
 import com.villagepax.sim.war.Raids;
 import com.villagepax.sim.life.Mortality;
 import com.villagepax.sim.life.Life;
@@ -255,7 +258,7 @@ public class VillagePaxGameTests implements FabricGameTest {
                 new Identifier("villagepax", "norman/lumberjack"),
                 center.add(12, 0, 4),
                 BlockRotation.CLOCKWISE_180);
-        Citizen worker = Citizen.newborn("Thibault", "de Beauvoir", NORMAN, Gender.MALE);
+        Citizen worker = evenNewborn("Thibault", "de Beauvoir", NORMAN, Gender.MALE);
         lumberjack.assign(worker.id());
         colony.addBuilding(lumberjack);
         colony.addCitizen(worker);
@@ -488,7 +491,7 @@ public class VillagePaxGameTests implements FabricGameTest {
         ChunkPos chunk = new ChunkPos(base);
 
         Settlement colony = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Тестовое", base);
-        Citizen citizen = Citizen.newborn("Rollo", "de Beauvoir", NORMAN, Gender.MALE);
+        Citizen citizen = evenNewborn("Rollo", "de Beauvoir", NORMAN, Gender.MALE);
         citizen.setPosition(Vec3d.ofBottomCenter(base));
         colony.addCitizen(citizen);
 
@@ -597,7 +600,7 @@ public class VillagePaxGameTests implements FabricGameTest {
         ChunkPos chunk = new ChunkPos(base);
 
         Settlement colony = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Лазарет", base);
-        Citizen citizen = Citizen.newborn("Aubert", "", NORMAN, Gender.MALE);
+        Citizen citizen = evenNewborn("Aubert", "", NORMAN, Gender.MALE);
         citizen.setPosition(Vec3d.ofBottomCenter(base));
         colony.addCitizen(citizen);
 
@@ -637,7 +640,7 @@ public class VillagePaxGameTests implements FabricGameTest {
         ChunkPos chunk = new ChunkPos(base);
 
         Settlement colony = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Погост", base);
-        Citizen citizen = Citizen.newborn("Ancel", "", NORMAN, Gender.MALE);
+        Citizen citizen = evenNewborn("Ancel", "", NORMAN, Gender.MALE);
         citizen.setPosition(Vec3d.ofBottomCenter(base));
         colony.addCitizen(citizen);
 
@@ -678,7 +681,7 @@ public class VillagePaxGameTests implements FabricGameTest {
         ChunkPos chunk = new ChunkPos(base);
 
         Settlement colony = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Заблудший", base);
-        Citizen citizen = Citizen.newborn("Foulques", "", NORMAN, Gender.MALE);
+        Citizen citizen = evenNewborn("Foulques", "", NORMAN, Gender.MALE);
         // Далеко за пределами хутора: два чанка радиуса, а это больше тысячи блоков.
         citizen.setPosition(new Vec3d(base.getX() + 2000, base.getY(), base.getZ()));
         colony.addCitizen(citizen);
@@ -1272,7 +1275,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             // Нанимаем строителя — и та же стройка идёт.
-            Citizen builder = Citizen.newborn("Rollo", "le Macon", NORMAN, Gender.MALE);
+            Citizen builder = evenNewborn("Rollo", "le Macon", NORMAN, Gender.MALE);
             builder.setProfession(BuildJob.BUILDER);
             colony.addCitizen(builder);
 
@@ -4836,7 +4839,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             stockFor(world, colony, housePlan);
 
             // Курьер в колонии есть — пусть даже он ещё не в загруженном чанке.
-            Citizen porter = Citizen.newborn("Носильщик", "", NORMAN, Gender.MALE);
+            Citizen porter = evenNewborn("Носильщик", "", NORMAN, Gender.MALE);
             porter.setProfession(HaulJob.COURIER);
             colony.addCitizen(porter);
 
@@ -4893,7 +4896,7 @@ public class VillagePaxGameTests implements FabricGameTest {
         try {
             stockFor(world, colony, housePlan);
 
-            Citizen idle = Citizen.newborn("Лежебока", "", NORMAN, Gender.MALE);
+            Citizen idle = evenNewborn("Лежебока", "", NORMAN, Gender.MALE);
             idle.setProfession(HaulJob.COURIER);
             colony.addCitizen(idle);
 
@@ -7436,13 +7439,13 @@ public class VillagePaxGameTests implements FabricGameTest {
                 // Жителю некуда лечь, а строить негде: проще перестать
                 // ждать новых, чем ставить дом в проверке про совет.
                 while (colony.hasRoomForCitizen()) {
-                    Citizen extra = Citizen.newborn("Гость", "", NORMAN, Gender.FEMALE);
+                    Citizen extra = evenNewborn("Гость", "", NORMAN, Gender.FEMALE);
                     colony.addCitizen(extra);
                 }
                 return true;
             }
             case "villagepax.advice.no_farm" -> {
-                Citizen farmer = Citizen.newborn("Пахарь", "", NORMAN, Gender.MALE);
+                Citizen farmer = evenNewborn("Пахарь", "", NORMAN, Gender.MALE);
                 farmer.setProfession(FarmJob.FARMER);
                 colony.addCitizen(farmer);
                 return true;
@@ -7501,7 +7504,7 @@ public class VillagePaxGameTests implements FabricGameTest {
         // а такие не стареют и не умирают, и проверять на них нечего.
         colony.citizens().forEach(citizen -> citizen.setLived(Ages.grownAt()));
 
-        Citizen wife = Citizen.newborn("Аделиза", "", NORMAN, Gender.FEMALE);
+        Citizen wife = evenNewborn("Аделиза", "", NORMAN, Gender.FEMALE);
         wife.setLived(Ages.grownAt());
         colony.addCitizen(wife);
 
@@ -7598,7 +7601,7 @@ public class VillagePaxGameTests implements FabricGameTest {
         Settlement colony = household(world, manager, context, hall);
 
         try {
-            Citizen child = Citizen.newborn("Тибо", "", NORMAN, Gender.MALE);
+            Citizen child = evenNewborn("Тибо", "", NORMAN, Gender.MALE);
             child.setLived(0);
             colony.addCitizen(child);
 
@@ -7646,16 +7649,16 @@ public class VillagePaxGameTests implements FabricGameTest {
             Citizen father = colony.citizens().get(0);
             father.setLived(Ages.grownAt());
 
-            Citizen mother = Citizen.newborn("Аделиза", "", NORMAN, Gender.FEMALE);
+            Citizen mother = evenNewborn("Аделиза", "", NORMAN, Gender.FEMALE);
             mother.setLived(Ages.grownAt());
             colony.addCitizen(mother);
 
-            Citizen son = Citizen.newborn("Тибо", "", NORMAN, Gender.MALE);
+            Citizen son = evenNewborn("Тибо", "", NORMAN, Gender.MALE);
             son.setLived(Ages.grownAt());
             son.setParents(father.id(), mother.id());
             colony.addCitizen(son);
 
-            Citizen daughter = Citizen.newborn("Сибилла", "", NORMAN, Gender.FEMALE);
+            Citizen daughter = evenNewborn("Сибилла", "", NORMAN, Gender.FEMALE);
             daughter.setLived(Ages.grownAt());
             daughter.setParents(father.id(), mother.id());
             colony.addCitizen(daughter);
@@ -7904,6 +7907,33 @@ public class VillagePaxGameTests implements FabricGameTest {
     // ======================= ХАРАКТЕРЫ =======================
 
     /**
+     * Житель для проверок: <b>ровный</b>.
+     * <p>
+     * Характер выводится из опознавателя, а {@code Citizen.newborn} даёт
+     * случайный, — значит каждый пятый работник в проверке рождался бы
+     * ленивым. В игре ленивый работает вполсилы: делает дело через
+     * решение. А в проверке решения идут подряд <b>в одном тике</b>,
+     * и «через решение» превращается в «ни разу»: пивовар не варит,
+     * билдер не кладёт, ткач не ткёт. Проверки начинали мерцать —
+     * каждый шестой прогон ронял случайную из них, обвиняя ремесло
+     * в чужом характере.
+     * <p>
+     * Правило отсюда общее: <b>работник в проверке нанят ради ремесла,
+     * а не ради характера</b>. Кому нужен характер — берёт
+     * {@link #someoneWith}.
+     */
+    private static Citizen evenNewborn(String first, String last, Identifier culture,
+                                       Gender gender) {
+        for (int tries = 0; tries < 1000; tries++) {
+            Citizen who = Citizen.newborn(first, last, culture, gender);
+            if (Natures.of(who) == Nature.EVEN) {
+                return who;
+            }
+        }
+        throw new IllegalStateException("ровный характер не достаётся никому");
+    }
+
+    /**
      * Житель с нужным характером.
      * <p>
      * Перебором по рождению, а не подобранным руками опознавателем:
@@ -7988,7 +8018,7 @@ public class VillagePaxGameTests implements FabricGameTest {
                     if (Villages.GUARD.equals(craft)) {
                         continue;
                     }
-                    Citizen filler = Citizen.newborn("Занято", "", NORMAN, Gender.FEMALE);
+                    Citizen filler = evenNewborn("Занято", "", NORMAN, Gender.FEMALE);
                     filler.setProfession(craft);
                     bare.addCitizen(filler);
                 }
@@ -10508,7 +10538,7 @@ public class VillagePaxGameTests implements FabricGameTest {
         }
 
         Settlement colony = colonyWithBuilder(world, manager, hall);
-        Citizen watchman = Citizen.newborn("Turold", "le Veilleur", NORMAN, Gender.MALE);
+        Citizen watchman = evenNewborn("Turold", "le Veilleur", NORMAN, Gender.MALE);
         watchman.setProfession(Villages.GUARD);
         manager.update(colony.id(), state -> state.addCitizen(watchman));
 
@@ -10643,80 +10673,381 @@ public class VillagePaxGameTests implements FabricGameTest {
         });
     }
 
+
+    // ======================= ВАССАЛИТЕТ: ЗАХВАТ, ЯРМО, ПОХОД =======================
+
     /**
-     * Трус бежит от того, кого прочие ещё не заметили.
+     * Отряд, ушедший без потерь, берёт колонию; проливший кровь — нет.
      * <p>
-     * Проверяется тактикой, прогоном тиков, потому что бегство — цель
-     * ванильного поиска, и убедиться надо в том, что <b>круг</b> у труса
-     * действительно шире, а не в том, что цель заведена.
-     * <p>
-     * Налётчику выключен разум нарочно: живой пошёл бы на одного из двоих,
-     * сам сократил бы расстояние до общего круга бегства, и побежали бы
-     * оба — проверка сравнивала бы двух бегущих. Здесь он стоит ровно
-     * на пятнадцати шагах: ближе общего круга не подойти, шире трусова —
-     * не уйти.
+     * Единственное правило захвата, и проверяются обе его половины разом,
+     * потому что порознь каждая согласилась бы с поломкой: «берёт всегда»
+     * проходит первую, «не берёт никогда» — вторую.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid_fight", tickLimit = 200)
-    public void theCowardRunsSooner(TestContext context) {
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "conquest")
+    public void aWholeWarBandTakesTheColony(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
 
-        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        BlockPos centre = context.getAbsolutePos(new BlockPos(6, 71, 6));
+        BlockPos musters = context.getAbsolutePos(new BlockPos(9, 71, 6));
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 71, 14));
         List<BlockPos> floor = new ArrayList<>();
-        for (int x = 0; x <= 34; x++) {
-            for (int z = 0; z <= 8; z++) {
-                BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
-                world.setBlockState(at, Blocks.STONE.getDefaultState());
-                floor.add(at);
+
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", centre);
+        Settlement village = Settlement.found(MAYA, Owner.AUTONOMOUS, "Коба", villageAt);
+        manager.add(colony);
+        manager.add(village);
+
+        try {
+            for (int x = 2; x <= 14; x++) {
+                for (int z = 2; z <= 14; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 70, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
             }
+
+            // Первый отряд уходит целым — и колония под данью.
+            WarParty whole = new WarParty(UUID.randomUUID(), village.id(), MAYA, musters,
+                    2, 20L, 21L);
+            manager.update(colony.id(), state -> state.besiege(whole, 19L));
+            Raids.watch(world, manager, 20L);
+            Raids.watch(world, manager, 22L);
+
+            Settlement after = manager.byId(colony.id()).orElseThrow();
+            if (!after.owesTributeTo(village.id(), 22L)) {
+                context.throwGameTestException("Отряд ушёл целым, а колония свободна: "
+                        + "у войны по-прежнему нет проигрыша");
+            }
+            if (after.tributeDaysLeft(22L) != Tribute.DAYS) {
+                context.throwGameTestException("Дань на " + after.tributeDaysLeft(22L)
+                        + " дней вместо " + Tribute.DAYS);
+            }
+            Raids.bodiesOf(world, whole).forEach(CitizenEntity::discard);
+            manager.update(colony.id(), Settlement::stopTribute);
+
+            // Второй теряет бойца — и не берёт ничего.
+            WarParty bled = new WarParty(UUID.randomUUID(), village.id(), MAYA, musters,
+                    2, 30L, 31L);
+            manager.update(colony.id(), state -> state.besiege(bled, 29L));
+            Raids.watch(world, manager, 30L);
+            manager.update(colony.id(), state ->
+                    state.updateSiege(state.siege().orElseThrow().withFighters(1)));
+            Raids.watch(world, manager, 32L);
+
+            if (manager.byId(colony.id()).orElseThrow().tributeDaysLeft(32L) > 0) {
+                context.throwGameTestException("Отряд потерял бойца и всё равно взял колонию: "
+                        + "пролитая кровь ничего не значит");
+            }
+            Raids.bodiesOf(world, bled).forEach(CitizenEntity::discard);
+        } finally {
+            cleanUpVillage(world, manager, colony, centre, floor);
+            manager.remove(village.id());
         }
 
-        Settlement colony = colonyWithBuilder(world, manager, hall);
-        Citizen scared = grownWith(Nature.COWARD, "Одон", Gender.MALE);
-        Citizen steady = grownWith(Nature.EVEN, "Роллон", Gender.MALE);
-        scared.setPosition(Vec3d.ofBottomCenter(context.getAbsolutePos(new BlockPos(3, 2, 3))));
-        steady.setPosition(Vec3d.ofBottomCenter(context.getAbsolutePos(new BlockPos(3, 2, 5))));
-        colony.addCitizen(scared);
-        colony.addCitizen(steady);
+        context.complete();
+    }
 
-        CitizenEntity coward = CitizenSpawner.spawnBody(world, colony, scared);
-        CitizenEntity plain = CitizenSpawner.spawnBody(world, colony, steady);
-        CitizenEntity raider = CitizenSpawner.spawnPuppet(world,
-                context.getAbsolutePos(new BlockPos(18, 2, 4)));
+    /**
+     * Ярмо платится серебром со склада, а пустая казна обижает.
+     * <p>
+     * Дань — не число в сохранении, а монета из <b>своего</b> сундука.
+     * Вторая половина важнее первой: неуплата роняет доверие, и это
+     * единственная настоящая угроза вассала — не заплатил, значит
+     * приблизил следующий отряд.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "conquest")
+    public void theYokeIsPaidFromTheColonyPurse(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
 
-        if (coward == null || plain == null || raider == null) {
-            cleanUpFight(world, manager, colony, hall, floor, coward, plain, raider);
-            context.throwGameTestException("Тела не появились");
-            return;
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 35, 2));
+        BlockPos colonyAt = context.getAbsolutePos(new BlockPos(16, 35, 2));
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", villageAt);
+        world.setBlockState(villageAt, ModBlocks.TOWN_HALL.getDefaultState());
+        manager.add(village);
+
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", colonyAt);
+        world.setBlockState(colonyAt, ModBlocks.TOWN_HALL.getDefaultState());
+        manager.add(colony);
+
+        try {
+            Coins.earn(Warehouse.of(world, colony).coins(), Tribute.RATE * 2);
+            manager.update(colony.id(), state -> state.startTribute(village.id(), 100L));
+
+            int theirsBefore = Coins.total(Warehouse.of(world, village).coins());
+            for (long day = 1; day <= 2; day++) {
+                if (Yoke.pay(world, manager, colony, day) != Tribute.RATE) {
+                    context.throwGameTestException("День " + day + ": ярмо не оплачено");
+                    return;
+                }
+            }
+
+            if (Coins.total(Warehouse.of(world, colony).coins()) != 0) {
+                context.throwGameTestException("Серебро не ушло со склада колонии: "
+                        + Coins.total(Warehouse.of(world, colony).coins()));
+            }
+            if (Coins.total(Warehouse.of(world, village).coins())
+                    != theirsBefore + Tribute.RATE * 2) {
+                context.throwGameTestException("На склад деревни пришло не то: "
+                        + Coins.total(Warehouse.of(world, village).coins()));
+            }
+
+            // Казна пуста: платить нечем, и деревня это запоминает.
+            int trustBefore = manager.byId(village.id()).orElseThrow().reputationOf(player);
+            if (Yoke.pay(world, manager, colony, 3L) != 0) {
+                context.throwGameTestException("Заплатили из пустой казны");
+            }
+            int trustAfter = manager.byId(village.id()).orElseThrow().reputationOf(player);
+            if (trustAfter >= trustBefore) {
+                context.throwGameTestException("Неуплата не обидела деревню: доверие было "
+                        + trustBefore + ", стало " + trustAfter);
+            }
+            if (manager.byId(colony.id()).orElseThrow().tributeDaysLeft(3L) <= 0) {
+                context.throwGameTestException("Ярмо кончилось от того, что платить нечем: "
+                        + "нищета стала способом освободиться");
+            }
+
+            // А срок вышел — и запись снимается сама.
+            if (Yoke.pay(world, manager, colony, 200L) != 0) {
+                context.throwGameTestException("Заплатили после срока");
+            }
+            if (manager.byId(colony.id()).orElseThrow().tributeTo().isPresent()) {
+                context.throwGameTestException("Срок вышел, а запись о дани осталась");
+            }
+        } finally {
+            manager.remove(colony.id());
+            manager.remove(village.id());
+            world.setBlockState(villageAt, Blocks.AIR.getDefaultState());
+            world.setBlockState(colonyAt, Blocks.AIR.getDefaultState());
         }
 
-        UUID party = UUID.randomUUID();
-        raider.linkRaid(colony.id(), party);
-        raider.setAiDisabled(true);
-        rememberRaid(manager, colony, party, raider.getBlockPos(), 1);
+        context.complete();
+    }
 
-        double cowardWas = coward.getPos().distanceTo(raider.getPos());
-        double plainWas = plain.getPos().distanceTo(raider.getPos());
+    /**
+     * Перебитый отряд сюзерена снимает ярмо.
+     * <p>
+     * Дань держится страхом — там же и кончается. Без этого выхода
+     * побеждённому оставалось бы только ждать конца срока, а ждать —
+     * это не игра.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "conquest")
+    public void beatingTheOverlordThrowsOffTheYoke(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
 
-        context.runAtTick(120, () -> {
-            try {
-                double cowardGained = coward.getPos().distanceTo(raider.getPos()) - cowardWas;
-                double plainGained = plain.getPos().distanceTo(raider.getPos()) - plainWas;
+        BlockPos centre = context.getAbsolutePos(new BlockPos(6, 40, 6));
+        BlockPos musters = context.getAbsolutePos(new BlockPos(9, 40, 6));
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 40, 14));
+        List<BlockPos> floor = new ArrayList<>();
 
-                if (cowardGained < 5.0) {
-                    context.throwGameTestException("Трус не побежал: отошёл на "
-                            + Math.round(cowardGained) + " шагов от налётчика в пятнадцати");
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", centre);
+        Settlement village = Settlement.found(MAYA, Owner.AUTONOMOUS, "Коба", villageAt);
+        manager.add(colony);
+        manager.add(village);
+
+        try {
+            for (int x = 2; x <= 14; x++) {
+                for (int z = 2; z <= 14; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 39, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
                 }
-                if (cowardGained - plainGained < 4.0) {
-                    context.throwGameTestException("Круг труса не шире общего: он отошёл на "
-                            + Math.round(cowardGained) + ", ровный на "
-                            + Math.round(plainGained));
-                }
-            } finally {
-                cleanUpFight(world, manager, colony, hall, floor, coward, plain, raider);
             }
-            context.complete();
-        });
+
+            manager.update(colony.id(), state -> state.startTribute(village.id(), 100L));
+            WarParty band = new WarParty(UUID.randomUUID(), village.id(), MAYA, musters,
+                    1, 20L, 21L);
+            manager.update(colony.id(), state -> state.besiege(band, 19L));
+            Raids.watch(world, manager, 20L);
+
+            CitizenEntity fighter = Raids.bodiesOf(world, band).stream().findFirst().orElse(null);
+            if (fighter == null) {
+                context.throwGameTestException("Отряд не встал телами");
+                return;
+            }
+            Raids.fell(world, fighter, 21L);
+
+            if (manager.byId(colony.id()).orElseThrow().tributeDaysLeft(21L) > 0) {
+                context.throwGameTestException("Отряд сюзерена перебит, а дань идёт: "
+                        + "выхода из ярма нет");
+            }
+            fighter.discard();
+        } finally {
+            cleanUpVillage(world, manager, colony, centre, floor);
+            manager.remove(village.id());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Походу нужен город и двое стражей, и каждый отказ говорит словами.
+     * <p>
+     * Приговор целиком, а не «можно/нельзя»: серая кнопка без причины —
+     * это загадка, а не правило. Отдельной строкой — друг: дружба
+     * защищает деревню от игрока ровно так же, как игрока от неё.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "conquest")
+    public void theMarchNeedsATownAndTwoSwords(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 50, 2));
+        BlockPos colonyAt = context.getAbsolutePos(new BlockPos(16, 50, 2));
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", villageAt);
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", colonyAt);
+        manager.add(village);
+        manager.add(colony);
+
+        try {
+            if (Campaigns.judge(null, village, player, 5L) != Campaigns.Verdict.NO_TOWN) {
+                context.throwGameTestException("Без колонии поход разрешён");
+            }
+            if (Campaigns.judge(colony, village, player, 5L) != Campaigns.Verdict.NO_TOWN) {
+                context.throwGameTestException("Хутор посылает отряды");
+            }
+
+            colony.setLevel(SettlementLevel.TOWN);
+            if (Campaigns.judge(colony, village, player, 5L) != Campaigns.Verdict.NO_GUARDS) {
+                context.throwGameTestException("Город без стражи послал отряд: "
+                        + Campaigns.judge(colony, village, player, 5L));
+            }
+
+            Citizen one = evenNewborn("Гийом", "", NORMAN, Gender.MALE);
+            one.setProfession(Villages.GUARD);
+            colony.addCitizen(one);
+            if (Campaigns.judge(colony, village, player, 5L) != Campaigns.Verdict.NO_GUARDS) {
+                context.throwGameTestException("Одиночку отпустили воевать");
+            }
+
+            Citizen two = evenNewborn("Одон", "", NORMAN, Gender.MALE);
+            two.setProfession(Villages.GUARD);
+            colony.addCitizen(two);
+            if (Campaigns.judge(colony, village, player, 5L) != Campaigns.Verdict.YES) {
+                context.throwGameTestException("Городу с двумя стражами отказали: "
+                        + Campaigns.judge(colony, village, player, 5L));
+            }
+
+            // На друга походом не ходят.
+            manager.update(village.id(), state ->
+                    state.addReputation(player, Standing.FRIEND.from()));
+            if (Campaigns.judge(colony, village, player, 5L) != Campaigns.Verdict.TOO_FRIENDLY) {
+                context.throwGameTestException("Другу объявили войну");
+            }
+            manager.update(village.id(), state ->
+                    state.addReputation(player, -Standing.FRIEND.from()));
+
+            // И на свою колонию тоже.
+            if (Campaigns.judge(colony, colony, player, 5L)
+                    != Campaigns.Verdict.NOT_A_NEIGHBOUR) {
+                context.throwGameTestException("Колония пошла походом на себя");
+            }
+        } finally {
+            manager.remove(colony.id());
+            manager.remove(village.id());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Отряд уходит из дома, берёт деревню и возвращается.
+     * <p>
+     * Три обещания похода одной проверкой, потому что они об одном:
+     * пока отряд в пути, колония <b>без стражи</b>; ушедший целым берёт
+     * деревню; вернувшиеся снова дома и снова работают.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "conquest")
+    public void theWarBandTakesTheVillageAndComesHome(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos colonyAt = context.getAbsolutePos(new BlockPos(6, 60, 6));
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 60, 20));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Моя", colonyAt);
+        colony.setLevel(SettlementLevel.TOWN);
+        Settlement village = Settlement.found(MAYA, Owner.AUTONOMOUS, "Коба", villageAt);
+        manager.add(colony);
+        manager.add(village);
+
+        try {
+            for (int x = 0; x <= 24; x++) {
+                for (int z = 0; z <= 24; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 59, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            for (String name : List.of("Гийом", "Одон")) {
+                Citizen guard = evenNewborn(name, "", NORMAN, Gender.MALE);
+                guard.setProfession(Villages.GUARD);
+                guard.setPosition(Vec3d.ofBottomCenter(colonyAt));
+                colony.addCitizen(guard);
+            }
+
+            if (Campaigns.march(world, manager, colony, village, player, 10L)
+                    != Campaigns.Verdict.YES) {
+                context.throwGameTestException("Городу с двумя стражами не дали выступить");
+                return;
+            }
+            if (manager.byId(colony.id()).orElseThrow().marchingOn().isEmpty()) {
+                context.throwGameTestException("Отряд вышел, а колония об этом не знает");
+            }
+            WarParty party = manager.byId(village.id()).orElseThrow().siege().orElse(null);
+            if (party == null || party.fighters() != 2) {
+                context.throwGameTestException("У деревни не встал отряд колонии");
+                return;
+            }
+
+            // Пока отряд в пути, стража дома не работает.
+            Settlement marching = manager.byId(colony.id()).orElseThrow();
+            for (Citizen guard : Campaigns.guardsOf(marching)) {
+                if (!Campaigns.isAway(marching, guard)) {
+                    context.throwGameTestException("Страж в походе продолжает служить дома");
+                }
+            }
+
+            // Дошли, постояли, ушли целыми — деревня платит.
+            Raids.watch(world, manager, 10L + Campaigns.MARCH_DAYS);
+            if (Raids.bodiesOf(world, party).size() != 2) {
+                context.throwGameTestException("У деревни встали не все: "
+                        + Raids.bodiesOf(world, party).size());
+            }
+            Raids.watch(world, manager, 10L + Campaigns.MARCH_DAYS + Campaigns.STAY_DAYS + 1);
+
+            if (!manager.byId(village.id()).orElseThrow()
+                    .owesTributeTo(player, 14L)) {
+                context.throwGameTestException("Деревня взята, а дани не платит");
+            }
+            Settlement home = manager.byId(colony.id()).orElseThrow();
+            if (home.marchingOn().isPresent()) {
+                context.throwGameTestException("Отряд вернулся, а колония всё воюет");
+            }
+            if (Campaigns.guardsOf(home).size() != 2) {
+                context.throwGameTestException("Домой вернулось "
+                        + Campaigns.guardsOf(home).size() + " стражей из двух");
+            }
+            if (!Raids.bodiesOf(world, party).isEmpty()) {
+                context.throwGameTestException("Тела остались стоять у чужой деревни");
+            }
+        } finally {
+            cleanUpVillage(world, manager, colony, colonyAt, floor);
+            manager.remove(village.id());
+        }
+
+        context.complete();
     }
 
     /** Убрать за схваткой: только свои тела, запись колонии и пол. */
@@ -11497,8 +11828,8 @@ public class VillagePaxGameTests implements FabricGameTest {
         Settlement far = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Далёкая",
                 new BlockPos(150_000, 64, 150_000));
 
-        Citizen watched = Citizen.newborn("Видимый", "", NORMAN, Gender.MALE);
-        Citizen forgotten = Citizen.newborn("Забытый", "", NORMAN, Gender.MALE);
+        Citizen watched = evenNewborn("Видимый", "", NORMAN, Gender.MALE);
+        Citizen forgotten = evenNewborn("Забытый", "", NORMAN, Gender.MALE);
         watched.setSaturation(30);
         forgotten.setSaturation(30);
         near.addCitizen(watched);
@@ -11580,7 +11911,7 @@ public class VillagePaxGameTests implements FabricGameTest {
                         + Advice.nextStep(world, colony));
             }
 
-            Citizen builder = Citizen.newborn("Rollo", "", NORMAN, Gender.MALE);
+            Citizen builder = evenNewborn("Rollo", "", NORMAN, Gender.MALE);
             builder.setProfession(BuildJob.BUILDER);
             colony.addCitizen(builder);
 
@@ -11974,7 +12305,7 @@ public class VillagePaxGameTests implements FabricGameTest {
         Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Облик", hall);
         manager.add(colony);
 
-        Citizen citizen = Citizen.newborn("Adeline", "la Fermiere", NORMAN, Gender.FEMALE);
+        Citizen citizen = evenNewborn("Adeline", "la Fermiere", NORMAN, Gender.FEMALE);
         citizen.setPosition(Vec3d.ofBottomCenter(stands));
         colony.addCitizen(citizen);
         CitizenEntity body = CitizenSpawner.spawnBody(world, colony, citizen);
@@ -12058,7 +12389,7 @@ public class VillagePaxGameTests implements FabricGameTest {
                 return;
             }
 
-            Citizen worker = Citizen.newborn("Ansel", "le Brasseur", NORMAN, Gender.MALE);
+            Citizen worker = evenNewborn("Ansel", "le Brasseur", NORMAN, Gender.MALE);
             colony.addCitizen(worker);
             if (Assignments.set(world, manager, colony, worker.id(),
                     Optional.of(CraftJob.BREWER)) != Assignments.Result.LOCKED) {
@@ -12461,8 +12792,8 @@ public class VillagePaxGameTests implements FabricGameTest {
                 return;
             }
 
-            Citizen homed = Citizen.newborn("Adeline", "", NORMAN, Gender.FEMALE);
-            Citizen homeless = Citizen.newborn("Rollo", "", NORMAN, Gender.MALE);
+            Citizen homed = evenNewborn("Adeline", "", NORMAN, Gender.FEMALE);
+            Citizen homeless = evenNewborn("Rollo", "", NORMAN, Gender.MALE);
             for (Citizen citizen : List.of(homed, homeless)) {
                 citizen.setSaturation(30);
                 citizen.setHappiness(50);
@@ -12630,7 +12961,7 @@ public class VillagePaxGameTests implements FabricGameTest {
 
         try {
             colony.setLevel(SettlementLevel.VILLAGE);
-            Citizen worker = Citizen.newborn("Mahaut", "la Tisserande", NORMAN, Gender.FEMALE);
+            Citizen worker = evenNewborn("Mahaut", "la Tisserande", NORMAN, Gender.FEMALE);
             colony.addCitizen(worker);
             if (Assignments.set(world, manager, colony, worker.id(), Optional.of(WEAVER))
                     != Assignments.Result.LOCKED) {
@@ -12832,7 +13163,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             stockFor(world, colony, farmPlan);
             grown = BuildJob.advance(world, manager, colony.id(), farm.id(), 20_000);
 
-            Citizen citizen = Citizen.newborn("Пешеход", "", NORMAN, Gender.MALE);
+            Citizen citizen = evenNewborn("Пешеход", "", NORMAN, Gender.MALE);
             citizen.setPosition(Vec3d.ofBottomCenter(context.getAbsolutePos(new BlockPos(1, 41, 6))));
             colony.addCitizen(citizen);
             walker = CitizenSpawner.spawnBody(world, colony, citizen);
@@ -12942,7 +13273,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             stockFor(world, colony, housePlan);
             built = BuildJob.advance(world, manager, colony.id(), house.id(), 20_000);
 
-            Citizen citizen = Citizen.newborn("Ходок", "", NORMAN, Gender.MALE);
+            Citizen citizen = evenNewborn("Ходок", "", NORMAN, Gender.MALE);
             citizen.setPosition(Vec3d.ofBottomCenter(houseAt.add(-3, 0, -3).withY(door - 2)));
             colony.addCitizen(citizen);
             walker = CitizenSpawner.spawnBody(world, colony, citizen);
@@ -13041,7 +13372,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             stockFor(world, colony, farmPlan);
             grown = BuildJob.advance(world, manager, colony.id(), farm.id(), 20_000);
 
-            Citizen citizen = Citizen.newborn("Прохожий", "", NORMAN, Gender.MALE);
+            Citizen citizen = evenNewborn("Прохожий", "", NORMAN, Gender.MALE);
             citizen.setPosition(Vec3d.ofBottomCenter(context.getAbsolutePos(new BlockPos(0, 103, 8))));
             colony.addCitizen(citizen);
             walker = CitizenSpawner.spawnBody(world, colony, citizen);
@@ -14411,13 +14742,34 @@ public class VillagePaxGameTests implements FabricGameTest {
         Warehouse wares = Warehouse.of(world, village);
 
         try {
-            // Мирный сосед: карточки нет.
+            // Мирный сосед: дани нет, а поход предлагают — деревню,
+            // которую ещё не били, обобрать нельзя, но пойти на неё можно,
+            // и узнать об этом игрок должен здесь же.
             QuestView quiet = QuestNet.viewOf(manager, village, player, pockets,
                     Villages.ELDER, wares, Optional.empty(), ItemStack.EMPTY, 12L).orElseThrow();
-            if (quiet.levy().isPresent()) {
+            QuestView.Levy peaceful = quiet.levy().orElse(null);
+            if (peaceful == null) {
+                context.throwGameTestException("Городу не сказали даже про поход");
+                return;
+            }
+            if (peaceful.ready() || peaceful.paying()) {
                 context.throwGameTestException("Дань предлагают у мирной деревни: "
                         + "это подсказка грабить, а не цель");
             }
+            if (!peaceful.march().worthShowing()) {
+                context.throwGameTestException("Поход на небитую деревню не предложен");
+            }
+
+            // А другу карточку не показывают вовсе: ни дани, ни похода.
+            manager.update(village.id(), state ->
+                    state.addReputation(player, Standing.FRIEND.from()));
+            QuestView friendly = QuestNet.viewOf(manager, village, player, pockets,
+                    Villages.ELDER, wares, Optional.empty(), ItemStack.EMPTY, 12L).orElseThrow();
+            if (friendly.levy().isPresent()) {
+                context.throwGameTestException("Другу предлагают войну");
+            }
+            manager.update(village.id(), state ->
+                    state.addReputation(player, -Standing.FRIEND.from()));
 
             // Разбитая: карточка есть и говорит «можно».
             manager.update(village.id(), state -> state.beaten(10L));
@@ -15002,7 +15354,7 @@ public class VillagePaxGameTests implements FabricGameTest {
 
             // Четверо под одной крышей — вдвое против первого уровня.
             for (int extra = 0; extra < 3; extra++) {
-                Citizen lodger = Citizen.newborn("Жилец", String.valueOf(extra), NORMAN,
+                Citizen lodger = evenNewborn("Жилец", String.valueOf(extra), NORMAN,
                         Gender.FEMALE);
                 colony.addCitizen(lodger);
             }
@@ -15016,7 +15368,7 @@ public class VillagePaxGameTests implements FabricGameTest {
             }
 
             // Пятому места нет: кроватей ровно столько, сколько построено.
-            colony.addCitizen(Citizen.newborn("Лишний", "", NORMAN, Gender.MALE));
+            colony.addCitizen(evenNewborn("Лишний", "", NORMAN, Gender.MALE));
             Housing.assignBeds(world, colony);
             if (colony.citizens().stream().filter(citizen -> !citizen.isHomeless()).count() != 4) {
                 context.throwGameTestException("Кроватей оказалось больше, чем построено");

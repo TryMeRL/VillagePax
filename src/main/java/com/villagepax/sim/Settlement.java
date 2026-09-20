@@ -124,11 +124,12 @@ public class Settlement {
      */
     public record War(Optional<WarParty> siege, long lastRaid, long truceUntil,
                       Map<UUID, Long> allies, long beatenOn,
-                      Optional<UUID> tributeTo, long tributeUntil) {
+                      Optional<UUID> tributeTo, long tributeUntil,
+                      Optional<UUID> marchingOn) {
 
         /** Мир: никто не стоит у ворот, никто никуда не идёт. */
         public static final War NONE = new War(Optional.empty(), UNSEEN_DAY, UNSEEN_DAY,
-                Map.of(), UNSEEN_DAY, Optional.empty(), UNSEEN_DAY);
+                Map.of(), UNSEEN_DAY, Optional.empty(), UNSEEN_DAY, Optional.empty());
 
         public War {
             allies = Map.copyOf(allies);
@@ -148,9 +149,22 @@ public class Settlement {
             this(siege, lastRaid, truceUntil, allies, beatenOn, Optional.empty(), UNSEEN_DAY);
         }
 
+        public War(Optional<WarParty> siege, long lastRaid, long truceUntil,
+                   Map<UUID, Long> allies, long beatenOn,
+                   Optional<UUID> tributeTo, long tributeUntil) {
+            this(siege, lastRaid, truceUntil, allies, beatenOn, tributeTo, tributeUntil,
+                    Optional.empty());
+        }
+
         /** То же военное положение, но с другой данью. */
         public War paying(Optional<UUID> to, long until) {
-            return new War(siege, lastRaid, truceUntil, allies, beatenOn, to, until);
+            return new War(siege, lastRaid, truceUntil, allies, beatenOn, to, until, marchingOn);
+        }
+
+        /** То же, но отряд колонии вышел в поход — или вернулся. */
+        public War marching(Optional<UUID> target) {
+            return new War(siege, lastRaid, truceUntil, allies, beatenOn, tributeTo,
+                    tributeUntil, target);
         }
 
         public static final Codec<War> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -173,7 +187,14 @@ public class Settlement {
                 // За одного вступаются, от другого откупаются.
                 Uuids.STRING_CODEC.optionalFieldOf("tribute_to").forGetter(War::tributeTo),
                 Codec.LONG.optionalFieldOf("tribute_until", UNSEEN_DAY)
-                        .forGetter(War::tributeUntil)
+                        .forGetter(War::tributeUntil),
+                // На кого идёт отряд этой колонии. Сам отряд лежит
+                // у осаждаемого — «кто у моих ворот» спрашивают там, —
+                // а здесь только имя цели, и заведено оно ради одного
+                // вопроса: «в походе ли моя стража». Спрашивают его
+                // каждое решение каждого жителя, и обходить ради него
+                // все поселения мира было бы дорого.
+                Uuids.STRING_CODEC.optionalFieldOf("marching_on").forGetter(War::marchingOn)
         ).apply(instance, War::new));
     }
 
@@ -509,6 +530,28 @@ public class Settlement {
         left.remove(player);
         this.war = new War(war.siege(), war.lastRaid(), war.truceUntil(), left, war.beatenOn(),
                 war.tributeTo(), war.tributeUntil());
+    }
+
+    /**
+     * На кого вышел отряд этой колонии, если вышел.
+     * <p>
+     * Только имя цели: сам отряд лежит у осаждаемого, как и всё в этом
+     * моде — «кто у моих ворот» спрашивают там. Здесь оно заведено ради
+     * единственного вопроса «в походе ли моя стража», и спрашивают его
+     * на каждом решении каждого стража.
+     */
+    public Optional<UUID> marchingOn() {
+        return war.marchingOn();
+    }
+
+    /** Отряд вышел. */
+    public void marchOn(UUID village) {
+        this.war = war.marching(Optional.of(village));
+    }
+
+    /** Отряд вернулся — целым, поредевшим или не вернулся вовсе. */
+    public void cameHome() {
+        this.war = war.marching(Optional.empty());
     }
 
     /** Отряд перебит: запомнить день. */

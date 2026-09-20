@@ -447,7 +447,39 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         row.child(take);
         levy.verdict().reasonKey().ifPresent(key -> row.tooltip(Text.translatable(key)));
         card.child(row);
+
+        // Поход — второй ряд той же карточки. Дань берут с разбитой
+        // деревни, а небитую сперва надо разбить: это один выбор,
+        // и видеть его игрок должен целиком.
+        if (levy.march().worthShowing()) {
+            LabelComponent cost = Components.label(
+                    Text.translatable("villagepax.people.screen.march_about",
+                            Text.literal(String.valueOf(levy.march().fighters()))));
+            cost.color(Look.MUTED);
+            cost.lineHeight(10);
+            card.child(cost.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+
+            FlowLayout war = Containers.horizontalFlow(Sizing.content(), Sizing.content());
+            war.verticalAlignment(VerticalAlignment.CENTER);
+            war.gap(6);
+            ButtonComponent go = Look.action(
+                    Text.translatable("villagepax.people.screen.send_march"), 92,
+                    button -> march());
+            go.active(levy.march().ready());
+            war.child(go);
+            levy.march().verdict().reasonKey()
+                    .ifPresent(key -> war.tooltip(Text.translatable(key)));
+            card.child(war);
+        }
         body.child(card);
+    }
+
+    /** «Пошли на них»: цену и право считает сервер, клиент — намерение. */
+    private void march() {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeUuid(view.village());
+        buf.writeIdentifier(view.giver());
+        ClientPlayNetworking.send(QuestNet.MARCH, buf);
     }
 
     /** «Плати дань»: право на это считает сервер, клиент — только намерение. */

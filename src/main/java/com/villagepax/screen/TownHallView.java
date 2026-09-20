@@ -81,7 +81,8 @@ public record TownHallView(
         List<ProfessionLine> professions,
         Optional<String> advice,
         Growth growth,
-        FaithView faith) {
+        FaithView faith,
+        Yoke yoke) {
 
     /**
      * Вера колонии: кому здесь молятся и что уже выпросили.
@@ -272,8 +273,33 @@ public record TownHallView(
             ProfessionLine.CODEC.listOf().fieldOf("professions").forGetter(TownHallView::professions),
             Codec.STRING.optionalFieldOf("advice").forGetter(TownHallView::advice),
             Growth.CODEC.fieldOf("growth").forGetter(TownHallView::growth),
-            FaithView.CODEC.optionalFieldOf("faith", FaithView.NONE).forGetter(TownHallView::faith)
+            FaithView.CODEC.optionalFieldOf("faith", FaithView.NONE).forGetter(TownHallView::faith),
+            // Последнее, шестнадцатое поле снимка. Ярмо — состояние
+            // колонии, а не событие: о платеже игроку говорят в чат раз
+            // в сутки, но «почему у меня каждое утро пропадает серебро»
+            // обязано отвечать то же место, где он смотрит всё остальное.
+            Yoke.CODEC.optionalFieldOf("yoke", Yoke.NONE).forGetter(TownHallView::yoke)
     ).apply(instance, TownHallView::new));
+
+    /**
+     * Под чьим ярмом колония.
+     *
+     * @param lord чьё — пустое имя значит «ничьё»
+     * @param days сколько дней ещё платить
+     */
+    public record Yoke(String lord, int days) {
+
+        public static final Yoke NONE = new Yoke("", 0);
+
+        public static final Codec<Yoke> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Codec.STRING.optionalFieldOf("lord", "").forGetter(Yoke::lord),
+                Codec.INT.optionalFieldOf("days", 0).forGetter(Yoke::days)
+        ).apply(instance, Yoke::new));
+
+        public boolean paying() {
+            return days > 0 && !lord.isBlank();
+        }
+    }
 
     /**
      * Быт колонии одной записью: кровати, еда, хранилища.
@@ -366,7 +392,23 @@ public record TownHallView(
                 // и жители — всё то, что уже собрано этим снимком.
                 Advice.nextStep(world, settlement),
                 growthOf(settlement),
-                faithOf(world, settlement));
+                faithOf(world, settlement),
+                yokeOf(world, settlement));
+    }
+
+    /**
+     * Под чьим ярмом колония — именем, а не опознавателем.
+     * <p>
+     * Именем, потому что клиенту надо его <b>показать</b>: имя деревни
+     * не переводится, а искать поселение по опознавателю клиент не может —
+     * у него нет списка поселений и быть не должно.
+     */
+    private static Yoke yokeOf(ServerWorld world, Settlement settlement) {
+        long today = Schedule.dayOf(world.getTimeOfDay());
+        return com.villagepax.sim.diplomacy.Yoke
+                .overlord(com.villagepax.sim.SettlementManager.get(world), settlement, today)
+                .map(lord -> new Yoke(lord.name(), settlement.tributeDaysLeft(today)))
+                .orElse(Yoke.NONE);
     }
 
     /**

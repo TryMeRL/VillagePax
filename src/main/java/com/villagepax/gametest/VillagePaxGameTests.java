@@ -82,6 +82,7 @@ import com.villagepax.sim.life.Mortality;
 import com.villagepax.sim.life.Life;
 import com.villagepax.sim.life.Families;
 import com.villagepax.sim.life.Ages;
+import com.villagepax.sim.life.Bonds;
 import com.villagepax.sim.life.Nature;
 import com.villagepax.sim.life.Natures;
 import com.villagepax.sim.faith.Offering;
@@ -10694,6 +10695,312 @@ public class VillagePaxGameTests implements FabricGameTest {
         });
     }
 
+
+    // ======================= УЗЫ: РОДНЯ, ДРУЖБА, ССОРА =======================
+
+    /**
+     * Смерть близкого — горе, и горюют ровно те, кто помнил.
+     * <p>
+     * Свойства стерегут сам граф: симметрию, предел, забывание. Здесь
+     * проверяется то, ради чего граф заведён, — что он <b>что-то меняет
+     * в игре</b>. Граф без следствия был бы записью в сохранении, которую
+     * игрок никогда не увидит.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "bonds")
+    public void theDeathOfAFriendIsGrieved(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            for (Citizen anyone : List.copyOf(colony.citizens())) {
+                colony.removeCitizen(anyone.id());
+            }
+            Citizen one = grownWith(Nature.EVEN, "Роллон", Gender.MALE);
+            Citizen other = grownWith(Nature.EVEN, "Аделиза", Gender.FEMALE);
+            Citizen stranger = grownWith(Nature.EVEN, "Тибо", Gender.MALE);
+            for (Citizen who : List.of(one, other, stranger)) {
+                colony.addCitizen(who);
+            }
+            if (!Bonds.befriend(one, other)) {
+                context.throwGameTestException("Двоих не удалось свести");
+                return;
+            }
+
+            int friendWas = other.happiness();
+            int strangerWas = stranger.happiness();
+            // Зовётся ровно один раз: второй вызов уже ничего не
+            // найдёт — память стёрта, — и проверка обвинила бы код
+            // в том, что сделала сама.
+            int grieving = Bonds.mourn(world, colony, one);
+            if (grieving != 1) {
+                context.throwGameTestException("Горюет не один человек, а " + grieving);
+            }
+
+            // Число написано от руки: спроси проверка размер горя у того,
+            // кого проверяет, она согласилась бы и с нулём.
+            int promised = 8;
+            if (friendWas - other.happiness() != promised) {
+                context.throwGameTestException("Друг потерял "
+                        + (friendWas - other.happiness()) + " довольства вместо " + promised);
+            }
+            if (stranger.happiness() != strangerWas) {
+                context.throwGameTestException("Горюет и тот, кто покойного не знал");
+            }
+            if (other.friends().contains(one.id())) {
+                context.throwGameTestException("Умерший остался в памяти: колония будет "
+                        + "горевать по нему каждый день");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Родня рядом греет, а ссора студит — и оба считаются в суточных нуждах.
+     * <p>
+     * Проверяется через нужды, а не через сам подсчёт: число, которое
+     * никуда не идёт, проверять незачем. Заодно здесь видно обещание
+     * дизайн-документа, невыполненное с первого дня: «счастье складывается
+     * из… отношений в семье».
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "bonds")
+    public void kinWarmAndQuarrelsChill(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            for (Citizen anyone : List.copyOf(colony.citizens())) {
+                colony.removeCitizen(anyone.id());
+            }
+            Warehouse.of(world, colony).add(new ItemStack(Items.BREAD, 64));
+
+            Citizen alone = grownWith(Nature.EVEN, "Одиночка", Gender.MALE);
+            colony.addCitizen(alone);
+            alone.setSaturation(40);
+            alone.setHappiness(50);
+            Needs.newDay(world, manager, colony);
+            int plain = alone.happiness() - 50;
+
+            // Появился супруг — и тот же день стоит больше.
+            Citizen wife = grownWith(Nature.EVEN, "Аделиза", Gender.FEMALE);
+            colony.addCitizen(wife);
+            alone.marry(wife.id());
+            wife.marry(alone.id());
+            alone.setSaturation(40);
+            alone.setHappiness(50);
+            Needs.newDay(world, manager, colony);
+            int withKin = alone.happiness() - 50;
+
+            int warmth = 1;
+            if (withKin - plain != warmth) {
+                context.throwGameTestException("Родня рядом дала " + (withKin - plain)
+                        + " очков вместо " + warmth);
+            }
+
+            // А теперь ленивый и честолюбивый под одной крышей.
+            Citizen idle = grownWith(Nature.LAZY, "Одон", Gender.MALE);
+            Citizen proud = grownWith(Nature.AMBITIOUS, "Гийом", Gender.MALE);
+            UUID roof = UUID.randomUUID();
+            for (Citizen who : List.of(idle, proud)) {
+                colony.addCitizen(who);
+                who.setHome(roof);
+            }
+            if (!Bonds.atOdds(idle, proud)) {
+                context.throwGameTestException("Ленивый и честолюбивый поладили");
+            }
+            if (Bonds.foesNear(colony, idle) != 1) {
+                context.throwGameTestException("Ссоры под одной крышей не видно: "
+                        + Bonds.foesNear(colony, idle));
+            }
+
+            // Доотсчёт берётся у того же жителя, что и отсчёт со ссорой:
+            // сравнивать прибавки разных людей нельзя — у них разные дом,
+            // родня и кровать, и разность перестала бы означать ссору.
+            proud.setHome(UUID.randomUUID());
+            idle.setSaturation(40);
+            idle.setHappiness(50);
+            Needs.newDay(world, manager, colony);
+            int calm = idle.happiness() - 50;
+
+            proud.setHome(roof);
+            idle.setSaturation(40);
+            idle.setHappiness(50);
+            Needs.newDay(world, manager, colony);
+            int quarrelling = idle.happiness() - 50;
+            if (calm - quarrelling != 1) {
+                context.throwGameTestException("Ссора стоила " + (calm - quarrelling)
+                        + " очков вместо одного");
+            }
+
+            // И разводятся они руками игрока: развели по домам — ссоры нет.
+            proud.setHome(UUID.randomUUID());
+            if (Bonds.foesNear(colony, idle) != 0) {
+                context.throwGameTestException("Развели по домам, а ссора осталась: "
+                        + "прекратить её игрок не может");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Суточный ход сводит тех, кто делит дело, и обходит поссорившихся.
+     * <p>
+     * Свойства проверяют этот же ход на записи; здесь — на живой колонии
+     * с настоящими домами и мастерскими, то есть на том, что решает,
+     * кого он вообще сведёт.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "bonds")
+    public void adayTogetherMakesFriends(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            for (Citizen anyone : List.copyOf(colony.citizens())) {
+                colony.removeCitizen(anyone.id());
+            }
+            UUID roof = UUID.randomUUID();
+            Citizen one = grownWith(Nature.EVEN, "Роллон", Gender.MALE);
+            Citizen other = grownWith(Nature.EVEN, "Аделиза", Gender.FEMALE);
+            Citizen apart = grownWith(Nature.EVEN, "Тибо", Gender.MALE);
+            Citizen idle = grownWith(Nature.LAZY, "Одон", Gender.MALE);
+            for (Citizen who : List.of(one, other, apart, idle)) {
+                colony.addCitizen(who);
+            }
+            one.setHome(roof);
+            other.setHome(roof);
+            idle.setHome(roof);
+            apart.setHome(UUID.randomUUID());
+            // Один из живущих под общей крышей — честолюбивый: с ним
+            // ленивый не сойдётся, а с остальными сойдётся.
+            Citizen proud = grownWith(Nature.AMBITIOUS, "Гийом", Gender.MALE);
+            colony.addCitizen(proud);
+            proud.setHome(roof);
+
+            Bonds.newDay(colony);
+
+            if (!one.friends().contains(other.id())) {
+                context.throwGameTestException("Живущие под одной крышей не сошлись");
+            }
+            if (one.friends().contains(apart.id())) {
+                context.throwGameTestException("Сошлись и те, кто друг друга не видит");
+            }
+            if (idle.friends().contains(proud.id())) {
+                context.throwGameTestException("Ленивый сдружился с честолюбивым");
+            }
+            // Ребёнок ни с кем не сходится: у него ещё нет ни дела, ни круга.
+            Citizen child = someoneWith(Nature.EVEN, "Тибо-младший", Gender.MALE);
+            child.setLived(0);
+            child.setHome(roof);
+            colony.addCitizen(child);
+            Bonds.newDay(colony);
+            if (!child.friends().isEmpty()) {
+                context.throwGameTestException("Ребёнок завёл друзей: " + child.friends());
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Супруг освобождается, каким бы способом житель ни покинул колонию.
+     * <p>
+     * Написана по следам разбора, нашедшего настоящую беду: вдовство
+     * снималось ровно в одном из трёх путей — при смерти от старости, —
+     * а при гибели от чужой руки и при уходе своими ногами запись о браке
+     * оставалась висеть. Вдова с мёртвым мужем в записи выпадает
+     * из сватовства, и колония <b>тихо перестаёт расти</b>: в игре видно
+     * только то, что детей больше нет.
+     * <p>
+     * Проверяются все три пути разом. Порознь каждый согласился бы
+     * с поломкой: путь старости работал и до правки.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "bonds")
+    public void everyWayOutFreesTheSpouse(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            for (Citizen anyone : List.copyOf(colony.citizens())) {
+                colony.removeCitizen(anyone.id());
+            }
+
+            // Путь первый: старость.
+            Citizen husband = grownWith(Nature.EVEN, "Фульк", Gender.MALE);
+            Citizen widow = grownWith(Nature.EVEN, "Аделиза", Gender.FEMALE);
+            marry(colony, husband, widow);
+            husband.setLived(Ages.diesAt());
+            Mortality.die(world, colony, husband);
+            if (widow.spouse().isPresent()) {
+                context.throwGameTestException("Умерший от старости оставил вдову "
+                        + "замужем за собой");
+            }
+
+            // Путь второй: ушёл своими ногами от голода.
+            Citizen leaver = grownWith(Nature.EVEN, "Одон", Gender.MALE);
+            marry(colony, leaver, widow);
+            leaver.setSaturation(0);
+            for (int day = 0; day < Needs.leaveAfterDays(leaver) + 1
+                    && colony.citizen(leaver.id()).isPresent(); day++) {
+                Needs.newDay(world, manager, colony);
+            }
+            if (colony.citizen(leaver.id()).isPresent()) {
+                context.throwGameTestException("Голодный житель не ушёл — проверять нечего");
+                return;
+            }
+            if (widow.spouse().isPresent()) {
+                context.throwGameTestException("Ушедший своими ногами оставил вдову "
+                        + "замужем за собой: колония тихо перестанет расти");
+            }
+
+            // Путь третий: убит.
+            Citizen slain = grownWith(Nature.EVEN, "Гийом", Gender.MALE);
+            marry(colony, slain, widow);
+            Bonds.mourn(world, colony, slain);
+            colony.removeCitizen(slain.id());
+            if (widow.spouse().isPresent()) {
+                context.throwGameTestException("Убитый оставил вдову замужем за собой");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Свести двоих в пару: запись о браке обязана стоять у обоих. */
+    private static void marry(Settlement colony, Citizen one, Citizen other) {
+        if (colony.citizen(one.id()).isEmpty()) {
+            colony.addCitizen(one);
+        }
+        if (colony.citizen(other.id()).isEmpty()) {
+            colony.addCitizen(other);
+        }
+        one.marry(other.id());
+        other.marry(one.id());
+    }
 
     // ======================= ЖАЛОВАНИЕ, НАЛОГ И КРУГ МОНЕТЫ =======================
 

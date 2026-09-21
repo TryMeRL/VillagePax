@@ -53,7 +53,10 @@ public final class Mortality {
      * никогда, и колония тихо перестанет расти.
      */
     public static Citizen die(ServerWorld world, Settlement settlement, Citizen citizen) {
-        Families.spouseOf(settlement, citizen).ifPresent(Citizen::widow);
+        // Горе, вдовство и память — одной дверью: см. Bonds.parted.
+        // Прежде вдовство снималось здесь руками, и ровно поэтому его
+        // не было в двух других способах покинуть колонию.
+        Bonds.mourn(world, settlement, citizen);
 
         Life.discardBody(world, citizen);
         settlement.removeCitizen(citizen.id());

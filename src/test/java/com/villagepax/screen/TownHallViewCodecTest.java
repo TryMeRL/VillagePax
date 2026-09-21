@@ -62,7 +62,7 @@ class TownHallViewCodecTest {
                         Optional.of(new Identifier("villagepax", "builder")), true,
                         Optional.of(new Identifier("villagepax", "norman/town_hall")),
                         Mood.CONTENT, false, "villagepax.age.elder", 91, "Аделиза (2)",
-                        "ambitious")),
+                        "ambitious", "Аделиза, Гийом", "Тибо")),
                 new ItemTally(Map.of(new Identifier("minecraft", "bread"), 4)),
                 List.of(new Identifier("villagepax", "norman/house_lvl1")),
                 List.of(new TownHallView.ProfessionLine(new Identifier("villagepax", "builder"),

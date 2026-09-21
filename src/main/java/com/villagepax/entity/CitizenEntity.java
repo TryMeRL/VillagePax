@@ -918,6 +918,9 @@ public class CitizenEntity extends PathAwareEntity {
         SettlementManager manager = SettlementManager.get(world);
         manager.update(settlementId, settlement ->
                 settlement.citizen(citizenId).ifPresent(citizen -> {
+                    // Горе считается до удаления: после него спрашивать,
+                    // кто помнил убитого, уже не у кого.
+                    com.villagepax.sim.life.Bonds.mourn(world, settlement, citizen);
                     settlement.removeCitizen(citizenId);
                     VillagePax.LOGGER.info("Житель {} из поселения {} погиб от {}",
                             citizen.fullName(), settlement.name(), lastCause());

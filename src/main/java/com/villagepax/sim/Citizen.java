@@ -67,12 +67,23 @@ public class Citizen {
      * на неё смотрят</b>. Поэтому здесь счётчик, и растёт он только
      * в те сутки, которые колония прожила на глазах.
      *
+     * <b>Друзья лежат здесь, а враги — нет</b>, и это не небрежность.
+     * Вражда в этом моде <b>выводится</b>: ссорятся те, чьи характеры
+     * не сходятся, и только пока они делят дело. Выведенному хранилище
+     * не нужно, у него не бывает рассинхрона между концами, и развести
+     * поссорившихся игрок может руками — переназначив одному ремесло.
+     * Дружба же обязана переживать перевод в другую мастерскую: иначе
+     * это не дружба, а соседство по верстаку.
+     *
      * @param lived   сколько дней прожито; {@link #UNAGED} — «возраста
      *                не помнит»
      * @param spouse  супруг, если есть
      * @param parents отец и мать; пусто у всех, кто не родился в колонии
+     * @param friends с кем сошёлся; не больше {@link #MOST_FRIENDS} —
+     *                человек помнит немногих
      */
-    public record Life(int lived, Optional<UUID> spouse, List<UUID> parents) {
+    public record Life(int lived, Optional<UUID> spouse, List<UUID> parents,
+                       List<UUID> friends) {
 
         /**
          * «Возраста не помнит».
@@ -85,17 +96,39 @@ public class Citizen {
          */
         public static final int UNAGED = -1;
 
-        public static final Life UNKNOWN = new Life(UNAGED, Optional.empty(), List.of());
+        /**
+         * Скольких помнят.
+         * <p>
+         * Четверо — не скупость памяти, а цена горя: смерть друга стоит
+         * довольства каждому, кто его помнил, и колония из тридцати,
+         * где все дружат со всеми, хоронила бы каждого разом всем
+         * поселением. Круг близких у человека и в жизни невелик.
+         */
+        public static final int MOST_FRIENDS = 4;
+
+        public static final Life UNKNOWN = new Life(UNAGED, Optional.empty(), List.of(),
+                List.of());
+
+        public Life(int lived, Optional<UUID> spouse, List<UUID> parents) {
+            this(lived, spouse, parents, List.of());
+        }
 
         public Life {
             parents = List.copyOf(parents);
+            // Предел кладётся здесь, а не в том, кто дружит: запись
+            // приходит и из NBT, в том числе из правленого руками, и
+            // список на сорок друзей оттуда стоил бы колонии суток горя.
+            friends = friends.size() > MOST_FRIENDS
+                    ? List.copyOf(friends.subList(0, MOST_FRIENDS)) : List.copyOf(friends);
         }
 
         public static final Codec<Life> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.INT.optionalFieldOf("lived", UNAGED).forGetter(Life::lived),
                 Uuids.STRING_CODEC.optionalFieldOf("spouse").forGetter(Life::spouse),
                 Uuids.STRING_CODEC.listOf().optionalFieldOf("parents", List.of())
-                        .forGetter(Life::parents)
+                        .forGetter(Life::parents),
+                Uuids.STRING_CODEC.listOf().optionalFieldOf("friends", List.of())
+                        .forGetter(Life::friends)
         ).apply(instance, Life::new));
     }
 
@@ -260,7 +293,8 @@ public class Citizen {
      * только суточный ход.
      */
     public void setLived(int days) {
-        this.life = new Life(Math.max(Life.UNAGED, days), life.spouse(), life.parents());
+        this.life = new Life(Math.max(Life.UNAGED, days), life.spouse(), life.parents(),
+                life.friends());
     }
 
     /**
@@ -272,7 +306,8 @@ public class Citizen {
      */
     public void liveADay() {
         if (life.lived() != Life.UNAGED) {
-            this.life = new Life(life.lived() + 1, life.spouse(), life.parents());
+            this.life = new Life(life.lived() + 1, life.spouse(), life.parents(),
+                    life.friends());
         }
     }
 
@@ -281,12 +316,12 @@ public class Citizen {
     }
 
     public void marry(UUID other) {
-        this.life = new Life(life.lived(), Optional.of(other), life.parents());
+        this.life = new Life(life.lived(), Optional.of(other), life.parents(), life.friends());
     }
 
     /** Супруга не стало: запись снимается с обоих, а не остаётся висеть. */
     public void widow() {
-        this.life = new Life(life.lived(), Optional.empty(), life.parents());
+        this.life = new Life(life.lived(), Optional.empty(), life.parents(), life.friends());
     }
 
     /** Отец и мать; пусто у всех, кто не родился в колонии. */
@@ -295,7 +330,51 @@ public class Citizen {
     }
 
     public void setParents(UUID father, UUID mother) {
-        this.life = new Life(life.lived(), life.spouse(), List.of(father, mother));
+        this.life = new Life(life.lived(), life.spouse(), List.of(father, mother),
+                life.friends());
+    }
+
+    /** С кем этот житель сошёлся. */
+    public List<UUID> friends() {
+        return life.friends();
+    }
+
+    /**
+     * Запомнить друга.
+     * <p>
+     * Обе стороны записывает не эта запись, а тот, кто знакомит: здесь
+     * известен только один конец. Симметрию держит {@code Bonds}, и она же
+     * проверяется свойством — вручную такое не усмотреть.
+     *
+     * @return {@code false}, если дружба уже записана, память полна или
+     *         житель пытается подружиться сам с собой
+     */
+    public boolean befriend(UUID other) {
+        if (other == null || other.equals(id) || life.friends().contains(other)
+                || life.friends().size() >= Life.MOST_FRIENDS) {
+            return false;
+        }
+        List<UUID> wider = new java.util.ArrayList<>(life.friends());
+        wider.add(other);
+        this.life = new Life(life.lived(), life.spouse(), life.parents(), List.copyOf(wider));
+        return true;
+    }
+
+    /**
+     * Забыть: друга не стало.
+     * <p>
+     * Зовётся, когда житель уходит из колонии — своими ногами или вперёд
+     * ногами. Оставленная запись означала бы, что колония горюет по тому,
+     * кого в ней давно нет, и горевала бы вечно.
+     */
+    public boolean forget(UUID other) {
+        if (!life.friends().contains(other)) {
+            return false;
+        }
+        List<UUID> fewer = new java.util.ArrayList<>(life.friends());
+        fewer.remove(other);
+        this.life = new Life(life.lived(), life.spouse(), life.parents(), List.copyOf(fewer));
+        return true;
     }
 
     /** Ребёнок ли это <b>вот этих</b> двоих. */

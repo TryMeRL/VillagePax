@@ -594,6 +594,20 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
                 card.child(Look.stat(Text.translatable("villagepax.screen.citizens.kin"),
                         Text.literal(citizen.kin()), CAPTION));
             }
+            if (!citizen.friends().isBlank()) {
+                card.child(Look.stat(Text.translatable("villagepax.screen.citizens.friends"),
+                        Text.literal(citizen.friends()), CAPTION));
+            }
+            // Недруги красным: это единственная строка карточки, по которой
+            // игроку есть что делать прямо сейчас — развести их по разным
+            // мастерским.
+            if (!citizen.foes().isBlank()) {
+                Component foes = Look.stat(
+                        Text.translatable("villagepax.screen.citizens.foes"),
+                        Text.literal(citizen.foes()), CAPTION);
+                foes.tooltip(Text.translatable("villagepax.screen.citizens.foes_hint"));
+                card.child(foes);
+            }
 
             // Характер строкой, а подсказкой к ней — что он меняет. Одно
             // название игроку не говорит ничего: «честолюбивый» — это

@@ -557,5 +557,9 @@
   "villagepax.screen.tax.set": "Tax rate: %s%%.",
   "villagepax.screen.tax.no_village": "Money starts with the village. A hamlet has none, and nobody to take it from.",
   "villagepax.advice.empty_purse": "The treasury is empty and wages fall due tomorrow. Sell something to the neighbours — or take people off their crafts.",
-  "villagepax.advice.coin_leaks": "Coin is leaving the colony: your people have nobody to spend it with. Raise a stall and give someone the merchant's craft."
+  "villagepax.advice.coin_leaks": "Coin is leaving the colony: your people have nobody to spend it with. Raise a stall and give someone the merchant's craft.",
+  "villagepax.screen.citizens.friends": "Friends",
+  "villagepax.screen.citizens.foes": "At odds with",
+  "villagepax.screen.citizens.foes_hint": "While they share a craft, both lose content every day. Move one to another workshop and the quarrel ends.",
+  "villagepax.bonds.grief": "%s is gone. Mourning: %s."
 }

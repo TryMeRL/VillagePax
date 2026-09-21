@@ -17,6 +17,7 @@ import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.life.Families;
 import com.villagepax.sim.life.Ages;
+import com.villagepax.sim.life.Bonds;
 import com.villagepax.sim.life.Nature;
 import com.villagepax.sim.life.Natures;
 import com.villagepax.sim.ItemTally;
@@ -236,7 +237,8 @@ public record TownHallView(
     public record CitizenLine(UUID id, String name, Optional<Identifier> profession,
                               boolean housed, Optional<Identifier> workplace,
                               Mood mood, boolean leavingSoon,
-                              String stage, int days, String kin, String nature) {
+                              String stage, int days, String kin, String nature,
+                              String friends, String foes) {
 
         public static final Codec<CitizenLine> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Uuids.CODEC.fieldOf("id").forGetter(CitizenLine::id),
@@ -255,7 +257,13 @@ public record TownHallView(
                 // список характеров на той стороне однажды разошёлся бы
                 // с первым.
                 Codec.STRING.optionalFieldOf("nature", Nature.EVEN.id())
-                        .forGetter(CitizenLine::nature)
+                        .forGetter(CitizenLine::nature),
+                // Именами, а не опознавателями, и по той же причине, что
+                // и родня: клиенту надо их показать, а искать жителей
+                // по опознавателям он не может — списка поселения
+                // у него нет и быть не должно.
+                Codec.STRING.optionalFieldOf("friends", "").forGetter(CitizenLine::friends),
+                Codec.STRING.optionalFieldOf("foes", "").forGetter(CitizenLine::foes)
         ).apply(instance, CitizenLine::new));
     }
 
@@ -562,7 +570,9 @@ public record TownHallView(
                     Ages.stageOf(citizen).key(),
                     Ages.daysOf(citizen),
                     kinOf(settlement, citizen),
-                    Natures.of(citizen).id()));
+                    Natures.of(citizen).id(),
+                    Bonds.namesOfFriends(settlement, citizen),
+                    Bonds.namesOfFoes(settlement, citizen)));
         }
         return lines;
     }

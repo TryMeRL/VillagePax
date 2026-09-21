@@ -6,6 +6,7 @@ import com.villagepax.entity.CitizenEntity;
 import com.villagepax.core.config.Configs;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Comfort;
+import com.villagepax.sim.life.Bonds;
 import com.villagepax.sim.life.Natures;
 import com.villagepax.sim.faith.Faith;
 import com.villagepax.sim.trade.Wages;
@@ -164,6 +165,7 @@ public final class Needs {
                 citizen.setHappiness(citizen.happiness() + HAPPINESS_FED
                         + Comfort.of(world, settlement, citizen)
                         + Faith.solace(world, settlement)
+                        + Bonds.moodOf(settlement, citizen)
                         - Wages.discontentOf(settlement));
                 citizen.contented();
             }
@@ -196,6 +198,11 @@ public final class Needs {
                 .filter(CitizenEntity.class::isInstance)
                 .ifPresent(body -> body.discard());
 
+        // Горя нет — ушедшего провожают, умершего оплакивают, — но
+        // прибраться надо так же: супруг снова свободен, а память о друге
+        // стёрта. Иначе колония горюет по нему вечно, а вдова не выйдет
+        // замуж никогда.
+        Bonds.parted(settlement, citizen);
         settlement.removeCitizen(citizen.id());
         tell(world, settlement, "villagepax.citizen.left", citizen.fullName());
         VillagePax.LOGGER.info("Житель {} ушёл из поселения {}: {} дней недовольства",

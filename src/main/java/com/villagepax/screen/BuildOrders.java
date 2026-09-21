@@ -307,8 +307,9 @@ public final class BuildOrders {
         // и на юг — это правило держит сам генератор схем, проверяя его
         // при сборке. Поэтому улучшение достраивает, а не переносит:
         // билдер пропускает всё, что уже стоит.
+        // Зазора здесь нет, и это не забывчивость: см. overlapping.
         Building clash = overlapping(colony, building.anchor(), building.rotation(), schematic,
-                buildingId);
+                buildingId, 0);
         if (clash != null) {
             return new Result.Overlaps(clash);
         }
@@ -350,11 +351,21 @@ public final class BuildOrders {
      */
     private static Building overlapping(Settlement colony, BlockPos anchor, BlockRotation rotation,
                                         Schematic schematic) {
-        return overlapping(colony, anchor, rotation, schematic, null);
+        return overlapping(colony, anchor, rotation, schematic, null, GAP);
     }
 
+    /**
+     * Ищет соседа, который мешает.
+     * <p>
+     * Зазор передаётся числом, потому что у разметки и у улучшения он
+     * <b>разный</b>. Разметка требует трёх клеток: игрок выбирает место
+     * и обязан выбрать его с улицей. Улучшение не требует ничего, кроме
+     * непересечения: здание уже стоит, поставил его туда игрок, и отнять
+     * у него второй уровень задним числом — значит наказать за вчерашнее
+     * правилом, которого вчера не было.
+     */
     private static Building overlapping(Settlement colony, BlockPos anchor, BlockRotation rotation,
-                                        Schematic schematic, UUID ignore) {
+                                        Schematic schematic, UUID ignore, int gap) {
         Vec3i footprint = BuildSite.rotatedSize(schematic.size(), rotation);
 
         for (Building existing : colony.buildings()) {
@@ -367,17 +378,42 @@ public final class BuildOrders {
                 continue;
             }
             Vec3i otherFootprint = BuildSite.rotatedSize(other.size(), existing.rotation());
-            if (boxesOverlap(anchor, footprint, existing.anchor(), otherFootprint)) {
+            if (boxesOverlap(anchor, footprint, existing.anchor(), otherFootprint, gap)) {
                 return existing;
             }
         }
         return null;
     }
 
-    private static boolean boxesOverlap(BlockPos a, Vec3i sizeA, BlockPos b, Vec3i sizeB) {
-        return a.getX() < b.getX() + sizeB.getX() && b.getX() < a.getX() + sizeA.getX()
+    /**
+     * Сколько пустого места обязано остаться между зданиями.
+     * <p>
+     * Жалоба заказчика: «пусть расстояние между строениями будет хотя бы
+     * в 2-3 блока». Прежде следы просто не пересекались, то есть дома
+     * вставали стена к стене — и деревня выходила не деревней, а плотно
+     * сложенным штабелем. Три клетки — это улица, по которой расходятся
+     * двое, и место, где помещаются поленница и грядка.
+     * <p>
+     * Зазор считается только по горизонтали. По высоте здания не мешают
+     * друг другу вовсе: дом на обрыве над погребом — это по-прежнему
+     * два разных дома, а не один этаж над другим.
+     */
+    public static final int GAP = 3;
+
+    /**
+     * Пересекаются ли следы — <b>с учётом зазора</b>.
+     * <p>
+     * Зазор добавляется одному из следов, а не обоим: иначе он был бы
+     * двойным, и в хуторе на девять чанков перестал бы помещаться третий
+     * дом.
+     */
+    private static boolean boxesOverlap(BlockPos a, Vec3i sizeA, BlockPos b, Vec3i sizeB,
+                                        int gap) {
+        return a.getX() - gap < b.getX() + sizeB.getX()
+                && b.getX() < a.getX() + sizeA.getX() + gap
                 && a.getY() < b.getY() + sizeB.getY() && b.getY() < a.getY() + sizeA.getY()
-                && a.getZ() < b.getZ() + sizeB.getZ() && b.getZ() < a.getZ() + sizeA.getZ();
+                && a.getZ() - gap < b.getZ() + sizeB.getZ()
+                && b.getZ() < a.getZ() + sizeA.getZ() + gap;
     }
 
     /** Поворот по имени из словаря. Неизвестное имя — без поворота. */

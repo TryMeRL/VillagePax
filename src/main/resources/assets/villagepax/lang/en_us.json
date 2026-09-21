@@ -570,5 +570,6 @@
   "villagepax.citizenship.evicted": "%s has taken your house back: you are no longer counted one of theirs.",
   "villagepax.people.screen.home_about": "Or ask to live here: the village gives a house — a bed, a chest and a ration.",
   "villagepax.people.screen.home_settled": "You have a house here.",
-  "villagepax.people.screen.ask_home": "Ask for a house"
+  "villagepax.people.screen.ask_home": "Ask for a house",
+  "villagepax.citizen.building": "%s — building: %s"
 }

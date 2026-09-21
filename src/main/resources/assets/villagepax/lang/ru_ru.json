@@ -570,5 +570,6 @@
   "villagepax.citizenship.evicted": "%s отобрала у вас дом: здесь вас больше не считают своим.",
   "villagepax.people.screen.home_about": "Или попроситься жить: деревня отведёт дом — кровать, сундук и паёк.",
   "villagepax.people.screen.home_settled": "Здесь у вас есть дом.",
-  "villagepax.people.screen.ask_home": "Попроситься жить"
+  "villagepax.people.screen.ask_home": "Попроситься жить",
+  "villagepax.citizen.building": "%s — строит: %s"
 }

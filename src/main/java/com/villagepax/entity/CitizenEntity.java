@@ -805,8 +805,40 @@ public class CitizenEntity extends PathAwareEntity {
                         citizen.fullName(), Text.translatable(profession.displayName())))
                 .orElse(Text.literal(citizen.fullName()));
 
-        setCustomName(name);
+        setCustomName(atWork(citizen).orElse(name));
         setCustomNameVisible(true);
+    }
+
+    /**
+     * Чем занят прямо сейчас — вместо ремесла.
+     * <p>
+     * Жалоба заказчика: «пусть строитель в чужой деревне показывает,
+     * что он сейчас строит». В своей колонии это видно в пульте —
+     * очередь стройки со ступенями и полосой готовности; в чужой деревне
+     * пульта нет, и билдер, снующий с блоком в руках, выглядел просто
+     * человеком по имени «Строитель». Теперь над ним написано, что
+     * именно растёт.
+     * <p>
+     * Только у того, кто и вправду взялся: занятое здание живёт
+     * в состоянии работы, и без него подпись остаётся обычной. Написать
+     * «строит» тому, кто стоит без дела, значило бы соврать.
+     */
+    private Optional<Text> atWork(Citizen citizen) {
+        if (settlementId == null || !(getWorld() instanceof ServerWorld serverWorld)) {
+            return Optional.empty();
+        }
+        UUID site = citizen.jobState().building().orElse(null);
+        if (site == null || citizen.profession()
+                .filter(com.villagepax.sim.build.BuildJob.BUILDER::equals).isEmpty()) {
+            return Optional.empty();
+        }
+        return SettlementManager.get(serverWorld).byId(settlementId)
+                .flatMap(settlement -> settlement.building(site))
+                .filter(com.villagepax.sim.build.BuildJob::isUnderConstruction)
+                .map(what -> Text.translatable("villagepax.citizen.building",
+                        citizen.fullName(),
+                        Text.translatable(com.villagepax.core.building.BuildingTypes
+                                .displayName(what.type()))));
     }
 
     /**

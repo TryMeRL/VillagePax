@@ -99,6 +99,14 @@ public final class Warehouse {
             if (!building.isOperational()) {
                 continue;
             }
+            if (building.resident().isPresent()) {
+                // Дом гражданина — не склад деревни. Правило снималось
+                // однажды как заглушка: жильё сундуков не имело, и
+                // запрещать было нечего. Дома перестроены, сундук в них
+                // появился — вернулось и правило. Иначе «свой сундук»
+                // означал бы сундук, из которого к утру всё унесёт курьер.
+                continue;
+            }
             Schematic schematic = SchematicLoader.get(BuildJob.schematicId(building)).orElse(null);
             if (schematic == null) {
                 continue;

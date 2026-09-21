@@ -178,27 +178,6 @@ public final class BuildJob {
         }
     }
 
-    /**
-     * Насколько глубоко билдер подводит опору под нижний венец.
-     * <p>
-     * Три — это склон. Глубже начинается не склон, а обрыв: дом, который
-     * игрок нарочно поставил на сваях над пропастью, засыпать не надо,
-     * и уж точно не складом колонии.
-     */
-    private static final int UNDERPIN_DEPTH = 3;
-
-    /**
-     * Сколько блоков опоры кладётся за одно завершение стройки.
-     * <p>
-     * Подсыпка — работа на один воз, а не второй дом. Восемь блоков
-     * закрывают обычный склон под углом дома; чего не хватит, доложит
-     * следующее завершение — ремонт или улучшение. Без предела здание,
-     * висящее над пропастью, утащило бы в неё весь склад, и улучшение
-     * дома выглядело бы как перестройка: ровно это проверка и сказала,
-     * когда предел был вдвое больше.
-     */
-    private static final int UNDERPIN_BUDGET = 8;
-
     public static boolean isUnderConstruction(Building building) {
         return building.progress() == BuildProgress.PLANNED
                 || building.progress() == BuildProgress.BUILDING
@@ -263,6 +242,18 @@ public final class BuildJob {
         if (building.progress() == BuildProgress.DAMAGED) {
             building.restartBuilding();
         }
+
+        // Сперва площадка, и только потом стены. Жалоба заказчика:
+        // «пусть берёт точку, ровняет все блоки под неё и только тогда
+        // строит». Прежде опора подводилась после стройки и из излишков,
+        // и дом честно оставался на сваях, если камня не хватило.
+        //
+        // Один раз, на первом шаге: рельеф под следом меняется однажды.
+        // Ремонт проходит план заново и площадку тоже — за годы под домом
+        // успевает появиться и яма от крипера.
+        if (building.nextStep() == 0) {
+            Terrace.level(world, building, schematic);
+        }
         building.setProgress(BuildProgress.BUILDING);
 
         // Бюджет тратят только шаги, на которых билдер что-то сделал. Пустая
@@ -299,12 +290,13 @@ public final class BuildJob {
             // достаются и после ремонта, который проходит план заново.
             Decor.fill(world, settlement, building, schematic);
 
-            // Опора под нижний венец — из того, что осталось, и до того,
-            // как остатки уедут на склад: иначе подсыпать было бы нечем.
-            underpin(world, settlement, warehouse, building, schematic);
+            // Опоры здесь больше нет: земля под домом выровнена ещё
+            // до первого блока — см. Terrace. Держать два способа
+            // засыпать одну и ту же пустоту значило бы засыпать её
+            // дважды и по-разному.
 
-            // И ступени у входов. После опоры, а не до: подсыпка поднимает
-            // цоколь, и крыльцо надо мерить уже от готового порога.
+            // Ступени у входов. После площадки, а не до: она поднимает
+            // подошву, и крыльцо надо мерить уже от готового порога.
             Access.porch(world, building, schematic);
 
             returnLeftovers(world, warehouse, building);
@@ -547,62 +539,6 @@ public final class BuildJob {
         return StepResult.WORKED;
     }
 
-    /**
-     * Подвести опору под готовое здание.
-     * <p>
-     * Написано по жалобе из игры: «строится высоко и не пройти». Схема
-     * кладётся от своего пола, а земля под ней не бывает ровной — и
-     * с одной стороны дом оказывался на сваях из воздуха, а порог висел
-     * над обрывом. Ни зайти, ни подойти.
-     * <p>
-     * <b>После стройки, а не во время.</b> Первая попытка подпирала каждый
-     * блок нижнего венца сразу, как только он ложился, — и разом уронила
-     * тридцать семь проверок: фундамент съедал камень, которого потом
-     * не хватало на стены. Заявку на материалы считает план, а плану про
-     * рельеф ничего не известно; значит, подсыпка — это <b>лишняя</b>
-     * работа, и делать её надо тем, что осталось.
-     * <p>
-     * <b>Из излишков</b> — тем же правилом, что и улица: «украшение ждёт,
-     * дело не ждёт». Не хватило — дом всё равно стоит, а пустоту под ним
-     * доложит следующий завоз, когда билдер вернётся сюда ремонтом или
-     * улучшением.
-     */
-    private static void underpin(ServerWorld world, Settlement settlement, Warehouse warehouse,
-                                 Building building, Schematic schematic) {
-        int budget = UNDERPIN_BUDGET;
-        for (BuildStep step : schematic.plan().steps()) {
-            if (budget <= 0) {
-                return;
-            }
-            if (!step.placesBlock() || step.pos().getY() != 0) {
-                continue;
-            }
-
-            BlockState laid = schematic.blockAt(step.paletteIndex()).rotate(building.rotation());
-            Optional<Item> material = Materials.itemFor(laid);
-            if (material.isEmpty()) {
-                continue;
-            }
-
-            BlockPos floor = worldPos(building, schematic.size(), step.pos());
-            for (int depth = 1; depth <= UNDERPIN_DEPTH; depth++) {
-                BlockPos under = floor.down(depth);
-                if (under.getY() <= world.getBottomY()
-                        || world.getBlockState(under).isSolidBlock(world, under)) {
-                    break;
-                }
-                if (warehouse.count(material.get()) <= Roads.reserve()
-                        || !warehouse.take(material.get(), 1)) {
-                    return;
-                }
-                world.setBlockState(under, laid, Block.NOTIFY_ALL);
-                budget--;
-                if (budget <= 0) {
-                    return;
-                }
-            }
-        }
-    }
 
     /**
      * Остатки со стройплощадки возвращаются на склад, когда здание сдано.

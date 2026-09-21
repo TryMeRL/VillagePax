@@ -136,6 +136,7 @@ import com.villagepax.sim.build.BuildPlanner;
 import com.villagepax.sim.build.BuildStep;
 import com.villagepax.sim.build.MarkerKind;
 import com.villagepax.sim.build.PointOfInterest;
+import com.villagepax.sim.build.Terrace;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.build.SchematicParser;
@@ -183,6 +184,7 @@ import java.util.List;
 import java.util.Map;
 import java.io.InputStream;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -2941,9 +2943,12 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Кроватей " + view.beds() + ", свободно "
                         + view.freeBeds() + "; в схеме дома две, и обе заняты");
             }
-            if (view.containers() != 1) {
+            // Два: ратуша и сундук в доме. Сундук появился вместе
+            // с перестройкой жилья — дом без хранилища был единственным
+            // зданием мода, куда нечего положить.
+            if (view.containers() != 2) {
                 context.throwGameTestException("Хранилищ " + view.containers()
-                        + ", а стоит одна ратуша");
+                        + ", а стоят ратуша и дом");
             }
             if (view.meals() != 4) {
                 context.throwGameTestException("Порций еды " + view.meals() + ", завезено четыре");
@@ -10697,6 +10702,227 @@ public class VillagePaxGameTests implements FabricGameTest {
     }
 
 
+    // ======================= ПЛОЩАДКА, ЗАЗОР И ПОРОГ =======================
+
+    /**
+     * Под домом не остаётся пустот — и площадка равняется до стройки.
+     * <p>
+     * Жалоба заказчика: «пусть строитель строит так, чтобы под ней
+     * не было пустот». Прежде опора подводилась после стройки и
+     * из излишков, и дом честно оставался на сваях, если камня не хватило.
+     * Проверяется именно склон: угол здания висит над ямой в пять блоков,
+     * и после стройки под каждой клеткой подошвы обязана быть земля.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "terrace", tickLimit = 600)
+    public void theSiteIsLevelledBeforeTheWallsGoUp(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic plan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(6, 2, 2));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            // Пол под половиной следа, и обрыв под второй: ровно склон,
+            // на котором дом раньше вставал на сваи.
+            Vec3i size = BuildSite.rotatedSize(plan.size(), BlockRotation.NONE);
+            for (int dx = 0; dx < size.getX(); dx++) {
+                for (int dz = 0; dz < size.getZ(); dz++) {
+                    if (dx >= size.getX() / 2) {
+                        continue;
+                    }
+                    BlockPos at = anchor.add(dx, -1, dz);
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+
+            stockFor(world, colony, plan);
+            if (BuildJob.advance(world, manager, colony.id(), site.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Дом не достроился");
+                return;
+            }
+
+            List<BlockPos> holes = new ArrayList<>();
+            for (int dx = 0; dx < size.getX(); dx++) {
+                for (int dz = 0; dz < size.getZ(); dz++) {
+                    BlockPos under = anchor.add(dx, -1, dz);
+                    if (world.getBlockState(under).isAir()) {
+                        holes.add(under);
+                    }
+                }
+            }
+            if (!holes.isEmpty()) {
+                context.throwGameTestException("Под домом осталось пустот: " + holes.size()
+                        + ", первая " + holes.get(0).toShortString());
+            }
+        } finally {
+            demolish(world, site, plan);
+            for (int dx = 0; dx < 9; dx++) {
+                for (int dz = 0; dz < 9; dz++) {
+                    for (int dy = -Terrace.DEEP; dy <= 0; dy++) {
+                        world.setBlockState(anchor.add(dx, dy - 1, dz),
+                                Blocks.AIR.getDefaultState());
+                    }
+                }
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Дом, поставленный нарочно на весу, площадка не трогает.
+     * <p>
+     * Правило площадки — «равнять склон, а не строить сваи». Без этой
+     * половины здание, размеченное игроком на помосте или над обрывом,
+     * обрастало бы земляным столбом в дюжину блоков, о котором он
+     * не просил.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "terrace")
+    public void aBuildingOnStiltsIsLeftAlone(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic plan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 12, 0));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            int moved = Terrace.level(world, site, plan);
+            if (moved != 0) {
+                context.throwGameTestException("Под домом на весу насыпали " + moved
+                        + " блоков земли: это уже не площадка, а столб");
+            }
+        } finally {
+            colony.removeBuilding(site.id());
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Между зданиями остаётся улица.
+     * <p>
+     * Жалоба заказчика: «пусть расстояние между строениями будет хотя бы
+     * в 2-3 блока». Прежде следы просто не пересекались, то есть дома
+     * вставали стена к стене.
+     * <p>
+     * Проверяется и то, что зазор <b>не распространяется на улучшение</b>:
+     * дом, уже стоящий вплотную к соседу, поставил туда игрок, и отнять
+     * у него второй уровень задним числом значило бы наказать
+     * за вчерашнее правилом, которого вчера не было.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "terrace")
+    public void housesStandApartWithAStreetBetween(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        raisedTownHall(colony, hall);
+
+        try {
+            Schematic house = SchematicLoader.get(HOUSE_SCHEMATIC).orElseThrow();
+            int wide = house.size().getX();
+            BlockPos first = hall.add(20, 0, 20);
+            if (!(BuildOrders.place(manager, colony, HOUSE_SCHEMATIC, first,
+                    BlockRotation.NONE) instanceof BuildOrders.Result.Placed)) {
+                context.throwGameTestException("Первый дом не разметился — проверять нечего");
+                return;
+            }
+
+            // Стена к стене: отказ.
+            BlockPos touching = first.add(wide, 0, 0);
+            if (!(BuildOrders.check(colony, HOUSE_SCHEMATIC, touching, BlockRotation.NONE)
+                    instanceof BuildOrders.Result.Overlaps)) {
+                context.throwGameTestException("Второй дом встал вплотную к первому: "
+                        + "деревня выйдет штабелем, а не деревней");
+            }
+
+            // На два блока — всё ещё тесно.
+            BlockPos close = first.add(wide + BuildOrders.GAP - 1, 0, 0);
+            if (!(BuildOrders.check(colony, HOUSE_SCHEMATIC, close, BlockRotation.NONE)
+                    instanceof BuildOrders.Result.Overlaps)) {
+                context.throwGameTestException("Зазор меньше положенного приняли");
+            }
+
+            // А на три — улица, и место годится.
+            BlockPos apart = first.add(wide + BuildOrders.GAP, 0, 0);
+            if (!(BuildOrders.check(colony, HOUSE_SCHEMATIC, apart, BlockRotation.NONE)
+                    instanceof BuildOrders.Result.Placed)) {
+                context.throwGameTestException("Дом с улицей в три блока не приняли: "
+                        + BuildOrders.check(colony, HOUSE_SCHEMATIC, apart, BlockRotation.NONE));
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * За порогом каждой схемы пусто.
+     * <p>
+     * Жалоба заказчика: «зайти нельзя из-за скамьи». У майя и пони слот
+     * убранства стоял <b>прямо за дверью</b>, и когда в него вставала
+     * скамья из набора культуры, войти в дом было буквально нельзя.
+     * <p>
+     * Проверяется <b>каждая схема мода</b>, а не три перестроенных дома:
+     * следующее здание напишут через месяц, и правило должно встретить
+     * его само. Это то же рассуждение, по которому расчистка подхода
+     * живёт в плане, а не в схемах.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "data")
+    public void nothingStandsInTheDoorway(TestContext context) {
+        List<String> complaints = new ArrayList<>();
+
+        for (Identifier id : SchematicLoader.ids()) {
+            Schematic schematic = SchematicLoader.get(id).orElseThrow();
+            Map<BlockPos, BlockState> filled = new HashMap<>();
+            for (Schematic.PalettedBlock block : schematic.blocks()) {
+                filled.put(block.pos(), schematic.blockAt(block.paletteIndex()));
+            }
+
+            for (Schematic.Entrance door : schematic.entrances()) {
+                BlockPos inside = door.pos().offset(door.wayOut().getOpposite());
+                BlockState there = filled.get(inside);
+                // Мешает не всё, что стоит, а то, сквозь что не пройти.
+                // За калиткой поля растёт морковь, и это не помеха:
+                // по грядке ходят. Помеха — скамья, стол, сундук,
+                // то есть блок с настоящим объёмом.
+                if (there == null || !there.blocksMovement()) {
+                    continue;
+                }
+                complaints.add(id + ": за порогом " + inside.toShortString() + " стоит "
+                        + Registries.BLOCK.getId(there.getBlock()));
+            }
+        }
+
+        if (!complaints.isEmpty()) {
+            context.throwGameTestException("В дверь не войти:\n  "
+                    + String.join("\n  ", complaints));
+        }
+
+        context.complete();
+    }
+
     // ======================= ГРАЖДАНСТВО В ЧУЖОЙ ДЕРЕВНЕ =======================
 
     private static final Identifier NORMAN_HOUSE_TYPE =
@@ -15975,9 +16201,15 @@ public class VillagePaxGameTests implements FabricGameTest {
                 context.throwGameTestException("Дом не достроился");
             }
 
+            // Четыре, а не два: дом перестроен на след 7x7, и мест
+            // под убранство в нём стало больше — три внизу и одно
+            // в горнице. Число написано от руки
+            // нарочно — спроси проверка его у схемы, она согласилась бы
+            // и с нулём слотов, то есть с домом без убранства вовсе.
             List<BlockPos> slots = BuildJob.pointsOfInterest(site, house, MarkerKind.DECOR);
-            if (slots.size() != 2) {
-                context.throwGameTestException("Слотов декора " + slots.size() + ", а в схеме два");
+            if (slots.size() != 4) {
+                context.throwGameTestException("Слотов декора " + slots.size()
+                        + ", а в схеме дома второго уровня четыре");
             }
 
             List<Block> chosen = new ArrayList<>();

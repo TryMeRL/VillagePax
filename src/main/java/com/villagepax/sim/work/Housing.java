@@ -65,6 +65,12 @@ public final class Housing {
             if (!building.isOperational()) {
                 continue;
             }
+            if (building.resident().isPresent()) {
+                // И кровати гражданина деревня своим не раздаёт: дом,
+                // в который в первую же ночь ляжет чужой пахарь, — это
+                // не свой дом.
+                continue;
+            }
             Schematic schematic = SchematicLoader.get(BuildJob.schematicId(building)).orElse(null);
             if (schematic == null) {
                 continue;

@@ -5,6 +5,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.villagepax.core.EnumCodecs;
 import com.villagepax.core.Named;
 import com.villagepax.sim.diplomacy.Alliance;
+import com.villagepax.sim.diplomacy.Citizenship;
 import com.villagepax.sim.diplomacy.Tribute;
 import com.villagepax.sim.war.Campaigns;
 import com.villagepax.sim.diplomacy.Gifts;
@@ -142,12 +143,51 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
      * @param price   сколько просят за союз
      * @param verdict согласны ли — и если нет, то почему
      */
-    public record Pact(int price, Alliance.Verdict verdict) {
+    /**
+     * <b>Гражданство лежит здесь же</b>, а не отдельной карточкой,
+     * и не только из-за тесноты снимка (у него ровно шестнадцать полей,
+     * и все заняты). Союз и гражданство — две мирные дороги к одной
+     * деревне: за неё вступиться или у неё поселиться. Игрок должен
+     * видеть обе рядом, как видит дань рядом с походом.
+     *
+     * @param price   чего стоит союз
+     * @param verdict заключат ли его — и если нет, то почему
+     * @param home    пустят ли жить — и если нет, то почему
+     */
+    public record Pact(int price, Alliance.Verdict verdict, Citizenship.Verdict home) {
+
+        public Pact(int price, Alliance.Verdict verdict) {
+            this(price, verdict, Citizenship.Verdict.NOT_A_VILLAGE);
+        }
 
         public static final Codec<Pact> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Codec.INT.fieldOf("price").forGetter(Pact::price),
-                Alliance.Verdict.CODEC.fieldOf("verdict").forGetter(Pact::verdict)
+                Alliance.Verdict.CODEC.fieldOf("verdict").forGetter(Pact::verdict),
+                Citizenship.Verdict.CODEC.optionalFieldOf("home",
+                        Citizenship.Verdict.NOT_A_VILLAGE).forGetter(Pact::home)
         ).apply(instance, Pact::new));
+
+        /** Дом уже отведён. */
+        public boolean settled() {
+            return home == Citizenship.Verdict.ALREADY;
+        }
+
+        /** Попроситься можно прямо сейчас. */
+        public boolean canSettle() {
+            return home == Citizenship.Verdict.YES;
+        }
+
+        /**
+         * Показывать ли строку о доме вовсе.
+         * <p>
+         * Своей колонии её не показывают: там игрок и так хозяин.
+         * А чужаку — показывают, даже когда нельзя: запертая ступень,
+         * которую видно, это то, ради чего растут, и о самой ветке
+         * игрок иначе не узнает никогда.
+         */
+        public boolean worthShowing() {
+            return home != Citizenship.Verdict.NOT_A_VILLAGE;
+        }
 
         /** Союз уже есть. */
         public boolean forged() {

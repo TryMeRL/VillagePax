@@ -10,6 +10,7 @@ import net.minecraft.util.math.BlockPos;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -33,7 +34,12 @@ public class Building {
             Uuids.STRING_CODEC.listOf().optionalFieldOf("workers", List.of()).forGetter(Building::workers),
             Codec.INT.optionalFieldOf("next_step", 0).forGetter(Building::nextStep),
             ItemTally.CODEC.optionalFieldOf("stock", new ItemTally()).forGetter(Building::stock),
-            Codec.INT.optionalFieldOf("priority", 0).forGetter(Building::priority)
+            Codec.INT.optionalFieldOf("priority", 0).forGetter(Building::priority),
+            // Жилец — это человек, которому деревня отвела дом. Запись
+            // лежит на здании, а не на поселении, и потому вопрос
+            // «гражданин ли он» не требует отдельного поля нигде: дом
+            // с его именем и есть гражданство.
+            Uuids.STRING_CODEC.optionalFieldOf("resident").forGetter(Building::resident)
     ).apply(instance, Building::new));
 
     private final UUID id;
@@ -82,6 +88,14 @@ public class Building {
      */
     private int priority;
 
+    /**
+     * Кому деревня отвела этот дом.
+     * <p>
+     * Пусто у всех зданий, кроме одного на гражданина. Жилец — всегда
+     * игрок: своим жителям дома раздаёт расселение, и запись им не нужна.
+     */
+    private Optional<UUID> resident;
+
     public Building(UUID id, Identifier type, int level, BlockPos anchor, BlockRotation rotation,
                     BuildProgress progress, List<UUID> workers) {
         this(id, type, level, anchor, rotation, progress, workers, 0);
@@ -100,6 +114,14 @@ public class Building {
     public Building(UUID id, Identifier type, int level, BlockPos anchor, BlockRotation rotation,
                     BuildProgress progress, List<UUID> workers, int nextStep, ItemTally stock,
                     int priority) {
+        this(id, type, level, anchor, rotation, progress, workers, nextStep, stock, priority,
+                Optional.empty());
+    }
+
+    public Building(UUID id, Identifier type, int level, BlockPos anchor, BlockRotation rotation,
+                    BuildProgress progress, List<UUID> workers, int nextStep, ItemTally stock,
+                    int priority, Optional<UUID> resident) {
+        this.resident = resident;
         this.priority = priority;
         this.id = id;
         this.type = type;
@@ -170,6 +192,23 @@ public class Building {
 
     public int priority() {
         return priority;
+    }
+
+    /** Кому деревня отвела этот дом, если отвела. */
+    public Optional<UUID> resident() {
+        return resident;
+    }
+
+    /**
+     * Отвести дом жильцу — или отобрать, если передать пусто.
+     * <p>
+     * Дом с жильцом перестаёт быть деревенским: его сундуки не входят
+     * в склад, а кровати не раздаются жителям. Иначе «свой дом» означал
+     * бы дом, в который в первую же ночь ляжет чужой пахарь, а из сундука
+     * к утру всё унесёт курьер.
+     */
+    public void setResident(UUID who) {
+        this.resident = Optional.ofNullable(who);
     }
 
     /** Подвинуть в очереди. Отрицательное значит «потом». */

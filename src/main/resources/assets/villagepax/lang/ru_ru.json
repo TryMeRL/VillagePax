@@ -561,5 +561,14 @@
   "villagepax.screen.citizens.friends": "Друзья",
   "villagepax.screen.citizens.foes": "Не ладит с",
   "villagepax.screen.citizens.foes_hint": "Пока они делят дело, оба теряют довольство каждый день. Переведите одного в другую мастерскую — и ссоры не станет.",
-  "villagepax.bonds.grief": "%s не стало. Горюют: %s."
+  "villagepax.bonds.grief": "%s не стало. Горюют: %s.",
+  "villagepax.citizenship.not_a_village": "Здесь вы и так хозяин.",
+  "villagepax.citizenship.not_a_friend": "Дом дают своим. Поработайте на деревню — и разговор будет другой.",
+  "villagepax.citizenship.no_room": "Свободных домов нет. Приходите, когда построят.",
+  "villagepax.citizenship.already": "Дом у вас уже есть.",
+  "villagepax.citizenship.granted": "%s отвела вам дом. Кровать и сундук в нём — ваши, и каждое утро там будет еда.",
+  "villagepax.citizenship.evicted": "%s отобрала у вас дом: здесь вас больше не считают своим.",
+  "villagepax.people.screen.home_about": "Или попроситься жить: деревня отведёт дом — кровать, сундук и паёк.",
+  "villagepax.people.screen.home_settled": "Здесь у вас есть дом.",
+  "villagepax.people.screen.ask_home": "Попроситься жить"
 }

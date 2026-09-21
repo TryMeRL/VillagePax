@@ -72,6 +72,7 @@ import com.villagepax.screen.QuestNet;
 import com.villagepax.sim.work.CraftJob;
 import com.villagepax.sim.war.Peace;
 import com.villagepax.sim.diplomacy.Alliance;
+import com.villagepax.sim.diplomacy.Citizenship;
 import com.villagepax.sim.diplomacy.Tribute;
 import com.villagepax.sim.war.Allies;
 import com.villagepax.sim.war.Campaigns;
@@ -10695,6 +10696,210 @@ public class VillagePaxGameTests implements FabricGameTest {
         });
     }
 
+
+    // ======================= ГРАЖДАНСТВО В ЧУЖОЙ ДЕРЕВНЕ =======================
+
+    private static final Identifier NORMAN_HOUSE_TYPE =
+            new Identifier("villagepax", "norman/house");
+
+    /** Деревня с готовым домом: без него селить некуда. */
+    private static Settlement villageWithHouse(ServerWorld world, SettlementManager manager,
+                                               BlockPos centre, BlockPos houseAt) {
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", centre);
+        world.setBlockState(centre, ModBlocks.TOWN_HALL.getDefaultState());
+        village.addBuilding(new Building(UUID.randomUUID(), NORMAN_HOUSE_TYPE, 1, houseAt,
+                BlockRotation.NONE, BuildProgress.DONE, List.of()));
+        manager.add(village);
+        return village;
+    }
+
+    /**
+     * Дом дают другу, и только другу.
+     * <p>
+     * Отдельная ветка игры, обещанная дизайн-документом: «может ли игрок
+     * жить внутри чужой деревни как гражданин… ближе всего к оригинальному
+     * Millénaire». Проверяются все отказы разом, потому что порознь
+     * каждый согласился бы с «пускать всегда».
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "citizenship")
+    public void aFriendIsGivenAHouse(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(2, 30, 2));
+        BlockPos houseAt = context.getAbsolutePos(new BlockPos(8, 30, 2));
+        Settlement village = villageWithHouse(world, manager, centre, houseAt);
+        Settlement mine = Settlement.found(NORMAN, Owner.of(player), "Моя",
+                centre.add(3000, 0, 3000));
+        manager.add(mine);
+
+        try {
+            if (Citizenship.judge(village, player) != Citizenship.Verdict.NOT_A_FRIEND) {
+                context.throwGameTestException("Чужаку сразу дали дом: "
+                        + Citizenship.judge(village, player));
+            }
+            if (Citizenship.judge(mine, player) != Citizenship.Verdict.NOT_A_VILLAGE) {
+                context.throwGameTestException("В своей колонии просят дом у самих себя");
+            }
+
+            manager.update(village.id(), state ->
+                    state.addReputation(player, Standing.FRIEND.from()));
+            Settlement friendly = manager.byId(village.id()).orElseThrow();
+            if (Citizenship.judge(friendly, player) != Citizenship.Verdict.YES) {
+                context.throwGameTestException("Другу отказали: "
+                        + Citizenship.judge(friendly, player));
+            }
+
+            // Занятый дом второй раз не отдают.
+            Building house = Citizenship.spare(friendly).orElseThrow();
+            manager.update(village.id(), state ->
+                    state.building(house.id()).ifPresent(known -> known.setResident(player)));
+            Settlement settled = manager.byId(village.id()).orElseThrow();
+            if (Citizenship.judge(settled, player) != Citizenship.Verdict.ALREADY) {
+                context.throwGameTestException("Дом дают дважды");
+            }
+            if (!Citizenship.isCitizen(settled, player)) {
+                context.throwGameTestException("Дом отведён, а гражданином не считается");
+            }
+
+            UUID other = UUID.randomUUID();
+            manager.update(village.id(), state ->
+                    state.addReputation(other, Standing.FRIEND.from()));
+            Settlement crowded = manager.byId(village.id()).orElseThrow();
+            if (Citizenship.judge(crowded, other) != Citizenship.Verdict.NO_ROOM) {
+                context.throwGameTestException("Второму другу отдали занятый дом: "
+                        + Citizenship.judge(crowded, other));
+            }
+        } finally {
+            manager.remove(village.id());
+            manager.remove(mine.id());
+            world.setBlockState(centre, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Кровати гражданина деревня своим не раздаёт.
+     * <p>
+     * Главная половина затеи. Без неё «свой дом» — это дом, в который
+     * в первую же ночь ляжет чужой пахарь, и гражданство читалось бы
+     * как поломка.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "citizenship", tickLimit = 600)
+    public void theResidentsBedsLeaveTheVillage(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        Schematic plan = schematic(context, HOUSE_SCHEMATIC);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos houseAt = context.getAbsolutePos(new BlockPos(0, 8, 0));
+
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", centre);
+        world.setBlockState(centre, ModBlocks.TOWN_HALL.getDefaultState());
+        manager.add(village);
+        Building house = plan(village, houseAt, NORMAN_HOUSE_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, village, plan);
+            Citizen builder = evenNewborn("Rollo", "", NORMAN, Gender.MALE);
+            builder.setProfession(BuildJob.BUILDER);
+            village.addCitizen(builder);
+            if (BuildJob.advance(world, manager, village.id(), house.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Дом не достроился");
+                return;
+            }
+
+            int spotsBefore = Housing.sleepingSpots(world, village).size();
+            if (spotsBefore == 0) {
+                context.throwGameTestException("Дом построен, а кроватей в нём нет: "
+                        + "проверять нечего");
+                return;
+            }
+
+            manager.update(village.id(), state ->
+                    state.building(house.id()).ifPresent(known -> known.setResident(player)));
+            Settlement settled = manager.byId(village.id()).orElseThrow();
+
+            if (Housing.sleepingSpots(world, settled).size() >= spotsBefore) {
+                context.throwGameTestException("Кровати гражданина деревня всё ещё раздаёт "
+                        + "своим: в первую же ночь в его дом ляжет чужой пахарь");
+            }
+        } finally {
+            demolish(world, house, plan);
+            discardBodies(world, village);
+            manager.remove(village.id());
+            world.setBlockState(centre, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Разжалованного выселяют, а почётного слушают.
+     * <p>
+     * Гражданство держится дружбой, а не записью: упало доверие ниже
+     * дружбы — дом отобрали. И вторая половина обещания документа,
+     * «дорасти до старейшины»: дом и почёт вместе дают право говорить,
+     * а порознь — нет.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "citizenship")
+    public void theStrangerIsEvictedAndTheHonouredIsHeard(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(2, 40, 2));
+        BlockPos houseAt = context.getAbsolutePos(new BlockPos(8, 40, 2));
+        Settlement village = villageWithHouse(world, manager, centre, houseAt);
+
+        try {
+            manager.update(village.id(), state -> {
+                state.addReputation(player, Standing.FRIEND.from());
+                state.buildings().get(0).setResident(player);
+            });
+            Settlement settled = manager.byId(village.id()).orElseThrow();
+            if (!Citizenship.isCitizen(settled, player)) {
+                context.throwGameTestException("Дом отведён, а гражданином не считается");
+            }
+            if (Citizenship.isElder(settled, player)) {
+                context.throwGameTestException("Друг уже говорит как старейшина: "
+                        + "почёт достался даром");
+            }
+
+            // Дорос до почёта — и голос появился.
+            manager.update(village.id(), state -> state.addReputation(player,
+                    Standing.HONOURED.from() - Standing.FRIEND.from()));
+            if (!Citizenship.isElder(manager.byId(village.id()).orElseThrow(), player)) {
+                context.throwGameTestException("Почётному жителю с домом не дали голоса");
+            }
+
+            // А почёт без дома голоса не даёт.
+            UUID guest = UUID.randomUUID();
+            manager.update(village.id(), state ->
+                    state.addReputation(guest, Standing.HONOURED.from()));
+            if (Citizenship.isElder(manager.byId(village.id()).orElseThrow(), guest)) {
+                context.throwGameTestException("Почётный гость без дома говорит как житель");
+            }
+
+            // Доверие упало — дом отобрали.
+            manager.update(village.id(), state ->
+                    state.addReputation(player, -Standing.HONOURED.from()));
+            Citizenship.newDay(world, manager, manager.byId(village.id()).orElseThrow());
+            if (Citizenship.isCitizen(manager.byId(village.id()).orElseThrow(), player)) {
+                context.throwGameTestException("Доверие упало, а дом остался: "
+                        + "гражданство держится записью, а не дружбой");
+            }
+        } finally {
+            manager.remove(village.id());
+            world.setBlockState(centre, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
 
     // ======================= УЗЫ: РОДНЯ, ДРУЖБА, ССОРА =======================
 

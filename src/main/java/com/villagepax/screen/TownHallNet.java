@@ -10,6 +10,7 @@ import com.villagepax.sim.Founding;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.diplomacy.Citizenship;
 import com.villagepax.sim.trade.Wages;
 import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.faith.Miracles;
@@ -250,7 +251,7 @@ public final class TownHallNet {
      * в интерфейсе стала бы способом распоряжаться колонией откуда угодно.
      */
     private static void reorder(ServerPlayerEntity player, UUID building, int shift) {
-        Settlement colony = consoleColony(player);
+        Settlement colony = consoleSettlement(player);
         if (colony == null) {
             tell(player, "villagepax.screen.console.not_yours");
             return;
@@ -303,7 +304,7 @@ public final class TownHallNet {
     }
 
     private static void upgrade(ServerPlayerEntity player, UUID building) {
-        Settlement colony = consoleColony(player);
+        Settlement colony = consoleSettlement(player);
         if (colony == null) {
             tell(player, "villagepax.screen.console.not_yours");
             return;
@@ -462,6 +463,31 @@ public final class TownHallNet {
      * пульта — либо чужой клиент, либо наш собственный после того, как
      * колонию отобрали. И то и другое отвергается молча.
      */
+    /**
+     * Поселение открытого пульта, если игроку есть что в нём решать.
+     * <p>
+     * Хозяин решает всё, а <b>почётный житель чужой деревни</b> — только
+     * стройку: что ставить следующим и что улучшать. Это и есть «дорасти
+     * до старейшины» из дизайн-документа, и больше ничего оно не даёт:
+     * ни налогов, ни ремёсел, ни жертв. Он не хозяин, он свой.
+     * <p>
+     * Отдельной дверью, а не послаблением в {@link #consoleColony}:
+     * остальные приказы пульта обязаны остаться хозяйскими, и путать
+     * два права одной проверкой значило бы однажды отдать гостю казну.
+     */
+    private static Settlement consoleSettlement(ServerPlayerEntity player) {
+        Settlement own = consoleColony(player);
+        if (own != null) {
+            return own;
+        }
+        if (!(player.currentScreenHandler instanceof TownHallScreenHandler console)) {
+            return null;
+        }
+        Settlement open = SettlementManager.get(player.getServerWorld())
+                .byId(console.settlement()).orElse(null);
+        return open != null && Citizenship.isElder(open, player.getUuid()) ? open : null;
+    }
+
     private static Settlement consoleColony(ServerPlayerEntity player) {
         SettlementManager manager = SettlementManager.get(player.getServerWorld());
         Settlement colony = Founding.colonyOf(manager, player.getUuid()).orElse(null);

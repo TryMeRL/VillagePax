@@ -13,6 +13,7 @@ import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
+import com.villagepax.sim.diplomacy.Citizenship;
 import com.villagepax.sim.diplomacy.Tribute;
 import com.villagepax.sim.trade.Caravans;
 import com.villagepax.sim.war.Raids;
@@ -279,6 +280,10 @@ public final class Villages {
             // на стройку. И только под присмотром — платят сундуком,
             // а сундук в выгруженном чанке не прочитать.
             Tribute.pay(world, manager, village, Schedule.dayOf(world.getTimeOfDay()));
+            // Гражданину — паёк, и в тот же день деревня смотрит, друг ли
+            // он ещё. После дани нарочно: деревня кормит своих из того,
+            // что осталось, а не из того, что должна соседу.
+            Citizenship.newDay(world, manager, village);
             deliver(world, village, warehouse);
         }
 

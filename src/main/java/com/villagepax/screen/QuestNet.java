@@ -11,6 +11,7 @@ import com.villagepax.core.trade.TradeTable;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.diplomacy.Alliance;
+import com.villagepax.sim.diplomacy.Citizenship;
 import com.villagepax.sim.diplomacy.Tribute;
 import com.villagepax.sim.war.Campaigns;
 import com.villagepax.sim.Settlement;
@@ -93,6 +94,7 @@ public final class QuestNet {
     public static final Identifier PACT = new Identifier(VillagePax.MOD_ID, "quest_pact");
     public static final Identifier LEVY = new Identifier(VillagePax.MOD_ID, "quest_levy");
     public static final Identifier MARCH = new Identifier(VillagePax.MOD_ID, "quest_march");
+    public static final Identifier SETTLE = new Identifier(VillagePax.MOD_ID, "quest_settle");
 
     /**
      * Насколько близко надо стоять, чтобы отдать.
@@ -142,6 +144,12 @@ public final class QuestNet {
             UUID village = buf.readUuid();
             Identifier giver = buf.readIdentifier();
             server.execute(() -> march(player, village, giver));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(SETTLE, (server, player, handler, buf, sender) -> {
+            UUID village = buf.readUuid();
+            Identifier giver = buf.readIdentifier();
+            server.execute(() -> settle(player, village, giver));
         });
 
         ServerPlayNetworking.registerGlobalReceiver(TRADE, (server, player, handler, buf, sender) -> {
@@ -366,7 +374,8 @@ public final class QuestNet {
         }
         Alliance.Verdict verdict = Alliance.judge(village, colonyOf(manager, player),
                 player, carried);
-        return Optional.of(new QuestView.Pact(Alliance.PRICE, verdict));
+        return Optional.of(new QuestView.Pact(Alliance.PRICE, verdict,
+                Citizenship.judge(village, player)));
     }
 
     /** Колония этого игрока, если она у него есть. */
@@ -513,6 +522,37 @@ public final class QuestNet {
                     SoundCategory.NEUTRAL, 1.0f, 1.0f);
         } else {
             outcome.verdict().reasonKey().ifPresent(key ->
+                    player.sendMessage(Text.translatable(key), true));
+        }
+        refresh(player, manager, village, giver);
+    }
+
+    /**
+     * Попроситься жить в деревне.
+     * <p>
+     * Тем же порядком, что союз и дань: проверить, что старейшина рядом,
+     * спросить приговор у правила, сказать словами. Платы нет —
+     * заплачено уже, репутацией; дом даётся за то, что человек делал
+     * для деревни, а не за то, что он принёс сегодня.
+     */
+    private static void settle(ServerPlayerEntity player, UUID village, Identifier giver) {
+        ServerWorld world = player.getServerWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Settlement home = manager.byId(village).orElse(null);
+        if (home == null) {
+            return;
+        }
+        if (nearbyGiver(player, home, giver) == null) {
+            player.sendMessage(Text.translatable("villagepax.quest.too_far"), true);
+            return;
+        }
+
+        Citizenship.Verdict verdict = Citizenship.settle(world, manager, home, player);
+        if (verdict.ready()) {
+            world.playSound(null, player.getBlockPos(), SoundEvents.BLOCK_WOODEN_DOOR_OPEN,
+                    SoundCategory.BLOCKS, 1.0f, 1.0f);
+        } else {
+            verdict.reasonKey().ifPresent(key ->
                     player.sendMessage(Text.translatable(key), true));
         }
         refresh(player, manager, village, giver);

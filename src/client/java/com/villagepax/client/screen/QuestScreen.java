@@ -378,6 +378,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
             done.color(Look.GOOD);
             done.lineHeight(10);
             card.child(done.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            fillHome(card, pact);
             body.child(card);
             return;
         }
@@ -400,7 +401,55 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         row.child(forge);
         pact.verdict().reasonKey().ifPresent(key -> row.tooltip(Text.translatable(key)));
         card.child(row);
+        fillHome(card, pact);
         body.child(card);
+    }
+
+    /**
+     * Строка о доме в деревне — второй ряд карточки союза.
+     * <p>
+     * Рядом с союзом, а не отдельно: это две мирные дороги к одной
+     * деревне — за неё вступиться или у неё поселиться. И показывается
+     * она даже тогда, когда поселиться нельзя: о самой ветке игрок
+     * иначе не узнает никогда, а запертая ступень, которую видно, —
+     * это то, ради чего растут.
+     */
+    private void fillHome(FlowLayout card, QuestView.Pact pact) {
+        if (!pact.worthShowing()) {
+            return;
+        }
+        if (pact.settled()) {
+            LabelComponent mine = Components.label(
+                    Text.translatable("villagepax.people.screen.home_settled"));
+            mine.color(Look.GOOD);
+            mine.lineHeight(10);
+            card.child(mine.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            return;
+        }
+
+        LabelComponent about = Components.label(
+                Text.translatable("villagepax.people.screen.home_about"));
+        about.color(Look.MUTED);
+        about.lineHeight(10);
+        card.child(about.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+
+        FlowLayout row = Containers.horizontalFlow(Sizing.content(), Sizing.content());
+        row.verticalAlignment(VerticalAlignment.CENTER);
+        row.gap(6);
+        ButtonComponent ask = Look.action(
+                Text.translatable("villagepax.people.screen.ask_home"), 92, button -> settle());
+        ask.active(pact.canSettle());
+        row.child(ask);
+        pact.home().reasonKey().ifPresent(key -> row.tooltip(Text.translatable(key)));
+        card.child(row);
+    }
+
+    /** «Пустите жить»: право на это считает сервер, клиент — намерение. */
+    private void settle() {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeUuid(view.village());
+        buf.writeIdentifier(view.giver());
+        ClientPlayNetworking.send(QuestNet.SETTLE, buf);
     }
 
     /**

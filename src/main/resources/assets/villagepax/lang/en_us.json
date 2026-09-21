@@ -561,5 +561,14 @@
   "villagepax.screen.citizens.friends": "Friends",
   "villagepax.screen.citizens.foes": "At odds with",
   "villagepax.screen.citizens.foes_hint": "While they share a craft, both lose content every day. Move one to another workshop and the quarrel ends.",
-  "villagepax.bonds.grief": "%s is gone. Mourning: %s."
+  "villagepax.bonds.grief": "%s is gone. Mourning: %s.",
+  "villagepax.citizenship.not_a_village": "You are the master here already.",
+  "villagepax.citizenship.not_a_friend": "Houses go to their own. Work for the village and the answer will differ.",
+  "villagepax.citizenship.no_room": "No house stands empty. Come back when one does.",
+  "villagepax.citizenship.already": "You already have a house here.",
+  "villagepax.citizenship.granted": "%s has given you a house. The bed and the chest are yours, and there will be food every morning.",
+  "villagepax.citizenship.evicted": "%s has taken your house back: you are no longer counted one of theirs.",
+  "villagepax.people.screen.home_about": "Or ask to live here: the village gives a house — a bed, a chest and a ration.",
+  "villagepax.people.screen.home_settled": "You have a house here.",
+  "villagepax.people.screen.ask_home": "Ask for a house"
 }

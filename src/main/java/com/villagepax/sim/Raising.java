@@ -6,6 +6,7 @@ import com.villagepax.VillagePax;
 import com.villagepax.screen.BuildOrders;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
+import com.villagepax.sim.build.Hold;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
 import net.minecraft.block.Block;
@@ -190,15 +191,45 @@ public final class Raising {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != reach) {
                         continue;
                     }
-                    BlockPos anchor = surface(world, centre.add(dx, 0, dz));
+                    BlockPos anchor = spot(world, settlement, centre.add(dx, 0, dz));
                     if (anchor != null && isWalkableFrom(centre, anchor)
-                            && isFlatEnough(world, settlement, anchor, schematic)) {
+                            && fits(world, settlement, anchor, schematic)) {
                         spots.add(anchor);
                     }
                 }
             }
         }
         return spots;
+    }
+
+    /**
+     * Куда в этой колонне встанет угол здания.
+     * <p>
+     * На поверхности это земля, в горе — <b>отметка пола чертога</b>,
+     * одна на всё поселение. Рельефа гномы не спрашивают вовсе: пол
+     * у них не следует за склоном, а вырубается по уровню, и в этом
+     * вся разница между деревней и чертогом.
+     */
+    private static BlockPos spot(ServerWorld world, Settlement settlement, BlockPos column) {
+        if (Hold.isUnderground(settlement)) {
+            return new BlockPos(column.getX(), Hold.floorY(settlement), column.getZ());
+        }
+        return surface(world, column);
+    }
+
+    /**
+     * Годится ли место под здание такого размера.
+     * <p>
+     * На лугу спрашивается уклон, в горе — толща: «ровно ли» под землёй
+     * вопрос без смысла, пол и так один, а вот «не вскрыт ли свод сверху»
+     * — тот самый вопрос, который отличает чертог от ямы.
+     */
+    private static boolean fits(ServerWorld world, Settlement settlement, BlockPos anchor,
+                                Schematic schematic) {
+        if (Hold.isUnderground(settlement)) {
+            return Hold.isCarvable(world, anchor, schematic.size());
+        }
+        return isFlatEnough(world, settlement, anchor, schematic);
     }
 
     /**

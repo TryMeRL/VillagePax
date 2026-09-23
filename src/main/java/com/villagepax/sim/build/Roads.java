@@ -148,12 +148,59 @@ public final class Roads {
     public static Optional<BlockPos> nextTile(ServerWorld world, Settlement colony, Building building,
                                               Block paving, Predicate<BlockPos> reachable) {
         for (BlockPos ground : route(world, colony, building)) {
-            BlockState state = world.getBlockState(ground);
-            if (needsPaving(state, paving) && canPave(state, paving) && reachable.test(ground)) {
+            if (needsWork(world, colony, ground, paving) && reachable.test(ground)) {
                 return Optional.of(ground);
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Осталась ли работа на этой клетке улицы.
+     * <p>
+     * На поверхности вопрос один — тот ли под ногами блок. В горе их два:
+     * <b>пол и свод</b>. Галерея, у которой пол выложен, а над ним всё ещё
+     * камень, — это не улица, а замурованная плита; спрашивать только
+     * о поле значило бы объявлять готовым ход, по которому не пройти.
+     */
+    private static boolean needsWork(ServerWorld world, Settlement colony, BlockPos ground,
+                                     Block paving) {
+        if (Hold.isUnderground(colony)) {
+            return !isVaulted(world, ground) || (paving != Blocks.DIRT_PATH
+                    && !world.getBlockState(ground).isOf(paving));
+        }
+        BlockState state = world.getBlockState(ground);
+        return needsPaving(state, paving) && canPave(state, paving);
+    }
+
+    /** Прорублен ли свод над этой клеткой галереи. */
+    private static boolean isVaulted(ServerWorld world, BlockPos ground) {
+        for (int up = 1; up <= Hold.HEADROOM; up++) {
+            if (!isFree(world, ground.up(up))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Прорубить свод над клеткой галереи.
+     * <p>
+     * Выбитый камень уходит на склад — тем же правилом, каким расчистка
+     * под стройку приносит брёвна. У гномов из этого выходит следствие,
+     * которого нет ни у кого другого: <b>прокладка улиц их обогащает</b>.
+     * Гора платит за то, что в ней роют, и это ровно то, чем подземный
+     * народ должен отличаться от лугового.
+     */
+    private static void vault(ServerWorld world, Warehouse warehouse, BlockPos ground) {
+        for (int up = 1; up <= Hold.HEADROOM; up++) {
+            BlockPos cell = ground.up(up);
+            if (isFree(world, cell)) {
+                continue;
+            }
+            salvage(world, warehouse, cell);
+            world.setBlockState(cell, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
+        }
     }
 
     /**
@@ -165,7 +212,17 @@ public final class Roads {
      * У натоптанной тропы возврата нет — трава под лопатой не даёт ничего
      * и в ванили.
      */
-    public static boolean pave(ServerWorld world, Warehouse warehouse, BlockPos ground, Block paving) {
+    public static boolean pave(ServerWorld world, Settlement colony, Warehouse warehouse,
+                               BlockPos ground, Block paving) {
+        if (Hold.isUnderground(colony)) {
+            // Свод первым: галерея без него — замурованная плита. И только
+            // потом пол, если колонии есть чем его выложить; нет — гномы
+            // ходят по вырубленному камню, и это не бедность, а порода.
+            vault(world, warehouse, ground);
+            if (paving == Blocks.DIRT_PATH) {
+                return true;
+            }
+        }
         if (paving != Blocks.DIRT_PATH) {
             Item material = paving.asItem();
             if (material == Items.AIR || !warehouse.take(material, 1)) {
@@ -283,6 +340,14 @@ public final class Roads {
             // по грядкам фермы и по земле рощи лесоруба: там под ногами
             // тот же грунт, что и на лугу.
             if (inside(footprints, column)) {
+                continue;
+            }
+
+            if (Hold.isUnderground(colony)) {
+                // В горе улица не ищет землю и не спускается уступами:
+                // пол чертога один на всё поселение, а камень на пути —
+                // это не стена, а ещё не прорубленная галерея.
+                tiles.add(new BlockPos(column.getX(), height, column.getZ()));
                 continue;
             }
 

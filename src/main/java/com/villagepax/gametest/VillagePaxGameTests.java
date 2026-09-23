@@ -137,6 +137,7 @@ import com.villagepax.sim.build.BuildStep;
 import com.villagepax.sim.build.MarkerKind;
 import com.villagepax.sim.build.PointOfInterest;
 import com.villagepax.sim.build.Terrace;
+import com.villagepax.sim.build.Hold;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.build.SchematicParser;
@@ -179,11 +180,13 @@ import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtOps;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.io.InputStream;
 import java.util.EnumSet;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Optional;
@@ -10701,6 +10704,267 @@ public class VillagePaxGameTests implements FabricGameTest {
         });
     }
 
+
+    // ======================= ЧЕРТОГ ГНОМОВ =======================
+
+    private static final Identifier DWARF = new Identifier("villagepax", "dwarf");
+
+    /**
+     * Насколько высока и полога гора игровых проверок.
+     * <p>
+     * Не украшение сцены, а условие задачи. Чертог уходит на дюжину блоков
+     * под склон, залу нужно ещё восемь и три блока свода над ним: на плоском
+     * блине из камня гномы не поселятся, и проверка проверяла бы не их,
+     * а собственные декорации.
+     */
+    private static final int PEAK = 26;
+    private static final int SPREAD = 14;
+
+    /**
+     * Чертог вырублен в горе, стоит на одной отметке и выводит наружу.
+     * <p>
+     * Три утверждения в одной проверке нарочно: поодиночке каждое проходило
+     * бы и на сломанном чертоге. Залы на одной отметке без хода наружу —
+     * это запечатанная полость; ход наружу без общей отметки — это лестница
+     * между случайными ямами. Гномье поселение — это <b>всё три</b> сразу,
+     * и разваливается оно тоже целиком.
+     * <p>
+     * Выход ищется не взглядом на схему хода, а <b>разливом по воздуху</b>
+     * от самой ратуши: так проверяется то, что почувствует игрок, — «отсюда
+     * можно выйти», — а не то, что билдер честно вызвал нужный метод.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "hold", tickLimit = 900)
+    public void theHoldIsCutIntoTheMountainAndHasAWayOut(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos foot = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        List<BlockPos> mountain = raiseMountain(world, foot);
+        // Отметка пола считается до try: её же надо забыть в finally, иначе
+        // место останется занятым до конца прогона и следующая проверка
+        // упрётся в него, не понимая, почему.
+        BlockPos floor = Hold.floorUnder(world, foot.getX(), foot.getZ()).orElse(foot);
+        Settlement hold = null;
+
+        try {
+            hold = Villages.found(world, DWARF, floor).orElse(null);
+            if (hold == null) {
+                context.throwGameTestException("Чертог не встал в горе: помеха="
+                        + whoBlocks(manager, floor));
+                return;
+            }
+
+            Building hall = hold.buildings().iterator().next();
+
+            // Одна отметка на всё поселение.
+            List<String> adrift = new ArrayList<>();
+            for (Building building : hold.buildings()) {
+                if (building.anchor().getY() != floor.getY()) {
+                    adrift.add(building.type().getPath() + " на "
+                            + (building.anchor().getY() - floor.getY()));
+                }
+            }
+            if (!adrift.isEmpty()) {
+                context.throwGameTestException("Залы чертога разъехались по высоте: "
+                        + adrift + " — пол обязан быть один");
+            }
+
+            // И в самом чертоге больше одного зала: поселение, у которого
+            // встала только ратуша, ничего про разметку в камне не говорит.
+            if (hold.buildings().size() < 3) {
+                context.throwGameTestException("В горе встало всего "
+                        + hold.buildings().size() + " здание: разметка чертога "
+                        + "не нашла места под камнем");
+            }
+
+            // Галерея рубится, а не мостится: у клетки улицы обязан быть свод.
+            // Без этой половины улица под землёй была бы замурованной плитой —
+            // пол выложен, а над ним камень, и «готово» означало бы «не пройти».
+            Building far = hold.buildings().stream()
+                    .filter(building -> !building.anchor().equals(hall.anchor()))
+                    .findFirst().orElse(null);
+            if (far == null) {
+                context.throwGameTestException("В чертоге один зал: галерею вести некуда");
+                return;
+            }
+            BlockPos tile = Roads.route(world, hold, far).stream().findFirst().orElse(null);
+            if (tile == null) {
+                context.throwGameTestException("Галерея от " + far.type().getPath()
+                        + " не проложена вовсе");
+                return;
+            }
+            if (tile.getY() != floor.getY()) {
+                context.throwGameTestException("Галерея легла не на отметку пола: "
+                        + (tile.getY() - floor.getY()));
+            }
+            Roads.pave(world, hold, Warehouse.of(world, hold), tile,
+                    Roads.paving(hold, Warehouse.of(world, hold)));
+            for (int up = 1; up <= Hold.HEADROOM; up++) {
+                if (world.getBlockState(tile.up(up)).blocksMovement()) {
+                    context.throwGameTestException("Над галереей на " + up
+                            + " блоке камень: свод не прорублен, и по улице не пройти");
+                }
+            }
+
+            BlockPos inside = floor.up();
+            if (!escapesToSky(world, inside)) {
+                context.throwGameTestException("Из чертога нет выхода к небу: "
+                        + "деревня, в которую нельзя войти, — не деревня. Разлив дошёл до " + reach(world, inside));
+            }
+        } finally {
+            cleanUpVillage(world, manager, hold, floor, mountain);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Колония гномов под открытым небом не основывается — и говорит почему.
+     * <p>
+     * Молчаливый отказ был бы здесь худшим из возможных: ратуша встала бы,
+     * а дальше не строилось бы ничего и без объяснений, потому что каждому
+     * гномьему залу нужен камень над головой. Правило мода про отказы
+     * ровно об этом: <b>отказ обязан говорить причину</b>.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "hold")
+    public void aDwarfColonyRefusesTheOpenSky(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos meadow = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        List<BlockPos> grass = new ArrayList<>();
+        // Опознаватель игрока держится в руке, а не выдумывается дважды:
+        // уборка обязана убрать ту самую колонию, которую создал отказ,
+        // если он однажды перестанет отказывать. Проверка, которая
+        // за собой не убирает, роняет соседей, а не себя, — и виноватым
+        // выглядит кто угодно, кроме неё.
+        UUID settler = UUID.randomUUID();
+        try {
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    BlockPos at = meadow.add(dx, 0, dz);
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    grass.add(at);
+                }
+            }
+
+            FoundingOutcome outcome = ColonyFounder.foundAt(world, settler,
+                    DWARF, meadow.up());
+            if (!(outcome instanceof FoundingOutcome.Refused refused)) {
+                context.throwGameTestException("Гномья колония встала на лугу: "
+                        + "ни одно её здание там не построится");
+                return;
+            }
+            if (!ColonyFounder.KEY_NEEDS_MOUNTAIN.equals(refused.translationKey())) {
+                context.throwGameTestException("Отказали, но не за то: "
+                        + refused.translationKey());
+            }
+        } finally {
+            for (BlockPos at : grass) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            Founding.colonyOf(manager, settler).ifPresent(colony -> {
+                discardBodies(world, colony);
+                manager.remove(colony.id());
+            });
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Насыпать гору: пологий конус, в котором чертогу есть где поместиться.
+     */
+    private static List<BlockPos> raiseMountain(ServerWorld world, BlockPos foot) {
+        List<BlockPos> stone = new ArrayList<>();
+        for (int dx = -SPREAD; dx <= SPREAD; dx++) {
+            for (int dz = -SPREAD; dz <= SPREAD; dz++) {
+                // Склон пологий — блок на шесть шагов. Круче нельзя:
+                // над сводом каждого зала нужно три блока горы, и на крутом
+                // конусе их не остаётся уже в семи шагах от вершины.
+                // Гора проверки обязана быть настоящей горой, иначе
+                // проверялись бы декорации, а не разметка.
+                int top = PEAK - Math.max(Math.abs(dx), Math.abs(dz)) / 6;
+                for (int up = 0; up < top; up++) {
+                    BlockPos at = foot.add(dx, up, dz);
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    stone.add(at);
+                }
+            }
+        }
+        return stone;
+    }
+
+    /**
+     * Можно ли отсюда выйти под небо, идя только по воздуху.
+     * <p>
+     * Разлив в рост человека: клетка годится, если в ней и над ней пусто.
+     * Так проверяется проходимость, а не просто наличие дыры в камне.
+     */
+    private static boolean escapesToSky(ServerWorld world, BlockPos from) {
+        Set<BlockPos> seen = new HashSet<>();
+        Deque<BlockPos> queue = new ArrayDeque<>();
+        queue.add(from);
+        seen.add(from);
+
+        while (!queue.isEmpty() && seen.size() < 20_000) {
+            BlockPos at = queue.poll();
+            if (world.isSkyVisible(at)) {
+                return true;
+            }
+            for (Direction way : Direction.values()) {
+                BlockPos next = at.offset(way);
+                if (seen.contains(next) || !roomToWalk(world, next)) {
+                    continue;
+                }
+                seen.add(next);
+                queue.add(next);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Можно ли сюда шагнуть — в рост и с учётом того, что двери открывают.
+     * <p>
+     * Закрытая дверь движение перекрывает, и без этой оговорки разлив
+     * упирался бы в порог собственной ратуши. Проверка не должна быть
+     * строже игры: и житель, и игрок дверь открывают.
+     */
+    /** Сколько клеток обошёл разлив и докуда добрался — для сообщения об отказе. */
+    private static String reach(ServerWorld world, BlockPos from) {
+        Set<BlockPos> seen = new HashSet<>();
+        Deque<BlockPos> queue = new ArrayDeque<>();
+        queue.add(from);
+        seen.add(from);
+        BlockPos far = from;
+        while (!queue.isEmpty() && seen.size() < 20_000) {
+            BlockPos at = queue.poll();
+            if (at.getSquaredDistance(from) > far.getSquaredDistance(from)) {
+                far = at;
+            }
+            for (Direction way : Direction.values()) {
+                BlockPos next = at.offset(way);
+                if (seen.add(next)) {
+                    if (roomToWalk(world, next)) {
+                        queue.add(next);
+                    } else {
+                        seen.remove(next);
+                    }
+                }
+            }
+        }
+        return seen.size() + " клеток, дальняя " + far.subtract(from).toShortString();
+    }
+
+    private static boolean roomToWalk(ServerWorld world, BlockPos at) {
+        return passable(world.getBlockState(at)) && passable(world.getBlockState(at.up()));
+    }
+
+    private static boolean passable(BlockState state) {
+        return !state.blocksMovement() || state.isIn(BlockTags.DOORS)
+                || state.isIn(BlockTags.FENCE_GATES);
+    }
 
     // ======================= ПЛОЩАДКА, ЗАЗОР И ПОРОГ =======================
 

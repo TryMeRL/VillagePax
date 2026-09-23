@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:dwarf",
+  "display_name": "villagepax.god.dwarf.stonefather",
+  "domain": "stone",
+  "offerings": {
+    "minecraft:cobbled_deepslate": 1,
+    "minecraft:iron_ingot": 4,
+    "minecraft:amethyst_shard": 5,
+    "villagepax:carved_stone": 6
+  },
+  "artifact": "villagepax:builders_plumb"
+}

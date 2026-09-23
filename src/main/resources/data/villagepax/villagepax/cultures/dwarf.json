@@ -1,0 +1,74 @@
+{
+  "display_name": "villagepax.culture.dwarf",
+  "kind": "fantasy",
+  "spawn": {
+    "biomes": "#villagepax:dwarf_home",
+    "weight": 10,
+    "min_distance_chunks": 48
+  },
+  "name_pools": {
+    "male": [
+      "Дрок",
+      "Гнур",
+      "Борг",
+      "Тарн",
+      "Крог",
+      "Вунд",
+      "Хельм"
+    ],
+    "female": [
+      "Гунна",
+      "Брида",
+      "Торга",
+      "Вельма",
+      "Сигна",
+      "Дрёна"
+    ],
+    "settlement": [
+      "Камнедол",
+      "Рудный Свод",
+      "Семь Сводов",
+      "Глубь",
+      "Кремнегорье",
+      "Медный Ход"
+    ],
+    "son_of": "%s сын",
+    "daughter_of": "%s дочь"
+  },
+  "buildings": [
+    "villagepax:dwarf/town_hall",
+    "villagepax:dwarf/market_stall",
+    "villagepax:dwarf/market",
+    "villagepax:dwarf/gatehouse",
+    "villagepax:dwarf/shrine",
+    "villagepax:dwarf/house",
+    "villagepax:dwarf/farm",
+    "villagepax:dwarf/warehouse",
+    "villagepax:dwarf/builder_hut",
+    "villagepax:dwarf/brewery"
+  ],
+  "road": [
+    "minecraft:polished_deepslate",
+    "minecraft:cobbled_deepslate"
+  ],
+  "decor": [
+    "minecraft:anvil",
+    "minecraft:barrel",
+    "minecraft:cauldron",
+    "minecraft:smithing_table",
+    "minecraft:stonecutter",
+    "minecraft:grindstone",
+    "villagepax:bench",
+    "villagepax:table",
+    "villagepax:shelf"
+  ],
+  "traits": [
+    "villagepax:builds_underground",
+    "villagepax:stone_masonry"
+  ],
+  "diplomacy_defaults": {
+    "villagepax:norman": 5,
+    "villagepax:maya": 0,
+    "villagepax:pony": -5
+  }
+}

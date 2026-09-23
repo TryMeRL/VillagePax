@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:dwarf",
+  "display_name": "villagepax.god.dwarf.deeproot",
+  "domain": "harvest",
+  "offerings": {
+    "minecraft:carrot": 1,
+    "minecraft:brown_mushroom": 2,
+    "minecraft:bread": 3,
+    "villagepax:ale": 5
+  },
+  "artifact": "villagepax:sickle_of_plenty"
+}

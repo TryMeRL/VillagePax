@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:dwarf",
+  "min_reputation": 15,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:wheat",
+      "count": 20
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 9
+    }
+  ],
+  "dialogue": "villagepax.quest.dwarf_founding_2",
+  "next": "villagepax:dwarf/founding_3"
+}

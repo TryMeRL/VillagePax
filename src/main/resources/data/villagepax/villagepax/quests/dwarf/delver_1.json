@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:guard",
+  "culture": "villagepax:dwarf",
+  "min_reputation": 0,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:lantern",
+      "count": 6
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 10
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 8
+    }
+  ],
+  "dialogue": "villagepax.quest.dwarf_delver_1",
+  "next": "villagepax:dwarf/delver_2"
+}

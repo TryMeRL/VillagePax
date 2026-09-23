@@ -10,6 +10,8 @@ import com.villagepax.core.trade.TradeTable;
 import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.screen.BuildOrders;
 import com.villagepax.sim.build.BuildJob;
+import com.villagepax.sim.build.Gate;
+import com.villagepax.sim.build.Hold;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
@@ -25,6 +27,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.registry.Registries;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.ItemScatterer;
@@ -201,6 +204,11 @@ public final class Villages {
         settle(world, village, tradesman(cultureId, culture, random));
         settle(world, village, Founding.newCitizen(cultureId, culture, random));
 
+        // Чертог вскрывается уже при жителях, а не сразу за ратушей:
+        // зал рубят гномы, и пустому месту стройка не по силам — движок
+        // так и отвечает, «некому строить».
+        openTheHold(world, manager, village);
+
         // Дом и ферма уже стоят: деревня старше игрока.
         for (Identifier type : startingBuildings(culture)) {
             Raising.raise(world, manager, village, type);
@@ -219,6 +227,43 @@ public final class Villages {
         VillagePax.LOGGER.info("Деревня {} народа {} встала на {}",
                 village.name(), cultureId, site.toShortString());
         return Optional.of(village);
+    }
+
+    /**
+     * Вскрыть чертог: вырубить зал ратуши и прорубить ворота наружу.
+     * <p>
+     * На поверхности ратуша — это <b>блок</b>, который стоит на виду
+     * и ничего вокруг себя не требует: сам зал появится, когда игрок
+     * закажет улучшение. В горе тот же блок оказывается замурован
+     * в породу, и «ратуша деревни» превращается в камень с меткой.
+     * Поэтому здесь зал рубится сразу — это не поблажка гномам, а то же
+     * самое «деревня старше игрока», только сказанное про камень.
+     * <p>
+     * И сразу за залом — ворота: чертог без хода наружу это не деревня,
+     * а запечатанная полость, о которой игрок узнал бы, только раскопав
+     * её наугад.
+     */
+    private static void openTheHold(ServerWorld world, SettlementManager manager,
+                                    Settlement hold) {
+        if (!Hold.isUnderground(hold)) {
+            return;
+        }
+        Building hall = hold.buildings().stream().findFirst().orElse(null);
+        Schematic plan = hall == null
+                ? null : SchematicLoader.get(BuildJob.schematicId(hall)).orElse(null);
+        if (hall == null || plan == null) {
+            return;
+        }
+
+        // Материал — в саму стройку, а не на склад: тем же доводом, что
+        // и подарок колонии. Платить за него некому, деревня в свой
+        // первый миг пуста.
+        hall.restartBuilding();
+        Materials.required(plan).forEach((item, count) ->
+                hall.stock().add(Registries.ITEM.getId(item), count));
+        BuildJob.advance(world, manager, hold.id(), hall.id(), Integer.MAX_VALUE);
+
+        Gate.carve(world, hold, hall);
     }
 
     /**

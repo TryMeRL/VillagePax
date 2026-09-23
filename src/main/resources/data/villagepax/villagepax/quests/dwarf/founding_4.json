@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:dwarf",
+  "min_reputation": 50,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:torch",
+      "count": 32
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 9
+    }
+  ],
+  "dialogue": "villagepax.quest.dwarf_founding_4",
+  "next": "villagepax:dwarf/founding_5"
+}

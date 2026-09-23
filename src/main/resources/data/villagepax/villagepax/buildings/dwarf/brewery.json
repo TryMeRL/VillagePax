@@ -1,0 +1,22 @@
+{
+  "display_name": "villagepax.building.dwarf.brewery",
+  "role": "workplace",
+  "profession": "villagepax:brewer",
+  "min_level": "village",
+  "crafts": [
+    {
+      "from": {
+        "minecraft:carrot": 4
+      },
+      "to": "villagepax:ale",
+      "count": 1
+    },
+    {
+      "from": {
+        "minecraft:brown_mushroom": 3
+      },
+      "to": "villagepax:ale",
+      "count": 1
+    }
+  ]
+}

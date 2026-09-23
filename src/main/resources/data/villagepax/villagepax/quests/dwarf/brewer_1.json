@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:brewer",
+  "culture": "villagepax:dwarf",
+  "min_reputation": 0,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:brown_mushroom",
+      "count": 16
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 10
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 8
+    }
+  ],
+  "dialogue": "villagepax.quest.dwarf_brewer_1",
+  "next": "villagepax:dwarf/brewer_2"
+}

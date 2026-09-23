@@ -1,0 +1,191 @@
+package com.villagepax.sim.build;
+
+import com.villagepax.core.culture.Trait;
+import com.villagepax.core.culture.Traits;
+import com.villagepax.sim.Ground;
+import com.villagepax.sim.Settlement;
+import net.minecraft.block.BlockState;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3i;
+
+import java.util.Optional;
+
+/**
+ * Чертог: поселение, вырубленное в горе.
+ * <p>
+ * Дорожная карта называет это фазой «Фэнтези» и объясняет, зачем она нужна:
+ * народ, живущий <b>радикально иначе</b>, — единственная честная проверка
+ * тезиса «новый народ добавляется данными». Луговые майя и луговые пони
+ * доказали, что данными задаётся облик. Гномы должны доказать, что данными
+ * задаётся и образ жизни.
+ *
+ * <h2>Одно правило вместо десяти</h2>
+ * Подземное поселение могло бы означать очень многое: вертикальные ярусы,
+ * шахты, лифты, освещение как ресурс. Здесь выбрано <b>одно</b> правило,
+ * из которого следует всё остальное:
+ * <p>
+ * <b>Пол чертога — один на всё поселение.</b> Не «у каждого здания своя
+ * высота», как на поверхности, а одна отметка, вырубленная в камне. Из неё
+ * сразу получаются: ровные галереи вместо лестниц, отсутствие уклона как
+ * понятия, площадка, которой нечего равнять, и путь жителя длиной ровно
+ * в расстояние по карте.
+ * <p>
+ * Ярусы — соблазн, и от него отказано сознательно. Чертог в три этажа
+ * потребовал бы у планировщика третьей координаты, у улиц лестниц, у пути
+ * жителя — подъёмов, и каждая из этих вещей ломалась бы отдельно. Гора
+ * большая: вширь места хватит.
+ *
+ * <h2>Почему стены рубятся сами</h2>
+ * Движок это уже умеет, и трогать его не пришлось: «воздух в схеме —
+ * требование, а не отсутствие требования: здесь должно стать пусто, даже
+ * если сейчас гора» (см. {@link BuildPlanner}). Схема гномьего зала — это
+ * комната, у которой стены каменные, а середина пустая; билдер выбивает
+ * камень теми же шагами расчистки, какими на лугу валит дерево, и сдаёт
+ * добытое на склад.
+ * <p>
+ * Поэтому здесь нет ни «прокопать», ни «выбрать породу». Есть только три
+ * вопроса, на которые поверхность отвечает иначе, чем гора: где пол,
+ * годится ли это место и что над потолком.
+ */
+public final class Hold {
+
+    /**
+     * Насколько ниже склона лежит пол чертога.
+     * <p>
+     * Двенадцать. Считано не на глаз: самый высокий зал чертога — ратуша
+     * четвёртого уровня — поднимает свод на восемь блоков от пола, над
+     * сводом требуется ещё три блока горы, и один остаётся про запас.
+     * Мельче — и улучшение ратуши однажды вскрыло бы чертог сверху,
+     * то есть наказало бы игрока за рост. Глубже — и ворота к дневному
+     * свету пришлось бы тянуть лестницей на полкарты.
+     */
+    public static final int DEPTH = 12;
+
+    /**
+     * Сколько камня должно остаться над потолком.
+     * <p>
+     * Три блока. Это не про прочность — в Minecraft её нет, — а про вид:
+     * зал, у которого потолок в один блок толщиной, читается как ошибка
+     * генерации, а не как чертог. И ровно столько же отделяет чертог
+     * от случайного оврага наверху.
+     */
+    public static final int ROOF = 3;
+
+    /**
+     * Высота свода галереи: пол, рост и запас.
+     * <p>
+     * Три, как у любого хода, по которому ходят: два — это лаз, в котором
+     * житель бьётся головой о каждый блок потолка, и путь по такому ходу
+     * ваниль считает дороже прямого.
+     */
+    public static final int HEADROOM = 3;
+
+    private Hold() {
+    }
+
+    /** Живёт ли этот народ в горе. */
+    public static boolean isUnderground(Identifier culture) {
+        return Traits.has(culture, Trait.BUILDS_UNDERGROUND);
+    }
+
+    public static boolean isUnderground(Settlement settlement) {
+        return settlement != null && isUnderground(settlement.culture());
+    }
+
+    /**
+     * Отметка пола этого чертога.
+     * <p>
+     * Хранить её негде и не надо: это высота середины поселения, то есть
+     * та самая точка, которую выбрало основание. Заведи мы отдельное поле
+     * — оно однажды разошлось бы с местом ратуши, и чертог начал бы расти
+     * на полблока выше самого себя.
+     */
+    public static int floorY(Settlement settlement) {
+        return settlement.center().getY();
+    }
+
+    /**
+     * Где под этой колонной пол чертога — или пусто, если горы тут нет.
+     * <p>
+     * Отсчитывается <b>от склона вниз</b>, а не от уровня моря: гора
+     * на то и гора, что её поверхность выше, и чертог должен лежать
+     * под ней, а не на условной глубине, одинаковой для равнины и пика.
+     * <p>
+     * Колонна от пола до склона обязана быть сплошным камнем. Пещера
+     * или овраг на этом пути означают, что чертог вскрыт сверху: гномы
+     * селятся в толще, а не под козырьком.
+     */
+    public static Optional<BlockPos> floorUnder(ServerWorld world, int x, int z) {
+        Optional<BlockPos> slope = Ground.buildableAt(world, x, z);
+        if (slope.isEmpty()) {
+            return Optional.empty();
+        }
+
+        BlockPos floor = new BlockPos(x, slope.get().getY() - DEPTH, z);
+        if (floor.getY() <= world.getBottomY() + ROOF) {
+            return Optional.empty();
+        }
+        for (int y = floor.getY() - 1; y < slope.get().getY(); y++) {
+            if (!isRock(world, new BlockPos(x, y, z))) {
+                return Optional.empty();
+            }
+        }
+        return Optional.of(floor);
+    }
+
+    /**
+     * Можно ли вырубить здесь здание такого размера.
+     * <p>
+     * Спрашивается о четырёх углах следа, а не о каждой клетке: столько же
+     * спрашивает и равнина у своего уклона ({@code Raising#isFlatEnough}),
+     * и по той же причине — проверка места не должна стоить дороже самой
+     * стройки. Дыру под полом внутри следа подсыплет площадка, а дыру
+     * в потолке гора закроет сама: над сводом три блока запаса.
+     */
+    public static boolean isCarvable(ServerWorld world, BlockPos anchor, Vec3i size) {
+        int ceiling = anchor.getY() + size.getY();
+        int acrossX = Math.max(1, size.getX() - 1);
+        int acrossZ = Math.max(1, size.getZ() - 1);
+
+        for (int dx = 0; dx < size.getX(); dx += acrossX) {
+            for (int dz = 0; dz < size.getZ(); dz += acrossZ) {
+                int x = anchor.getX() + dx;
+                int z = anchor.getZ() + dz;
+                if (!isRock(world, new BlockPos(x, anchor.getY() - 1, z))) {
+                    return false;
+                }
+                for (int up = 0; up < ROOF; up++) {
+                    if (!isRock(world, new BlockPos(x, ceiling + up, z))) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Камень ли это — то есть можно ли в это врубаться.
+     * <p>
+     * Белый список того же рода, что у площадки, и по той же причине:
+     * сундук, лестница и чужая стена тоже «не воздух», но чертог,
+     * прорубленный сквозь соседний склад, — это не чертог.
+     * <p>
+     * Дерево камнем не считается нарочно. Гора, у которой свод держится
+     * на стволе дуба, — это крона, а не гора; тот же урок мод уже получил
+     * на поиске земли.
+     */
+    public static boolean isRock(ServerWorld world, BlockPos at) {
+        BlockState state = world.getBlockState(at);
+        if (state.hasBlockEntity() || !state.getFluidState().isEmpty()) {
+            return false;
+        }
+        if (state.isIn(net.minecraft.registry.tag.BlockTags.LOGS)
+                || state.isIn(net.minecraft.registry.tag.BlockTags.LEAVES)) {
+            return false;
+        }
+        return state.isSolidBlock(world, at);
+    }
+}

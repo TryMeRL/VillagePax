@@ -1,0 +1,24 @@
+{
+  "giver": "villagepax:brewer",
+  "culture": "villagepax:dwarf",
+  "min_reputation": 20,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:carrot",
+      "count": 24
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 12
+    }
+  ],
+  "dialogue": "villagepax.quest.dwarf_brewer_2"
+}

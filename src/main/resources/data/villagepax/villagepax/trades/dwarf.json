@@ -1,0 +1,67 @@
+{
+  "culture": "villagepax:dwarf",
+  "sells": [
+    {
+      "item": "minecraft:cobbled_deepslate",
+      "count": 16,
+      "price": 1
+    },
+    {
+      "item": "minecraft:deepslate_bricks",
+      "count": 8,
+      "price": 1
+    },
+    {
+      "item": "minecraft:coal",
+      "count": 8,
+      "price": 1
+    },
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 2,
+      "price": 2
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 2,
+      "price": 2
+    },
+    {
+      "item": "minecraft:amethyst_shard",
+      "count": 3,
+      "price": 2
+    },
+    {
+      "item": "minecraft:gold_ingot",
+      "count": 1,
+      "price": 4
+    },
+    {
+      "item": "villagepax:ale",
+      "count": 2,
+      "price": 2
+    }
+  ],
+  "buys": [
+    {
+      "item": "minecraft:oak_log",
+      "count": 8,
+      "price": 2
+    },
+    {
+      "item": "minecraft:wheat",
+      "count": 12,
+      "price": 2
+    },
+    {
+      "item": "minecraft:white_wool",
+      "count": 6,
+      "price": 2
+    },
+    {
+      "item": "minecraft:leather",
+      "count": 4,
+      "price": 2
+    }
+  ]
+}

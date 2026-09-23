@@ -7,11 +7,13 @@ import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.screen.BuildOrders;
+import com.villagepax.sim.build.Hold;
 import com.villagepax.sim.build.SchematicLoader;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3i;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.List;
@@ -29,6 +31,19 @@ public final class ColonyFounder {
 
     public static final String KEY_BAD_GROUND = "villagepax.found.bad_ground";
 
+    /** Отказ народу из горы: над головой должен быть камень, а не небо. */
+    public static final String KEY_NEEDS_MOUNTAIN = "villagepax.found.needs_mountain";
+
+    /**
+     * Сколько камня спрашивается над местом чертога при основании.
+     * <p>
+     * Одна колонна и высота гномьего зала: настоящий след ратуши здесь
+     * ещё не известен, а спросить «есть ли тут вообще гора» можно и по
+     * одной колонне. Точный след проверит разметка, когда дойдёт до
+     * каждого здания.
+     */
+    private static final Vec3i ROOM_OVERHEAD = new Vec3i(1, 5, 1);
+
     private ColonyFounder() {
     }
 
@@ -38,6 +53,17 @@ public final class ColonyFounder {
         }
 
         Culture culture = CultureManager.get(cultureId);
+
+        // Народ из горы под открытым небом не селится, и сказать об этом
+        // надо вслух. Молчаливый отказ был бы худшим из возможных: колония
+        // встала бы, ратуша появилась, а дальше не строилось бы ничего
+        // и без объяснений — у гномов каждое здание требует камня над
+        // головой, и на лугу его нет ни у одного.
+        if (culture != null && Hold.isUnderground(cultureId)
+                && !Hold.isCarvable(world, target, ROOM_OVERHEAD)) {
+            return FoundingOutcome.Refused.of(KEY_NEEDS_MOUNTAIN);
+        }
+
         SettlementManager manager = SettlementManager.get(world);
 
         FoundingOutcome outcome = Founding.attempt(

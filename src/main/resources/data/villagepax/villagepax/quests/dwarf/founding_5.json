@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:dwarf",
+  "min_reputation": 65,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:iron_ingot",
+      "count": 8
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 20
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 18
+    }
+  ],
+  "dialogue": "villagepax.quest.dwarf_founding_5",
+  "next": "villagepax:dwarf/founding_6"
+}

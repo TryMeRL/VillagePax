@@ -345,7 +345,8 @@ public final class BuilderJob implements Job {
             return Optional.of(tile.up());
         }
 
-        if (Roads.pave(context.world(), context.warehouse(), tile, paving)) {
+        if (Roads.pave(context.world(), context.settlement(), context.warehouse(),
+                tile, paving)) {
             context.swing();
         }
         context.setState(context.state().withPhase(JobState.Phase.WORKING));

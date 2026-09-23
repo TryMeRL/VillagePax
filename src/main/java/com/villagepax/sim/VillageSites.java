@@ -3,6 +3,9 @@ package com.villagepax.sim;
 import com.villagepax.core.config.Configs;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
+import com.villagepax.core.culture.Trait;
+import com.villagepax.core.culture.Traits;
+import com.villagepax.sim.build.Hold;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.server.world.ServerChunkManager;
@@ -324,8 +327,7 @@ public final class VillageSites {
                     }
 
                     BlockPos nearby = column.add(dx, 0, dz);
-                    Optional<BlockPos> stand = Ground.buildableAt(world, nearby.getX(),
-                            nearby.getZ());
+                    Optional<BlockPos> stand = standFor(world, culture, nearby);
                     if (stand.isPresent()) {
                         return stand;
                     }
@@ -333,6 +335,23 @@ public final class VillageSites {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Где в этой колонне встанет середина поселения.
+     * <p>
+     * У народа с поверхности — земля, у народа из горы — <b>отметка пола
+     * чертога</b>, на девять блоков ниже склона и непременно в сплошном
+     * камне. Проверка «где можно встать» и здесь одна на весь мод, но
+     * отвечает она по-разному, и это ровно та разница, ради которой
+     * заводилась черта: поиск места не должен знать слова «гномы».
+     */
+    private static Optional<BlockPos> standFor(ServerWorld world, Culture culture,
+                                               BlockPos column) {
+        if (Traits.resolve(culture.traits()).contains(Trait.BUILDS_UNDERGROUND)) {
+            return Hold.floorUnder(world, column.getX(), column.getZ());
+        }
+        return Ground.buildableAt(world, column.getX(), column.getZ());
     }
 
     /**

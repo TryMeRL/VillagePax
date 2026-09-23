@@ -136,6 +136,7 @@ import com.villagepax.sim.build.BuildPlanner;
 import com.villagepax.sim.build.BuildStep;
 import com.villagepax.sim.build.MarkerKind;
 import com.villagepax.sim.build.PointOfInterest;
+import com.villagepax.sim.build.Canopy;
 import com.villagepax.sim.build.Terrace;
 import com.villagepax.sim.build.Hold;
 import com.villagepax.sim.build.Schematic;
@@ -10902,6 +10903,19 @@ public class VillagePaxGameTests implements FabricGameTest {
      * Так проверяется проходимость, а не просто наличие дыры в камне.
      */
     private static boolean escapesToSky(ServerWorld world, BlockPos from) {
+        return escapes(world, from, world::isSkyVisible);
+    }
+
+    /**
+     * Можно ли отсюда дойти пешком туда, где выполняется условие.
+     * <p>
+     * Один разлив на два зеркальных народа: гном спрашивает «дойду ли
+     * до неба», эльф — «спущусь ли на землю». Вопрос у обоих один
+     * и тот же и задаётся <b>миру</b>, а не коду: проверяется то, что
+     * почувствует игрок, а не то, честно ли билдер позвал нужный метод.
+     */
+    private static boolean escapes(ServerWorld world, BlockPos from,
+                                   java.util.function.Predicate<BlockPos> arrived) {
         Set<BlockPos> seen = new HashSet<>();
         Deque<BlockPos> queue = new ArrayDeque<>();
         queue.add(from);
@@ -10909,16 +10923,13 @@ public class VillagePaxGameTests implements FabricGameTest {
 
         while (!queue.isEmpty() && seen.size() < 20_000) {
             BlockPos at = queue.poll();
-            if (world.isSkyVisible(at)) {
+            if (arrived.test(at)) {
                 return true;
             }
-            for (Direction way : Direction.values()) {
-                BlockPos next = at.offset(way);
-                if (seen.contains(next) || !roomToWalk(world, next)) {
-                    continue;
+            for (BlockPos next : stepsFrom(world, at)) {
+                if (seen.add(next)) {
+                    queue.add(next);
                 }
-                seen.add(next);
-                queue.add(next);
             }
         }
         return false;
@@ -10943,27 +10954,253 @@ public class VillagePaxGameTests implements FabricGameTest {
             if (at.getSquaredDistance(from) > far.getSquaredDistance(from)) {
                 far = at;
             }
-            for (Direction way : Direction.values()) {
-                BlockPos next = at.offset(way);
+            for (BlockPos next : stepsFrom(world, at)) {
                 if (seen.add(next)) {
-                    if (roomToWalk(world, next)) {
-                        queue.add(next);
-                    } else {
-                        seen.remove(next);
-                    }
+                    queue.add(next);
                 }
             }
         }
         return seen.size() + " клеток, дальняя " + far.subtract(from).toShortString();
     }
 
+    /**
+     * Куда отсюда можно шагнуть.
+     * <p>
+     * Не шесть соседей по сторонам света, а <b>шаг ходока</b>: четыре
+     * стороны, и в каждой — на своём уровне, на блок вверх или на три
+     * вниз. Разница не придирка. Шестью соседями разлив течёт вверх
+     * по воздуху и вниз сквозь кроны, и тогда он проверяет не проходимость,
+     * а наличие дырки; а с опорой под ногой, но без ступени вверх,
+     * он не поднимется по гномьей лестнице, которую сам же и ищет.
+     * <p>
+     * Вверх — один блок: столько берёт прыжок. Вниз — три: столько
+     * падают без урона, и по такому уступу житель сойдёт сам.
+     */
+    private static List<BlockPos> stepsFrom(ServerWorld world, BlockPos at) {
+        List<BlockPos> ahead = new ArrayList<>();
+        for (Direction way : Direction.Type.HORIZONTAL) {
+            for (int dy = 1; dy >= -3; dy--) {
+                BlockPos next = at.offset(way).up(dy);
+                if (roomToWalk(world, next)) {
+                    ahead.add(next);
+                    // Ниже первой найденной опоры в этой стороне смотреть
+                    // незачем: туда уже не шагнёшь, там пол.
+                    break;
+                }
+            }
+        }
+        return ahead;
+    }
+
+    /**
+     * Можно ли сюда шагнуть — в рост, с опорой под ногой и с учётом того,
+     * что двери открывают.
+     * <p>
+     * Закрытая дверь движение перекрывает, и без этой оговорки разлив
+     * упирался бы в порог собственной ратуши. Проверка не должна быть
+     * строже игры: и житель, и игрок дверь открывают.
+     * <p>
+     * Опора под ногой — поправка по следам <b>пустой проверки</b>. Без неё
+     * разлив шёл по воздуху и честно «спускался» с эльфийского помоста
+     * на землю сквозь просветы между стволами: всход можно было убрать
+     * целиком, и проверка этого не замечала. Мерцающая проверка хуже
+     * отсутствующей, а пустая хуже мерцающей — она не подводит, она врёт.
+     */
     private static boolean roomToWalk(ServerWorld world, BlockPos at) {
-        return passable(world.getBlockState(at)) && passable(world.getBlockState(at.up()));
+        BlockPos under = at.down();
+        return world.getBlockState(under).isSolidBlock(world, under)
+                && passable(world.getBlockState(at)) && passable(world.getBlockState(at.up()));
     }
 
     private static boolean passable(BlockState state) {
         return !state.blocksMovement() || state.isIn(BlockTags.DOORS)
                 || state.isIn(BlockTags.FENCE_GATES);
+    }
+
+    // ======================= КРОНЫ ЭЛЬФОВ =======================
+
+    private static final Identifier ELF = new Identifier("villagepax", "elf");
+
+    /** Насколько густ и высок лес игровых проверок. */
+    private static final int GROVE = 16;
+    private static final int TRUNK = 9;
+
+    /**
+     * Деревня в кронах висит на одной отметке, ходит по мостам и спускается
+     * на землю.
+     * <p>
+     * Зеркало проверки чертога, и написана она нарочно как зеркало —
+     * теми же тремя утверждениями и тем же разливом по воздуху. Если одно
+     * и то же место кода умеет и закапывать деревню, и подвешивать её,
+     * то оно точно не знает ни слова «гномы», ни слова «эльфы»; а если
+     * зеркальная проверка проходит, то не знает их и проверка.
+     * <p>
+     * Спуск ищется не чтением лестницы, а <b>пешком от палаты до земли</b>:
+     * деревня, которую видно с земли и в которую нельзя подняться, —
+     * это та же поломка, что запечатанный чертог, только наоборот.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "grove", tickLimit = 900)
+    public void theGroveHangsOnOneLevelAndComesDownToTheGround(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos soil = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        List<BlockPos> forest = raiseForest(world, soil);
+        BlockPos deck = Canopy.deckOver(world, soil.getX(), soil.getZ()).orElse(soil);
+        Settlement grove = null;
+
+        try {
+            grove = Villages.found(world, ELF, deck).orElse(null);
+            if (grove == null) {
+                context.throwGameTestException("Деревня в кронах не встала: помеха="
+                        + whoBlocks(manager, deck));
+                return;
+            }
+            Building hall = grove.buildings().iterator().next();
+
+            List<String> adrift = new ArrayList<>();
+            for (Building building : grove.buildings()) {
+                if (building.anchor().getY() != deck.getY()) {
+                    adrift.add(building.type().getPath() + " на "
+                            + (building.anchor().getY() - deck.getY()));
+                }
+            }
+            if (!adrift.isEmpty()) {
+                context.throwGameTestException("Помосты разъехались по высоте: "
+                        + adrift + " — настил обязан быть один");
+            }
+            if (grove.buildings().size() < 3) {
+                context.throwGameTestException("В кронах встало всего "
+                        + grove.buildings().size() + " здание: разметка не нашла места");
+            }
+
+            // И висит нарочно. Площадка две недели назад научилась
+            // «равнять склон, а не строить сваи», и здесь это правило
+            // работает наоборот: подсыпь она под настил — и из-под
+            // эльфийского дома вышел бы земляной столб в дюжину блоков.
+            if (world.getBlockState(deck.down()).isSolidBlock(world, deck.down())) {
+                context.throwGameTestException("Под помостом выросла земля: "
+                        + "дом в кронах висит нарочно, и подсыпать под него нечего");
+            }
+
+            // Мост настилается, а не мостится: под ним воздух, и пока
+            // на складе нет досок, моста не бывает вовсе.
+            Building far = grove.buildings().stream()
+                    .filter(building -> !building.anchor().equals(hall.anchor()))
+                    .findFirst().orElseThrow();
+            BlockPos tile = Roads.route(world, grove, far).stream().findFirst().orElse(null);
+            if (tile == null) {
+                context.throwGameTestException("Мост от " + far.type().getPath()
+                        + " не проложен вовсе");
+                return;
+            }
+            if (tile.getY() != deck.getY()) {
+                context.throwGameTestException("Мост лёг не на отметку настила: "
+                        + (tile.getY() - deck.getY()));
+            }
+            Warehouse store = Warehouse.of(world, grove);
+            store.add(new ItemStack(Items.BIRCH_PLANKS, 64));
+            Block paving = Roads.paving(grove, store);
+            if (paving == Blocks.DIRT_PATH) {
+                context.throwGameTestException("Мост собрались топтать лопатой: "
+                        + "тропа над пустотой — это не мост");
+            }
+            Roads.pave(world, grove, store, tile, paving);
+            if (!world.getBlockState(tile).isOf(paving)) {
+                context.throwGameTestException("Доску моста так и не положили");
+            }
+            if (world.getBlockState(tile.down()).isSolidBlock(world, tile.down())) {
+                context.throwGameTestException("Под мостом выросла опора: "
+                        + "подсыпка вывесила бы под каждой доской по два блока земли");
+            }
+
+            BlockPos inside = deck.up();
+            int floor = soil.getY() + 2;
+            if (!escapes(world, inside, at -> at.getY() <= floor)) {
+                context.throwGameTestException("С деревьев не спуститься на землю: "
+                        + "деревню видно, а войти в неё нельзя. Разлив дошёл до "
+                        + reach(world, inside));
+            }
+        } finally {
+            cleanUpVillage(world, manager, grove, deck, forest);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Колония эльфов на голой земле не основывается — и говорит почему.
+     * <p>
+     * То же правило, что у гномов, и тот же довод: колония встала бы,
+     * палата появилась, а дальше не строилось бы ничего — каждому
+     * эльфийскому помосту нужен ствол под настилом.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "grove")
+    public void anElfColonyRefusesTheBareGround(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos meadow = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        List<BlockPos> grass = new ArrayList<>();
+        UUID settler = UUID.randomUUID();
+        try {
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    BlockPos at = meadow.add(dx, 0, dz);
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    grass.add(at);
+                }
+            }
+
+            FoundingOutcome outcome = ColonyFounder.foundAt(world, settler, ELF, meadow.up());
+            if (!(outcome instanceof FoundingOutcome.Refused refused)) {
+                context.throwGameTestException("Эльфийская колония встала на лугу: "
+                        + "ни один её помост там не построится");
+                return;
+            }
+            if (!ColonyFounder.KEY_NEEDS_FOREST.equals(refused.translationKey())) {
+                context.throwGameTestException("Отказали, но не за то: "
+                        + refused.translationKey());
+            }
+        } finally {
+            for (BlockPos at : grass) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            Founding.colonyOf(manager, settler).ifPresent(colony -> {
+                discardBodies(world, colony);
+                manager.remove(colony.id());
+            });
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Насадить лес: стволы через клетку по нечётным колоннам.
+     * <p>
+     * Нечётным нарочно. Середина деревни обязана стоять на <b>чистой</b>
+     * колонне — в колонне со стволом земли не находит никакой поиск,
+     * ствол землёй не считается, — а ствол при этом должен быть в двух
+     * шагах. Чётная середина и нечётные деревья дают ровно это.
+     */
+    private static List<BlockPos> raiseForest(ServerWorld world, BlockPos soil) {
+        List<BlockPos> planted = new ArrayList<>();
+        for (int dx = -GROVE; dx <= GROVE; dx++) {
+            for (int dz = -GROVE; dz <= GROVE; dz++) {
+                BlockPos at = soil.add(dx, 0, dz);
+                world.setBlockState(at, Blocks.DIRT.getDefaultState());
+                planted.add(at);
+                if (Math.abs(dx) % 2 == 0 || Math.abs(dz) % 2 == 0) {
+                    continue;
+                }
+                for (int up = 1; up <= TRUNK; up++) {
+                    BlockPos trunk = soil.add(dx, up, dz);
+                    world.setBlockState(trunk, Blocks.OAK_LOG.getDefaultState());
+                    planted.add(trunk);
+                }
+            }
+        }
+        return planted;
     }
 
     // ======================= ПЛОЩАДКА, ЗАЗОР И ПОРОГ =======================

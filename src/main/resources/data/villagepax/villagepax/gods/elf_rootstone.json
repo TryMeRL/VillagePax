@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:elf",
+  "display_name": "villagepax.god.elf.rootstone",
+  "domain": "stone",
+  "offerings": {
+    "minecraft:moss_block": 1,
+    "minecraft:mossy_cobblestone": 2,
+    "minecraft:clay_ball": 3,
+    "villagepax:carved_stone": 6
+  },
+  "artifact": "villagepax:builders_plumb"
+}

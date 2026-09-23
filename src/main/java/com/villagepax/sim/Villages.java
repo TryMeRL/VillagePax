@@ -9,7 +9,9 @@ import com.villagepax.core.culture.Traits;
 import com.villagepax.core.trade.TradeTable;
 import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.screen.BuildOrders;
+import com.villagepax.sim.build.Ascent;
 import com.villagepax.sim.build.BuildJob;
+import com.villagepax.sim.build.Footing;
 import com.villagepax.sim.build.Gate;
 import com.villagepax.sim.build.Hold;
 import com.villagepax.sim.build.Materials;
@@ -207,7 +209,7 @@ public final class Villages {
         // Чертог вскрывается уже при жителях, а не сразу за ратушей:
         // зал рубят гномы, и пустому месту стройка не по силам — движок
         // так и отвечает, «некому строить».
-        openTheHold(world, manager, village);
+        openTheWay(world, manager, village);
 
         // Дом и ферма уже стоят: деревня старше игрока.
         for (Identifier type : startingBuildings(culture)) {
@@ -230,24 +232,28 @@ public final class Villages {
     }
 
     /**
-     * Вскрыть чертог: вырубить зал ратуши и прорубить ворота наружу.
+     * Поставить ратушу по-настоящему и открыть к ней дорогу.
      * <p>
-     * На поверхности ратуша — это <b>блок</b>, который стоит на виду
-     * и ничего вокруг себя не требует: сам зал появится, когда игрок
-     * закажет улучшение. В горе тот же блок оказывается замурован
-     * в породу, и «ратуша деревни» превращается в камень с меткой.
-     * Поэтому здесь зал рубится сразу — это не поблажка гномам, а то же
-     * самое «деревня старше игрока», только сказанное про камень.
+     * Касается только тех, кто живёт не на земле. На поверхности ратуша —
+     * это <b>блок</b>, который стоит на виду и ничего вокруг себя
+     * не требует: сам зал появится, когда игрок закажет улучшение.
+     * В горе тот же блок оказывается замурован в породу, а в кронах висит
+     * в воздухе над лесом, — и «ратуша деревни» превращается в метку
+     * неизвестно на чём. Поэтому у обоих народов зал ставится сразу:
+     * это не поблажка, а то же самое «деревня старше игрока», сказанное
+     * про камень и про дерево.
      * <p>
-     * И сразу за залом — ворота: чертог без хода наружу это не деревня,
-     * а запечатанная полость, о которой игрок узнал бы, только раскопав
-     * её наугад.
+     * И сразу за залом — дорога к нему. Гномам ворота наружу, эльфам
+     * всход на землю. Без них выходят запечатанная в горе полость
+     * и висящая в воздухе деревня: обе видны, и ни в одну не войти.
      */
-    private static void openTheHold(ServerWorld world, SettlementManager manager,
-                                    Settlement hold) {
-        if (!Hold.isUnderground(hold)) {
+    private static void openTheWay(ServerWorld world, SettlementManager manager,
+                                   Settlement settlement) {
+        Footing footing = Footing.of(settlement);
+        if (footing.levelsTheGround()) {
             return;
         }
+        Settlement hold = settlement;
         Building hall = hold.buildings().stream().findFirst().orElse(null);
         Schematic plan = hall == null
                 ? null : SchematicLoader.get(BuildJob.schematicId(hall)).orElse(null);
@@ -263,7 +269,11 @@ public final class Villages {
                 hall.stock().add(Registries.ITEM.getId(item), count));
         BuildJob.advance(world, manager, hold.id(), hall.id(), Integer.MAX_VALUE);
 
-        Gate.carve(world, hold, hall);
+        if (footing == Footing.HOLD) {
+            Gate.carve(world, hold, hall);
+        } else {
+            Ascent.build(world, hold, hall);
+        }
     }
 
     /**

@@ -1,0 +1,75 @@
+{
+  "display_name": "villagepax.culture.elf",
+  "kind": "fantasy",
+  "spawn": {
+    "biomes": "#villagepax:elf_home",
+    "weight": 10,
+    "min_distance_chunks": 40
+  },
+  "name_pools": {
+    "male": [
+      "Иллиэн",
+      "Таэрон",
+      "Фандир",
+      "Эльмир",
+      "Ниэн",
+      "Лориан",
+      "Сильвэн"
+    ],
+    "female": [
+      "Аэрис",
+      "Нимриэль",
+      "Лаурэль",
+      "Тиэна",
+      "Эриль",
+      "Вэлья"
+    ],
+    "settlement": [
+      "Листвень",
+      "Тихий Полог",
+      "Светлояр",
+      "Берёзовый Свод",
+      "Зелёный Ярус",
+      "Семь Крон"
+    ],
+    "son_of": "%s сын",
+    "daughter_of": "%s дочь"
+  },
+  "buildings": [
+    "villagepax:elf/town_hall",
+    "villagepax:elf/market_stall",
+    "villagepax:elf/market",
+    "villagepax:elf/watchtower",
+    "villagepax:elf/shrine",
+    "villagepax:elf/house",
+    "villagepax:elf/farm",
+    "villagepax:elf/warehouse",
+    "villagepax:elf/builder_hut",
+    "villagepax:elf/weavery"
+  ],
+  "road": [
+    "minecraft:birch_planks",
+    "minecraft:oak_planks"
+  ],
+  "decor": [
+    "minecraft:flower_pot",
+    "minecraft:birch_sapling",
+    "minecraft:composter",
+    "minecraft:bookshelf",
+    "minecraft:barrel",
+    "minecraft:lantern",
+    "villagepax:bench",
+    "villagepax:table",
+    "villagepax:shelf",
+    "villagepax:laundry_rope"
+  ],
+  "traits": [
+    "villagepax:builds_in_canopy"
+  ],
+  "diplomacy_defaults": {
+    "villagepax:pony": 5,
+    "villagepax:maya": 5,
+    "villagepax:norman": 0,
+    "villagepax:dwarf": -10
+  }
+}

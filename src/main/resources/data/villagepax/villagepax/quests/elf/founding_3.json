@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:elf",
+  "min_reputation": 30,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:bread",
+      "count": 12
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 20
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 18
+    }
+  ],
+  "dialogue": "villagepax.quest.elf_founding_3",
+  "next": "villagepax:elf/founding_4"
+}

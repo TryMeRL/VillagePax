@@ -1,0 +1,24 @@
+{
+  "giver": "villagepax:guard",
+  "culture": "villagepax:elf",
+  "min_reputation": 20,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:flint",
+      "count": 12
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 12
+    }
+  ],
+  "dialogue": "villagepax.quest.elf_watcher_2"
+}

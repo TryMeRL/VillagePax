@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:elf",
+  "display_name": "villagepax.god.elf.motherofshoots",
+  "domain": "harvest",
+  "offerings": {
+    "minecraft:birch_sapling": 1,
+    "minecraft:honeycomb": 3,
+    "minecraft:sweet_berries": 2,
+    "minecraft:golden_apple": 8
+  },
+  "artifact": "villagepax:sickle_of_plenty"
+}

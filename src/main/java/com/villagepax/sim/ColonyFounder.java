@@ -7,6 +7,7 @@ import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.screen.BuildOrders;
+import com.villagepax.sim.build.Footing;
 import com.villagepax.sim.build.Hold;
 import com.villagepax.sim.build.SchematicLoader;
 import net.minecraft.server.world.ServerWorld;
@@ -34,13 +35,16 @@ public final class ColonyFounder {
     /** Отказ народу из горы: над головой должен быть камень, а не небо. */
     public static final String KEY_NEEDS_MOUNTAIN = "villagepax.found.needs_mountain";
 
+    /** И народу из крон: под ногами должен быть ствол, а не трава. */
+    public static final String KEY_NEEDS_FOREST = "villagepax.found.needs_forest";
+
     /**
      * Сколько камня спрашивается над местом чертога при основании.
      * <p>
-     * Одна колонна и высота гномьего зала: настоящий след ратуши здесь
-     * ещё не известен, а спросить «есть ли тут вообще гора» можно и по
-     * одной колонне. Точный след проверит разметка, когда дойдёт до
-     * каждого здания.
+     * Одна колонна и высота зала: настоящий след ратуши здесь ещё
+     * не известен, а спросить «есть ли тут вообще гора» — или лес —
+     * можно и по одной колонне. Точный след проверит разметка, когда
+     * дойдёт до каждого здания.
      */
     private static final Vec3i ROOM_OVERHEAD = new Vec3i(1, 5, 1);
 
@@ -54,14 +58,15 @@ public final class ColonyFounder {
 
         Culture culture = CultureManager.get(cultureId);
 
-        // Народ из горы под открытым небом не селится, и сказать об этом
-        // надо вслух. Молчаливый отказ был бы худшим из возможных: колония
-        // встала бы, ратуша появилась, а дальше не строилось бы ничего
-        // и без объяснений — у гномов каждое здание требует камня над
-        // головой, и на лугу его нет ни у одного.
-        if (culture != null && Hold.isUnderground(cultureId)
-                && !Hold.isCarvable(world, target, ROOM_OVERHEAD)) {
-            return FoundingOutcome.Refused.of(KEY_NEEDS_MOUNTAIN);
+        // Народ, который живёт не на земле, на земле и не селится —
+        // и сказать об этом надо вслух. Молчаливый отказ был бы худшим
+        // из возможных: колония встала бы, ратуша появилась, а дальше
+        // не строилось бы ничего и без объяснений. Гному нужен камень
+        // над головой, эльфу — ствол под ногами, и на лугу нет ни того,
+        // ни другого.
+        Footing footing = Footing.of(culture);
+        if (culture != null && !footing.holds(world, target, ROOM_OVERHEAD)) {
+            return FoundingOutcome.Refused.of(footing.refusalKey());
         }
 
         SettlementManager manager = SettlementManager.get(world);

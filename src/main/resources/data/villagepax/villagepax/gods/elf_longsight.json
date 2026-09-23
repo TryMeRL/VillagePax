@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:elf",
+  "display_name": "villagepax.god.elf.longsight",
+  "domain": "watch",
+  "offerings": {
+    "minecraft:feather": 1,
+    "minecraft:arrow": 2,
+    "minecraft:bow": 5,
+    "minecraft:spyglass": 9
+  },
+  "artifact": "villagepax:watchers_eye"
+}

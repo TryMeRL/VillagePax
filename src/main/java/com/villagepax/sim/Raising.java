@@ -6,6 +6,7 @@ import com.villagepax.VillagePax;
 import com.villagepax.screen.BuildOrders;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
+import com.villagepax.sim.build.Footing;
 import com.villagepax.sim.build.Hold;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
@@ -211,10 +212,7 @@ public final class Raising {
      * вся разница между деревней и чертогом.
      */
     private static BlockPos spot(ServerWorld world, Settlement settlement, BlockPos column) {
-        if (Hold.isUnderground(settlement)) {
-            return new BlockPos(column.getX(), Hold.floorY(settlement), column.getZ());
-        }
-        return surface(world, column);
+        return Footing.of(settlement).spot(world, settlement, column);
     }
 
     /**
@@ -226,10 +224,7 @@ public final class Raising {
      */
     private static boolean fits(ServerWorld world, Settlement settlement, BlockPos anchor,
                                 Schematic schematic) {
-        if (Hold.isUnderground(settlement)) {
-            return Hold.isCarvable(world, anchor, schematic.size());
-        }
-        return isFlatEnough(world, settlement, anchor, schematic);
+        return Footing.of(settlement).fits(world, settlement, anchor, schematic.size());
     }
 
     /**
@@ -264,26 +259,4 @@ public final class Raising {
         return climb <= Math.max(MIN_CLIMB, away / CLIMB_PER_STEP);
     }
 
-    /**
-     * Ровность следа. Без этой проверки поселение охотно ставит дом на склон,
-     * и половина его висит в воздухе, а другая утоплена в холм.
-     * <p>
-     * Насколько неровно — дело народа: у майя есть черта террасного
-     * земледелия, и они берутся за склоны, на которые норманны не пойдут.
-     */
-    private static boolean isFlatEnough(ServerWorld world, Settlement settlement, BlockPos anchor,
-                                        Schematic schematic) {
-        Vec3i size = schematic.size();
-        int allowed = Traits.maxSlope(settlement.culture());
-
-        for (int dx = 0; dx < size.getX(); dx += Math.max(1, size.getX() - 1)) {
-            for (int dz = 0; dz < size.getZ(); dz += Math.max(1, size.getZ() - 1)) {
-                BlockPos corner = surface(world, anchor.add(dx, 0, dz));
-                if (corner == null || Math.abs(corner.getY() - anchor.getY()) > allowed) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
 }

@@ -165,16 +165,24 @@ public final class Roads {
      */
     private static boolean needsWork(ServerWorld world, Settlement colony, BlockPos ground,
                                      Block paving) {
-        if (Hold.isUnderground(colony)) {
-            return !isVaulted(world, ground) || (paving != Blocks.DIRT_PATH
+        Footing footing = Footing.of(colony);
+        if (footing == Footing.CANOPY && paving == Blocks.DIRT_PATH) {
+            // Моста из натоптанной тропы не бывает. У чертога бедная улица
+            // это голый вырубленный камень — по нему ходят; у крон под
+            // ногами воздух, и пока на складе нет настила, моста нет.
+            // Честнее не строить, чем строить из ничего.
+            return false;
+        }
+        if (footing.keepsOneLevel()) {
+            return !isClearAbove(world, ground) || (paving != Blocks.DIRT_PATH
                     && !world.getBlockState(ground).isOf(paving));
         }
         BlockState state = world.getBlockState(ground);
         return needsPaving(state, paving) && canPave(state, paving);
     }
 
-    /** Прорублен ли свод над этой клеткой галереи. */
-    private static boolean isVaulted(ServerWorld world, BlockPos ground) {
+    /** Свободно ли над этой клеткой в рост: свод галереи, просвет моста. */
+    private static boolean isClearAbove(ServerWorld world, BlockPos ground) {
         for (int up = 1; up <= Hold.HEADROOM; up++) {
             if (!isFree(world, ground.up(up))) {
                 return false;
@@ -184,15 +192,16 @@ public final class Roads {
     }
 
     /**
-     * Прорубить свод над клеткой галереи.
+     * Освободить проход над клеткой: свод в горе, просвет в кронах.
      * <p>
-     * Выбитый камень уходит на склад — тем же правилом, каким расчистка
-     * под стройку приносит брёвна. У гномов из этого выходит следствие,
-     * которого нет ни у кого другого: <b>прокладка улиц их обогащает</b>.
-     * Гора платит за то, что в ней роют, и это ровно то, чем подземный
-     * народ должен отличаться от лугового.
+     * Снятое уходит на склад — тем же правилом, каким расчистка под стройку
+     * приносит брёвна. У гномов из этого выходит следствие, которого нет
+     * ни у кого другого: <b>прокладка улиц их обогащает</b>. Гора платит
+     * за то, что в ней роют. У эльфов то же движение отдаёт листву,
+     * и это уже не богатство, а просто уборка — но правило одно,
+     * и разных правил для разных народов здесь нет.
      */
-    private static void vault(ServerWorld world, Warehouse warehouse, BlockPos ground) {
+    private static void clearAbove(ServerWorld world, Warehouse warehouse, BlockPos ground) {
         for (int up = 1; up <= Hold.HEADROOM; up++) {
             BlockPos cell = ground.up(up);
             if (isFree(world, cell)) {
@@ -214,13 +223,15 @@ public final class Roads {
      */
     public static boolean pave(ServerWorld world, Settlement colony, Warehouse warehouse,
                                BlockPos ground, Block paving) {
-        if (Hold.isUnderground(colony)) {
-            // Свод первым: галерея без него — замурованная плита. И только
-            // потом пол, если колонии есть чем его выложить; нет — гномы
-            // ходят по вырубленному камню, и это не бедность, а порода.
-            vault(world, warehouse, ground);
+        Footing footing = Footing.of(colony);
+        if (footing.keepsOneLevel()) {
+            // Проход первым: галерея без свода — замурованная плита,
+            // мост без просвета — настил под ветками. И только потом пол,
+            // если колонии есть чем его выложить; нет — гномы ходят
+            // по вырубленному камню, и это не бедность, а порода.
+            clearAbove(world, warehouse, ground);
             if (paving == Blocks.DIRT_PATH) {
-                return true;
+                return footing == Footing.HOLD;
             }
         }
         if (paving != Blocks.DIRT_PATH) {
@@ -237,7 +248,14 @@ public final class Roads {
 
         // Ступень на уступе кладётся в пустоту, и под ней тоже пусто:
         // досыпаем опору, иначе по такой улице не пройти — под ней дыра.
-        fillUnder(world, warehouse, ground, paving);
+        //
+        // Но только там, где улица лежит на земле. Под галереей чертога
+        // и так сплошной камень, а под мостом в кронах пустота <b>по
+        // замыслу</b>: досыпка вывесила бы под каждой доской моста
+        // по два блока земли, и лес под деревней зарос бы сталактитами.
+        if (footing.levelsTheGround()) {
+            fillUnder(world, warehouse, ground, paving);
+        }
         return true;
     }
 
@@ -343,10 +361,11 @@ public final class Roads {
                 continue;
             }
 
-            if (Hold.isUnderground(colony)) {
-                // В горе улица не ищет землю и не спускается уступами:
-                // пол чертога один на всё поселение, а камень на пути —
-                // это не стена, а ещё не прорубленная галерея.
+            if (Footing.of(colony).keepsOneLevel()) {
+                // Ни в горе, ни в кронах улица не ищет землю и не спускается
+                // уступами: пол там один на всё поселение. Камень на пути —
+                // это не стена, а ещё не прорубленная галерея; пустота
+                // на пути — не пропасть, а ещё не настланный мост.
                 tiles.add(new BlockPos(column.getX(), height, column.getZ()));
                 continue;
             }

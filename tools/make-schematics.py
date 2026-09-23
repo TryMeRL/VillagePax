@@ -271,6 +271,15 @@ LEGEND = {
     # Подвесная лампа: единственный свет под землёй, который не сбивают
     # плечом в узком ходу.
     "'": ("minecraft:lantern", {"hanging": "true", "waterlogged": "false"}),
+    # Дерево эльфов. Береза, а не дуб: белый ствол виден в лесу издалека,
+    # и деревню в кронах замечают раньше, чем догадываются задрать голову.
+    #
+    # Листва ставится с persistent=true нарочно: сорванная с дерева, она
+    # в ваниле осыпается за считаные минуты, и кровля эльфийского дома
+    # исчезла бы сама собой на глазах у игрока.
+    "{": ("minecraft:birch_planks", {}),
+    "}": ("minecraft:birch_leaves", {"distance": "7", "persistent": "true",
+                                     "waterlogged": "false"}),
     "%": ("villagepax:table", {"facing": "north"}),
     ";": ("villagepax:shelf", {"facing": "north"}),
     # --- пони ---
@@ -2034,14 +2043,14 @@ MAYA_WATCHTOWER = [
 # стена, ступень и плита её дают, а решётка, лестница, забор и маркер —
 # нет. Список белый, а не чёрный, намеренно: забытый символ оставит
 # здание без света, забытое исключение — уронит факел на пол.
-SOLID = set("CdBHZWXMPARVTiuja#123456789nsewomNI[]_-?|/")
+SOLID = set("CdBHZWXMPARVTiuja#123456789nsewomNI[]_-?|/{}")
 
 # Куда смотрит факел, прислонённый к стене с этой стороны.
 # Стена на севере — факел смотрит на юг: он торчит ОТ стены, а не в неё.
 AWAY = {(0, -1): ",", (0, 1): "^", (-1, 0): ">", (1, 0): "<"}
 
 
-def ring(width, depth, gaps=(), bars=()):
+def ring(width, depth, gaps=(), bars=(), corner="/", wall="-", bar="`"):
     """Кольцо стены: углы резным столбом, стены кладкой, середина пуста.
 
     gaps — клетки, где стены нет вовсе: это верхняя половина дверного
@@ -2059,15 +2068,15 @@ def ring(width, depth, gaps=(), bars=()):
         row = []
         for x in range(width):
             edge = x in (0, width - 1) or z in (0, depth - 1)
-            corner = (x in (0, width - 1)) and (z in (0, depth - 1))
+            corner_cell = (x in (0, width - 1)) and (z in (0, depth - 1))
             if (x, z) in gaps:
                 row.append(".")
             elif (x, z) in bars:
-                row.append("`" if edge else ".")
-            elif corner:
-                row.append("/")
+                row.append(bar if edge else ".")
+            elif corner_cell:
+                row.append(corner)
             elif edge:
-                row.append("-")
+                row.append(wall)
             else:
                 row.append(".")
         rows.append("".join(row))
@@ -2097,6 +2106,61 @@ def chamber(furnished, height=5, door=None, grates=()):
     layers += [list(plain) for _ in range(height - 4)]
     layers.append(["|" * width] * depth)
     return layers
+
+
+def leaf_crown(width, depth, levels):
+    """Полог из листвы: каждый ярус уже предыдущего на блок с каждой стороны.
+
+    Своя, а не ступенчатая пирамида майя, ровно по одной причине: пирамида
+    квадратная, а склад эльфов семь на пять. Кровля, посчитанная по ширине,
+    вылезала бы за след здания на два блока с каждой стороны, и генератор
+    честно падал бы — он и упал.
+    """
+    layers = []
+    for inset in range(levels):
+        rows = []
+        for z in range(depth):
+            if z < inset or z >= depth - inset:
+                rows.append("." * width)
+            else:
+                rows.append("." * inset + "}" * (width - 2 * inset) + "." * inset)
+        layers.append(rows)
+    return layers
+
+
+def bower(furnished, height=5, door=None, panes=(), crown=2):
+    """Помост эльфов: настил, берёзовые стены и лиственный полог.
+
+    Зеркало гномьего зала и написан нарочно как зеркало: там пол вырублен
+    в породе и над ним свод, здесь пол настлан над лесом и над ним крона.
+    Разница в одном слове — «вырублен» против «настлан», — и она же вся
+    разница между двумя народами.
+
+    Полог — та же ступенчатая пирамида, что кроет храм майя, только
+    из листвы. Свой силуэт кровли у мода уже четвёртый, и это дешевле
+    любого нового блока: деревню узнают по очертанию, а не по текстуре.
+    """
+    width, depth = len(furnished[0]), len(furnished)
+    second = ring(width, depth, gaps=((door,) if door else ()), bars=tuple(panes),
+                  corner="{", wall="{", bar="G")
+    plain = ring(width, depth, corner="{", wall="{")
+    layers = [["{" * width] * depth, list(furnished), second]
+    layers += [list(plain) for _ in range(height - 3)]
+    return layers + leaf_crown(width, depth, crown)
+
+
+def raise_bower(base, extra, crown=2):
+    """Тот же помост с полом выше на несколько блоков.
+
+    Так у эльфов выглядит улучшение — и опять зеркально гномам: те
+    поднимают свод, потому что над ними гора, эльфы поднимают стены,
+    потому что над ними небо. Ни те, ни другие не надстраивают этаж:
+    лестница внутри дома съела бы половину и без того небольшого пола.
+    """
+    width, depth = len(base[0][0]), len(base[0])
+    body = base[:-crown]
+    return body + [ring(width, depth, corner="{", wall="{") for _ in range(extra)] \
+        + leaf_crown(width, depth, crown)
 
 
 def deepen(base, extra):
@@ -2954,6 +3018,182 @@ DWARF_SHRINE = deepen(chamber([
 ], height=5, door=(3, 0), grates=DWARF_GRATES), 2)
 
 
+# =============================== ЭЛЬФЫ ========================================
+#
+# Пятый народ и зеркало четвёртого. Гномы доказали, что данными задаётся
+# образ жизни; эльфы доказывают, что то же самое место кода умеет и обратное.
+# У гномов пол вырублен В толще, здесь настлан НАД ней; у гномов годность
+# места решает свод над головой, здесь — лес под настилом; гномы прорубают
+# ход наружу, эльфы спускают лестницу вниз.
+#
+# Если одно и то же место кода умеет и закапывать деревню, и подвешивать
+# её, то оно точно не знает слов «гномы» и «эльфы». Ради этого пара
+# и написана.
+#
+# Схемы поэтому устроены так же зеркально: нет цоколя — под настилом
+# воздух; нет каменной подошвы — настил берёзовый; вместо свода полог
+# из листвы.
+
+ELF_PANES = ((2, 0), (4, 0), (0, 2), (0, 4), (6, 2), (6, 4), (2, 6), (4, 6))
+ELF_PANES_SMALL = ((0, 2), (4, 2))
+
+# --- палата эльфов, уровень 1: 7x7 ---
+#
+# Очаг посреди, станок старейшины у входа, ларь и лежанка по сторонам:
+# тот же план, что у всех четырёх соседей. Народы отличаются кладкой
+# и кровлей, а не тем, насколько в их домах тесно, — и у народа, который
+# живёт в кронах, это правило работает ровно так же.
+ELF_TOWN_HALL = bower([
+    "{{{D{{{",
+    "{K...S{",
+    "{.....{",
+    "{..c..{",
+    "{.....{",
+    "{E...O{",
+    "{{{{{{{",
+], height=5, door=(3, 0), panes=ELF_PANES)
+
+ELF_TOWN_HALL_2 = raise_bower(ELF_TOWN_HALL, 1)
+ELF_TOWN_HALL_3 = raise_bower(ELF_TOWN_HALL, 2)
+ELF_TOWN_HALL_4 = raise_bower(ELF_TOWN_HALL, 3)
+
+# --- жильё эльфов, уровень 1: 7x7 ---
+ELF_HOUSE = bower([
+    "{{{D{{{",
+    "{.....{",
+    "{ff.:S{",
+    "{hh.%;{",
+    "{.O.=.{",
+    "{O.c.O{",
+    "{{{{{{{",
+], height=5, door=(3, 0), panes=ELF_PANES)
+
+# --- жильё эльфов, уровень 2 ---
+#
+# Ещё две лежанки и стены выше на блок. Второго этажа нет и здесь:
+# лестница внутри съела бы половину и без того небольшого пола, а места
+# вширь у дерева нет — соседний помост висит на своём стволе.
+ELF_HOUSE_2 = raise_bower([
+    ELF_HOUSE[0],
+    ["{{{D{{{",
+     "{ff.ff{",
+     "{hh.hh{",
+     "{..%..{",
+     "{.O.=.{",
+     "{O.c.S{",
+     "{{{{{{{"],
+] + ELF_HOUSE[2:], 1)
+
+# --- висячий сад эльфов, уровень 1: 7x7 ---
+#
+# Поле у народа в кронах — это не поле, а сад на помосте: земля насыпана
+# на настил, вода посреди, по краю перила. Растёт под открытым небом,
+# и это его отличие от гномьих грядок: тем света не хватает, этим его
+# больше, чем у всех.
+ELF_FARM = [
+    # y=0 — земля на настиле и колодец в середине
+    ["ddddddd",
+     "dFFFFFd",
+     "dFFFFFd",
+     "dFF~FFd",
+     "dFFFFFd",
+     "dFFFFFd",
+     "ddddddd"],
+    # y=1 — перила с калиткой и сам посев
+    ["qqqgqqq",
+     "q*****q",
+     "q*****q",
+     "q**.**q",
+     "q*****q",
+     "qK****q",
+     "qqqqqqq"],
+    # y=2 — фонари на угловых столбах: помост висит над лесом,
+    # и ночью сад надо видеть с земли
+    ["t.....t",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     "t.....t"],
+]
+
+# --- кладовая эльфов, 7x5 ---
+ELF_WAREHOUSE = bower([
+    "{{{D{{{",
+    "{S...S{",
+    "{..O..{",
+    "{S...S{",
+    "{{{{{{{",
+], height=5, door=(3, 0), panes=((0, 2), (6, 2)))
+
+# --- мастерская резчика, 5x5 ---
+ELF_BUILDER_HUT = bower([
+    "{{D{{",
+    "{K.S{",
+    "{...{",
+    "{S.O{",
+    "{{{{{",
+], height=5, door=(2, 0), panes=ELF_PANES_SMALL)
+
+# --- прядильня эльфов, 5x5 ---
+ELF_WEAVERY = bower([
+    "{{D{{",
+    "{.K.{",
+    "{...{",
+    "{S.O{",
+    "{{{{{",
+], height=5, door=(2, 0), panes=ELF_PANES_SMALL)
+
+# --- лавка эльфов, 5x5 ---
+ELF_MARKET_STALL = bower([
+    "{{D{{",
+    "{.K.{",
+    "{...{",
+    "{S.O{",
+    "{{{{{",
+], height=5, door=(2, 0), panes=ELF_PANES_SMALL)
+
+# --- торг эльфов, 7x7 ---
+ELF_MARKET = bower([
+    "{{{D{{{",
+    "{K...K{",
+    "{.....{",
+    "{%...%{",
+    "{.....{",
+    "{S.O.S{",
+    "{{{{{{{",
+], height=6, door=(3, 0), panes=ELF_PANES)
+
+# --- дозорный помост, 5x5 ---
+#
+# Единственный народ, которому дозорная башня не нужна: они и так живут
+# выше леса. Поэтому у них не башня, а помост — стены в один ряд,
+# чтобы смотреть, а не прятаться.
+ELF_WATCHPOST = bower([
+    "{{D{{",
+    "{K.O{",
+    "G...G",
+    "{E.S{",
+    "{{{{{",
+], height=4, door=(2, 0), panes=())
+
+# --- святилище эльфов, 7x7 ---
+#
+# Самый высокий помост деревни и самый открытый: стены в два ряда окон,
+# алтарь под пологом. То же решение, что у норманнской часовни и гномьего
+# алтаря — высота читается как святость дешевле любого убранства.
+ELF_SHRINE = bower([
+    "{{{D{{{",
+    "{:...:{",
+    "{:...:{",
+    "{.....{",
+    "{:...:{",
+    "{.}$}.{",
+    "{{{{{{{",
+], height=7, door=(3, 0), panes=ELF_PANES)
+
+
 RAW_SCHEMATICS = {
     "norman/town_hall_lvl1": NORMAN_TOWN_HALL,
     "norman/town_hall_lvl2": NORMAN_TOWN_HALL_2,
@@ -3020,6 +3260,20 @@ RAW_SCHEMATICS = {
     "dwarf/market_lvl1": DWARF_MARKET,
     "dwarf/gatehouse_lvl1": DWARF_GATEHOUSE,
     "dwarf/shrine_lvl1": DWARF_SHRINE,
+    "elf/town_hall_lvl1": ELF_TOWN_HALL,
+    "elf/town_hall_lvl2": ELF_TOWN_HALL_2,
+    "elf/town_hall_lvl3": ELF_TOWN_HALL_3,
+    "elf/town_hall_lvl4": ELF_TOWN_HALL_4,
+    "elf/house_lvl1": ELF_HOUSE,
+    "elf/house_lvl2": ELF_HOUSE_2,
+    "elf/farm_lvl1": ELF_FARM,
+    "elf/warehouse_lvl1": ELF_WAREHOUSE,
+    "elf/builder_hut_lvl1": ELF_BUILDER_HUT,
+    "elf/weavery_lvl1": ELF_WEAVERY,
+    "elf/market_stall_lvl1": ELF_MARKET_STALL,
+    "elf/market_lvl1": ELF_MARKET,
+    "elf/watchtower_lvl1": ELF_WATCHPOST,
+    "elf/shrine_lvl1": ELF_SHRINE,
 }
 
 
@@ -3129,7 +3383,10 @@ def main():
                       ("pony/town_hall_lvl3", "pony/town_hall_lvl4"),
                       ("dwarf/town_hall_lvl1", "dwarf/town_hall_lvl2"),
                       ("dwarf/town_hall_lvl3", "dwarf/town_hall_lvl4"),
-                      ("dwarf/house_lvl1", "dwarf/house_lvl2")):
+                      ("dwarf/house_lvl1", "dwarf/house_lvl2"),
+                      ("elf/town_hall_lvl1", "elf/town_hall_lvl2"),
+                      ("elf/town_hall_lvl3", "elf/town_hall_lvl4"),
+                      ("elf/house_lvl1", "elf/house_lvl2")):
         pair = (low, SCHEMATICS[low], SCHEMATICS[high])
         kept, changed = containment_check(*pair)
         print(f"{pair[0]}: второй уровень сохраняет {kept - changed} блоков первого этажа "

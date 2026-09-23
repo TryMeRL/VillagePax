@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:weaver",
+  "culture": "villagepax:elf",
+  "min_reputation": 0,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:string",
+      "count": 16
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 10
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 8
+    }
+  ],
+  "dialogue": "villagepax.quest.elf_weaver_1",
+  "next": "villagepax:elf/weaver_2"
+}

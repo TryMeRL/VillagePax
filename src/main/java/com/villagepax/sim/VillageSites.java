@@ -5,6 +5,7 @@ import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.core.culture.Trait;
 import com.villagepax.core.culture.Traits;
+import com.villagepax.sim.build.Footing;
 import com.villagepax.sim.build.Hold;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.entry.RegistryEntry;
@@ -340,18 +341,15 @@ public final class VillageSites {
     /**
      * Где в этой колонне встанет середина поселения.
      * <p>
-     * У народа с поверхности — земля, у народа из горы — <b>отметка пола
-     * чертога</b>, на девять блоков ниже склона и непременно в сплошном
-     * камне. Проверка «где можно встать» и здесь одна на весь мод, но
-     * отвечает она по-разному, и это ровно та разница, ради которой
-     * заводилась черта: поиск места не должен знать слова «гномы».
+     * У народа с земли это земля, у народа из горы — отметка пола чертога,
+     * у народа из крон — настил над лесом. Спрашивается через одну дверь
+     * ({@link Footing}), и это ровно та разница, ради которой заводились
+     * черты: поиск места не должен знать ни слова «гномы», ни слова
+     * «эльфы».
      */
     private static Optional<BlockPos> standFor(ServerWorld world, Culture culture,
                                                BlockPos column) {
-        if (Traits.resolve(culture.traits()).contains(Trait.BUILDS_UNDERGROUND)) {
-            return Hold.floorUnder(world, column.getX(), column.getZ());
-        }
-        return Ground.buildableAt(world, column.getX(), column.getZ());
+        return Footing.centreUnder(world, culture, column.getX(), column.getZ());
     }
 
     /**

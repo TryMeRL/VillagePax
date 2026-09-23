@@ -1,0 +1,15 @@
+{
+  "display_name": "villagepax.building.elf.weavery",
+  "role": "workplace",
+  "profession": "villagepax:weaver",
+  "min_level": "village",
+  "crafts": [
+    {
+      "from": {
+        "minecraft:string": 4
+      },
+      "to": "minecraft:white_wool",
+      "count": 1
+    }
+  ]
+}

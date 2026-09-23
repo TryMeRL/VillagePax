@@ -21,6 +21,7 @@ import java.util.Optional;
  * @param road               чем этот народ мостит улицы, в порядке предпочтения
  * @param decor              чем заполняются слоты декора в его схемах
  * @param traits             модификаторы поведения: подземная застройка, террасные фермы и прочее
+ * @param stature            рост народа: 1.0 — человеческий, меньше — приземистый
  * @param diplomacyDefaults  стартовое отношение к другим народам
  */
 public record Culture(
@@ -32,8 +33,17 @@ public record Culture(
         List<Identifier> road,
         List<Identifier> decor,
         List<Identifier> traits,
+        float stature,
         Map<Identifier, Integer> diplomacyDefaults
 ) {
+
+    /**
+     * Рост народа человеческий, пока он не сказал иное.
+     * <p>
+     * Единица — и она же умолчание: народ, который о росте молчит, должен
+     * выглядеть как все, а не исчезнуть под землю из-за незаполненного поля.
+     */
+    public static final float PLAIN_STATURE = 1.0f;
 
     /**
      * Народ без своей мостовой. Улицы у него всё равно появятся — билдер
@@ -43,7 +53,7 @@ public record Culture(
                    List<Identifier> buildings, List<Identifier> traits,
                    Map<Identifier, Integer> diplomacyDefaults) {
         this(displayName, kind, spawn, namePools, buildings, List.of(), List.of(), traits,
-                diplomacyDefaults);
+                PLAIN_STATURE, diplomacyDefaults);
     }
 
     public static final Codec<Culture> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -56,6 +66,7 @@ public record Culture(
             Identifier.CODEC.listOf().optionalFieldOf("road", List.of()).forGetter(Culture::road),
             Identifier.CODEC.listOf().optionalFieldOf("decor", List.of()).forGetter(Culture::decor),
             Identifier.CODEC.listOf().optionalFieldOf("traits", List.of()).forGetter(Culture::traits),
+            Codec.FLOAT.optionalFieldOf("stature", PLAIN_STATURE).forGetter(Culture::stature),
             Codec.unboundedMap(Identifier.CODEC, Codec.INT).optionalFieldOf("diplomacy_defaults", Map.of())
                     .forGetter(Culture::diplomacyDefaults)
     ).apply(instance, Culture::new));

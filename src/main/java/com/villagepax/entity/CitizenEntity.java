@@ -10,6 +10,8 @@ import com.villagepax.sim.trade.Trading;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.Identifier;
+import com.villagepax.core.culture.Culture;
+import com.villagepax.core.culture.CultureManager;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.life.Ages;
 import com.villagepax.sim.life.Natures;
@@ -23,6 +25,12 @@ import com.villagepax.sim.work.Schedule;
 import net.minecraft.block.BlockState;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.entity.EntityType;
+import software.bernie.geckolib.animatable.GeoEntity;
+import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.core.animation.AnimatableManager;
+import software.bernie.geckolib.core.animation.AnimationController;
+import software.bernie.geckolib.core.animation.RawAnimation;
+import software.bernie.geckolib.util.GeckoLibUtil;
 import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.data.TrackedDataHandlerRegistry;
@@ -73,7 +81,7 @@ import net.minecraft.entity.ai.pathing.PathNodeType;
  * такого класса держат состояние в сущности, и сотни сущностей душат сервер;
  * здесь незагруженное поселение не стоит ничего.
  */
-public class CitizenEntity extends PathAwareEntity {
+public class CitizenEntity extends PathAwareEntity implements GeoEntity {
 
     private static final String SETTLEMENT_KEY = "Settlement";
     private static final String CITIZEN_KEY = "Citizen";
@@ -413,6 +421,31 @@ public class CitizenEntity extends PathAwareEntity {
     private static final TrackedData<Boolean> CHILD =
             DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
+    /**
+     * Рост народа, каким его объявил датапак.
+     * <p>
+     * Отслеживаемым полем по той же причине, что облик и детство: культура
+     * живёт в датапаке <b>сервера</b>, а рисует тело клиент. Числом,
+     * а не опознавателем народа: клиенту незачем знать, кто перед ним, —
+     * ему надо знать, какого этот человек роста.
+     * <p>
+     * <b>Число одно, а не три.</b> Ширина и голова считаются из него
+     * ({@code Stature}), и это не лень, а защита: народ с крошечной
+     * головой на широком туловище читается как ошибка, а не как замысел,
+     * и давать автору датапака возможность так ошибиться незачем.
+     */
+    private static final TrackedData<Float> STATURE =
+            DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.FLOAT);
+
+    private static final RawAnimation STAND = RawAnimation.begin().thenLoop("stand");
+    private static final RawAnimation WALK = RawAnimation.begin().thenLoop("walk");
+    private static final RawAnimation REST = RawAnimation.begin().thenLoop("rest");
+    private static final RawAnimation STRIDE = RawAnimation.begin().thenLoop("stride");
+    private static final RawAnimation WORK = RawAnimation.begin().thenLoop("work");
+    private static final RawAnimation BREATHE = RawAnimation.begin().thenLoop("breathe");
+
+    private final AnimatableInstanceCache animations = GeckoLibUtil.createInstanceCache(this);
+
     private UUID raidId;
     private UUID raidHost;
 
@@ -546,6 +579,7 @@ public class CitizenEntity extends PathAwareEntity {
         // обязано это заметить без отдельного дня взросления.
         setLook(Looks.of(citizen));
         setChild(Ages.isChild(citizen));
+        setStature(citizen.culture());
     }
 
     /**
@@ -586,6 +620,27 @@ public class CitizenEntity extends PathAwareEntity {
             dataTracker.set(CHILD, child);
             calculateDimensions();
         }
+    }
+
+    /**
+     * Запомнить рост народа этого тела.
+     * <p>
+     * Народа, которого нет в датапаке, рисуем человеческим ростом:
+     * перечитанный датапак — обычное дело, и исчезать из-за него тело
+     * не должно.
+     */
+    public void setStature(Identifier culture) {
+        Culture known = CultureManager.get(culture);
+        float stature = known == null ? Culture.PLAIN_STATURE : known.stature();
+        if (dataTracker.get(STATURE) != stature) {
+            dataTracker.set(STATURE, stature);
+        }
+    }
+
+    /** Какого роста этот народ: единица — человеческий. */
+    public float stature() {
+        Float value = dataTracker.get(STATURE);
+        return value == null || value <= 0 ? Culture.PLAIN_STATURE : value;
     }
 
     public boolean isChildBody() {
@@ -758,6 +813,7 @@ public class CitizenEntity extends PathAwareEntity {
         coward = Natures.isCoward(citizen);
         setLook(Looks.of(citizen));
         setChild(Ages.isChild(citizen));
+        setStature(citizen.culture());
         setHealth(citizen.health());
         // И ремесло сразу, раз запись всё равно в руках: иначе у только
         // что появившегося стража была бы секунда, в которую он считает
@@ -1085,11 +1141,44 @@ public class CitizenEntity extends PathAwareEntity {
      */
     private static final int OFF_FENCE_REACH = 2;
 
+    /**
+     * Три дорожки движения, и у каждой свои кости.
+     * <p>
+     * Ноги шагают, руки работают, туловище дышит — и всё это одновременно.
+     * Одной дорожкой так не выйдет: билдер, который идёт к стене и машет
+     * молотом, должен делать и то и другое, а не выбирать. Дорожки
+     * не спорят между собой потому, что <b>ни одна кость не встречается
+     * в двух из них</b>: шаг трогает только ноги, работа только руки,
+     * дыхание только туловище.
+     * <p>
+     * Плавность перехода — четыре тика: меньше читается как рывок,
+     * больше — как задержка между решением и движением.
+     */
+    @Override
+    public void registerControllers(AnimatableManager.ControllerRegistrar dancers) {
+        dancers.add(new AnimationController<>(this, "ноги", 4, state ->
+                state.setAndContinue(state.isMoving() ? WALK : STAND)));
+        dancers.add(new AnimationController<>(this, "руки", 4, state -> {
+            if (handSwinging) {
+                return state.setAndContinue(WORK);
+            }
+            return state.setAndContinue(state.isMoving() ? STRIDE : REST);
+        }));
+        dancers.add(new AnimationController<>(this, "дыхание", 8, state ->
+                state.setAndContinue(BREATHE)));
+    }
+
+    @Override
+    public AnimatableInstanceCache getAnimatableInstanceCache() {
+        return animations;
+    }
+
     @Override
     protected void initDataTracker() {
         super.initDataTracker();
         dataTracker.startTracking(LOOK, Looks.UNKNOWN.toString());
         dataTracker.startTracking(CHILD, false);
+        dataTracker.startTracking(STATURE, Culture.PLAIN_STATURE);
     }
 
     @Override

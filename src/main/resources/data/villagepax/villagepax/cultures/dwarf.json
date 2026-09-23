@@ -66,6 +66,7 @@
     "villagepax:builds_underground",
     "villagepax:stone_masonry"
   ],
+  "stature": 0.72,
   "diplomacy_defaults": {
     "villagepax:norman": 5,
     "villagepax:maya": 0,

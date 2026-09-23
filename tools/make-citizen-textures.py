@@ -78,8 +78,14 @@ MAYA = {
 PONY = {
     "skin": rgb(0xE0C08A),
     "skin_dark": rgb(0xC09E68),
-    "hair": rgb(0xD8C48A),
-    "hair_dark": rgb(0xB09A5E),
+    # Грива тёмная, а не в тон масти. Пока пони были людьми, светлые
+    # волосы на светлой коже читались — голова маленькая, и разница
+    # видна вблизи. У коня грива идёт по всей шее и холке, и в тон масти
+    # она исчезает вовсе: первый же лист показал не пони, а ламу без гривы.
+    # Пшеничная масть с тёмной гривой — это буланая, самая узнаваемая
+    # лошадиная масть вообще.
+    "hair": rgb(0x5B4326),
+    "hair_dark": rgb(0x3A2A16),
     "cloth": rgb(0xB8C49A),
     "cloth_dark": rgb(0x94A078),
     "cloth_lit": rgb(0xD2DCB4),
@@ -177,6 +183,30 @@ ARM = faces(40, 16, 4, 12, 4)
 LEG = faces(0, 16, 4, 12, 4)
 
 SIDES = ("front", "back", "left", "right")
+
+# --- кони ----------------------------------------------------------------------
+#
+# Пони перестали быть людьми с лошадиной мастью: заказчик сказал «сделай
+# чтоб пони выглядели как пони», и они стали четвероногими. Разбор у коня
+# поэтому свой целиком — от двуногого не подходит ни одна грань.
+#
+# Раскладка считана так, чтобы уместиться в те же 64x64: бочка занимает
+# верхнюю полосу, голова с мордой и ушами — среднюю, грива, хвост и нога —
+# нижнюю. Нога одна на все четыре: левые зеркалят правые, как рука
+# и нога у двуногого.
+BARREL = faces(0, 0, 8, 8, 12)
+NECK = faces(40, 0, 5, 6, 6)
+MUZZLE_HEAD = faces(0, 20, 6, 6, 5)
+MUZZLE = faces(24, 20, 4, 3, 4)
+EAR_RIGHT = faces(40, 20, 2, 3, 1)
+EAR_LEFT = faces(46, 20, 2, 3, 1)
+MANE = faces(24, 32, 1, 5, 11)
+TAIL = faces(48, 32, 3, 8, 3)
+HOCK = faces(0, 45, 3, 8, 3)
+
+# Народы, которые ходят на четырёх. Списком, а не строкой в коде: завтра
+# их может стать двое.
+QUADRUPEDS = ("pony",)
 
 
 class Skin:
@@ -481,6 +511,181 @@ CRAFTS = {
 }
 
 
+def draw_pony(skin, look, woman):
+    """Конь: масть, грива, копыта и глаз на скуле.
+
+    Глаз сбоку, а не спереди, и это не мелочь: у коня глаза на висках,
+    и вынеси мы их на морду — вышел бы человек в маске лошади. Ровно того,
+    от чего уходим.
+    """
+    for part in (BARREL, NECK, MUZZLE_HEAD, HOCK):
+        skin.cube(part, look["skin"])
+        skin.shade(part, look["skin_dark"])
+
+    # Морда темнее масти: так она читается мордой, а не продолжением лба.
+    skin.cube(MUZZLE, look["skin_dark"])
+    for name in ("left", "right"):
+        skin.px(MUZZLE["front"], 1, 1, EYE)
+        skin.px(MUZZLE["front"], 2, 1, EYE)
+
+    # Уши: снаружи масть, внутри тень.
+    for ear in (EAR_RIGHT, EAR_LEFT):
+        skin.cube(ear, look["skin"])
+        skin.band(ear["front"], look["skin_dark"], top=1, rows=2)
+
+    # Грива и хвост — тем же цветом, что волосы народа. У кобылы светлее,
+    # у жеребца темнее: примета пола, видная со спины, а другой у коня нет.
+    coat = look["hair"] if woman else look["hair_dark"]
+    for part in (MANE, TAIL):
+        skin.cube(part, coat)
+        skin.shade(part, look["hair_dark"] if woman else look["hair"])
+
+    # Глаз на скуле — по одному с каждой стороны головы.
+    for name in ("left", "right"):
+        skin.px(MUZZLE_HEAD[name], 4, 2, EYE_WHITE)
+        skin.px(MUZZLE_HEAD[name], 3, 2, EYE)
+
+    # Копыто: два нижних ряда ноги.
+    for name in SIDES:
+        skin.band(HOCK[name], look["boots"], top=6, rows=2)
+    skin.fill(HOCK["bottom"], look["boots"])
+
+
+def blanket(skin, look, colour, trim=None):
+    """Попона на бочке — место, где у коня видно ремесло.
+
+    У двуногого ремесло написано на рубахе; у коня рубахи нет, зато есть
+    спина. Все девять ремёсел различаются попоной и тем, что надето
+    на голову, — больше у лошади ничего и нет.
+    """
+    skin.fill(BARREL["top"], colour)
+    for name in ("left", "right"):
+        skin.band(BARREL[name], colour, rows=5)
+    if trim is not None:
+        for name in ("left", "right"):
+            skin.band(BARREL[name], trim, top=5, rows=1)
+
+
+def headgear(skin, look, colour, dark=None):
+    """Что надето на голову: шляпа пахаря, шлем стража, повязка плотника."""
+    skin.fill(MUZZLE_HEAD["top"], colour)
+    for name in SIDES:
+        skin.band(MUZZLE_HEAD[name], colour, rows=2)
+        if dark is not None:
+            skin.band(MUZZLE_HEAD[name], dark, top=2, rows=1)
+
+
+def pony_builder(skin, look):
+    """Плотник: кожаная упряжь через бочку и повязка на лбу."""
+    for name in ("left", "right"):
+        skin.band(BARREL[name], LEATHER, top=1, rows=2)
+        skin.band(BARREL[name], LEATHER, top=6, rows=1)
+    skin.fill(BARREL["top"], LEATHER_DARK)
+    headgear(skin, look, LEATHER)
+
+
+def pony_farmer(skin, look):
+    """Пахарь: соломенная шляпа и холщовая попона."""
+    blanket(skin, look, LINEN)
+    headgear(skin, look, STRAW, STRAW_DARK)
+
+
+def pony_lumberjack(skin, look):
+    """Делянщик: попона в клетку и упряжь."""
+    blanket(skin, look, look["cloth"])
+    x, y, width, height = BARREL["left"]
+    for dy in range(5):
+        for dx in range(width):
+            if ((dx // 3) + (dy // 2)) % 2 == 0:
+                skin.px(BARREL["left"], dx, dy, look["cloth_dark"])
+                skin.px(BARREL["right"], dx, dy, look["cloth_dark"])
+    for name in ("left", "right"):
+        skin.band(BARREL[name], LEATHER, top=6, rows=1)
+
+
+def pony_courier(skin, look):
+    """Курьер: перемётные сумы по бокам."""
+    blanket(skin, look, LEATHER_DARK)
+    for name in ("left", "right"):
+        skin.band(BARREL[name], LEATHER, top=4, rows=4)
+    x, y, width, height = BARREL["left"]
+    for dx in range(2, width, 5):
+        for dy in range(4, 8):
+            skin.px(BARREL["left"], dx, dy, LEATHER_DARK)
+            skin.px(BARREL["right"], dx, dy, LEATHER_DARK)
+
+
+def pony_guard(skin, look):
+    """Страж: железная попона поверх цветной и оголовье."""
+    blanket(skin, look, look["accent"])
+    for name in ("left", "right"):
+        skin.band(BARREL[name], IRON, rows=3)
+        for dy in range(3):
+            for dx in range(0, 12, 2):
+                skin.px(BARREL[name], dx + dy % 2, dy, IRON_DARK)
+    skin.fill(BARREL["top"], IRON)
+    headgear(skin, look, IRON, IRON_DARK)
+    for name in SIDES:
+        skin.band(NECK[name], IRON, rows=3)
+
+
+def pony_elder(skin, look):
+    """Старейшина: долгая попона с золотой каймой и седая грива."""
+    blanket(skin, look, look["accent"], GOLD)
+    for name in ("left", "right"):
+        skin.band(BARREL[name], look["accent"], rows=7)
+        skin.band(BARREL[name], GOLD, top=2, rows=1)
+    for part in (MANE, TAIL):
+        skin.cube(part, GREY_HAIR)
+    for name in SIDES:
+        skin.band(NECK[name], look["accent"], rows=4)
+
+
+def pony_brewer(skin, look):
+    """Квасник: холщовая попона и тёмный подпал по низу."""
+    blanket(skin, look, LINEN)
+    for name in ("left", "right"):
+        skin.band(BARREL[name], LEATHER_DARK, top=5, rows=1)
+
+
+def pony_merchant(skin, look):
+    """Купец: цветная попона с золотой каймой и кошель у холки."""
+    blanket(skin, look, look["cloth_lit"], GOLD)
+    for name in ("left", "right"):
+        skin.band(BARREL[name], look["accent"], rows=1)
+        skin.fill((BARREL[name][0] + 1, BARREL[name][1] + 2, 2, 3), LEATHER)
+
+
+def pony_weaver(skin, look):
+    """Прядильщица: холст и цветные нити поперёк попоны."""
+    blanket(skin, look, LINEN)
+    for name in ("left", "right"):
+        for dy in range(0, 5, 2):
+            skin.band(BARREL[name], look["accent"], top=dy, rows=1)
+
+
+PONY_CRAFTS = {
+    "builder": pony_builder,
+    "farmer": pony_farmer,
+    "lumberjack": pony_lumberjack,
+    "courier": pony_courier,
+    "guard": pony_guard,
+    "elder": pony_elder,
+    "brewer": pony_brewer,
+    "merchant": pony_merchant,
+    "weaver": pony_weaver,
+}
+
+
+def build_pony(culture, woman, craft):
+    look = CULTURES[culture]
+    skin = Skin()
+    draw_pony(skin, look, woman)
+    if craft in PONY_CRAFTS:
+        PONY_CRAFTS[craft](skin, look)
+    return skin
+
+
 def build(culture, woman, craft):
     look = CULTURES[culture]
     skin = Skin()
@@ -502,10 +707,11 @@ def main():
     for culture in CULTURES:
         for gender, woman in (("male", False), ("female", True)):
             made += 1
-            build(culture, woman, None).save("%s/%s" % (culture, gender))
+            draw = build_pony if culture in QUADRUPEDS else build
+            draw(culture, woman, None).save("%s/%s" % (culture, gender))
             for craft in CRAFTS:
                 made += 1
-                build(culture, woman, craft).save(
+                draw(culture, woman, craft).save(
                     "%s/%s_%s" % (culture, gender, craft))
     print("нарисовано обликов: %d" % made)
 

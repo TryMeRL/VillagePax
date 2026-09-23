@@ -36,6 +36,22 @@ class LooksTest {
     }
 
     /**
+     * По облику видно, чей это народ.
+     * <p>
+     * Единственный канал, по которому клиент узнаёт народ: культуры живут
+     * в датапаке сервера. По нему же выбирается тело — конь у пони,
+     * человек у всех прочих, — и ошибка здесь стоила бы пони четырёх ног.
+     */
+    @Test
+    void theLookNamesThePeople() {
+        assertEquals(java.util.Optional.of("pony"), Looks.cultureOf(
+                "villagepax:textures/entity/citizen/pony/female_farmer.png"));
+        assertEquals(java.util.Optional.of("norman"), Looks.cultureOf(
+                Looks.of(NORMAN, Gender.MALE, Optional.empty()).toString()));
+        assertEquals(java.util.Optional.empty(), Looks.cultureOf("villagepax:textures/gui/icon.png"));
+    }
+
+    /**
      * Чужой народ кладёт своих людей к себе.
      * <p>
      * Пространство имён берётся у культуры: датапак, объявивший гномов,

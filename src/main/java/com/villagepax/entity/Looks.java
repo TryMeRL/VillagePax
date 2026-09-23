@@ -32,6 +32,9 @@ public final class Looks {
     public static final Identifier UNKNOWN =
             new Identifier(VillagePax.MOD_ID, "textures/entity/citizen/norman/male.png");
 
+    /** Где в пути к облику начинается имя народа. */
+    private static final String FOLDER = "textures/entity/citizen/";
+
     private Looks() {
     }
 
@@ -46,6 +49,27 @@ public final class Looks {
         String craft = profession.map(id -> "_" + id.getPath()).orElse("");
         return new Identifier(culture.getNamespace(),
                 "textures/entity/citizen/" + culture.getPath() + "/" + who + craft + ".png");
+    }
+
+    /**
+     * Чей это народ — по пути к текстуре.
+     * <p>
+     * Единственный канал, по которому клиент узнаёт народ: культуры живут
+     * в датапаке сервера, а в облике их имя уже есть. Заводить ради этого
+     * второе отслеживаемое поле значило бы посылать по сети то, что и так
+     * приехало.
+     * <p>
+     * Нужно затем, что телом народ отличается не только мастью: у пони
+     * своя модель, и выбрать её надо до первой отрисовки.
+     */
+    public static Optional<String> cultureOf(String look) {
+        int start = look.indexOf(FOLDER);
+        if (start < 0) {
+            return Optional.empty();
+        }
+        String tail = look.substring(start + FOLDER.length());
+        int slash = tail.indexOf('/');
+        return slash <= 0 ? Optional.empty() : Optional.of(tail.substring(0, slash));
     }
 
     /**

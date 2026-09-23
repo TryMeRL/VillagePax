@@ -6,10 +6,12 @@
 из одного числа, и ошибиться в обоих можно молча: игра не скажет ничего,
 просто гном выйдет жердью.
 
-Здесь — вид спереди, собранный из настоящих кубов модели и настоящих
-текстур. Ни света, ни поз, ни анимации: проверяется одно — силуэт,
-и именно в нём ошибаются. Вид сбоку пробовался и выброшен: у двуногого
-он показывает столбик и ничего не говорит.
+Здесь — силуэт, собранный из настоящих кубов модели и настоящих текстур.
+Ни света, ни поз, ни анимации: проверяется одно — облик, и именно в нём
+ошибаются.
+
+Двуногого смотрим спереди, четвероногого сбоку, и это не прихоть: у коня
+спереди видно морду и четыре столбика, а вся его стать — в профиле.
 
     python tools/preview-citizens.py
 
@@ -25,7 +27,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "src/main/resources/assets/villagepax"
-GEO = ASSETS / "geo/entity/citizen.geo.json"
+GEO = ASSETS / "geo/entity"
 SKINS = ASSETS / "textures/entity/citizen"
 CULTURES = ROOT / "src/main/resources/data/villagepax/villagepax/cultures"
 OUT = ROOT / "build/citizen-preview.png"
@@ -52,9 +54,19 @@ def faces(u, v, width, height, depth):
     }
 
 
-def cubes():
+def geo_of(people):
+    """Модель народа: своя, если есть, иначе общая.
+
+    Тем же правилом, что и в игре: народ, положивший рядом свой geo-файл,
+    получает своё тело без единой строчки кода.
+    """
+    own = GEO / ("citizen_%s.geo.json" % people)
+    return own if own.exists() else GEO / "citizen.geo.json"
+
+
+def cubes(path):
     """Кубы модели в мировых мерах, с пометкой, чья это кость."""
-    model = json.loads(GEO.read_text(encoding="utf-8"))["minecraft:geometry"][0]
+    model = json.loads(path.read_text(encoding="utf-8"))["minecraft:geometry"][0]
     out = []
     for bone in model["bones"]:
         for cube in bone.get("cubes", []):
@@ -76,16 +88,17 @@ def paint(canvas, skin, box, uv, flip=False):
     canvas.paste(part, (int(x), int(y)), part)
 
 
-def figure(skin, height, girth, head, side=False):
+def figure(path, skin, height, girth, head, side=False):
     """Один житель: вид спереди или сбоку, в пикселях модели."""
-    tall, wide = 32, 16
+    tall, wide = 34, 18
     canvas = Image.new("RGBA", (int(wide * 2 * SCALE), int(tall * SCALE + 2 * SCALE)),
                        (0, 0, 0, 0))
     middle = wide * SCALE
 
     # Дальние кубы первыми: рисуем по глубине, ближний перекрывает дальний.
+    # Сбоку смотрим слева, поэтому ближе тот, у кого x больше.
     order = 0 if side else 2
-    for name, origin, size, grain in sorted(cubes(), key=lambda c: -c[1][order]):
+    for name, origin, size, grain in sorted(cubes(path), key=lambda c: -c[1][order]):
         scale = head if name == "head" else 1.0
         # Голова тянется от шеи вверх, а не от пола: иначе крупная голова
         # уезжала бы вместе с туловищем.
@@ -111,7 +124,7 @@ def main():
         declared = json.loads(path.read_text(encoding="utf-8")).get("stature", 1.0)
         peoples.append((people, declared))
 
-    cell_w, cell_h = 34 * SCALE + PAD, 34 * SCALE + PAD
+    cell_w, cell_h = 36 * SCALE + PAD, 36 * SCALE + PAD
     sheet = Image.new("RGBA", (cell_w * len(peoples), cell_h), (24, 24, 28, 255))
 
     for column, (people, declared) in enumerate(peoples):
@@ -120,9 +133,12 @@ def main():
             continue
         skin = Image.open(skin_path).convert("RGBA")
         height, girth, head = stature_of(declared)
-        drawn = figure(skin, height, girth, head)
+        path = geo_of(people)
+        side = path.name != "citizen.geo.json"
+        drawn = figure(path, skin, height, girth, head, side)
         sheet.paste(drawn, (column * cell_w + PAD // 2, PAD // 2), drawn)
-        print("%-8s рост %.2f, ширина %.2f, голова %.2f" % (people, height, girth, head))
+        print("%-8s %s, рост %.2f, ширина %.2f, голова %.2f"
+              % (people, path.name, height, girth, head))
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(OUT)

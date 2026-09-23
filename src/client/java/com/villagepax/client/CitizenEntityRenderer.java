@@ -6,6 +6,7 @@ import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.entity.EntityRendererFactory;
+import net.minecraft.client.render.model.json.ModelTransformationMode;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
@@ -48,8 +49,12 @@ public class CitizenEntityRenderer extends GeoEntityRenderer<CitizenEntity> {
      */
     private static final float CHILD_SHARE = 0.75f;
 
-    /** Кость, к которой привязан предмет в руке. */
+    /** Кость, к которой привязан предмет у двуногого. */
     private static final String HAND = "hand_right";
+
+    /** И у четвероногого: что возят — на спину, что чинят — в зубы. */
+    private static final String PACK = "pack";
+    private static final String TEETH = "muzzle";
 
     public CitizenEntityRenderer(EntityRendererFactory.Context context) {
         super(context, new CitizenGeoModel());
@@ -59,10 +64,50 @@ public class CitizenEntityRenderer extends GeoEntityRenderer<CitizenEntity> {
         // лесоруб топор, курьер груз. Правило мода с первой недели, и оно
         // переезжает сюда целиком — только теперь предмет висит на кости
         // ладони и ходит вместе с рукой, а не рядом с ней.
-        addRenderLayer(new BlockAndItemGeoLayer<>(this,
-                (bone, entity) -> HAND.equals(bone.getName())
-                        ? entity.getMainHandStack() : ItemStack.EMPTY,
-                (bone, entity) -> null));
+        addRenderLayer(new BlockAndItemGeoLayer<CitizenEntity>(this,
+                CitizenEntityRenderer::carried, (bone, entity) -> null) {
+            @Override
+            protected ModelTransformationMode getTransformTypeForStack(
+                    GeoBone bone, ItemStack stack, CitizenEntity entity) {
+                // Груз на спине лежит, а не держится: положение брошенной
+                // вещи — единственное, в котором сноп не торчит из холки
+                // ребром.
+                return PACK.equals(bone.getName())
+                        ? ModelTransformationMode.GROUND
+                        : ModelTransformationMode.THIRD_PERSON_RIGHT_HAND;
+            }
+        });
+    }
+
+    /**
+     * Что у этого тела в руках — и где именно.
+     * <p>
+     * У двуногого один ответ: в руке. У коня рук нет, и правило «работа
+     * видна» пришлось бы отменять — вместо этого оно переехало на спину
+     * и в зубы. Делит их <b>прочность</b>: чинить можно топор и кирку,
+     * их конь несёт в зубах; всё прочее — брёвна, снопы, камень — это
+     * груз, и он едет на спине.
+     * <p>
+     * Разделение по прочности, а не по списку предметов: список пришлось
+     * бы дописывать при каждом новом инструменте, включая инструменты
+     * чужих модов, — а прочность у них есть и так.
+     */
+    private static ItemStack carried(GeoBone bone, CitizenEntity citizen) {
+        ItemStack load = citizen.getMainHandStack();
+        if (load.isEmpty()) {
+            return ItemStack.EMPTY;
+        }
+        String where = bone.getName();
+        if (HAND.equals(where)) {
+            return load;
+        }
+        if (TEETH.equals(where)) {
+            return load.isDamageable() ? load : ItemStack.EMPTY;
+        }
+        if (PACK.equals(where)) {
+            return load.isDamageable() ? ItemStack.EMPTY : load;
+        }
+        return ItemStack.EMPTY;
     }
 
     /**

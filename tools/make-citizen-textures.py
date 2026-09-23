@@ -90,7 +90,58 @@ PONY = {
     "accent": rgb(0x4E8A3E),
 }
 
-CULTURES = {"norman": NORMAN, "maya": MAYA, "pony": PONY}
+# Гномы — подземный народ. Кожа не бледная, а обветренная: они не сидят
+# в норе, они в ней работают у горна. Медь в волосах и бороде — единственное
+# яркое, что есть в чертоге; сукно серое, как порода, а тесьма латунная,
+# потому что золото гномы не носят, а отдают Каменному Отцу.
+DWARF = {
+    "skin": rgb(0xC99A78),
+    "skin_dark": rgb(0xA87C5C),
+    "hair": rgb(0xA24A22),
+    "hair_dark": rgb(0x7C3517),
+    "cloth": rgb(0x4E4A52),
+    "cloth_dark": rgb(0x393640),
+    "cloth_lit": rgb(0x676270),
+    "trousers": rgb(0x3A3630),
+    "trousers_dark": rgb(0x2B2822),
+    "boots": rgb(0x2E2620),
+    "belt": rgb(0x6A4A2A),
+    "accent": rgb(0xC08A2E),
+}
+
+# Эльфы — зеркало гномов и здесь. Там медь и порода, тут берёста и лист:
+# пепельно-русые волосы, белая кора вместо штанов, зелёное сукно полога.
+# Рядом с рыжим коренастым гномом народ читается с одного взгляда,
+# а это и есть вся задача облика.
+ELF = {
+    "skin": rgb(0xEBD3BE),
+    "skin_dark": rgb(0xCDB29B),
+    # Волосы темнее кожи нарочно. Первая проба была пепельно-русой в тон
+    # лицу, и на контактном листе голова эльфа читалась пятном без черт:
+    # кожа, волосы и борода сливались в одно. Народ узнают по силуэту
+    # головы раньше, чем по одежде.
+    "hair": rgb(0xB9A97E),
+    "hair_dark": rgb(0x93855F),
+    "cloth": rgb(0x6E8C5A),
+    "cloth_dark": rgb(0x546E44),
+    "cloth_lit": rgb(0x8FAE76),
+    "trousers": rgb(0xCFC6AE),
+    "trousers_dark": rgb(0xB0A78F),
+    "boots": rgb(0x5A4A32),
+    "belt": rgb(0x7A6A44),
+    # Серебро, а не золото, и это не вкусовщина: тесьмой красятся плащ
+    # стража, кайма купца и одеяние старейшины. С золотом эльфийский
+    # старейшина оказался неотличим от гномьего — оба в латуни, а это
+    # два самых непохожих народа мода.
+    "accent": rgb(0xA8BFD0),
+}
+
+CULTURES = {"norman": NORMAN, "maya": MAYA, "pony": PONY,
+            "dwarf": DWARF, "elf": ELF}
+
+# Кто носит бороду. Это про народ, а не про моду: северянин и подгорный
+# с бородой, южанин, степняк и лесной без.
+BEARDED = ("norman", "dwarf")
 
 EYE = rgb(0x2B2B33)
 EYE_WHITE = rgb(0xE6E6DE)
@@ -365,6 +416,58 @@ def craft_elder(skin, look):
     draw_beard(skin, look, GREY_HAIR)
 
 
+def craft_brewer(skin, look):
+    """Пивовар: холщовый фартук, закатанные рукава и картуз.
+
+    Отличается от пахаря и каменщика нарочно: у пахаря соломенная шляпа,
+    у каменщика кожаный фартук с повязкой, у пивовара холст и картуз.
+    Три фартука подряд — это не три ремесла, а один размытый.
+    """
+    for name in ("front", "back"):
+        skin.band(BODY[name], LINEN, top=6, rows=5)
+    skin.band(BODY["front"], LEATHER_DARK, top=10, rows=1)
+    for name in SIDES:
+        skin.band(ARM[name], look["skin"], top=6, rows=6)
+    skin.fill(HEAD["top"], look["cloth_dark"])
+    for name in SIDES:
+        skin.band(HEAD[name], look["cloth_dark"], rows=1)
+
+
+def craft_merchant(skin, look):
+    """Купец: кафтан с каймой народа, золотые пуговицы и кошель у пояса.
+
+    Самое нужное лицо во всём моде и до сих пор единственное, которого
+    не было вовсе. Купец стоит в каждой деревне и говорит с игроком чаще,
+    чем кто угодно другой, — а рисовался чёрно-фиолетовым кубом.
+    """
+    for name in SIDES:
+        skin.band(BODY[name], look["cloth_lit"], rows=12)
+    x, y, width, height = BODY["front"]
+    skin.fill((x, y, 1, 12), look["accent"])
+    skin.fill((x + width - 1, y, 1, 12), look["accent"])
+    for dy in range(1, 10, 3):
+        skin.px(BODY["front"], width // 2, dy, GOLD)
+    skin.band(BODY["front"], look["belt"], top=10, rows=1)
+    skin.fill((x + width - 3, y + 11, 2, 1), LEATHER)
+    for name in SIDES:
+        skin.band(ARM[name], look["cloth_lit"], rows=8)
+        skin.band(ARM[name], look["accent"], top=8, rows=1)
+
+
+def craft_weaver(skin, look):
+    """Прядильщица: светлая смена, цветные нити на рукавах и моток у пояса."""
+    for name in SIDES:
+        skin.band(BODY[name], LINEN, rows=12)
+    skin.band(BODY["front"], look["accent"], top=3, rows=1)
+    skin.band(BODY["front"], look["cloth"], top=7, rows=1)
+    for name in SIDES:
+        skin.band(ARM[name], LINEN, rows=10)
+        for dy in range(2, 9, 3):
+            skin.band(ARM[name], look["accent"], top=dy, rows=1)
+    x, y, width, height = BODY["front"]
+    skin.fill((x + 1, y + 10, 2, 2), look["accent"])
+
+
 CRAFTS = {
     "builder": craft_builder,
     "farmer": craft_farmer,
@@ -372,6 +475,9 @@ CRAFTS = {
     "courier": craft_courier,
     "guard": craft_guard,
     "elder": craft_elder,
+    "brewer": craft_brewer,
+    "merchant": craft_merchant,
+    "weaver": craft_weaver,
 }
 
 
@@ -382,8 +488,9 @@ def build(culture, woman, craft):
     draw_body(skin, look, woman)
     draw_arm(skin, look)
     draw_leg(skin, look, woman)
-    if not woman and culture == "norman" and craft != "elder":
-        # Северянин с бородой, южанин без: это про народ, а не про моду.
+    if not woman and culture in BEARDED and craft != "elder":
+        # Борода — примета народа. У старейшины её рисует само ремесло,
+        # и притом седую, поэтому здесь он пропускается.
         draw_beard(skin, look)
     if craft in CRAFTS:
         CRAFTS[craft](skin, look)

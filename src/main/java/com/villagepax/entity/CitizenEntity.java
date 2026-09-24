@@ -298,12 +298,24 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         // характер.
         goalSelector.add(2, new FleeEntityGoal<>(this, CitizenEntity.class, COWARD_FLEES, 0.8, 1.0,
                 who -> coward && who instanceof CitizenEntity fighter && fighter.isRaider()
-                        && !isFighter()));
+                        && !isFighter()) {
+            @Override
+            public boolean canStart() {
+                // Сперва два поля, и только потом поиск в округе:
+                // предикат отсеивает найденных, а не отменяет поиск.
+                return coward && besieged && super.canStart();
+            }
+        });
         // А мирный житель от бойца бежит. Бегство важнее работы по той же
         // причине, по которой драка важнее: и то и другое про жизнь.
         goalSelector.add(3, new FleeEntityGoal<>(this, CitizenEntity.class, FLEES, 0.7, 0.9,
                 who -> who instanceof CitizenEntity fighter && fighter.isRaider()
-                        && !isFighter()));
+                        && !isFighter()) {
+            @Override
+            public boolean canStart() {
+                return besieged && !isFighter() && super.canStart();
+            }
+        });
         goalSelector.add(4, new CitizenWorkGoal(this));
         goalSelector.add(5, new WanderAroundFarGoal(this, 0.5));
         goalSelector.add(6, new LookAtEntityGoal(this, PlayerEntity.class, 6.0f));
@@ -453,6 +465,25 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     private boolean guard;
 
     /**
+     * Пришли ли к его деревне: перечитывается там же и тогда же.
+     * <p>
+     * Заведено ради цены, и цена была измерена. Две цели бегства
+     * обшаривали округу <b>каждый тик у каждого жителя</b> — и у пахаря,
+     * которому бежать не от кого, тоже. На колонии в сорок один двор это
+     * стоило шестьсот семьдесят микросекунд из двух тысяч двухсот, треть
+     * всего тика тел.
+     * <p>
+     * Поиск в округе — самая дорогая вещь, какую мод может попросить
+     * у сервера, и просить её надо только тогда, когда есть кого искать.
+     * Налётчик приходит не сам по себе: он приходит <b>к осаждённой
+     * деревне</b>, и пока осады нет, бежать не от кого никому.
+     * <p>
+     * Секунда задержки на то, чтобы это заметить, ничего не стоит:
+     * осада объявляется за день, а идут налётчики через полдеревни.
+     */
+    private boolean besieged;
+
+    /**
      * Стоит ли это тело <b>за</b> колонию, а не против неё.
      * <p>
      * Куклой приходят обе стороны, и отряд у них общий; разводит их
@@ -539,6 +570,16 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
      * и не бьёт: у него не бывает цели, и потому боевая цель для него
      * всё равно что не добавлена.
      */
+    /**
+     * Пришли ли к деревне этого тела.
+     * <p>
+     * Спрашивается двумя целями бегства — и только ими. Поле, а не поиск
+     * в округе: поиск стоил трети всего тика тел, а ответ у поля тот же.
+     */
+    public boolean isBesieged() {
+        return besieged;
+    }
+
     public boolean isFighter() {
         return isRaider() || isGuard() || isDefender();
     }
@@ -565,8 +606,13 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         if (settlementId == null || citizenId == null
                 || !(getWorld() instanceof ServerWorld serverWorld)) {
             guard = false;
+            besieged = false;
             return;
         }
+        // Осада спрашивается у поселения, а не у округи: поле дешевле
+        // поиска в тысячи раз, а ответ тот же.
+        besieged = SettlementManager.get(serverWorld).byId(settlementId)
+                .flatMap(Settlement::siege).isPresent();
         Citizen citizen = data(serverWorld).orElse(null);
         if (citizen == null) {
             guard = false;

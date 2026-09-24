@@ -43,8 +43,13 @@ class Cube:
     """
 
     def __init__(self, origin, size, uv=None, inflate=0.0, mirror=False,
-                 pivot=None, rotation=None, share=None, flat=False, name=None):
+                 pivot=None, rotation=None, share=None, flat=False, name=None, texel=None):
         self.name = name
+        # Один тексель на все грани: веко красится кожей лица, и места
+        # на текстуре ему не нужно — он берёт цвет у самой щеки.
+        self.texel = texel
+        if texel is not None:
+            uv = texel
         self.origin = origin
         self.size = size
         self.uv = uv
@@ -253,6 +258,15 @@ HUMAN = Body(
         Bone("braid@dwarf+female", "head", (0, 24, 0), [
             Cube((-1, 15, 3.5), (2, 10, 2)),
         ]),
+        # Веки: плоские кусочки кожи сразу за лицом. Дорожка дыхания
+        # выдвигает их вперёд на десятую долю секунды — житель моргает,
+        # — а во сне держит выдвинутыми. В покое они спрятаны в голове:
+        # не заиграй дорожка вовсе, глаза останутся открытыми, а не
+        # закрытыми навсегда. Цвет — тексель щеки (столбец 2, ряд 5 лица).
+        Bone("eyelids", "head", (0, 24, 0), [
+            Cube((-3, 27, -3.9), (2, 1, 0), texel=(10, 13)),
+            Cube((1, 27, -3.9), (2, 1, 0), texel=(10, 13)),
+        ]),
         # Волосы до плеч у женщин, кроме гномок: у тех коса.
         Bone("hair@female+!dwarf", "head", (0, 24, 0), [
             Cube((-4, 19, 3), (8, 5, 1)),
@@ -383,6 +397,15 @@ PONY = Body(
         ], rotation=(14, 0, 0)),
         Bone("muzzle", "head", (0, 19.5, -11), [
             Cube((-2, 18.5, -13), (4, 4, 3), share="muzzle"),
+        ]),
+        # Веки коня — по одному на каждую скулу, и выдвигаются они наружу,
+        # в разные стороны, поэтому костей две. Тексель — масть скулы
+        # рядом с глазом: правая грань черепа, столбец 4, ряд 3.
+        Bone("eyelid_right", "head", (0, 21, -6), [
+            Cube((-2.4, 20.5, -7), (0, 1, 2), texel=(28, 49)),
+        ]),
+        Bone("eyelid_left", "head", (0, 21, -6), [
+            Cube((2.4, 20.5, -7), (0, 1, 2), texel=(28, 49)),
         ]),
         Bone("ear_right", "head", (-1.5, 23.5, -6), [
             Cube((-2.5, 23.5, -6.5), (2, 3, 1), share="ear"),

@@ -126,6 +126,80 @@
           ]
         },
         {
+          "name": "eyelid_right",
+          "parent": "head",
+          "pivot": [0, 21, -6],
+          "cubes": [
+            {
+              "origin": [-2.4, 20.5, -7],
+              "size": [0, 1, 2],
+              "uv": {
+                "north": {
+                  "uv": [28, 49],
+                  "uv_size": [1, 1]
+                },
+                "south": {
+                  "uv": [28, 49],
+                  "uv_size": [1, 1]
+                },
+                "east": {
+                  "uv": [28, 49],
+                  "uv_size": [1, 1]
+                },
+                "west": {
+                  "uv": [28, 49],
+                  "uv_size": [1, 1]
+                },
+                "up": {
+                  "uv": [28, 49],
+                  "uv_size": [1, 1]
+                },
+                "down": {
+                  "uv": [28, 49],
+                  "uv_size": [1, 1]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "eyelid_left",
+          "parent": "head",
+          "pivot": [0, 21, -6],
+          "cubes": [
+            {
+              "origin": [2.4, 20.5, -7],
+              "size": [0, 1, 2],
+              "uv": {
+                "north": {
+                  "uv": [28, 49],
+                  "uv_size": [1, 1]
+                },
+                "south": {
+                  "uv": [28, 49],
+                  "uv_size": [1, 1]
+                },
+                "east": {
+                  "uv": [28, 49],
+                  "uv_size": [1, 1]
+                },
+                "west": {
+                  "uv": [28, 49],
+                  "uv_size": [1, 1]
+                },
+                "up": {
+                  "uv": [28, 49],
+                  "uv_size": [1, 1]
+                },
+                "down": {
+                  "uv": [28, 49],
+                  "uv_size": [1, 1]
+                }
+              }
+            }
+          ]
+        },
+        {
           "name": "ear_right",
           "parent": "head",
           "pivot": [-1.5, 23.5, -6],

@@ -69,12 +69,18 @@ def shown(bone_name, words):
     return True
 
 
-def words_of(skin_path):
-    """Народ, пол и ремесло — из пути к коже, как в Looks.words."""
+def words_of(skin_path, child=False):
+    """Народ, пол и ремесло — из пути к коже, как в Looks.words, и пора жизни.
+
+    Пору добавляет отрисовщик, а не облик (у ребёнка та же кожа, что
+    у взрослого), — и здесь так же, иначе борода гнома пропадала бы
+    в просмотрщике, оставаясь в игре.
+    """
     people = skin_path.parent.name
     stem = skin_path.stem
     gender, _, craft = stem.partition("_")
-    return {people, gender} | ({craft} if craft else set())
+    return ({people, gender, "child" if child else "adult"}
+            | ({craft} if craft else set()))
 
 
 # --- матрицы -------------------------------------------------------------------

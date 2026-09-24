@@ -29,7 +29,12 @@ def vector(values):
 
 def cube_json(cube):
     out = {"origin": vector(cube.origin), "size": vector(cube.size)}
-    if cube.flat:
+    if cube.texel is not None:
+        # Одна краска на все грани: веко — это кусочек кожи, а не рисунок.
+        u, v = cube.texel
+        face = {"uv": [u, v], "uv_size": [1, 1]}
+        out["uv"] = {name: face for name in ("north", "south", "east", "west", "up", "down")}
+    elif cube.flat:
         w, h, d = cube.texels()
         u, v = cube.uv
         top = {"uv": [u, v], "uv_size": [w, d]}

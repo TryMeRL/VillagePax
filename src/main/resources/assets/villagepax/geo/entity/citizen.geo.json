@@ -76,6 +76,73 @@
           ]
         },
         {
+          "name": "eyelids",
+          "parent": "head",
+          "pivot": [0, 24, 0],
+          "cubes": [
+            {
+              "origin": [-3, 27, -3.9],
+              "size": [2, 1, 0],
+              "uv": {
+                "north": {
+                  "uv": [10, 13],
+                  "uv_size": [1, 1]
+                },
+                "south": {
+                  "uv": [10, 13],
+                  "uv_size": [1, 1]
+                },
+                "east": {
+                  "uv": [10, 13],
+                  "uv_size": [1, 1]
+                },
+                "west": {
+                  "uv": [10, 13],
+                  "uv_size": [1, 1]
+                },
+                "up": {
+                  "uv": [10, 13],
+                  "uv_size": [1, 1]
+                },
+                "down": {
+                  "uv": [10, 13],
+                  "uv_size": [1, 1]
+                }
+              }
+            },
+            {
+              "origin": [1, 27, -3.9],
+              "size": [2, 1, 0],
+              "uv": {
+                "north": {
+                  "uv": [10, 13],
+                  "uv_size": [1, 1]
+                },
+                "south": {
+                  "uv": [10, 13],
+                  "uv_size": [1, 1]
+                },
+                "east": {
+                  "uv": [10, 13],
+                  "uv_size": [1, 1]
+                },
+                "west": {
+                  "uv": [10, 13],
+                  "uv_size": [1, 1]
+                },
+                "up": {
+                  "uv": [10, 13],
+                  "uv_size": [1, 1]
+                },
+                "down": {
+                  "uv": [10, 13],
+                  "uv_size": [1, 1]
+                }
+              }
+            }
+          ]
+        },
+        {
           "name": "hair@female+!dwarf",
           "parent": "head",
           "pivot": [0, 24, 0],

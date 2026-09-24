@@ -971,11 +971,17 @@ def draw_pony(skin, look, woman):
     skull = at["skull"]
     skin.column(skull["front"], lit, left=2, cols=1, rows=4)
 
-    # Глаз на скуле — по одному с каждой стороны головы.
-    for name in ("left", "right"):
-        skin.px(skull[name], 1, 2, EYE)
-        skin.px(skull[name], 2, 2, EYE_WHITE if name == "right" else EYE)
-        skin.px(skull[name], 1, 1, tone(dark, 0.8))
+    # Глаз на скуле — по одному с каждой стороны головы, и в одном месте
+    # по длине морды. Боковые грани развёрнуты навстречу друг другу:
+    # у правой столбцы идут от затылка к морде, у левой — от морды
+    # к затылку, поэтому одинаковые номера столбцов давали глаза в разных
+    # местах: левый сидел на два текселя ближе к ноздрям. Зрачок — к морде,
+    # белок — к уху, как и смотрит конь.
+    for name, pupil, white in (("right", 2, 1), ("left", 3, 4)):
+        skin.px(skull[name], pupil, 2, EYE)
+        skin.px(skull[name], white, 2, EYE_WHITE)
+        skin.px(skull[name], pupil, 1, tone(dark, 0.8))
+        skin.px(skull[name], white, 1, tone(dark, 0.8))
     # Уши: снаружи масть, внутри тень.
     skin.fill(at["ear"]["front"], tone(dark, 0.8))
 

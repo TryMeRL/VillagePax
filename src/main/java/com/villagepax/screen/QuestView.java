@@ -139,11 +139,7 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
      * не объясняет, а «сперва город» — объясняет всё и вдобавок называет
      * цель. Считает его сервер: и лестница доверия, и ступень колонии
      * живут там.
-     *
-     * @param price   сколько просят за союз
-     * @param verdict согласны ли — и если нет, то почему
-     */
-    /**
+     * <p>
      * <b>Гражданство лежит здесь же</b>, а не отдельной карточкой,
      * и не только из-за тесноты снимка (у него ровно шестнадцать полей,
      * и все заняты). Союз и гражданство — две мирные дороги к одной
@@ -294,14 +290,6 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
     }
 
     /**
-     * Предложенный квест.
-     *
-     * @param dialogue   ключ слов, которыми выдающий просит
-     * @param objectives что требуется, с уже посчитанным «сколько есть»
-     * @param rewards    что за это дадут, готовыми строками
-     * @param ready      всё ли принесено: по этому включается кнопка
-     */
-    /**
      * Одна награда квеста: вещи или доверие.
      * <p>
      * Данными, а не готовой строкой, и это не вкусовщина. Строку собирал
@@ -352,6 +340,14 @@ public record QuestView(UUID village, String villageName, Identifier giver, Stri
         }
     }
 
+    /**
+     * Предложенный квест.
+     *
+     * @param dialogue   ключ слов, которыми выдающий просит
+     * @param objectives что требуется, с уже посчитанным «сколько есть»
+     * @param rewards    что за это дадут, готовыми строками
+     * @param ready      всё ли принесено: по этому включается кнопка
+     */
     public record Offer(String dialogue, List<Need> objectives, List<Prize> rewards,
                         boolean ready) {
 

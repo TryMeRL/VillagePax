@@ -138,11 +138,11 @@ public final class BuildOrders {
         record NotFound(java.util.UUID building) implements Result {
         }
 
-        /** Улучшать некуда: схемы следующего уровня не существует. */
         /** Здание откроется со ступенью колонии. */
         record Locked(Identifier type, com.villagepax.sim.SettlementLevel needs) implements Result {
         }
 
+        /** Улучшать некуда: схемы следующего уровня не существует. */
         record TopLevel(Building building) implements Result {
         }
 

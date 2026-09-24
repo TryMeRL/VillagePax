@@ -82,13 +82,6 @@ public class TownHallBlock extends BlockWithEntity {
         return ActionResult.CONSUME;
     }
 
-    /**
-     * Снос ратуши <b>не</b> распускает колонию.
-     * <p>
-     * Это то же правило, что и для войны: здания повреждаются и восстанавливаются,
-     * но двести часов работы не должны исчезать от одного неверного клика.
-     * Поселение остаётся, ратушу нужно отстроить заново.
-     */
     /** Содержимое хранилища при сносе высыпается, а не исчезает. */
     @Override
     public void onStateReplaced(BlockState state, World world, BlockPos pos, BlockState newState, boolean moved) {
@@ -98,6 +91,13 @@ public class TownHallBlock extends BlockWithEntity {
         super.onStateReplaced(state, world, pos, newState, moved);
     }
 
+    /**
+     * Снос ратуши <b>не</b> распускает колонию.
+     * <p>
+     * Это то же правило, что и для войны: здания повреждаются и восстанавливаются,
+     * но двести часов работы не должны исчезать от одного неверного клика.
+     * Поселение остаётся, ратушу нужно отстроить заново.
+     */
     @Override
     public void onBreak(World world, BlockPos pos, BlockState state, PlayerEntity player) {
         if (world instanceof ServerWorld serverWorld) {

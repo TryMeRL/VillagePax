@@ -579,19 +579,6 @@ public final class BuilderJob implements Job {
     }
 
     /**
-     * Блок, который билдер держит: следующий по плану.
-     * <p>
-     * У расчистки предмета нет — там он машет кайлом, а не кладёт блок,
-     * — и в руке тогда пусто. Пусто и у блоков без предмета: настенный
-     * факел из воздуха не выложишь, но и показать «воздух» нельзя.
-     */
-    /**
-     * Какой блок пойдёт следующим шагом плана.
-     * <p>
-     * Нужно черте народа: темп зависит от материала <b>следующего</b> шага,
-     * а не от здания в среднем. Пусто у расчистки — там ставить нечего.
-     */
-    /**
      * Сколько блоков билдер кладёт за одно решение.
      * <p>
      * Дело народа: у мастеров по камню каменный шаг идёт вдвое быстрее,
@@ -610,6 +597,12 @@ public final class BuilderJob implements Job {
                 + Blessings.buildBonus(settlement, today);
     }
 
+    /**
+     * Какой блок пойдёт следующим шагом плана.
+     * <p>
+     * Нужно черте народа: темп зависит от материала <b>следующего</b> шага,
+     * а не от здания в среднем. Пусто у расчистки — там ставить нечего.
+     */
     private static Optional<BlockState> nextBlockState(Building site) {
         Schematic schematic = SchematicLoader.get(BuildJob.schematicId(site)).orElse(null);
         if (schematic == null) {
@@ -627,6 +620,13 @@ public final class BuilderJob implements Job {
                 : Optional.empty();
     }
 
+    /**
+     * Блок, который билдер держит: следующий по плану.
+     * <p>
+     * У расчистки предмета нет — там он машет кайлом, а не кладёт блок,
+     * — и в руке тогда пусто. Пусто и у блоков без предмета: настенный
+     * факел из воздуха не выложишь, но и показать «воздух» нельзя.
+     */
     private static ItemStack nextBlockInHand(Building site) {
         Schematic schematic = SchematicLoader.get(BuildJob.schematicId(site)).orElse(null);
         if (schematic == null) {

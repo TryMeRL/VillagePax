@@ -31,3 +31,6 @@
 # OS
 .DS_Store
 Thumbs.db
+
+# Python: кэш байткода от tools/*.py, которые импортируют citizen_body
+__pycache__/

@@ -262,12 +262,6 @@ public final class TownHallNet {
     }
 
     /**
-     * Улучшить здание до следующего уровня.
-     * <p>
-     * Требует открытого пульта: улучшение заказывается кнопкой в экране,
-     * а не голограммой — место уже выбрано, здание растёт от своего угла.
-     */
-    /**
      * Сдвинуть ставку налога.
      * <p>
      * Шагом, а не числом: ползунка в этом интерфейсе нет, а поле ввода
@@ -301,6 +295,12 @@ public final class TownHallNet {
         tell(player, "villagepax.screen.tax.set", Text.literal(String.valueOf(rate[0])));
     }
 
+    /**
+     * Улучшить здание до следующего уровня.
+     * <p>
+     * Требует открытого пульта: улучшение заказывается кнопкой в экране,
+     * а не голограммой — место уже выбрано, здание растёт от своего угла.
+     */
     private static void upgrade(ServerPlayerEntity player, UUID building) {
         Settlement colony = consoleSettlement(player);
         if (colony == null) {
@@ -455,13 +455,6 @@ public final class TownHallNet {
     }
 
     /**
-     * Колония, чей пульт у игрока открыт.
-     * <p>
-     * Проверяется и владение, и открытый экран: намерение без открытого
-     * пульта — либо чужой клиент, либо наш собственный после того, как
-     * колонию отобрали. И то и другое отвергается молча.
-     */
-    /**
      * Поселение открытого пульта, если игроку есть что в нём решать.
      * <p>
      * Хозяин решает всё, а <b>почётный житель чужой деревни</b> — только
@@ -486,6 +479,14 @@ public final class TownHallNet {
         return open != null && Citizenship.isElder(open, player.getUuid()) ? open : null;
     }
 
+    /**
+     * Колония, чей пульт у игрока открыт.
+     * <p>
+     * Проверяется и владение, и открытый экран: намерение без открытого
+     * пульта — либо чужой клиент, либо наш собственный после того, как
+     * колонию отобрали. Здесь только ответ «чья»; отказ называет вызывающий:
+     * молчащая кнопка неотличима от поломки.
+     */
     private static Settlement consoleColony(ServerPlayerEntity player) {
         SettlementManager manager = SettlementManager.get(player.getServerWorld());
         Settlement colony = Founding.colonyOf(manager, player.getUuid()).orElse(null);

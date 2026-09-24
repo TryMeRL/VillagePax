@@ -95,7 +95,6 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
     private static final int BODY_HEIGHT =
             PanelMetrics.bodyHeight(PANEL_HEIGHT, HEADER_HEIGHT, TABS_HEIGHT);
 
-    /** Ширина подписи в строках «подпись — значение». */
     /** Ширина текста внутри карточки: панель без отступов и ползунка. */
     private static final int TEXT_WIDTH = PanelMetrics.TOWN_HALL_WIDTH - 2 * PanelMetrics.PADDING - 26;
 
@@ -774,7 +773,6 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         close();
     }
 
-    /** Подвинуть стройку в очереди: вверх — раньше, вниз — позже. */
     /** Ставка двигается шагом: правило предела живёт на сервере. */
     private void tax(int shift) {
         PacketByteBuf buf = PacketByteBufs.create();
@@ -782,6 +780,7 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         ClientPlayNetworking.send(TownHallNet.TAX, buf);
     }
 
+    /** Подвинуть стройку в очереди: вверх — раньше, вниз — позже. */
     private void reorder(UUID building, int shift) {
         PacketByteBuf buf = PacketByteBufs.create();
         buf.writeUuid(building);

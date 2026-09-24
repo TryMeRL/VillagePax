@@ -718,10 +718,6 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     /**
-     * Требование строкой: предмет, сколько есть, сколько надо. Хватает —
-     * зелёным, не хватает — красным: это видно быстрее, чем читается.
-     */
-    /**
      * Строка награды: значок, человеческое имя и число.
      * <p>
      * Раньше здесь стояла строка, собранная сервером, и в ней был
@@ -758,6 +754,10 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         return row;
     }
 
+    /**
+     * Требование строкой: предмет, сколько есть, сколько надо. Хватает —
+     * зелёным, не хватает — красным: это видно быстрее, чем читается.
+     */
     private Component needRow(QuestView.Need need) {
         FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         row.gap(4);

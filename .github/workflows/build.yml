@@ -5,6 +5,14 @@ on:
     branches: [ main ]
   pull_request:
 
+# Один прогон на ветку: новый толчок отменяет устаревший, а не встаёт в очередь.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,11 +24,40 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Make gradlew executable
-        run: chmod +x gradlew
+      # Кэш Gradle и Loom (распакованный и переименованный Minecraft) между
+      # прогонами, а заодно проверка подлинности gradle-wrapper.jar.
+      - uses: gradle/actions/setup-gradle@v4
 
       - name: Build and run unit tests
         run: ./gradlew build
 
       - name: Run game tests
         run: ./gradlew runGametest
+
+      # Весь арт мода пишется генераторами из tools/; сверка ловит
+      # и забытый прогон генератора, и картинку, поправленную руками.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check generated art
+        run: |
+          pip install pillow numpy
+          python tools/check-generated.py
+
+      - name: Upload mod jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: villagepax
+          path: build/libs/*.jar
+          if-no-files-found: error
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            build/reports/tests/
+            build/junit.xml
+            build/gametest/logs/

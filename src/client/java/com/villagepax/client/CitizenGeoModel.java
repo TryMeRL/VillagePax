@@ -114,8 +114,16 @@ public class CitizenGeoModel extends DefaultedEntityGeoModel<CitizenEntity> {
      * <p>
      * Житель, который смотрит прямо перед собой, пока игрок ходит вокруг,
      * выглядит куклой; поворот головы даёт живость дешевле любой анимации.
-     * Прибавлять безопасно: между кадрами GeckoLib ставит каждую кость
-     * заново из позы и движения, и прибавка не копится.
+     * <p>
+     * <b>Прибавка обязана не копиться</b>, и сама GeckoLib этого не
+     * гарантирует. Всякая установка поворота помечает кость «изменённой»,
+     * а изменённую кость процессор на следующем кадре <b>не сбрасывает</b>
+     * к позе: считает, что её двигает движение. Кость же общая на всех
+     * жителей одного тела. Без снятия пометки голова второго жителя
+     * начинала с поворота первого, а своя прибавка ложилась сверху, —
+     * и головы дёргались туда-сюда по кругу; поймал заказчик глазами
+     * в первом же запуске. Поэтому пометка снимается сразу: следующий
+     * кадр честно ставит голову заново из позы и движения.
      */
     @Override
     public void setCustomAnimations(CitizenEntity citizen, long instanceId,
@@ -127,6 +135,7 @@ public class CitizenGeoModel extends DefaultedEntityGeoModel<CitizenEntity> {
         EntityModelData look = state.getData(DataTickets.ENTITY_MODEL_DATA);
         head.setRotX(head.getRotX() + look.headPitch() * MathHelper.RADIANS_PER_DEGREE);
         head.setRotY(head.getRotY() + look.netHeadYaw() * MathHelper.RADIANS_PER_DEGREE);
+        head.resetStateChanges();
     }
 
     /**

@@ -140,6 +140,7 @@
   "villagepax.trade.reason.no_trust": "They do not trust you that far yet. Take up the elder's errands.",
   "villagepax.trade.reason.village_cant": "The village has neither the goods nor the coin for it. Come back later.",
   "villagepax.trade.reason.player_cant": "You have nothing to pay with.",
+  "villagepax.trade.not_here": "Someone else keeps the stall here — look for the merchant",
   "villagepax.trade.gone": "That is no longer traded here",
   "villagepax.trade.refused.no_deal": "That is no longer traded here",
   "villagepax.trade.refused.no_trust": "They do not trust you that far yet",

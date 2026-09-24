@@ -6,6 +6,7 @@ import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerChunkEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
+import net.minecraft.entity.Entity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
@@ -14,6 +15,7 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.chunk.WorldChunk;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -130,6 +132,24 @@ public final class CitizenSpawner {
             return null;
         }
         return body;
+    }
+
+    /**
+     * Где житель на самом деле: тело, если оно есть, иначе запись.
+     * <p>
+     * Место в записи пишется, когда тело <b>исчезает</b> — при выгрузке
+     * чанка и смерти, — а пока тело ходит, в записи лежит место, где оно
+     * появилось. У новой деревни это её центр для всех. Проверка «игрок
+     * рядом с выдающим» читала запись: купец уходил к ларьку, игрок жал
+     * «купить», стоя рядом с ним, — и слышал «слишком далеко», если ларёк
+     * дальше восьми шагов от центра; а встав на место появления, мог
+     * сдавать квест старейшине, ушедшему на другой конец деревни.
+     */
+    public static Optional<Vec3d> whereNow(ServerWorld world, Citizen citizen) {
+        return citizen.entityUuid()
+                .map(world::getEntity)
+                .map(Entity::getPos)
+                .or(citizen::position);
     }
 
     /**

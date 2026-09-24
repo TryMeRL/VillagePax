@@ -7,6 +7,7 @@ import com.villagepax.core.culture.CultureManager;
 import com.villagepax.core.quest.Quest;
 import com.villagepax.core.trade.Caravan;
 import com.villagepax.core.trade.TradeTable;
+import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.diplomacy.Alliance;
@@ -790,9 +791,9 @@ public final class QuestNet {
      * Отдать принесённое.
      * <p>
      * Проверяется <b>расстояние до живого выдающего</b>, а не открытый экран:
-     * пакет от клиента, чей игрок стоит на другом конце карты, отвергается
-     * молча. Иначе кнопка в интерфейсе превратилась бы в способ сдавать
-     * квесты откуда угодно.
+     * пакет от клиента, чей игрок стоит на другом конце карты, получает
+     * отказ «слишком далеко». Иначе кнопка в интерфейсе превратилась бы
+     * в способ сдавать квесты откуда угодно.
      */
     private static void handIn(ServerPlayerEntity player, UUID village, Identifier giver) {
         SettlementManager manager = SettlementManager.get(player.getServerWorld());
@@ -830,6 +831,15 @@ public final class QuestNet {
         }
         if (nearbyGiver(player, colony, giver) == null) {
             player.sendMessage(Text.translatable("villagepax.quest.too_far"), true);
+            return;
+        }
+        // Торгует тот, кто за прилавком, и только в чужой деревне — то же
+        // правило, по которому щелчок по жителю открывает прилавок. Здесь
+        // оно повторено нарочно: пакет присылает клиент, и без проверки
+        // подложенный пакет торговал бы с пахарем или со своей колонией,
+        // которой купец с хозяином не торгует.
+        if (!colony.owner().isAutonomous() || !giver.equals(Villages.counterKeeper(colony))) {
+            player.sendMessage(Text.translatable("villagepax.trade.not_here"), true);
             return;
         }
 
@@ -958,7 +968,7 @@ public final class QuestNet {
             if (citizen.profession().filter(giver::equals).isEmpty()) {
                 continue;
             }
-            if (citizen.position()
+            if (CitizenSpawner.whereNow(player.getServerWorld(), citizen)
                     .filter(where -> where.squaredDistanceTo(player.getPos())
                             <= TALK_RANGE * TALK_RANGE)
                     .isPresent()) {

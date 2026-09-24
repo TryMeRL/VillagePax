@@ -13981,6 +13981,79 @@ public class VillagePaxGameTests implements FabricGameTest {
         });
     }
 
+    /**
+     * Житель там, где стоит его тело, а не там, где оно появилось.
+     * <p>
+     * Написано по живой дыре: близость к выдающему при сдаче квеста,
+     * подарке и торге сверялась с местом в <b>записи</b>, а оно пишется,
+     * только когда тело исчезает. Купец, ушедший от центра новой деревни
+     * к своему ларьку, отказывал игроку «слишком далеко», стоя с ним
+     * нос к носу. Проверка разводит место появления и место тела дальше
+     * восьми шагов, на которых разговор ещё возможен, — и спрашивает
+     * тот же вызов, что и сервер при нажатии кнопки.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "whereabouts", tickLimit = 60)
+    public void aCitizenIsWhereHisBodyStands(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(3, 2, 3));
+        BlockPos appeared = context.getAbsolutePos(new BlockPos(0, 2, 0));
+        BlockPos walked = context.getAbsolutePos(new BlockPos(7, 2, 7));
+
+        world.setBlockState(hall, ModBlocks.TOWN_HALL.getDefaultState());
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Где", hall);
+        manager.add(village);
+
+        Citizen merchant = evenNewborn("Gautier", "le Marchand", NORMAN, Gender.MALE);
+        merchant.setPosition(Vec3d.ofBottomCenter(appeared));
+        village.addCitizen(merchant);
+
+        // Без тела отвечает запись: иначе о жителе в незагруженном чанке
+        // не знал бы никто.
+        Vec3d unseen = CitizenSpawner.whereNow(world, merchant).orElse(null);
+        if (unseen == null || unseen.squaredDistanceTo(Vec3d.ofBottomCenter(appeared)) > 0.01) {
+            manager.remove(village.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            context.throwGameTestException("Без тела житель должен быть там, где записан, а он "
+                    + unseen);
+            return;
+        }
+
+        CitizenEntity body = CitizenSpawner.spawnBody(world, village, merchant);
+        if (body == null) {
+            manager.remove(village.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            context.throwGameTestException("Тело не встало: искать некого");
+            return;
+        }
+
+        context.runAtTick(5, () -> body.refreshPositionAndAngles(walked.getX() + 0.5,
+                walked.getY(), walked.getZ() + 0.5, 0.0f, 0.0f));
+        context.runAtTick(6, () -> {
+            try {
+                Vec3d found = CitizenSpawner.whereNow(world, merchant).orElse(null);
+                double off = found == null ? Double.MAX_VALUE
+                        : found.squaredDistanceTo(body.getPos());
+                if (off > 0.01) {
+                    context.throwGameTestException("Тело стоит у " + body.getPos()
+                            + ", а житель найден у " + found
+                            + " — там, где появился, а не там, где он есть");
+                }
+                if (Vec3d.ofBottomCenter(appeared).squaredDistanceTo(body.getPos()) <= 8.0 * 8.0) {
+                    context.throwGameTestException("Проверка ничего не доказывает: тело всего в "
+                            + Math.sqrt(Vec3d.ofBottomCenter(appeared)
+                                    .squaredDistanceTo(body.getPos()))
+                            + " от места появления — разговор был бы возможен и так");
+                }
+            } finally {
+                body.discard();
+                manager.remove(village.id());
+                world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            }
+            context.complete();
+        });
+    }
+
     private static void cleanUpLooks(ServerWorld world, SettlementManager manager,
                                      Settlement colony, CitizenEntity body, BlockPos hall) {
         body.discard();

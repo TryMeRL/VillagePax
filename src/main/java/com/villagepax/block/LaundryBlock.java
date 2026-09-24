@@ -42,8 +42,8 @@ import org.jetbrains.annotations.Nullable;
  * Так и сделано. Модель — <b>только верёвка с прищепками</b>, а висит
  * на ней то, что повесили: кожа, шкура, шерсть, кожаная одежда — всё,
  * что лежит в теге {@code villagepax:hangable}. Тегом, а не списком
- * в коде: одежду из ткани мод добавит позже, и верёвка примет её, не
- * зная о ней ничего.
+ * в коде: сукно ткача висит на ней по тому же тегу, и верёвка не знает
+ * о нём ничего.
  * <p>
  * Четыре места и по вещи за раз. Верёвка — не сундук: складом она быть
  * не должна, иначе колония получит хранилище в обход склада.
@@ -196,6 +196,11 @@ public class LaundryBlock extends Block implements BlockEntityProvider {
      * <p>
      * Только когда на верёвке что-то висит: пустая бечева не капает,
      * и это ровно та мелочь, по которой видно, что блок живой.
+     * <p>
+     * Вдоль бечевы, куда бы она ни смотрела: пока капли шли всегда с запада
+     * на восток, у повёрнутой верёвки они капали мимо белья, в проход.
+     * Поворотная вещь поворачивает и своё содержимое — то же правило,
+     * по которому вещи на ней висят вдоль неё, а не поперёк.
      */
     @Override
     public void randomDisplayTick(BlockState state, World world, BlockPos pos, Random random) {
@@ -204,9 +209,11 @@ public class LaundryBlock extends Block implements BlockEntityProvider {
                 || rope.isEmpty()) {
             return;
         }
-        double x = pos.getX() + 0.2 + random.nextDouble() * 0.6;
+        double along = 0.2 + random.nextDouble() * 0.6;
+        boolean northSouth = state.get(FACING).getAxis() == Direction.Axis.X;
+        double x = pos.getX() + (northSouth ? 0.5 : along);
         double y = pos.getY() + 0.25 + random.nextDouble() * 0.2;
-        double z = pos.getZ() + 0.5;
+        double z = pos.getZ() + (northSouth ? along : 0.5);
         world.addParticle(ParticleTypes.FALLING_WATER, x, y, z, 0.0, 0.0, 0.0);
     }
 }

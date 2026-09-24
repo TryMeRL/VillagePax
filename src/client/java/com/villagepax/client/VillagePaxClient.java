@@ -49,8 +49,9 @@ public class VillagePaxClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         // Слоя модели больше нет: кости жителя приходят из geo-файла,
-        // а не собираются кодом. Регистрировать нечего — GeckoLib читает
-        // модель сам, по имени из CitizenGeoModel.
+        // а не собираются кодом. Регистрировать надо только переменные
+        // шага — до того, как GeckoLib прочтёт первый файл движений.
+        CitizenGeoModel.registerVariables();
         EntityRendererRegistry.register(ModEntities.CITIZEN, CitizenEntityRenderer::new);
         // Облик и тело народа спрашиваются у хранилища ресурсов один раз
         // и помнятся: ходить в файловую систему каждый кадр за каждым
@@ -66,6 +67,7 @@ public class VillagePaxClient implements ClientModInitializer {
                     @Override
                     public void reload(ResourceManager manager) {
                         CitizenGeoModel.forget();
+                        CitizenEntityRenderer.forget();
                     }
                 });
         // Верёвка рисует не себя, а то, что на ней висит: см. RopeBlockEntityRenderer.

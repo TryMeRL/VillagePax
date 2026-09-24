@@ -35,6 +35,14 @@ import net.minecraft.entity.data.DataTracker;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.data.TrackedDataHandlerRegistry;
 import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.item.AxeItem;
+import net.minecraft.item.BlockItem;
+import net.minecraft.item.HoeItem;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.PickaxeItem;
+import net.minecraft.item.ShovelItem;
+import net.minecraft.item.SwordItem;
 import net.minecraft.entity.ai.goal.ActiveTargetGoal;
 import net.minecraft.entity.ai.goal.FleeEntityGoal;
 import net.minecraft.entity.ai.goal.LookAroundGoal;
@@ -405,7 +413,6 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
      */
     private static final int MURDER_COSTS = 30;
 
-    /** Опознаватели набега, если это боец, а не житель. */
     /**
      * Облик: путь к текстуре, каким его назначил сервер.
      * <p>
@@ -449,15 +456,56 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     private static final TrackedData<Float> STATURE =
             DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.FLOAT);
 
-    private static final RawAnimation STAND = RawAnimation.begin().thenLoop("stand");
+    // --- движения ------------------------------------------------------------
+    //
+    // Имена общие для всех тел: человек и конь «идут», «работают» и «дышат»
+    // по-разному, но называется это одинаково — а какие кости под именем
+    // поворачиваются, решает модель народа.
+
+    /** Шаг: размах от пройденного пути, от стояния до бега без перехода. */
     private static final RawAnimation WALK = RawAnimation.begin().thenLoop("walk");
+    /** Стоит без дела: руки качаются, а раз в дюжину секунд он чешет затылок. */
     private static final RawAnimation REST = RawAnimation.begin().thenLoop("rest");
+    /** Руки на ходу — тоже от пройденного пути, в такт ногам. */
     private static final RawAnimation STRIDE = RawAnimation.begin().thenLoop("stride");
+    /** Несёт груз обеими руками: курьер с мешком, билдер с блоком. */
+    private static final RawAnimation CARRY = RawAnimation.begin().thenLoop("carry");
+    /** Взмах без особого орудия. */
     private static final RawAnimation WORK = RawAnimation.begin().thenLoop("work");
+    /** Топор и кирка: удар из-за головы обеими руками. */
+    private static final RawAnimation CHOP = RawAnimation.begin().thenLoop("chop");
+    /** Мотыга и лопата: низкий замах к земле. */
+    private static final RawAnimation DIG = RawAnimation.begin().thenLoop("dig");
+    /** Блок в руке: положить перед собой. */
+    private static final RawAnimation PLACE = RawAnimation.begin().thenLoop("place");
+    /** Меч: косой удар. */
+    private static final RawAnimation STRIKE = RawAnimation.begin().thenLoop("strike");
+    /** Боец с целью: оружие наготове. */
+    private static final RawAnimation GUARD = RawAnimation.begin().thenLoop("guard");
+    /** Спит: руки вдоль тела. */
+    private static final RawAnimation SLEEP = RawAnimation.begin().thenLoop("sleep");
     private static final RawAnimation BREATHE = RawAnimation.begin().thenLoop("breathe");
+    /** Дыхание спящего — медленнее и глубже. */
+    private static final RawAnimation DOZE = RawAnimation.begin().thenLoop("doze");
+    /** На бегу подаётся вперёд. */
+    private static final RawAnimation LEAN = RawAnimation.begin().thenLoop("lean");
+    /** Машет рукой тому, кто заговорил. Запускается сервером. */
+    private static final RawAnimation GREET = RawAnimation.begin().thenPlay("greet");
+
+    /** Дорожка рук — её же зовёт сервер, чтобы помахать. */
+    private static final String ARMS = "руки";
+
+    /**
+     * С какого размаха шага житель уже бежит, а не идёт.
+     * <p>
+     * Семь десятых: столько набирает беглец от налётчика и страж, бегущий
+     * к нему, а работник по делу держит около половины.
+     */
+    private static final float RUNNING = 0.7f;
 
     private final AnimatableInstanceCache animations = GeckoLibUtil.createInstanceCache(this);
 
+    /** Опознаватели набега, если это боец, а не житель. */
     private UUID raidId;
     private UUID raidHost;
 
@@ -517,7 +565,6 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         return Optional.ofNullable(citizenId);
     }
 
-    /** Запись жителя, к которой привязано это тело. */
     /**
      * Привязать тело к набегу: оно кукла, и воюет за пославшую деревню.
      *
@@ -564,13 +611,6 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     }
 
     /**
-     * Воюет ли это тело вообще: налётчик или стража.
-     * <p>
-     * Спрашивается предикатами целей. Мирный житель не ищет врага
-     * и не бьёт: у него не бывает цели, и потому боевая цель для него
-     * всё равно что не добавлена.
-     */
-    /**
      * Пришли ли к деревне этого тела.
      * <p>
      * Спрашивается двумя целями бегства — и только ими. Поле, а не поиск
@@ -580,6 +620,13 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         return besieged;
     }
 
+    /**
+     * Воюет ли это тело вообще: налётчик или стража.
+     * <p>
+     * Спрашивается предикатами целей. Мирный житель не ищет врага
+     * и не бьёт: у него не бывает цели, и потому боевая цель для него
+     * всё равно что не добавлена.
+     */
     public boolean isFighter() {
         return isRaider() || isGuard() || isDefender();
     }
@@ -760,6 +807,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         this.caravanId = caravan;
     }
 
+    /** Запись жителя, к которой привязано это тело. */
     public Optional<Citizen> data(ServerWorld world) {
         if (settlementId == null || citizenId == null) {
             return Optional.empty();
@@ -833,6 +881,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         // до следующей ступени и сколько из просимого уже в сумке.
         // Чат при этом остаётся: старейшина говорит, а экран показывает.
         Quests.greet(server, citizen);
+        greet();
 
         // И сам скажет, куда идти за товаром. Игрок, который помнит
         // прилавок у старейшины, иначе решит, что торговлю сломали:
@@ -1040,11 +1089,6 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     }
 
     /**
-     * Погибший житель уходит из поселения совсем. Возвращать в данные его
-     * позицию было бы хуже, чем ничего: на следующей загрузке чанка он
-     * возродился бы целым, и смерть перестала бы что-то значить.
-     */
-    /**
      * Торговца убили: товар рассыпается, деревня запоминает.
      * <p>
      * Это «перехватить» из плана про караваны: грабёж возможен и наказуем.
@@ -1055,6 +1099,11 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         com.villagepax.sim.trade.Caravans.robbed(world, this, killer);
     }
 
+    /**
+     * Погибший житель уходит из поселения совсем. Возвращать в данные его
+     * позицию было бы хуже, чем ничего: на следующей загрузке чанка он
+     * возродился бы целым, и смерть перестала бы что-то значить.
+     */
     private void buryCitizen(ServerWorld world) {
         if (settlementId == null || citizenId == null) {
             return;
@@ -1204,24 +1253,79 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
      * Одной дорожкой так не выйдет: билдер, который идёт к стене и машет
      * молотом, должен делать и то и другое, а не выбирать. Дорожки
      * не спорят между собой потому, что <b>ни одна кость не встречается
-     * в двух из них</b>: шаг трогает только ноги, работа только руки,
-     * дыхание только туловище.
+     * в двух из них</b>: шаг трогает только ноги, работа только руки
+     * (у коня — шею, голову, уши и хвост), дыхание только туловище.
      * <p>
-     * Плавность перехода — четыре тика: меньше читается как рывок,
-     * больше — как задержка между решением и движением.
+     * Решает всё то, что клиент и так знает, — ни одного нового поля
+     * в сети: пройденный путь и размах шага, взмах руки (о нём сервер
+     * шлёт пакет сам), предмет в руке, боевая стойка и поза сна.
+     * <p>
+     * Плавность перехода — четыре тика у ног и три у рук: взмах длится
+     * шесть тиков, и переход в четыре съел бы его почти целиком.
      */
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar dancers) {
+        // Нога одна на все случаи: размах шага — выражение от пройденного
+        // пути, и у стоящего он ноль. Стояние и бег — одна и та же дорожка.
         dancers.add(new AnimationController<>(this, "ноги", 4, state ->
-                state.setAndContinue(state.isMoving() ? WALK : STAND)));
-        dancers.add(new AnimationController<>(this, "руки", 4, state -> {
-            if (handSwinging) {
-                return state.setAndContinue(WORK);
-            }
-            return state.setAndContinue(state.isMoving() ? STRIDE : REST);
-        }));
+                state.setAndContinue(WALK)));
+        dancers.add(new AnimationController<>(this, ARMS, 3, state ->
+                state.setAndContinue(armsFor(state.isMoving())))
+                .triggerableAnim("greet", GREET));
         dancers.add(new AnimationController<>(this, "дыхание", 8, state ->
-                state.setAndContinue(BREATHE)));
+                state.setAndContinue(isSleeping() ? DOZE
+                        : limbAnimator.getSpeed() > RUNNING ? LEAN : BREATHE)));
+    }
+
+    /**
+     * Чем заняты руки — по тому, что видно глазом.
+     * <p>
+     * Порядок — от сильного к слабому: спящий не машет, взмах важнее
+     * стойки, стойка важнее ноши. Какое движение у взмаха, решает
+     * <b>орудие в руке</b>, а не ремесло: клиент ремесла не знает,
+     * а лесоруб с мотыгой и должен рыхлить, а не рубить.
+     */
+    private RawAnimation armsFor(boolean moving) {
+        if (isSleeping()) {
+            return SLEEP;
+        }
+        ItemStack held = getMainHandStack();
+        if (handSwinging) {
+            Item tool = held.getItem();
+            if (tool instanceof AxeItem || tool instanceof PickaxeItem) {
+                return CHOP;
+            }
+            if (tool instanceof HoeItem || tool instanceof ShovelItem) {
+                return DIG;
+            }
+            if (tool instanceof SwordItem) {
+                return STRIKE;
+            }
+            if (tool instanceof BlockItem) {
+                return PLACE;
+            }
+            return WORK;
+        }
+        if (isAttacking()) {
+            return GUARD;
+        }
+        // Ноша — всё, что не орудие: у орудия есть прочность, у мешка нет.
+        // То же деление, по которому конь несёт вещь на спине, а не в зубах.
+        if (!held.isEmpty() && !held.isDamageable()) {
+            return CARRY;
+        }
+        return moving ? STRIDE : REST;
+    }
+
+    /**
+     * Помахать тому, кто заговорил.
+     * <p>
+     * Сервер шлёт это сам, потому что только он знает, что разговор
+     * начался: щелчок по жителю, у которого есть что сказать. Ответ
+     * без жеста выглядит так, будто экран открыл сундук, а не человек.
+     */
+    public void greet() {
+        triggerAnim(ARMS, "greet");
     }
 
     @Override

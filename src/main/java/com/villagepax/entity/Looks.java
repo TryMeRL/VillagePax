@@ -5,7 +5,9 @@ import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Gender;
 import net.minecraft.util.Identifier;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Облик жителя: какой текстурой его рисовать.
@@ -70,6 +72,35 @@ public final class Looks {
         String tail = look.substring(start + FOLDER.length());
         int slash = tail.indexOf('/');
         return slash <= 0 ? Optional.empty() : Optional.of(tail.substring(0, slash));
+    }
+
+    /**
+     * Из чего сложен этот облик: народ, пол и ремесло — словами.
+     * <p>
+     * Тем же разбором пути, что {@link #cultureOf}, и по той же причине:
+     * других сведений о жителе у клиента нет. Ремесло — всё, что после
+     * первого подчёркивания: пол подчёркиваний не содержит, а у ремесла
+     * из чужого датапака они быть могут.
+     * <p>
+     * Слова нужны приметам ({@link Marks}): борода и поля шляпы видны
+     * тому, чьи слова совпали с условием в имени кости.
+     */
+    public static Set<String> words(String look) {
+        Optional<String> people = cultureOf(look);
+        if (people.isEmpty()) {
+            return Set.of();
+        }
+        String tail = look.substring(look.indexOf(FOLDER) + FOLDER.length() + people.get().length() + 1);
+        int dot = tail.lastIndexOf('.');
+        String stem = dot < 0 ? tail : tail.substring(0, dot);
+        int split = stem.indexOf('_');
+        Set<String> words = new HashSet<>();
+        words.add(people.get());
+        words.add(split < 0 ? stem : stem.substring(0, split));
+        if (split >= 0 && split + 1 < stem.length()) {
+            words.add(stem.substring(split + 1));
+        }
+        return Set.copyOf(words);
     }
 
     /**

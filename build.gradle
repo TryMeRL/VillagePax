@@ -75,6 +75,16 @@ dependencies {
     // копия в сборке стоит дороже одного пункта в списке установки.
     modImplementation "software.bernie.geckolib:geckolib-fabric-${project.minecraft_version}:${project.geckolib_version}"
 
+    // mclib — разборщик molang внутри GeckoLib. Сама библиотека объявляет
+    // его зависимостью времени исполнения, но свои переменные шага мы
+    // заводим через её парсер, а он наследник класса из mclib: без этой
+    // строки компилятор не видит предка. Только для сборки — в игре
+    // mclib уже лежит внутри GeckoLib.
+    compileOnly "com.eliotlash.mclib:mclib:${project.mclib_version}"
+    // И в проверках: CitizenMolangTest разбирает выражения движений тем же
+    // разборщиком, что игра, — а ему mclib нужен и при сборке, и в работе.
+    testImplementation "com.eliotlash.mclib:mclib:${project.mclib_version}"
+
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

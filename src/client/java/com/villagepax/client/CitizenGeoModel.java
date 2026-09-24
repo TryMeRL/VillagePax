@@ -6,7 +6,14 @@ import com.villagepax.entity.Looks;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.InvalidIdentifierException;
+import net.minecraft.util.math.MathHelper;
+import software.bernie.geckolib.constant.DataTickets;
+import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
+import software.bernie.geckolib.core.animation.AnimationState;
+import software.bernie.geckolib.core.molang.LazyVariable;
+import software.bernie.geckolib.core.molang.MolangParser;
 import software.bernie.geckolib.model.DefaultedEntityGeoModel;
+import software.bernie.geckolib.model.data.EntityModelData;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -50,12 +57,76 @@ public class CitizenGeoModel extends DefaultedEntityGeoModel<CitizenEntity> {
     /** У какого народа есть своё тело — спрошено у клиента однажды. */
     private static final Map<String, Boolean> OWN_BODY = new HashMap<>();
 
+    /**
+     * Сколько прошли ноги: путь шага, по которому качаются ноги и руки.
+     * <p>
+     * Шаг в движениях жителя — не часы, а molang-выражение от пройденного
+     * пути, как у ванильного моба: {@code math.cos(query.villagepax_stride * 38.17)}.
+     * Движение по часам скользит ступнями — медленный житель перебирает
+     * ногами как бегун, быстрый семенит, — а подгонять скорость дорожки
+     * под ход нельзя: GeckoLib умножает на неё всё прошедшее время,
+     * и каждая перемена скорости дёргала бы ноги в новую фазу.
+     */
+    public static final String STRIDE = "query.villagepax_stride";
+
+    /**
+     * Насколько широк шаг: от нуля у стоящего до единицы у бегущего.
+     * <p>
+     * Одна дорожка «идёт» покрывает и стояние, и бег: у стоящего размах
+     * ноль, и ноги прямые без всякого перехода между «стоит» и «идёт».
+     */
+    public static final String STRIDE_AMOUNT = "query.villagepax_stride_amount";
+
     public CitizenGeoModel() {
-        // Второй довод — «голова поворачивается за взглядом». Житель,
-        // который смотрит прямо перед собой, пока игрок ходит вокруг,
-        // выглядит куклой; поворот головы даёт живость дешевле любой
-        // анимации, и GeckoLib считает его сам.
-        super(new Identifier(VillagePax.MOD_ID, "citizen"), true);
+        // Голова поворачивается за взглядом — но не силами GeckoLib:
+        // она поворот головы ставит, затирая позу, а у коня голова
+        // в покое наклонена и сама кивает на ходу. Поворот прибавляется
+        // в setCustomAnimations.
+        super(new Identifier(VillagePax.MOD_ID, "citizen"));
+    }
+
+    /**
+     * Завести переменные шага до первой загрузки движений.
+     * <p>
+     * Разбор выражения ищет переменные по имени в миг загрузки файла,
+     * и неизвестное имя стало бы нулём навсегда. Поэтому — при запуске
+     * клиента, раньше, чем прочитается первый набор ресурсов.
+     */
+    public static void registerVariables() {
+        MolangParser.INSTANCE.register(new LazyVariable(STRIDE, 0));
+        MolangParser.INSTANCE.register(new LazyVariable(STRIDE_AMOUNT, 0));
+    }
+
+    @Override
+    public void applyMolangQueries(CitizenEntity citizen, double animTime) {
+        super.applyMolangQueries(citizen, animTime);
+        // С долей тика, как у ванильной модели: без неё шаг шёл бы
+        // рывками двадцать раз в секунду при сотне кадров.
+        float delta = MinecraftClient.getInstance().getTickDelta();
+        MolangParser parser = MolangParser.INSTANCE;
+        parser.setMemoizedValue(STRIDE, () -> citizen.limbAnimator.getPos(delta));
+        parser.setMemoizedValue(STRIDE_AMOUNT,
+                () -> Math.min(1.0f, citizen.limbAnimator.getSpeed(delta)));
+    }
+
+    /**
+     * Голова смотрит за взглядом — поверх позы, а не вместо неё.
+     * <p>
+     * Житель, который смотрит прямо перед собой, пока игрок ходит вокруг,
+     * выглядит куклой; поворот головы даёт живость дешевле любой анимации.
+     * Прибавлять безопасно: между кадрами GeckoLib ставит каждую кость
+     * заново из позы и движения, и прибавка не копится.
+     */
+    @Override
+    public void setCustomAnimations(CitizenEntity citizen, long instanceId,
+                                    AnimationState<CitizenEntity> state) {
+        CoreGeoBone head = getAnimationProcessor().getBone("head");
+        if (head == null) {
+            return;
+        }
+        EntityModelData look = state.getData(DataTickets.ENTITY_MODEL_DATA);
+        head.setRotX(head.getRotX() + look.headPitch() * MathHelper.RADIANS_PER_DEGREE);
+        head.setRotY(head.getRotY() + look.netHeadYaw() * MathHelper.RADIANS_PER_DEGREE);
     }
 
     /**

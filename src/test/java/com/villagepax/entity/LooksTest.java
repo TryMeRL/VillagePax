@@ -71,4 +71,22 @@ class LooksTest {
         citizen.setProfession(FARMER);
         assertEquals(Looks.of(NORMAN, Gender.MALE, Optional.of(FARMER)), Looks.of(citizen));
     }
+
+    /**
+     * Слова облика — народ, пол и ремесло — для примет модели.
+     * <p>
+     * Ремесло с подчёркиванием остаётся одним словом: пол подчёркиваний
+     * не содержит, и делить надо по первому.
+     */
+    @Test
+    void theLookSpellsOutWhoThisIs() {
+        assertEquals(java.util.Set.of("maya", "female", "farmer"),
+                Looks.words("villagepax:textures/entity/citizen/maya/female_farmer.png"));
+        assertEquals(java.util.Set.of("dwarf", "male"),
+                Looks.words(Looks.of(new Identifier("villagepax", "dwarf"), Gender.MALE,
+                        Optional.empty()).toString()));
+        assertEquals(java.util.Set.of("elf", "male", "stone_mason"),
+                Looks.words("mypack:textures/entity/citizen/elf/male_stone_mason.png"));
+        assertEquals(java.util.Set.of(), Looks.words("villagepax:textures/gui/icon.png"));
+    }
 }

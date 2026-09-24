@@ -50,6 +50,20 @@ class CitizenAnimationTest {
     private static final Path SOURCE = Path.of("src", "main", "java", "com", "villagepax",
             "entity", "CitizenEntity.java");
 
+    /** Где клиент заводит свои molang-переменные. */
+    private static final Path MODEL = Path.of("src", "client", "java", "com", "villagepax",
+            "client", "CitizenGeoModel.java");
+
+    /** Переменные molang, которые GeckoLib заводит сама. */
+    private static final Set<String> GECKOLIB_QUERIES = Set.of(
+            "query.anim_time", "query.life_time", "query.actor_count", "query.time_of_day",
+            "query.moon_phase", "query.distance_from_camera", "query.is_on_ground",
+            "query.is_in_water", "query.is_in_water_or_rain", "query.health",
+            "query.max_health", "query.is_on_fire", "query.ground_speed", "query.yaw_speed",
+            "query.controller_speed");
+
+    private static final Pattern QUERY = Pattern.compile("query\\.[a-z_]+");
+
     /** Имена дорожек, названные в коде: {@code thenLoop("walk")} и такие же. */
     private static final Pattern CALLED =
             Pattern.compile("then(?:Loop|Play|PlayAndHold)\\(\"([^\"]+)\"\\)");
@@ -146,6 +160,33 @@ class CitizenAnimationTest {
         }
 
         assertTrue(idle.isEmpty(), "Движение написано, но его никто не зовёт: " + idle);
+    }
+
+    /**
+     * Каждая переменная в выражениях движений кем-то заведена.
+     * <p>
+     * Незаведённое имя молча читается нулём: шаг с размахом «ноль» — это
+     * житель, который скользит по улице с прямыми ногами, и в логе тишина.
+     */
+    @Test
+    void everyMolangVariableIsRegistered() throws IOException {
+        String client = Files.readString(MODEL, StandardCharsets.UTF_8);
+        List<String> unknown = new ArrayList<>();
+        int seen = 0;
+        for (String body : bodies()) {
+            Matcher found = QUERY.matcher(Files.readString(
+                    DANCES.resolve(body + ".animation.json"), StandardCharsets.UTF_8));
+            while (found.find()) {
+                seen++;
+                String name = found.group();
+                if (!GECKOLIB_QUERIES.contains(name) && !client.contains("\"" + name + "\"")) {
+                    unknown.add(body + ": " + name);
+                }
+            }
+        }
+        assertTrue(seen > 0, "Ни одного выражения в движениях — проверка сверяет пустоту");
+        assertTrue(unknown.isEmpty(), "Движение читает переменную, которую никто не завёл: "
+                + unknown);
     }
 
     private static List<String> called() throws IOException {

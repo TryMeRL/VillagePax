@@ -1,6 +1,8 @@
 package com.villagepax.client;
 
 import com.villagepax.entity.CitizenEntity;
+import com.villagepax.entity.Looks;
+import com.villagepax.entity.Marks;
 import com.villagepax.entity.Stature;
 import net.minecraft.client.render.OverlayTexture;
 import net.minecraft.client.render.VertexConsumer;
@@ -14,6 +16,14 @@ import software.bernie.geckolib.cache.object.BakedGeoModel;
 import software.bernie.geckolib.cache.object.GeoBone;
 import software.bernie.geckolib.renderer.GeoEntityRenderer;
 import software.bernie.geckolib.renderer.layer.BlockAndItemGeoLayer;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Облик жителя: своя модель, свои движения и своё сложение у каждого народа.
@@ -30,6 +40,11 @@ import software.bernie.geckolib.renderer.layer.BlockAndItemGeoLayer;
  * поимённо</b>: голову можно увеличить, не трогая остального. И <b>кость
  * ладони</b>, к которой предмет привязан по-настоящему, а не подложен
  * под руку матрицей.
+ *
+ * <h2>Приметы — имя кости, а не код</h2>
+ * Борода гнома, уши эльфа, поля шляпы и наплечники — кости одной модели
+ * с условием в имени ({@link Marks}). Отрисовщик прячет те, чьё условие
+ * не совпало со словами облика, и больше о них ничего не знает.
  *
  * <h2>Сложение — данные, а не код</h2>
  * Рост объявляет культура в датапаке, сервер присылает число телом,
@@ -55,6 +70,22 @@ public class CitizenEntityRenderer extends GeoEntityRenderer<CitizenEntity> {
     /** И у четвероногого: что возят — на спину, что чинят — в зубы. */
     private static final String PACK = "pack";
     private static final String TEETH = "muzzle";
+
+    /**
+     * Кости с условием в каждой модели — разобранные один раз.
+     * <p>
+     * По модели, а не по кадру: кость и её условие не меняются, пока
+     * не перечитан набор ресурсов, а разбирать имена у каждого жителя
+     * каждый кадр значило бы строить строки шестьдесят раз в секунду.
+     */
+    private static final Map<BakedGeoModel, List<Marked>> MARKED = new IdentityHashMap<>();
+
+    /** Слова облика — тоже один раз на облик, их меньше сотни. */
+    private static final Map<String, Set<String>> WORDS = new HashMap<>();
+
+    /** Кость с условием. */
+    private record Marked(GeoBone bone, Marks marks) {
+    }
 
     public CitizenEntityRenderer(EntityRendererFactory.Context context) {
         super(context, new CitizenGeoModel());
@@ -126,6 +157,7 @@ public class CitizenEntityRenderer extends GeoEntityRenderer<CitizenEntity> {
         Stature build = statureOf(citizen);
         matrices.scale(build.girth(), build.height(), build.girth());
         model.getBone("head").ifPresent(head -> setScale(head, build.head()));
+        dress(citizen, model);
 
         super.preRender(matrices, citizen, model, buffers, buffer, reRender, delta, light,
                 overlay, red, green, blue, alpha);
@@ -146,6 +178,64 @@ public class CitizenEntityRenderer extends GeoEntityRenderer<CitizenEntity> {
         matrices.translate(0, (statureOf(citizen).height() - 1.0f) * citizen.getHeight(), 0);
         super.renderLabelIfPresent(citizen, name, matrices, buffers, light);
         matrices.pop();
+    }
+
+    /**
+     * Показать приметы этого жителя и спрятать чужие.
+     * <p>
+     * Кости у модели общие на всех жителей одного тела, поэтому ставится
+     * и «показать», и «спрятать» — каждый раз: иначе борода, показанная
+     * гному, осталась бы на следующем за ним эльфе.
+     */
+    private static void dress(CitizenEntity citizen, BakedGeoModel model) {
+        List<Marked> marked = MARKED.computeIfAbsent(model, CitizenEntityRenderer::marked);
+        if (marked.isEmpty()) {
+            return;
+        }
+        Set<String> words = WORDS.computeIfAbsent(
+                citizen.look() + (citizen.isChildBody() ? "#child" : "#adult"),
+                key -> wordsOf(citizen));
+        for (Marked each : marked) {
+            each.bone().setHidden(!each.marks().fits(words));
+        }
+    }
+
+    /**
+     * Слова облика и пора жизни.
+     * <p>
+     * Пора — не из облика: ребёнок носит ту же кожу, что взрослый его
+     * народа и пола, а бороды у него быть не должно. Её тело знает само.
+     */
+    private static Set<String> wordsOf(CitizenEntity citizen) {
+        Set<String> words = new HashSet<>(Looks.words(citizen.look()));
+        words.add(citizen.isChildBody() ? "child" : "adult");
+        return Set.copyOf(words);
+    }
+
+    private static List<Marked> marked(BakedGeoModel model) {
+        List<Marked> found = new ArrayList<>();
+        for (GeoBone bone : model.topLevelBones()) {
+            collect(bone, found);
+        }
+        return List.copyOf(found);
+    }
+
+    private static void collect(GeoBone bone, List<Marked> found) {
+        Marks.of(bone.getName()).ifPresent(marks -> found.add(new Marked(bone, marks)));
+        for (GeoBone child : bone.getChildBones()) {
+            collect(child, found);
+        }
+    }
+
+    /**
+     * Забыть разобранное: зовётся при перезагрузке набора ресурсов.
+     * <p>
+     * После перезагрузки у тел новые кости, и старые ссылки держали бы
+     * в памяти прежние модели и прятали бы кости, которых уже не рисуют.
+     */
+    public static void forget() {
+        MARKED.clear();
+        WORDS.clear();
     }
 
     /** Сложение этого тела: народное, а у ребёнка — уменьшенное народное. */

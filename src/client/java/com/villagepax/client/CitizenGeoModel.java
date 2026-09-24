@@ -58,6 +58,19 @@ public class CitizenGeoModel extends DefaultedEntityGeoModel<CitizenEntity> {
         super(new Identifier(VillagePax.MOD_ID, "citizen"), true);
     }
 
+    /**
+     * Забыть всё, что спрошено у хранилища ресурсов.
+     * <p>
+     * Зовётся при перезагрузке набора ресурсов. Без этого оба словаря
+     * живут до перезапуска игры, и набор, добавивший народу своё тело,
+     * не действует вовсе; а набор, у которого тело отобрали, оставляет
+     * клиент просить каждый кадр файл, которого больше нет.
+     */
+    public static void forget() {
+        KNOWN.clear();
+        OWN_BODY.clear();
+    }
+
     @Override
     public Identifier getModelResource(CitizenEntity entity) {
         return ownBody(entity)

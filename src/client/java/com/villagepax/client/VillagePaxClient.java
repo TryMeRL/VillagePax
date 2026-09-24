@@ -1,5 +1,6 @@
 package com.villagepax.client;
 
+import com.villagepax.VillagePax;
 import com.villagepax.block.ModBlocks;
 import com.villagepax.entity.ModEntities;
 import com.villagepax.item.ModItems;
@@ -25,6 +26,10 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
+import net.minecraft.resource.ResourceManager;
+import net.minecraft.resource.ResourceType;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.minecraft.client.render.block.entity.BlockEntityRendererFactories;
 import com.villagepax.block.entity.ModBlockEntities;
@@ -47,6 +52,22 @@ public class VillagePaxClient implements ClientModInitializer {
         // а не собираются кодом. Регистрировать нечего — GeckoLib читает
         // модель сам, по имени из CitizenGeoModel.
         EntityRendererRegistry.register(ModEntities.CITIZEN, CitizenEntityRenderer::new);
+        // Облик и тело народа спрашиваются у хранилища ресурсов один раз
+        // и помнятся: ходить в файловую систему каждый кадр за каждым
+        // жителем нельзя. Значит, забывать надо вручную — ровно тогда,
+        // когда хранилище перечитали.
+        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(
+                new SimpleSynchronousResourceReloadListener() {
+                    @Override
+                    public Identifier getFabricId() {
+                        return new Identifier(VillagePax.MOD_ID, "citizen_looks");
+                    }
+
+                    @Override
+                    public void reload(ResourceManager manager) {
+                        CitizenGeoModel.forget();
+                    }
+                });
         // Верёвка рисует не себя, а то, что на ней висит: см. RopeBlockEntityRenderer.
         BlockEntityRendererFactories.register(ModBlockEntities.ROPE,
                 RopeBlockEntityRenderer::new);

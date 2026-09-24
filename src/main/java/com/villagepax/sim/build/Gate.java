@@ -1,5 +1,6 @@
 package com.villagepax.sim.build;
 
+import com.villagepax.VillagePax;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Ground;
 import com.villagepax.sim.Settlement;
@@ -99,27 +100,59 @@ public final class Gate {
         int floor = door.getY() - 1;
         BlockState wall = world.getBlockState(door.down());
 
+        // Сперва примерить, потом рубить. Ход, не вышедший никуда,
+        // оставлял после себя сорок восемь прорубленных метров и ствол
+        // рядом с ними: недостроенное хуже непостроенного.
+        int steps = probe(world, start, out, floor);
+        if (steps < 0) {
+            VillagePax.LOGGER.info("Ворота чертога {} не вышли наружу за {} шагов — "
+                    + "бьём ствол", hold.name(), MAX_LENGTH);
+            return Optional.of(shaft(world, start, door.getY() - 1, wall));
+        }
+
+        for (int step = 1; step <= steps; step++) {
+            BlockPos ahead = start.offset(out, step - 1);
+            dig(world, new BlockPos(ahead.getX(), floor, ahead.getZ()), out, wall,
+                    step % LAMP_EVERY == 0);
+            if (step % rise(step) == 0) {
+                floor++;
+            }
+        }
+        return Optional.of(steps);
+    }
+
+    /**
+     * Сколько шагов до дневного света — или {@code -1}, если его там нет.
+     * <p>
+     * Ничего не рубит: это примерка. Подъём считается тем же правилом,
+     * что и при рубке ({@link #rise}), иначе примерка и дело разошлись бы
+     * с первой правкой одного из них.
+     */
+    private static int probe(ServerWorld world, BlockPos start, Direction out, int floor) {
         for (int step = 1; step <= MAX_LENGTH; step++) {
             BlockPos ahead = start.offset(out, step - 1);
-            BlockPos at = new BlockPos(ahead.getX(), floor, ahead.getZ());
-
-            dig(world, at, out, wall, step % LAMP_EVERY == 0);
-
             Integer outside = Ground.levelAt(world, ahead.getX(), ahead.getZ()).orElse(null);
             if (outside != null && outside <= floor + 1) {
                 // Вышли на склон: ход кончается там, где под ногами
                 // снаружи та же высота, что и внутри. Порог не нужен —
                 // его тут просто нет.
-                return Optional.of(step);
+                return step;
             }
-            // Первую половину пути ход ищет склон ровно, вторую —
-            // выбирается наверх всё круче: лучше лестница, чем тупик.
-            int rise = step * 2 > MAX_LENGTH ? 1 : RISE_EVERY;
-            if (step % rise == 0) {
+            if (step % rise(step) == 0) {
                 floor++;
             }
         }
-        return Optional.of(shaft(world, start, door.getY() - 1, wall));
+        return -1;
+    }
+
+    /**
+     * Через сколько шагов ход поднимается на блок.
+     * <p>
+     * Первую половину пути он ищет склон ровно, вторую выбирается наверх
+     * всё круче: лучше лестница, чем тупик.
+     */
+    private static int rise(int step) {
+        return step * 2 > MAX_LENGTH ? 1 : RISE_EVERY;
     }
 
     /**
@@ -163,12 +196,17 @@ public final class Gate {
 
         for (int side = -half; side <= half; side++) {
             BlockPos column = at.offset(across, side);
-            if (!isFloorSound(world, column)) {
+            if (!isFloorSound(world, column)
+                    && !world.getBlockState(column).hasBlockEntity()) {
                 world.setBlockState(column, floor, Block.NOTIFY_ALL);
             }
             for (int up = 1; up <= Hold.HEADROOM; up++) {
                 BlockPos cell = column.up(up);
-                if (!world.getBlockState(cell).isAir()) {
+                BlockState standing = world.getBlockState(cell);
+                // Сундук на пути не выбиваем: ход выходит наружу и может
+                // пройти сквозь чужую постройку. Тот же белый список,
+                // которым площадка отличает пустоту от чужого добра.
+                if (!standing.isAir() && !standing.hasBlockEntity()) {
                     world.setBlockState(cell, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
                 }
             }

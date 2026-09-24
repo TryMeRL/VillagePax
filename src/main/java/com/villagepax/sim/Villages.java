@@ -254,7 +254,13 @@ public final class Villages {
             return;
         }
         Settlement hold = settlement;
-        Building hall = hold.buildings().stream().findFirst().orElse(null);
+        // Ратуша ищется по объявленной роли, а не берётся первой попавшейся:
+        // правило мода, и здесь оно особенно дорого. Появись у поселения
+        // в этот миг второе здание — ворота прорубились бы от двери склада,
+        // а зал ратуши остался бы замурован.
+        Building hall = hold.buildings().stream()
+                .filter(building -> BuildingTypes.isTownHall(building.type()))
+                .findFirst().orElse(null);
         Schematic plan = hall == null
                 ? null : SchematicLoader.get(BuildJob.schematicId(hall)).orElse(null);
         if (hall == null || plan == null) {

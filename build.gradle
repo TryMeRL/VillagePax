@@ -84,6 +84,19 @@ dependencies {
     testImplementation 'net.jqwik:jqwik:1.10.1'
 }
 
+// Мир игровых проверок не переживает прогон.
+//
+// Он лежит в build/gametest и по умолчанию остаётся от запуска к запуску
+// вместе со всем, что в нём насохраняли поселения. Проверка, упавшая
+// и не убравшая за собой место, роняла следующий прогон уже на другом
+// тесте — и виноватым выглядел кто угодно, кроме настоящей причины.
+// Поймано вживую дважды.
+tasks.matching { it.name == 'runGametest' }.configureEach {
+    doFirst {
+        delete("${project.layout.buildDirectory.get()}/gametest/world")
+    }
+}
+
 processResources {
     inputs.property "version", project.version
     filesMatching("fabric.mod.json") {

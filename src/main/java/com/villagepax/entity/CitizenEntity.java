@@ -579,7 +579,6 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         // обязано это заметить без отдельного дня взросления.
         setLook(Looks.of(citizen));
         setChild(Ages.isChild(citizen));
-        setStature(citizen.culture());
     }
 
     /**
@@ -593,6 +592,18 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         if (!value.equals(look())) {
             dataTracker.set(LOOK, value);
         }
+        // Рост ставится здесь же и только здесь.
+        //
+        // Раньше он ставился отдельным вызовом рядом, и это оказалось
+        // приглашением забыть: куклы — налётчик, союзник и возница обоза —
+        // облик получали, а рост нет. Гномий налётчик выходил на голову
+        // выше гномов, которых пришёл грабить.
+        //
+        // Облик уже несёт имя народа, и других источников роста нет.
+        // Одна дверь вместо двух: забыть теперь негде.
+        Looks.cultureOf(value)
+                .map(people -> new Identifier(look.getNamespace(), people))
+                .ifPresent(this::setStature);
     }
 
     /**
@@ -813,7 +824,6 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         coward = Natures.isCoward(citizen);
         setLook(Looks.of(citizen));
         setChild(Ages.isChild(citizen));
-        setStature(citizen.culture());
         setHealth(citizen.health());
         // И ремесло сразу, раз запись всё равно в руках: иначе у только
         // что появившегося стража была бы секунда, в которую он считает

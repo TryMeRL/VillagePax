@@ -1,9 +1,11 @@
 package com.villagepax.sim.build;
 
+import com.villagepax.VillagePax;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Ground;
 import com.villagepax.sim.Settlement;
 import net.minecraft.block.Block;
+import net.minecraft.block.HorizontalFacingBlock;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.registry.tag.BlockTags;
@@ -79,20 +81,50 @@ public final class Ascent {
         Direction down = Access.awayFrom(hall, schematic, door);
         BlockPos start = door.offset(down);
         BlockState tread = world.getBlockState(door.down());
-        int level = door.getY() - 1;
+        int top = door.getY() - 1;
 
+        // Сперва примерить, потом класть.
+        //
+        // Первая version клала ступени по ходу дела и, не дойдя до земли
+        // за двадцать четыре шага, бросала лестницу висеть в пустоте —
+        // а рядом строила ствол. Над озером это выглядело так: доски
+        // уходят в воду и обрываются, а у двери отдельно торчат
+        // перекладины. Недостроенное хуже непостроенного.
+        int steps = march(world, start, down, top);
+        if (steps < 0) {
+            VillagePax.LOGGER.info("Всход поселения {} не достал земли за {} шагов — "
+                    + "спускаем ствол", grove.name(), MAX_STEPS);
+            return Optional.of(drop(world, start, down, top, tread));
+        }
+
+        int level = top;
+        for (int step = 1; step <= steps; step++) {
+            lay(world, new BlockPos(start.offset(down, step - 1).getX(), level,
+                    start.offset(down, step - 1).getZ()), down, tread);
+            level--;
+        }
+        return Optional.of(steps);
+    }
+
+    /**
+     * Сколько ступеней до земли — или {@code -1}, если её там нет.
+     * <p>
+     * Ничего не ставит: это примерка. Отделена от укладки нарочно, потому
+     * что «дошли» и «не дошли» — два совсем разных здания, и решать, какое
+     * строить, надо до первого блока.
+     */
+    private static int march(ServerWorld world, BlockPos start, Direction down, int top) {
+        int level = top;
         for (int step = 1; step <= MAX_STEPS; step++) {
             BlockPos ahead = start.offset(down, step - 1);
             Integer soil = Ground.levelAt(world, ahead.getX(), ahead.getZ()).orElse(null);
             if (soil != null && soil >= level) {
                 // Дошли до земли: ступень легла бы уже в грунт.
-                return Optional.of(step);
+                return step;
             }
-
-            lay(world, new BlockPos(ahead.getX(), level, ahead.getZ()), down, tread);
             level--;
         }
-        return Optional.of(drop(world, start, door.getY() - 1, tread));
+        return -1;
     }
 
     /**
@@ -104,17 +136,33 @@ public final class Ascent {
      * решение, что у гномьего ствола, и та же честная цена — по
      * перекладинам житель ходит хуже, чем по маршу, зато ходит.
      */
-    private static int drop(ServerWorld world, BlockPos start, int from, BlockState tread) {
+    private static int drop(ServerWorld world, BlockPos start, Direction down, int from,
+                            BlockState tread) {
         Integer soil = Ground.levelAt(world, start.getX(), start.getZ()).orElse(null);
         int bottom = soil == null ? from - Canopy.LIFT : soil;
+        Direction across = down.rotateYClockwise();
 
+        // Ствол, а не голые перекладины.
+        //
+        // Первая версия ставила лестницу прямо в воздух под помостом —
+        // и вся она осыпалась предметами в тот же тик: держаться ей было
+        // не на чем. У гномов тот же ствол работает, потому что идёт
+        // в сплошном камне; здесь стену надо принести с собой.
         for (int level = from; level > bottom; level--) {
-            BlockPos cell = new BlockPos(start.getX(), level, start.getZ());
-            world.setBlockState(cell, Blocks.LADDER.getDefaultState(), Block.NOTIFY_ALL);
+            BlockPos post = new BlockPos(start.getX(), level, start.getZ());
+            if (canLay(world, post)) {
+                world.setBlockState(post, tread, Block.NOTIFY_ALL);
+            }
+            BlockPos rung = post.offset(across);
+            if (canLay(world, rung)) {
+                world.setBlockState(rung, Blocks.LADDER.getDefaultState()
+                        .with(HorizontalFacingBlock.FACING, across), Block.NOTIFY_ALL);
+            }
         }
+
         // Под перекладинами должно быть на что встать: без опоры житель,
         // слезший с последней, продолжит падать.
-        BlockPos foot = new BlockPos(start.getX(), bottom, start.getZ());
+        BlockPos foot = new BlockPos(start.getX(), bottom, start.getZ()).offset(across);
         if (!isSound(world, foot)) {
             world.setBlockState(foot, tread, Block.NOTIFY_ALL);
         }
@@ -133,7 +181,9 @@ public final class Ascent {
 
         for (int side = 0; side < WIDTH; side++) {
             BlockPos column = at.offset(across, side);
-            world.setBlockState(column, tread, Block.NOTIFY_ALL);
+            if (canLay(world, column)) {
+                world.setBlockState(column, tread, Block.NOTIFY_ALL);
+            }
             for (int up = 1; up <= HEADROOM; up++) {
                 BlockPos cell = column.up(up);
                 if (isGrowth(world.getBlockState(cell))) {
@@ -158,6 +208,25 @@ public final class Ascent {
         }
         return state.isIn(BlockTags.LEAVES) || state.isIn(BlockTags.LOGS)
                 || state.isReplaceable();
+    }
+
+    /**
+     * Можно ли положить здесь свой блок.
+     * <p>
+     * Чужое добро не трогаем: сундук, печь и всякий блок с содержимым —
+     * не пустое место, и настелить по нему значило бы съесть его молча.
+     * Тот же белый список, по которому площадка отличает пустоту
+     * от чужого, и заведён он там ровно после того, как закопал сундуки.
+     * <p>
+     * И уже готовый пол не перекладываем: если под ногой и так твёрдо,
+     * ступень не нужна — нужна проходимость, а она есть.
+     */
+    private static boolean canLay(ServerWorld world, BlockPos at) {
+        BlockState state = world.getBlockState(at);
+        if (state.hasBlockEntity()) {
+            return false;
+        }
+        return !state.isSolidBlock(world, at) || isGrowth(state);
     }
 
     private static boolean isSound(ServerWorld world, BlockPos at) {

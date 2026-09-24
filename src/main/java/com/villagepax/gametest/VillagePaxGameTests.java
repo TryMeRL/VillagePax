@@ -11017,6 +11017,57 @@ public class VillagePaxGameTests implements FabricGameTest {
                 || state.isIn(BlockTags.FENCE_GATES);
     }
 
+    /**
+     * Кукла ростом со свой народ, а не со всякого.
+     * <p>
+     * Написано по настоящей дыре. Рост ставился отдельным вызовом рядом
+     * с обликом, и куклы — налётчик, союзник, возница обоза — облик
+     * получали, а рост нет: гномий налётчик выходил на голову выше гномов,
+     * которых пришёл грабить. Один и тот же народ стоял двух размеров.
+     * <p>
+     * Проверяется <b>дверь</b>, а не вызывающие стороны: их три, завтра
+     * будет четыре, и забыть в четвёртой так же легко. Рост едет вместе
+     * с обликом — значит спросить надо с облика.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "hold")
+    public void aPuppetIsTheSizeOfItsPeople(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            CitizenEntity body = bodyOf(world, colony, colony.citizens().iterator().next());
+            Culture underground = CultureManager.get(DWARF);
+            if (underground == null || underground.stature() == Culture.PLAIN_STATURE) {
+                context.throwGameTestException("У гномов не объявлен свой рост — "
+                        + "проверять нечего");
+                return;
+            }
+
+            body.setLook(Looks.puppet(DWARF, "guard"));
+            if (body.stature() != underground.stature()) {
+                context.throwGameTestException("Гномья кукла ростом " + body.stature()
+                        + " вместо " + underground.stature()
+                        + ": один народ стоит двух размеров");
+            }
+
+            // И обратно: народ сменился — сменился и рост.
+            body.setLook(Looks.puppet(NORMAN, "guard"));
+            if (body.stature() != Culture.PLAIN_STATURE) {
+                context.throwGameTestException("Норманнская кукла ростом "
+                        + body.stature() + " вместо человеческого");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
     // ======================= КРОНЫ ЭЛЬФОВ =======================
 
     private static final Identifier ELF = new Identifier("villagepax", "elf");

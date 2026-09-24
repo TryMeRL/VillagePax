@@ -1,5 +1,6 @@
 package com.villagepax.sim.war;
 
+import com.villagepax.core.Safely;
 import com.villagepax.VillagePax;
 import com.villagepax.core.war.WarParty;
 import com.villagepax.core.building.BuildingTypes;
@@ -249,7 +250,9 @@ public final class Raids {
         if (world.getTime() % EVERY != 0) {
             return;
         }
-        watch(world, SettlementManager.get(world), Schedule.dayOf(world.getTimeOfDay()));
+        Safely.run(world.getRegistryKey().getValue(), "Надзор за набегами",
+                () -> watch(world, SettlementManager.get(world),
+                        Schedule.dayOf(world.getTimeOfDay())));
     }
 
     /**

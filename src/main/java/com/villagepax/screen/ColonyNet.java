@@ -1,6 +1,7 @@
 package com.villagepax.screen;
 
 import com.mojang.serialization.DataResult;
+import com.villagepax.core.Safely;
 import com.villagepax.VillagePax;
 import com.villagepax.core.config.Configs;
 import com.villagepax.sim.Building;
@@ -72,25 +73,30 @@ public final class ColonyNet {
             return;
         }
 
-        for (Settlement colony : manager.all()) {
-            NbtCompound snapshot = null;
+        for (Settlement colony : List.copyOf(manager.all())) {
+            Safely.run(colony.name(), "Карта колонии", () -> sendMap(world, colony));
+        }
+    }
 
-            for (ServerPlayerEntity player : world.getPlayers()) {
-                if (!isNear(player, colony)) {
-                    continue;
-                }
-                if (snapshot == null) {
-                    // Снимок собирается один раз на колонию, и только если
-                    // рядом кто-то есть: пустой мир не должен стоить ничего.
-                    snapshot = encode(mapOf(colony));
-                }
+    /** Разослать карту колонии тем, кто рядом. */
+    private static void sendMap(ServerWorld world, Settlement colony) {
+        NbtCompound snapshot = null;
 
-                // Буфер — свой на каждого: отправка его освобождает,
-                // и второй игрок получил бы пустоту.
-                PacketByteBuf buf = PacketByteBufs.create();
-                buf.writeNbt(snapshot);
-                ServerPlayNetworking.send(player, MAP, buf);
+        for (ServerPlayerEntity player : world.getPlayers()) {
+            if (!isNear(player, colony)) {
+                continue;
             }
+            if (snapshot == null) {
+                // Снимок собирается один раз на колонию, и только если
+                // рядом кто-то есть: пустой мир не должен стоить ничего.
+                snapshot = encode(mapOf(colony));
+            }
+
+            // Буфер — свой на каждого: отправка его освобождает,
+            // и второй игрок получил бы пустоту.
+            PacketByteBuf buf = PacketByteBufs.create();
+            buf.writeNbt(snapshot);
+            ServerPlayNetworking.send(player, MAP, buf);
         }
     }
 

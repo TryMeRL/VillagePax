@@ -1,5 +1,6 @@
 package com.villagepax.sim.trade;
 
+import com.villagepax.core.Safely;
 import com.villagepax.VillagePax;
 import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.sim.Building;
@@ -195,15 +196,17 @@ public final class Caravans {
         long today = Schedule.dayOf(world.getTimeOfDay());
 
         for (Settlement settlement : List.copyOf(manager.all())) {
-            for (Caravan guest : List.copyOf(settlement.visitors())) {
-                if (today > guest.leavesOn() || !guest.hasAnything()) {
-                    seeOff(world, manager, settlement, guest);
-                    continue;
+            Safely.run(settlement.name(), "Обозы у поселения", () -> {
+                for (Caravan guest : List.copyOf(settlement.visitors())) {
+                    if (today > guest.leavesOn() || !guest.hasAnything()) {
+                        seeOff(world, manager, settlement, guest);
+                        continue;
+                    }
+                    if (world.isChunkLoaded(guest.stands()) && bodyOf(world, guest) == null) {
+                        spawnMerchant(world, settlement, guest);
+                    }
                 }
-                if (world.isChunkLoaded(guest.stands()) && bodyOf(world, guest) == null) {
-                    spawnMerchant(world, settlement, guest);
-                }
-            }
+            });
         }
     }
 

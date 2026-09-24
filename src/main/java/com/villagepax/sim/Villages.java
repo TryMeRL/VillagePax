@@ -1,5 +1,6 @@
 package com.villagepax.sim;
 
+import com.villagepax.core.Safely;
 import com.villagepax.VillagePax;
 import com.villagepax.core.config.Configs;
 import com.villagepax.core.building.BuildingTypes;
@@ -157,7 +158,8 @@ public final class Villages {
 
         for (ServerPlayerEntity player : world.getPlayers()) {
             for (VillageSites.Site site : VillageSites.near(world, player.getBlockPos())) {
-                found(world, site.culture(), site.where());
+                Safely.run(site.culture() + " у " + site.where().toShortString(),
+                        "Основание деревни", () -> found(world, site.culture(), site.where()));
             }
         }
     }

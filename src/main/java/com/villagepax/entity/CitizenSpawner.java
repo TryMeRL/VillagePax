@@ -1,6 +1,7 @@
 package com.villagepax.entity;
 
 import com.villagepax.VillagePax;
+import com.villagepax.core.Safely;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
@@ -33,14 +34,17 @@ public final class CitizenSpawner {
     }
 
     public static void register() {
-        ServerChunkEvents.CHUNK_LOAD.register((world, chunk) -> onChunkLoad(world, chunk.getPos()));
+        // Под оградкой: чанк грузится посреди чего угодно, и исключение
+        // при появлении одного жителя не должно ронять загрузку мира.
+        ServerChunkEvents.CHUNK_LOAD.register((world, chunk) -> Safely.run(chunk.getPos(),
+                "Появление жителей в чанке", () -> onChunkLoad(world, chunk.getPos())));
 
         // Подстраховка к CitizenEntity.remove: Fabric обещает, что это событие
         // приходит до удаления сущности из мира, а порядок событий чанков
         // относительно секций сущностей ничем не гарантирован.
         ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
             if (entity instanceof CitizenEntity body) {
-                body.writeBackTo(world);
+                Safely.run(body.getUuid(), "Возврат тела в запись", () -> body.writeBackTo(world));
             }
         });
     }

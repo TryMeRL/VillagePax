@@ -1,5 +1,6 @@
 package com.villagepax.sim.work;
 
+import com.villagepax.core.Safely;
 import com.villagepax.core.config.Configs;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.sim.Citizen;
@@ -15,6 +16,8 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.Entity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
+
+import java.util.List;
 
 /**
  * Стратегический слой ИИ: раз в {@link #ticksPerDecision()} тиков каждый
@@ -61,10 +64,19 @@ public final class WorkTicker {
         Schedule part = Schedule.at(timeOfDay);
         long today = Schedule.dayOf(timeOfDay);
 
-        for (Settlement settlement : manager.all()) {
-            rollOverDay(world, manager, settlement, today);
+        // Обход по снимкам, а не по живым спискам. Списки поселений
+        // и жителей отдаются представлениями, и прибавь или убери кого-то
+        // любое решение посреди обхода — сервер упал бы на полпути. Сейчас
+        // так не делает ни одно ремесло, но держится это на совпадении,
+        // а снимок стоит одной короткой копии на поселение.
+        for (Settlement settlement : List.copyOf(manager.all())) {
+            // Сломанный день одной деревни не останавливает мир. День ей уже
+            // засчитан — смена дня отмечается первой, — и назавтра деревня
+            // попробует заново, а не будет падать каждый тик.
+            Safely.run(settlement.name(), "Смена дня",
+                    () -> rollOverDay(world, manager, settlement, today));
 
-            for (Citizen citizen : settlement.citizens()) {
+            for (Citizen citizen : List.copyOf(settlement.citizens())) {
                 if (Campaigns.isAway(settlement, citizen)) {
                     // Страж в походе решений не принимает. Иначе стратегия
                     // каждые полсекунды велела бы ему идти патрулировать
@@ -73,10 +85,23 @@ public final class WorkTicker {
                     continue;
                 }
                 if (isItsTurn(time, citizen)) {
-                    decide(world, manager, settlement, citizen, part);
+                    decideSafely(world, manager, settlement, citizen, part);
                 }
             }
         }
+    }
+
+    /**
+     * Решение, которое не роняет мир.
+     * <p>
+     * Исключение в ремесле одного жителя без оградки роняет тик мира, а
+     * значит и сервер. Житель, чьё решение упало, пропускает ход, а в лог
+     * уходит одна трасса с тем, кто и где, — по ней и чинят. См. {@link Safely}.
+     */
+    private static void decideSafely(ServerWorld world, SettlementManager manager,
+                                     Settlement settlement, Citizen citizen, Schedule part) {
+        Safely.run(citizen.fullName() + " из " + settlement.name(), "Решение жителя",
+                () -> decide(world, manager, settlement, citizen, part));
     }
 
     /**

@@ -2,5 +2,19 @@
   "parent": "minecraft:item/generated",
   "textures": {
     "layer0": "villagepax:item/gold_coin"
-  }
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "villagepax:heap": 0.5
+      },
+      "model": "villagepax:item/gold_coin_few"
+    },
+    {
+      "predicate": {
+        "villagepax:heap": 1.0
+      },
+      "model": "villagepax:item/gold_coin_pile"
+    }
+  ]
 }

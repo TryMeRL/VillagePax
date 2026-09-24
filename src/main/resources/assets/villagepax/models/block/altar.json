@@ -1,21 +1,59 @@
 {
-  "parent": "block/block",
+  "parent": "minecraft:block/block",
   "textures": {
     "side": "villagepax:block/altar_side",
     "top": "villagepax:block/altar_top",
+    "stone": "minecraft:block/polished_andesite",
+    "embers": "villagepax:block/altar_top",
+    "candle": "minecraft:block/candle_lit",
     "particle": "villagepax:block/altar_side"
   },
   "elements": [
     {
+      "__comment": "цоколь",
       "from": [
-        2,
+        1,
         0,
-        2
+        1
       ],
       "to": [
-        14,
-        12,
-        14
+        15,
+        2,
+        15
+      ],
+      "faces": {
+        "north": {
+          "texture": "#stone"
+        },
+        "south": {
+          "texture": "#stone"
+        },
+        "east": {
+          "texture": "#stone"
+        },
+        "west": {
+          "texture": "#stone"
+        },
+        "up": {
+          "texture": "#stone"
+        },
+        "down": {
+          "texture": "#stone",
+          "cullface": "down"
+        }
+      }
+    },
+    {
+      "__comment": "тумба",
+      "from": [
+        2.5,
+        2,
+        2.5
+      ],
+      "to": [
+        13.5,
+        11,
+        13.5
       ],
       "faces": {
         "north": {
@@ -28,43 +66,554 @@
           "texture": "#side"
         },
         "west": {
-          "texture": "#side"
-        },
-        "down": {
           "texture": "#side"
         }
       }
     },
     {
+      "__comment": "карниз",
       "from": [
-        0,
-        12,
-        0
+        1.5,
+        11,
+        1.5
       ],
       "to": [
-        16,
-        16,
-        16
+        14.5,
+        12.5,
+        14.5
       ],
       "faces": {
         "north": {
-          "texture": "#side"
+          "texture": "#stone"
         },
         "south": {
-          "texture": "#side"
+          "texture": "#stone"
         },
         "east": {
-          "texture": "#side"
+          "texture": "#stone"
         },
         "west": {
-          "texture": "#side"
+          "texture": "#stone"
+        },
+        "up": {
+          "texture": "#stone"
+        },
+        "down": {
+          "texture": "#stone"
+        }
+      }
+    },
+    {
+      "__comment": "стол",
+      "from": [
+        0.5,
+        12.5,
+        0.5
+      ],
+      "to": [
+        15.5,
+        14.5,
+        15.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#stone"
+        },
+        "south": {
+          "texture": "#stone"
+        },
+        "east": {
+          "texture": "#stone"
+        },
+        "west": {
+          "texture": "#stone"
         },
         "up": {
           "texture": "#top"
         },
         "down": {
-          "texture": "#side"
+          "texture": "#stone"
         }
+      }
+    },
+    {
+      "__comment": "рог",
+      "from": [
+        13,
+        14.5,
+        1
+      ],
+      "to": [
+        15,
+        16,
+        3
+      ],
+      "faces": {
+        "north": {
+          "texture": "#stone"
+        },
+        "south": {
+          "texture": "#stone"
+        },
+        "east": {
+          "texture": "#stone"
+        },
+        "west": {
+          "texture": "#stone"
+        },
+        "up": {
+          "texture": "#stone"
+        }
+      }
+    },
+    {
+      "__comment": "рог",
+      "from": [
+        1,
+        14.5,
+        13
+      ],
+      "to": [
+        3,
+        16,
+        15
+      ],
+      "faces": {
+        "north": {
+          "texture": "#stone"
+        },
+        "south": {
+          "texture": "#stone"
+        },
+        "east": {
+          "texture": "#stone"
+        },
+        "west": {
+          "texture": "#stone"
+        },
+        "up": {
+          "texture": "#stone"
+        }
+      }
+    },
+    {
+      "__comment": "стенка чаши",
+      "from": [
+        5,
+        14.5,
+        5
+      ],
+      "to": [
+        11,
+        15.75,
+        6
+      ],
+      "faces": {
+        "north": {
+          "texture": "#stone"
+        },
+        "south": {
+          "texture": "#stone"
+        },
+        "east": {
+          "texture": "#stone"
+        },
+        "west": {
+          "texture": "#stone"
+        },
+        "up": {
+          "texture": "#stone"
+        }
+      }
+    },
+    {
+      "__comment": "стенка чаши",
+      "from": [
+        5,
+        14.5,
+        10
+      ],
+      "to": [
+        11,
+        15.75,
+        11
+      ],
+      "faces": {
+        "north": {
+          "texture": "#stone"
+        },
+        "south": {
+          "texture": "#stone"
+        },
+        "east": {
+          "texture": "#stone"
+        },
+        "west": {
+          "texture": "#stone"
+        },
+        "up": {
+          "texture": "#stone"
+        }
+      }
+    },
+    {
+      "__comment": "стенка чаши",
+      "from": [
+        5,
+        14.5,
+        6
+      ],
+      "to": [
+        6,
+        15.75,
+        10
+      ],
+      "faces": {
+        "east": {
+          "texture": "#stone"
+        },
+        "west": {
+          "texture": "#stone"
+        },
+        "up": {
+          "texture": "#stone"
+        }
+      }
+    },
+    {
+      "__comment": "стенка чаши",
+      "from": [
+        10,
+        14.5,
+        6
+      ],
+      "to": [
+        11,
+        15.75,
+        10
+      ],
+      "faces": {
+        "east": {
+          "texture": "#stone"
+        },
+        "west": {
+          "texture": "#stone"
+        },
+        "up": {
+          "texture": "#stone"
+        }
+      }
+    },
+    {
+      "__comment": "угли",
+      "from": [
+        6,
+        14.5,
+        6
+      ],
+      "to": [
+        10,
+        15.25,
+        10
+      ],
+      "faces": {
+        "up": {
+          "texture": "#embers",
+          "uv": [
+            6,
+            6,
+            10,
+            10
+          ]
+        }
+      }
+    },
+    {
+      "__comment": "свеча",
+      "from": [
+        1,
+        14.5,
+        1
+      ],
+      "to": [
+        3,
+        17.5,
+        3
+      ],
+      "faces": {
+        "north": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            8,
+            2,
+            11
+          ]
+        },
+        "south": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            8,
+            2,
+            11
+          ]
+        },
+        "east": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            8,
+            2,
+            11
+          ]
+        },
+        "west": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            8,
+            2,
+            11
+          ]
+        },
+        "up": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            6,
+            2,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "__comment": "фитиль",
+      "from": [
+        1.5,
+        17.5,
+        2
+      ],
+      "to": [
+        2.5,
+        18.5,
+        2
+      ],
+      "faces": {
+        "north": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            5,
+            1,
+            6
+          ]
+        },
+        "south": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            5,
+            1,
+            6
+          ]
+        }
+      },
+      "rotation": {
+        "origin": [
+          2,
+          17.5,
+          2
+        ],
+        "axis": "y",
+        "angle": 45
+      }
+    },
+    {
+      "__comment": "фитиль",
+      "from": [
+        1.5,
+        17.5,
+        2
+      ],
+      "to": [
+        2.5,
+        18.5,
+        2
+      ],
+      "faces": {
+        "north": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            5,
+            1,
+            6
+          ]
+        },
+        "south": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            5,
+            1,
+            6
+          ]
+        }
+      },
+      "rotation": {
+        "origin": [
+          2,
+          17.5,
+          2
+        ],
+        "axis": "y",
+        "angle": -45
+      }
+    },
+    {
+      "__comment": "свеча",
+      "from": [
+        13,
+        14.5,
+        13
+      ],
+      "to": [
+        15,
+        17.5,
+        15
+      ],
+      "faces": {
+        "north": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            8,
+            2,
+            11
+          ]
+        },
+        "south": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            8,
+            2,
+            11
+          ]
+        },
+        "east": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            8,
+            2,
+            11
+          ]
+        },
+        "west": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            8,
+            2,
+            11
+          ]
+        },
+        "up": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            6,
+            2,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "__comment": "фитиль",
+      "from": [
+        13.5,
+        17.5,
+        14
+      ],
+      "to": [
+        14.5,
+        18.5,
+        14
+      ],
+      "faces": {
+        "north": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            5,
+            1,
+            6
+          ]
+        },
+        "south": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            5,
+            1,
+            6
+          ]
+        }
+      },
+      "rotation": {
+        "origin": [
+          14,
+          17.5,
+          14
+        ],
+        "axis": "y",
+        "angle": 45
+      }
+    },
+    {
+      "__comment": "фитиль",
+      "from": [
+        13.5,
+        17.5,
+        14
+      ],
+      "to": [
+        14.5,
+        18.5,
+        14
+      ],
+      "faces": {
+        "north": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            5,
+            1,
+            6
+          ]
+        },
+        "south": {
+          "texture": "#candle",
+          "uv": [
+            0,
+            5,
+            1,
+            6
+          ]
+        }
+      },
+      "rotation": {
+        "origin": [
+          14,
+          17.5,
+          14
+        ],
+        "axis": "y",
+        "angle": -45
       }
     }
   ]

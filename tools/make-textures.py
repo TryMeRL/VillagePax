@@ -713,6 +713,72 @@ def coin(dark, base, lit, stamp):
     return t
 
 
+def coin_stacks(dark, base, lit, stacks):
+    """Монеты стопками — то, что видно в руке, когда их много.
+
+    Одна монета на значке честна для одной монеты и лжёт для сорока:
+    игрок, у которого в сумке целая казна, видит там пуговицу. Стопки
+    рисуются наискосок, как лежащие на столе: сверху овал, снизу ребро,
+    и каждая следующая монета закрывает верх предыдущей.
+
+    `stacks` — список (центр по x, низ по y, сколько монет).
+    """
+    t = Tex(CLEAR)
+    for cx, bottom, count in stacks:
+        for layer in range(count):
+            top = bottom - 3 - layer * 2
+            # Ребро монеты: тёмная полоса под овалом.
+            for x in range(cx - 3, cx + 4):
+                t.set(x, top + 2, dark)
+            # Верх: овал в три ряда, блик слева.
+            for x in range(cx - 2, cx + 3):
+                t.set(x, top, base)
+            for x in range(cx - 3, cx + 4):
+                t.set(x, top + 1, base)
+            t.set(cx - 3, top + 1, dark)
+            t.set(cx + 3, top + 1, dark)
+            t.set(cx - 2, top, lit)
+            t.set(cx - 1, top, lit)
+            t.set(cx + 2, top, dark)
+        # Верхняя монета — с чеканом: точка посередине.
+        top = bottom - 3 - (count - 1) * 2
+        t.set(cx, top + 1, dark)
+    return t
+
+
+def purse_empty():
+    """Пустой кошель: мешочек опал, горловина стянута, монеты не видно.
+
+    По значку в руке игрок должен понимать, есть ли в кошеле что-нибудь,
+    не открывая подсказки: за этим кошель и носят.
+    """
+    t = Tex(CLEAR)
+    body = [
+        "     ....     ",
+        "    .oooo.    ",
+        "     .oo.     ",
+        "   ..LLLL..   ",
+        "  .LLLLLLLL.  ",
+        " .LLLLLLLLLL. ",
+        " LLLLLLLLLLLL ",
+        " .LLLLLLLLLL. ",
+        " .dLLLLLLLLd. ",
+        "  .dddddddd.  ",
+        "   ........   ",
+    ]
+    palette = {
+        "L": LEATHER,
+        "d": LEATHER_DARK,
+        "o": ROPE,
+        ".": LEATHER_DARK,
+    }
+    t.sprite(body, palette, ox=1, oy=4)
+    t.dots(LEATHER_LIT, (4, 9), (5, 8), (4, 10))
+    # Складки опавшей кожи.
+    t.dots(LEATHER_DARK, (7, 9), (8, 10), (10, 9), (9, 11))
+    return t
+
+
 def purse():
     """Кошель: мешочек кожи с затяжкой и монетой в горловине."""
     t = Tex(CLEAR)
@@ -1092,10 +1158,19 @@ def main():
                 .save("item", "silver_coin"))
     made.append(coin(GOLD_DARK, GOLD, GOLD_LIT, SUN_STAMP)
                 .save("item", "gold_coin"))
+    # Стопки: «несколько» и «груда», по той же палитре, что сама монета.
+    for name, colours in (("coin", (COPPER_DARK, COPPER, COPPER_LIT)),
+                          ("silver_coin", (SILVER_DARK, SILVER, SILVER_LIT)),
+                          ("gold_coin", (GOLD_DARK, GOLD, GOLD_LIT))):
+        made.append(coin_stacks(*colours, [(5, 14, 2), (10, 15, 3)])
+                    .save("item", name + "_few"))
+        made.append(coin_stacks(*colours, [(4, 13, 5), (11, 12, 4), (8, 16, 3)])
+                    .save("item", name + "_pile"))
     made.append(ale().save("item", "ale"))
     made.append(cacao().save("item", "cacao"))
     made.append(cloth().save("item", "cloth"))
     made.append(purse().save("item", "purse"))
+    made.append(purse_empty().save("item", "purse_empty"))
     made.append(blueprint().save("item", "town_hall_blueprint"))
 
     made.append(altar_side().save("block", "altar_side"))

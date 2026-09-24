@@ -53,6 +53,14 @@ public final class Kindling {
         burns(fire, ModBlocks.TIMBER_FRAME_SLAB, 5, 20);
         burns(fire, ModBlocks.FIREWOOD, 5, 5);
 
+        // Мебель горит как доски, из которых сбита, а мешок — как шерсть:
+        // деревянный стол, который не берёт огонь, — та же насмешка, что
+        // и несгораемая солома.
+        burns(fire, ModBlocks.BENCH, 5, 20);
+        burns(fire, ModBlocks.TABLE, 5, 20);
+        burns(fire, ModBlocks.SHELF, 5, 20);
+        burns(fire, ModBlocks.GRAIN_SACK, 30, 60);
+
         FuelRegistry.INSTANCE.add(ModBlocks.FIREWOOD, FIREWOOD_BURNS);
         FuelRegistry.INSTANCE.add(ModItems.CLOTH, CLOTH_BURNS);
 

@@ -6,12 +6,14 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.random.Random;
 import net.minecraft.util.shape.VoxelShape;
 import net.minecraft.util.shape.VoxelShapes;
 import net.minecraft.world.BlockView;
@@ -38,10 +40,26 @@ import net.minecraft.world.World;
  */
 public class AltarBlock extends Block {
 
-    /** Тумба с плитой поверху: у жертвы должно быть куда лечь. */
+    /**
+     * Цоколь, тумба и стол с чашей — по той же модели, что рисуется.
+     * <p>
+     * Свечи и рога в очертания не входят: за них не должен цепляться
+     * взгляд, когда игрок целится в сам алтарь.
+     */
     private static final VoxelShape SHAPE = VoxelShapes.union(
-            createCuboidShape(2, 0, 2, 14, 12, 14),
-            createCuboidShape(0, 12, 0, 16, 16, 16));
+            createCuboidShape(1, 0, 1, 15, 2, 15),
+            createCuboidShape(2.5, 2, 2.5, 13.5, 11, 13.5),
+            createCuboidShape(0.5, 11, 0.5, 15.5, 14.5, 15.5),
+            createCuboidShape(5, 14.5, 5, 11, 15.75, 11));
+
+    /**
+     * Где горят фитили — те же места, что у свечей в модели
+     * ({@code tools/make-furniture.py}, {@code CANDLES}), в долях блока.
+     */
+    private static final double[][] WICKS = {{2 / 16.0, 2 / 16.0}, {14 / 16.0, 14 / 16.0}};
+
+    /** Высота огонька над полом клетки: верх фитиля. */
+    private static final double FLAME = 18.6 / 16.0;
 
     public AltarBlock(Settings settings) {
         super(settings);
@@ -51,6 +69,27 @@ public class AltarBlock extends Block {
     public VoxelShape getOutlineShape(BlockState state, BlockView world, BlockPos pos,
                                       ShapeContext context) {
         return SHAPE;
+    }
+
+    /**
+     * Огоньки свечей и редкая искра над углями.
+     * <p>
+     * Свечи на алтаре ванильные, и огонёк у них ванильный же — частица,
+     * а не картинка: нарисованное пламя не мерцало бы. Рисует клиент
+     * и только у себя, сервер об этом не знает ничего.
+     */
+    @Override
+    public void randomDisplayTick(BlockState state, World world, BlockPos pos, Random random) {
+        for (double[] wick : WICKS) {
+            if (random.nextInt(3) == 0) {
+                world.addParticle(ParticleTypes.SMALL_FLAME, pos.getX() + wick[0],
+                        pos.getY() + FLAME, pos.getZ() + wick[1], 0.0, 0.0, 0.0);
+            }
+        }
+        if (random.nextInt(8) == 0) {
+            world.addParticle(ParticleTypes.SMOKE, pos.getX() + 0.5, pos.getY() + 1.0,
+                    pos.getZ() + 0.5, 0.0, 0.02, 0.0);
+        }
     }
 
     @Override

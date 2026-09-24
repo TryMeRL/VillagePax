@@ -7,7 +7,9 @@ import net.minecraft.block.WallBlock;
 import net.minecraft.block.StairsBlock;
 import net.minecraft.block.SlabBlock;
 import net.minecraft.block.Blocks;
+import net.minecraft.block.MapColor;
 import net.minecraft.block.PillarBlock;
+import net.minecraft.block.enums.Instrument;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.sound.BlockSoundGroup;
@@ -43,10 +45,11 @@ public final class ModBlocks {
      * <b>свой материал</b>: по нему деревню узнают издалека, а глина —
      * это заимствование, которое в любом чужом моде выглядит иначе.
      */
-    public static final Block TIMBER_FRAME = register("timber_frame", plain());
+    public static final Block TIMBER_FRAME = register("timber_frame",
+            plain(MapColor.TERRACOTTA_WHITE));
 
     /** Та же штукатурка без балок — для простых стен и для внутренностей. */
-    public static final Block PLASTER = register("plaster", plain());
+    public static final Block PLASTER = register("plaster", plain(MapColor.OFF_WHITE));
 
     /**
      * Поленница. Дрова у дома — самая короткая примета того, что здесь живут:
@@ -82,6 +85,7 @@ public final class ModBlocks {
     /** Мешок снеди. Стоит у склада и на ферме — знак, что колония кормится. */
     public static final Block GRAIN_SACK = register("grain_sack",
             new Block(AbstractBlock.Settings.create()
+                    .mapColor(MapColor.OAK_TAN)
                     .strength(0.6f)
                     .sounds(BlockSoundGroup.WOOL)
                     // Мешок уже клетки и ниже её: полным кубом он не был
@@ -96,7 +100,8 @@ public final class ModBlocks {
      * а народ обязан узнаваться с первого взгляда, иначе своя архитектура
      * не имеет смысла. Охрой по извести майя красили в действительности.
      */
-    public static final Block OCHRE_PLASTER = register("ochre_plaster", plain());
+    public static final Block OCHRE_PLASTER = register("ochre_plaster",
+            plain(MapColor.TERRACOTTA_ORANGE));
 
     /**
      * Резной камень майя: ступенчатая пирамида с нефритом на вершине.
@@ -105,7 +110,8 @@ public final class ModBlocks {
      * приметный блок, по которому читается стена. Ставится в углах и
      * на видных местах, а не сплошь: рельеф на каждом блоке был бы шумом.
      */
-    public static final Block CARVED_STONE = register("carved_stone", plain());
+    public static final Block CARVED_STONE = register("carved_stone",
+            plain(MapColor.PALE_YELLOW));
 
     /**
      * Пальмовая кровля.
@@ -116,6 +122,7 @@ public final class ModBlocks {
      */
     public static final Block THATCH = register("thatch",
             new Block(AbstractBlock.Settings.create()
+                    .mapColor(MapColor.YELLOW)
                     .strength(0.5f)
                     .sounds(BlockSoundGroup.GRASS)));
 
@@ -197,6 +204,8 @@ public final class ModBlocks {
      */
     public static final Block ALTAR = register("altar",
             new AltarBlock(AbstractBlock.Settings.create()
+                    .mapColor(MapColor.STONE_GRAY)
+                    .instrument(Instrument.BASEDRUM)
                     .strength(2.5f, 6.0f)
                     .sounds(BlockSoundGroup.STONE)
                     .luminance(state -> 5)
@@ -211,9 +220,19 @@ public final class ModBlocks {
     private ModBlocks() {
     }
 
-    /** Штукатурка и фахверк держатся как камень, но звучат как камень же. */
-    private static Block plain() {
+    /**
+     * Штукатурка и фахверк держатся как камень, но звучат как камень же.
+     * <p>
+     * Цвет на карте — обязательный довод, а не украшение. Без него
+     * {@code Settings.create()} даёт «прозрачный», и деревня на ванильной
+     * карте была дырой: видны тропинки и поля, а домов нет вовсе. Цвет
+     * взят ближайший ванильный к самому материалу, чтобы на карте
+     * норманнская деревня белела, а майяская краснела — как и вживую.
+     */
+    private static Block plain(MapColor colour) {
         return new Block(AbstractBlock.Settings.create()
+                .mapColor(colour)
+                .instrument(Instrument.BASEDRUM)
                 .strength(1.5f, 4.0f)
                 .sounds(BlockSoundGroup.STONE));
     }
@@ -249,6 +268,9 @@ public final class ModBlocks {
      */
     private static Block furniture(VoxelShape shape) {
         return new FurnitureBlock(shape, AbstractBlock.Settings.create()
+                .mapColor(MapColor.OAK_TAN)
+                .instrument(Instrument.BASS)
+                .burnable()
                 .strength(1.5f, 3.0f)
                 .sounds(BlockSoundGroup.WOOD)
                 .nonOpaque());

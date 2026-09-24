@@ -1,7 +1,20 @@
 {
   "variants": {
-    "": {
-      "model": "villagepax:block/ochre_plaster"
-    }
+    "": [
+      {
+        "model": "villagepax:block/ochre_plaster"
+      },
+      {
+        "model": "villagepax:block/ochre_plaster_mirrored"
+      },
+      {
+        "model": "villagepax:block/ochre_plaster",
+        "x": 180
+      },
+      {
+        "model": "villagepax:block/ochre_plaster_mirrored",
+        "x": 180
+      }
+    ]
   }
 }

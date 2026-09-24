@@ -14,6 +14,9 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.util.shape.VoxelShape;
 import net.minecraft.world.BlockView;
 
+import java.util.EnumMap;
+import java.util.Map;
+
 /**
  * Предмет обстановки: стоит лицом к тому, кто поставил.
  * <p>
@@ -30,11 +33,22 @@ public class FurnitureBlock extends Block {
 
     public static final DirectionProperty FACING = HorizontalFacingBlock.FACING;
 
-    private final VoxelShape shape;
+    /**
+     * Очертания на каждую сторону — посчитанные один раз.
+     * <p>
+     * Раньше они собирались объединением коробок на каждый вопрос, с доводом
+     * «вопрос задаётся при наведении курсора». Это неправда: те же очертания
+     * по умолчанию служат и столкновением, а столкновение с учётом того, кто
+     * идёт, игра не запоминает — его спрашивает каждый шаг каждого жителя
+     * рядом со столом. Четыре формы на блок — это ничто.
+     */
+    private final Map<Direction, VoxelShape> shapes = new EnumMap<>(Direction.class);
 
     public FurnitureBlock(VoxelShape shape, Settings settings) {
         super(settings);
-        this.shape = shape;
+        for (Direction facing : FACING.getValues()) {
+            shapes.put(facing, turned(shape, facing));
+        }
         setDefaultState(getDefaultState().with(FACING, Direction.NORTH));
     }
 
@@ -52,7 +66,7 @@ public class FurnitureBlock extends Block {
     @Override
     public VoxelShape getOutlineShape(BlockState state, BlockView world, BlockPos pos,
                                       ShapeContext context) {
-        return turned(shape, state.get(FACING));
+        return shapes.get(state.get(FACING));
     }
 
     @Override
@@ -65,12 +79,7 @@ public class FurnitureBlock extends Block {
         return state.rotate(mirror.getRotation(state.get(FACING)));
     }
 
-    /**
-     * Повернуть очертания вслед за блоком.
-     * <p>
-     * Считается на каждый вопрос, а не кэшируется: очертаний четыре,
-     * вопрос задаётся при наведении курсора, и экономить тут не на чем.
-     */
+    /** Повернуть очертания вслед за блоком. */
     private static VoxelShape turned(VoxelShape north, Direction facing) {
         return switch (facing) {
             case SOUTH -> flip(north);

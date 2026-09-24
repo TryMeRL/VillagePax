@@ -2,5 +2,13 @@
   "parent": "minecraft:item/generated",
   "textures": {
     "layer0": "villagepax:item/purse"
-  }
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "villagepax:empty": 1.0
+      },
+      "model": "villagepax:item/purse_empty"
+    }
+  ]
 }

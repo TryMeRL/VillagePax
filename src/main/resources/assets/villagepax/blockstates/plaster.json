@@ -1,7 +1,20 @@
 {
   "variants": {
-    "": {
-      "model": "villagepax:block/plaster"
-    }
+    "": [
+      {
+        "model": "villagepax:block/plaster"
+      },
+      {
+        "model": "villagepax:block/plaster_mirrored"
+      },
+      {
+        "model": "villagepax:block/plaster",
+        "x": 180
+      },
+      {
+        "model": "villagepax:block/plaster_mirrored",
+        "x": 180
+      }
+    ]
   }
 }

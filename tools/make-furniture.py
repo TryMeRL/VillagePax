@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""Пишет модели мебели и алтаря: скамья, стол, полка, алтарь.
+
+Зачем кодом: модель мебели — это два десятка брусков, и у каждого есть
+смысл (ножка, царга, проножка, спинка). Числами в JSON этот смысл
+теряется, и через месяц уже не скажешь, какой брусок — перекладина.
+Здесь бруски названы, а развёртка по умолчанию берётся по положению,
+как у ванили, — поэтому доска на доске выглядит доской, а не мозаикой.
+
+Лицо у всей мебели — север: блокстейт поворачивает модель по взгляду
+поставившего, и полка висит на южной стене клетки, глядя на север.
+
+Смотреть результат — `python tools/preview-models.py bench table shelf altar`.
+
+    python tools/make-furniture.py
+"""
+
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+MODELS = ROOT / "src/main/resources/assets/villagepax/models/block"
+
+FACES = ("north", "south", "east", "west", "up", "down")
+
+
+def box(name, start, end, texture, faces=FACES, uv=None, cull=None, rotation=None):
+    """Брусок: грани по умолчанию все, развёртка — по положению (ваниль сама).
+
+    `uv` — развёртка для отдельных граней {грань: [u1, v1, u2, v2]},
+    `cull` — грани, которые прячутся за соседним полным блоком.
+    """
+    element = {"__comment": name, "from": list(start), "to": list(end), "faces": {}}
+    for face in faces:
+        spec = {"texture": texture if isinstance(texture, str) else texture.get(face, texture["*"])}
+        if uv and face in uv:
+            spec["uv"] = uv[face]
+        if cull and face in cull:
+            spec["cullface"] = face
+        element["faces"][face] = spec
+    if rotation:
+        element["rotation"] = rotation
+    return element
+
+
+def model(textures, elements, parent="minecraft:block/block", ao=True):
+    out = {"parent": parent, "textures": textures}
+    if not ao:
+        out["ambientocclusion"] = False
+    out["elements"] = elements
+    return out
+
+
+# --- скамья ---------------------------------------------------------------------
+#
+# Сиденье из доски, четыре ножки, спинка на задних ножках с тремя
+# балясинами. След прежний (z от 4 до 12): по нему ходит поиск пути.
+
+def bench():
+    planks, post = "#planks", "#post"
+    legs = []
+    for x in (1, 13.5):
+        legs.append(box("передняя ножка", (x, 0, 5), (x + 1.5, 7, 6.5), post, cull=("down",)))
+        legs.append(box("задняя ножка и стойка спинки", (x, 0, 9.5), (x + 1.5, 15.5, 11),
+                        {"*": post, "up": "#post_top"}, cull=("down",)))
+        legs.append(box("проножка", (x + 0.25, 2, 6.5), (x + 1.25, 3, 9.5), post,
+                        faces=("east", "west", "up", "down")))
+    spindles = [box("балясина спинки", (x, 11.5, 10), (x + 1, 13, 10.5), post,
+                    faces=("north", "south", "east", "west"))
+                for x in (4.5, 7.5, 10.5)]
+    return model(
+        {"planks": "minecraft:block/oak_planks", "post": "minecraft:block/stripped_oak_log",
+         "post_top": "minecraft:block/stripped_oak_log_top",
+         "particle": "minecraft:block/oak_planks"},
+        [box("сиденье", (0, 7, 4.5), (16, 8.5, 11.5), planks),
+         box("царга под сиденьем", (0.5, 6, 4.75), (15.5, 7, 5.75), planks,
+             faces=("north", "south", "down", "east", "west")),
+         *legs,
+         box("перекладина спинки", (2.5, 13, 9.75), (13.5, 15, 10.75), planks),
+         box("нижняя перекладина спинки", (2.5, 10, 9.75), (13.5, 11.5, 10.75), planks),
+         *spindles])
+
+
+# --- стол -----------------------------------------------------------------------
+#
+# Столешница в два пальца, царга по кругу, точёные ножки и проножка
+# буквой Н у пола: без неё стол читается табуретом-переростком.
+
+def table():
+    planks, post = "#planks", "#post"
+    legs = [box("ножка", (x, 0, z), (x + 2, 14, z + 2), {"*": post, "down": "#post_top"},
+                faces=("north", "south", "east", "west", "down"), cull=("down",))
+            for x in (1.5, 12.5) for z in (1.5, 12.5)]
+    apron = [
+        box("царга", (3.5, 12, 1.75), (12.5, 14, 2.75), planks, faces=("north", "south", "down")),
+        box("царга", (3.5, 12, 13.25), (12.5, 14, 14.25), planks, faces=("north", "south", "down")),
+        box("царга", (1.75, 12, 3.5), (2.75, 14, 12.5), planks, faces=("east", "west", "down")),
+        box("царга", (13.25, 12, 3.5), (14.25, 14, 12.5), planks, faces=("east", "west", "down")),
+    ]
+    stretchers = [
+        box("проножка", (2, 3, 3.5), (3, 4, 12.5), post, faces=("east", "west", "up", "down")),
+        box("проножка", (13, 3, 3.5), (14, 4, 12.5), post, faces=("east", "west", "up", "down")),
+        box("средник", (3, 3, 7.5), (13, 4, 8.5), post, faces=("north", "south", "up", "down")),
+    ]
+    return model(
+        {"planks": "minecraft:block/oak_planks", "post": "minecraft:block/stripped_oak_log",
+         "post_top": "minecraft:block/stripped_oak_log_top",
+         "particle": "minecraft:block/oak_planks"},
+        [box("столешница", (0, 14, 0), (16, 16, 16), planks, cull=("up",)),
+         *apron, *legs, *stretchers])
+
+
+# --- полка ----------------------------------------------------------------------
+#
+# Открытая полка на южной стене: боковины, две доски и верх. На досках —
+# то, что в доме держат на виду: корешки книг, горшки, миска. Вещи —
+# часть модели, а не предметы: полка в схеме должна выглядеть обжитой
+# сразу, а не когда игрок её обставит.
+
+def shelf():
+    planks = "#planks"
+    books = "#books"
+    cull_south = ("south",)
+    return model(
+        {"planks": "minecraft:block/oak_planks", "books": "minecraft:block/bookshelf",
+         "pot": "minecraft:block/terracotta", "pot_rim": "minecraft:block/brown_terracotta",
+         "particle": "minecraft:block/oak_planks"},
+        [box("боковина", (0, 0, 11), (1, 16, 16), planks, cull=("south", "down", "up", "west")),
+         box("боковина", (15, 0, 11), (16, 16, 16), planks, cull=("south", "down", "up", "east")),
+         box("верх", (1, 15, 11), (15, 16, 16), planks, faces=("north", "up", "down", "south"),
+             cull=("up", "south")),
+         box("нижняя доска", (1, 3, 11), (15, 4, 16), planks,
+             faces=("north", "up", "down", "south"), cull=cull_south),
+         box("верхняя доска", (1, 9, 11), (15, 10, 16), planks,
+             faces=("north", "up", "down", "south"), cull=cull_south),
+         # Внизу — ряд книг: корешки с ванильного шкафа, лицом наружу.
+         box("книги", (1.5, 4, 12), (8.5, 9, 15.5), books,
+             faces=("north", "east", "up"),
+             uv={"north": [1, 1, 8, 6], "east": [1, 1, 4.5, 6], "up": [1, 1, 8, 4.5]}),
+         box("книга наискось", (8.6, 4, 12.5), (9.6, 8.5, 15.5), books,
+             faces=("north", "east", "west", "up"),
+             uv={"north": [9, 1, 10, 5.5], "east": [9, 1, 12, 5.5], "west": [9, 1, 12, 5.5],
+                 "up": [9, 1, 10, 4]},
+             rotation={"origin": [9.1, 4, 14], "axis": "z", "angle": -22.5}),
+         # Справа внизу горшок, вверху два горшка и миска.
+         box("горшок", (11, 4, 12.5), (14, 7.5, 15.5), {"*": "#pot", "up": "#pot_rim"},
+             faces=("north", "east", "west", "up")),
+         box("горшок", (2, 10, 12.5), (4.5, 13, 15), {"*": "#pot", "up": "#pot_rim"},
+             faces=("north", "east", "west", "up")),
+         box("горшок", (5.5, 10, 13), (7.5, 12, 15), {"*": "#pot", "up": "#pot_rim"},
+             faces=("north", "east", "west", "up")),
+         box("миска", (9.5, 10, 12.5), (13.5, 11, 15.5), "#planks",
+             faces=("north", "east", "west", "up"),
+             uv={"up": [2, 2, 6, 5]})])
+
+
+# --- алтарь ---------------------------------------------------------------------
+#
+# Цоколь, тумба, карниз и стол с рогами по углам — силуэт жертвенника,
+# который узнают по любой книжке о древности. На столе — чаша с углём
+# и две свечи: алтарь светится, и свет должен откуда-то идти.
+# Свечи ванильные, их огонёк — частица, как у ванильной свечи
+# (см. AltarBlock#randomDisplayTick): места фитилей — постоянные ниже.
+
+# Центры свечей: два угла стола вместо рогов, накрест.
+CANDLES = ((2, 2), (14, 14))
+
+
+def altar():
+    side, top = "#side", "#top"
+    stone = "#stone"
+    horns = [box("рог", (x - 1, 14.5, z - 1), (x + 1, 16, z + 1), stone,
+                 faces=("north", "south", "east", "west", "up"))
+             for x, z in ((2, 2), (14, 2), (2, 14), (14, 14)) if (x, z) not in CANDLES]
+    bowl = [
+        box("стенка чаши", (5, 14.5, 5), (11, 15.75, 6), stone,
+            faces=("north", "south", "east", "west", "up")),
+        box("стенка чаши", (5, 14.5, 10), (11, 15.75, 11), stone,
+            faces=("north", "south", "east", "west", "up")),
+        box("стенка чаши", (5, 14.5, 6), (6, 15.75, 10), stone, faces=("east", "west", "up")),
+        box("стенка чаши", (10, 14.5, 6), (11, 15.75, 10), stone, faces=("east", "west", "up")),
+        box("угли", (6, 14.5, 6), (10, 15.25, 10), "#embers", faces=("up",),
+            uv={"up": [6, 6, 10, 10]}),
+    ]
+    candles = []
+    for cx, cz in CANDLES:
+        sides = {face: [0, 8, 2, 11] for face in ("north", "south", "east", "west")}
+        candles.append(box("свеча", (cx - 1, 14.5, cz - 1), (cx + 1, 17.5, cz + 1), "#candle",
+                           faces=("north", "south", "east", "west", "up"),
+                           uv=sides | {"up": [0, 6, 2, 8]}))
+        # Фитиль — две скрещённые плоскости, как у ванильной свечи.
+        for angle in (45, -45):
+            candles.append(box("фитиль", (cx - 0.5, 17.5, cz), (cx + 0.5, 18.5, cz), "#candle",
+                               faces=("north", "south"),
+                               uv={"north": [0, 5, 1, 6], "south": [0, 5, 1, 6]},
+                               rotation={"origin": [cx, 17.5, cz], "axis": "y", "angle": angle}))
+    return model(
+        {"side": "villagepax:block/altar_side", "top": "villagepax:block/altar_top",
+         "stone": "minecraft:block/polished_andesite", "embers": "villagepax:block/altar_top",
+         "candle": "minecraft:block/candle_lit", "particle": "villagepax:block/altar_side"},
+        [box("цоколь", (1, 0, 1), (15, 2, 15), stone, cull=("down",)),
+         box("тумба", (2.5, 2, 2.5), (13.5, 11, 13.5), side, faces=("north", "south", "east", "west")),
+         box("карниз", (1.5, 11, 1.5), (14.5, 12.5, 14.5), stone),
+         box("стол", (0.5, 12.5, 0.5), (15.5, 14.5, 15.5), {"*": stone, "up": top}),
+         *horns, *bowl, *candles])
+
+
+def main():
+    for name, build in (("bench", bench), ("table", table), ("shelf", shelf), ("altar", altar)):
+        path = MODELS / (name + ".json")
+        path.write_text(json.dumps(build(), indent=2, ensure_ascii=False) + "\n",
+                        encoding="utf-8", newline="\n")
+        print("модель:", path.name)
+
+
+if __name__ == "__main__":
+    main()

@@ -4,6 +4,7 @@ import com.villagepax.VillagePax;
 import com.villagepax.block.ModBlocks;
 import com.villagepax.entity.ModEntities;
 import com.villagepax.item.ModItems;
+import com.villagepax.item.PurseItem;
 import com.villagepax.item.TownHallBlueprintItem;
 import com.villagepax.client.hologram.HologramHud;
 import com.villagepax.client.hologram.HologramKeys;
@@ -26,6 +27,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
+import net.fabricmc.fabric.api.object.builder.v1.client.model.FabricModelPredicateProviderRegistry;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.minecraft.resource.ResourceManager;
@@ -38,10 +40,12 @@ import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.gui.screen.ingame.HandledScreens;
 import net.minecraft.block.Block;
 import net.minecraft.item.BlockItem;
+import net.minecraft.item.Item;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 
+import java.util.List;
 import java.util.Optional;
 
 public class VillagePaxClient implements ClientModInitializer {
@@ -74,6 +78,7 @@ public class VillagePaxClient implements ClientModInitializer {
         BlockEntityRendererFactories.register(ModBlockEntities.ROPE,
                 RopeBlockEntityRenderer::new);
         registerCutouts();
+        registerItemLooks();
         HandledScreens.register(TownHallScreens.TOWN_HALL, TownHallScreen::new);
         registerViewUpdates();
         registerColonyMap();
@@ -92,6 +97,35 @@ public class VillagePaxClient implements ClientModInitializer {
      */
     private static void registerCutouts() {
         BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LAUNDRY, RenderLayer.getCutout());
+    }
+
+    /**
+     * С какой стопки монета рисуется грудой, а не парой монет.
+     * <p>
+     * Шестнадцать — четверть стопки: столько игрок получает за хороший
+     * квест, и в руке это уже казна, а не сдача.
+     */
+    private static final int HEAP = 16;
+
+    /**
+     * Значки, которые говорят о содержимом: стопка монет и кошель.
+     * <p>
+     * Одна монета на значке честна для одной монеты и лжёт для сорока,
+     * а полный кошель на значке пустого заставляет открывать подсказку,
+     * чтобы узнать главное. Ваниль делает так же со стрелой в луке
+     * и с часами: картинку выбирает предикат модели, а сам предмет
+     * об этом не знает.
+     */
+    private static void registerItemLooks() {
+        for (Item coin : List.of(ModItems.COIN, ModItems.SILVER_COIN, ModItems.GOLD_COIN)) {
+            FabricModelPredicateProviderRegistry.register(coin,
+                    new Identifier(VillagePax.MOD_ID, "heap"),
+                    (stack, world, holder, seed) -> stack.getCount() >= HEAP ? 1.0f
+                            : stack.getCount() > 1 ? 0.5f : 0.0f);
+        }
+        FabricModelPredicateProviderRegistry.register(ModItems.PURSE,
+                new Identifier(VillagePax.MOD_ID, "empty"),
+                (stack, world, holder, seed) -> PurseItem.valueOf(stack) <= 0 ? 1.0f : 0.0f);
     }
 
     /**

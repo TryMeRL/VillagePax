@@ -37,19 +37,27 @@ public final class Guide {
             "villagepax.guide.find",
             "villagepax.guide.elder",
             "villagepax.guide.blueprint",
+            "villagepax.guide.homes",
             "villagepax.guide.console",
             "villagepax.guide.order",
             "villagepax.guide.storage",
             "villagepax.guide.citizens",
+            "villagepax.guide.wages",
             "villagepax.guide.trade",
             "villagepax.guide.trust",
             "villagepax.guide.people",
+            "villagepax.guide.guest",
             "villagepax.guide.caravan",
             "villagepax.guide.raid",
+            "villagepax.guide.war",
             "villagepax.guide.peace",
             "villagepax.guide.faith",
+            "villagepax.guide.faith_gifts",
             "villagepax.guide.errands",
-            "villagepax.guide.life");
+            "villagepax.guide.errands_more",
+            "villagepax.guide.life",
+            "villagepax.guide.kin",
+            "villagepax.guide.bonds");
 
     private Guide() {
     }

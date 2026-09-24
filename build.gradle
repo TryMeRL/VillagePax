@@ -101,9 +101,15 @@ dependencies {
 // и не убравшая за собой место, роняла следующий прогон уже на другом
 // тесте — и виноватым выглядел кто угодно, кроме настоящей причины.
 // Поймано вживую дважды.
+//
+// Путь берётся при настройке, а стирается при выполнении: обращение
+// к project из doFirst Gradle 9 уже помечает устаревшим, а Gradle 10
+// роняет сборку. Стирается самим файлом, а не project.delete, —
+// ради того же.
 tasks.matching { it.name == 'runGametest' }.configureEach {
+    def world = project.layout.buildDirectory.dir("gametest/world")
     doFirst {
-        delete("${project.layout.buildDirectory.get()}/gametest/world")
+        world.get().asFile.deleteDir()
     }
 }
 

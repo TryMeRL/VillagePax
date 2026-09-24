@@ -134,7 +134,7 @@ public final class Canopy {
      * на лугу валит дерево. Бревно — нет: ствол, прошедший сквозь горницу,
      * это не колонна, это дерево в комнате.
      */
-    public static boolean isOpen(ServerWorld world, BlockPos at) {
+    private static boolean isOpen(ServerWorld world, BlockPos at) {
         BlockState state = world.getBlockState(at);
         if (state.hasBlockEntity() || !state.getFluidState().isEmpty()) {
             return false;
@@ -170,7 +170,7 @@ public final class Canopy {
      * на случайный валун, — это дом на камне посреди леса; настил
      * на стволе — это дом на дереве, ради которого весь народ и заведён.
      */
-    public static boolean standsOnWood(ServerWorld world, BlockPos deck) {
+    private static boolean standsOnWood(ServerWorld world, BlockPos deck) {
         for (int down = 1; down <= DEEP; down++) {
             BlockPos at = deck.down(down);
             if (at.getY() <= world.getBottomY()) {

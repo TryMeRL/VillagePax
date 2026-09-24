@@ -1,13 +1,11 @@
 package com.villagepax.sim;
 
-import com.villagepax.core.culture.Traits;
 import com.villagepax.sim.build.BuildStep;
 import com.villagepax.VillagePax;
 import com.villagepax.screen.BuildOrders;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Footing;
-import com.villagepax.sim.build.Hold;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
 import net.minecraft.block.Block;
@@ -17,7 +15,6 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3i;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -27,7 +27,6 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 

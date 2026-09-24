@@ -64,7 +64,7 @@ public final class Terrace {
      * сервер не встал: стройка, из-за которой игра замирает на секунду,
      * читается как зависание.
      */
-    public static final int BUDGET = 1200;
+    private static final int BUDGET = 1200;
 
     private Terrace() {
     }

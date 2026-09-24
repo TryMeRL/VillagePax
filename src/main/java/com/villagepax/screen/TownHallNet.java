@@ -17,7 +17,6 @@ import com.villagepax.sim.faith.Miracles;
 import com.villagepax.sim.faith.Faith;
 import com.villagepax.sim.faith.Blessings;
 import com.villagepax.core.faith.Domain;
-import com.villagepax.sim.build.BuildStep;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
 import com.villagepax.sim.work.Assignments;
@@ -35,7 +34,6 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3i;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Map;

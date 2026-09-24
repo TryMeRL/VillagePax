@@ -51,10 +51,10 @@ public final class Ascent {
      * лестница укладывается втрое короче. Всё, что длиннее, — это уже
      * не спуск с дерева, а мост до соседнего холма.
      */
-    public static final int MAX_STEPS = 24;
+    private static final int MAX_STEPS = 24;
 
     /** Ширина марша: по лестнице расходятся встречные. */
-    public static final int WIDTH = 2;
+    private static final int WIDTH = 2;
 
     /** Сколько блоков над ступенью остаётся свободными. */
     private static final int HEADROOM = 3;

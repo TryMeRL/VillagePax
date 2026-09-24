@@ -15,7 +15,6 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 /**

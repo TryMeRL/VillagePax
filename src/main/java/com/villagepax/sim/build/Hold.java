@@ -1,12 +1,8 @@
 package com.villagepax.sim.build;
 
-import com.villagepax.core.culture.Trait;
-import com.villagepax.core.culture.Traits;
 import com.villagepax.sim.Ground;
-import com.villagepax.sim.Settlement;
 import net.minecraft.block.BlockState;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3i;
 
@@ -71,7 +67,7 @@ public final class Hold {
      * генерации, а не как чертог. И ровно столько же отделяет чертог
      * от случайного оврага наверху.
      */
-    public static final int ROOF = 3;
+    private static final int ROOF = 3;
 
     /**
      * Высота свода галереи: пол, рост и запас.
@@ -83,27 +79,6 @@ public final class Hold {
     public static final int HEADROOM = 3;
 
     private Hold() {
-    }
-
-    /** Живёт ли этот народ в горе. */
-    public static boolean isUnderground(Identifier culture) {
-        return Traits.has(culture, Trait.BUILDS_UNDERGROUND);
-    }
-
-    public static boolean isUnderground(Settlement settlement) {
-        return settlement != null && isUnderground(settlement.culture());
-    }
-
-    /**
-     * Отметка пола этого чертога.
-     * <p>
-     * Хранить её негде и не надо: это высота середины поселения, то есть
-     * та самая точка, которую выбрало основание. Заведи мы отдельное поле
-     * — оно однажды разошлось бы с местом ратуши, и чертог начал бы расти
-     * на полблока выше самого себя.
-     */
-    public static int floorY(Settlement settlement) {
-        return settlement.center().getY();
     }
 
     /**
@@ -177,7 +152,7 @@ public final class Hold {
      * на стволе дуба, — это крона, а не гора; тот же урок мод уже получил
      * на поиске земли.
      */
-    public static boolean isRock(ServerWorld world, BlockPos at) {
+    private static boolean isRock(ServerWorld world, BlockPos at) {
         BlockState state = world.getBlockState(at);
         if (state.hasBlockEntity() || !state.getFluidState().isEmpty()) {
             return false;

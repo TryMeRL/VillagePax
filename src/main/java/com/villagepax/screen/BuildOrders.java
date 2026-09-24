@@ -2,7 +2,6 @@ package com.villagepax.screen;
 
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.Building;
-import com.villagepax.sim.Levels;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.build.BuildJob;

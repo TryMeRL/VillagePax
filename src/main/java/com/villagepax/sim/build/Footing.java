@@ -49,13 +49,7 @@ public enum Footing {
     CANOPY;
 
     public static Footing of(Identifier culture) {
-        if (Traits.has(culture, Trait.BUILDS_UNDERGROUND)) {
-            return HOLD;
-        }
-        if (Traits.has(culture, Trait.BUILDS_IN_CANOPY)) {
-            return CANOPY;
-        }
-        return GROUND;
+        return byTraits(Traits.of(culture));
     }
 
     public static Footing of(Settlement settlement) {
@@ -63,10 +57,22 @@ public enum Footing {
     }
 
     public static Footing of(Culture culture) {
-        if (culture == null) {
-            return GROUND;
-        }
-        var traits = Traits.resolve(culture.traits());
+        return culture == null ? GROUND : byTraits(Traits.resolve(culture.traits()));
+    }
+
+    /**
+     * Единственное место, где черта превращается в способ жить.
+     * <p>
+     * Спрашивают отсюда трое — по опознавателю, по поселению и по самой
+     * культуре, — и каждый спрашивает об одном. Разбирать этот вопрос
+     * трижды значило бы завести три ответа, которые разойдутся при первой
+     * же новой черте: ровно от этого и заведён сам {@code Footing}.
+     * <p>
+     * Подземная старше крон: народ, объявивший обе, живёт в горе. Случай
+     * бессмысленный, но молчать о нём нельзя — молчание здесь означало бы
+     * «как выйдет».
+     */
+    private static Footing byTraits(java.util.Set<Trait> traits) {
         if (traits.contains(Trait.BUILDS_UNDERGROUND)) {
             return HOLD;
         }

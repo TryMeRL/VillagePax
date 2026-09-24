@@ -5,7 +5,6 @@ import com.villagepax.VillagePax;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.core.quest.Quest;
-import com.villagepax.core.quest.QuestManager;
 import com.villagepax.core.trade.Caravan;
 import com.villagepax.core.trade.TradeTable;
 import com.villagepax.sim.Citizen;

@@ -5,8 +5,6 @@ import com.villagepax.core.culture.Traits;
 import com.villagepax.sim.faith.Blessings;
 import com.villagepax.screen.TownHallNet;
 import com.villagepax.sim.Building;
-import com.villagepax.sim.Hazards;
-import com.villagepax.sim.Hazards;
 import com.villagepax.sim.Levels;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.Sounds;

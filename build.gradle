@@ -10,6 +10,19 @@ base {
     archivesName = project.archives_base_name
 }
 
+// Игровые проверки — свой набор исходников, а не часть мода.
+//
+// Раньше они лежали в src/main и уходили в выпускной jar: полмегабайта
+// тестового кода — треть мода — у каждого игрока, и точка входа проверок
+// в его описании. Теперь у проверок свой набор и своё описание мода
+// (villagepax-gametest), который видит только прогон runGametest.
+sourceSets {
+    gametest {
+        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+        runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
+    }
+}
+
 loom {
     splitEnvironmentSourceSets()
 
@@ -18,11 +31,15 @@ loom {
             sourceSet sourceSets.main
             sourceSet sourceSets.client
         }
+        "villagepax-gametest" {
+            sourceSet sourceSets.gametest
+        }
     }
 
     runs {
         gametest {
             server()
+            source sourceSets.gametest
             name = "Game Test"
             vmArg "-Dfabric-api.gametest"
             vmArg "-Dfabric-api.gametest.report-file=${project.layout.buildDirectory.get()}/junit.xml"
@@ -114,6 +131,13 @@ tasks.matching { it.name == 'runGametest' }.configureEach {
 }
 
 processResources {
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}
+
+processGametestResources {
     inputs.property "version", project.version
     filesMatching("fabric.mod.json") {
         expand "version": project.version

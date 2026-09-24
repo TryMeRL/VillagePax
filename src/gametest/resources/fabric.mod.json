@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "villagepax-gametest",
+  "version": "${version}",
+  "name": "Village Pax: игровые проверки",
+  "description": "Проверки мода в настоящем мире. Только для разработки: в выпускной jar не входит.",
+  "license": "ARR",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-gametest": [
+      "com.villagepax.gametest.VillagePaxGameTests"
+    ]
+  },
+  "depends": {
+    "villagepax": "*",
+    "fabric-api": "*"
+  }
+}

@@ -14,9 +14,6 @@
     ],
     "client": [
       "com.villagepax.client.VillagePaxClient"
-    ],
-    "fabric-gametest": [
-      "com.villagepax.gametest.VillagePaxGameTests"
     ]
   },
   "depends": {

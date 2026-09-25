@@ -1,0 +1,24 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:yamato",
+  "min_reputation": 55,
+  "objectives": [
+    {
+      "type": "favour",
+      "domain": "harvest",
+      "amount": 40
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 20
+    },
+    {
+      "type": "favour",
+      "amount": 20
+    }
+  ],
+  "dialogue": "villagepax.quest.yamato_founding_5",
+  "next": "villagepax:yamato/founding_6"
+}

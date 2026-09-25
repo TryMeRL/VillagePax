@@ -23,7 +23,7 @@ _spec.loader.exec_module(pc)
 
 ROOT = HERE.parent
 ASSETS = ROOT / "src/main/resources/assets/villagepax"
-PEOPLES = ("norman", "maya", "pony", "dwarf", "elf", "nord")
+PEOPLES = ("norman", "maya", "pony", "dwarf", "elf", "nord", "yamato")
 OUT = ROOT / "build/gear-preview.png"
 
 
@@ -69,7 +69,7 @@ def main():
     px = 5
     views = (-28, 152)
     cell = int(46 * px)
-    sheet = Image.new("RGBA", (cell * len(views) * 3, (cell + 14) * 2), (30, 32, 38, 255))
+    sheet = Image.new("RGBA", (cell * len(views) * 3, (cell + 14) * 3), (30, 32, 38, 255))
     label = ImageDraw.Draw(sheet)
     for index, people in enumerate(PEOPLES):
         armour = json.loads((ASSETS / "geo/armor" / (people + ".geo.json")).read_text(

@@ -1,0 +1,15 @@
+{
+  "display_name": "villagepax.building.yamato.brewery",
+  "role": "workplace",
+  "profession": "villagepax:brewer",
+  "min_level": "village",
+  "crafts": [
+    {
+      "from": {
+        "minecraft:wheat": 3
+      },
+      "to": "villagepax:ale",
+      "count": 1
+    }
+  ]
+}

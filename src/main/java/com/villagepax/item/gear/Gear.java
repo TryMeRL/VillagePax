@@ -30,7 +30,10 @@ import net.minecraft.sound.SoundEvents;
  *   <li><b>эльфы</b> — лунный клинок: метит добычу светом, а ночью
  *       возвращает силы; листовая кольчуга — лёгкость падения;</li>
  *   <li><b>северяне</b> — бородовидная секира: морозит, как вьюга; мех —
- *       ярость берсерка, когда силы на исходе, и холод им не страшен.</li>
+ *       ярость берсерка, когда силы на исходе, и холод им не страшен;</li>
+ *   <li><b>ямато</b> — катана: чистый разрез ослабляет врага, и над ним летят
+ *       лепестки вишни; доспех самурая — в сосредоточении (крадучись)
+ *       силы возвращаются.</li>
  * </ul>
  */
 public enum Gear {
@@ -51,7 +54,10 @@ public enum Gear {
             new GearToolMaterial(520, 6.0f, 2.0f, 2, 26, Items.AMETHYST_SHARD), "moon_blade"),
     NORD("nord", new GearArmorMaterial("nord", 20, new int[]{2, 6, 5, 2}, 12,
             SoundEvents.ITEM_ARMOR_EQUIP_IRON, 1.5f, 0.05f, Items.IRON_INGOT),
-            new GearToolMaterial(700, 6.5f, 3.0f, 2, 14, Items.IRON_INGOT), "bearded_axe");
+            new GearToolMaterial(700, 6.5f, 3.0f, 2, 14, Items.IRON_INGOT), "bearded_axe"),
+    YAMATO("yamato", new GearArmorMaterial("yamato", 18, new int[]{2, 5, 6, 2}, 15,
+            SoundEvents.ITEM_ARMOR_EQUIP_IRON, 1.0f, 0.0f, Items.IRON_INGOT),
+            new GearToolMaterial(560, 6.0f, 2.0f, 2, 18, Items.IRON_INGOT), "katana");
 
     /** Как часто проверяется полный набор: раз в секунду, как маяк. */
     public static final int CHECK_EVERY = 20;
@@ -133,6 +139,14 @@ public enum Gear {
                 }
                 give(target, StatusEffects.SLOWNESS, 40, 0);
             }
+            case YAMATO -> {
+                give(target, StatusEffects.WEAKNESS, 60, 0);
+                if (target.getWorld() instanceof net.minecraft.server.world.ServerWorld world) {
+                    world.spawnParticles(net.minecraft.particle.ParticleTypes.CHERRY_LEAVES,
+                            target.getX(), target.getBodyY(0.6), target.getZ(), 14,
+                            0.4, 0.4, 0.4, 0.02);
+                }
+            }
         }
     }
 
@@ -179,6 +193,11 @@ public enum Gear {
                 wearer.setFrozenTicks(0);
                 if (wearer.getHealth() <= wearer.getMaxHealth() / 2) {
                     give(wearer, StatusEffects.STRENGTH, BONUS_TICKS, 0);
+                }
+            }
+            case YAMATO -> {
+                if (wearer.isSneaking()) {
+                    give(wearer, StatusEffects.REGENERATION, BONUS_TICKS, 0);
                 }
             }
         }

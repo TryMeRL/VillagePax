@@ -1,0 +1,22 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:yamato",
+  "min_reputation": 70,
+  "objectives": [
+    {
+      "type": "friendship",
+      "culture": "villagepax:elf",
+      "trust": 20
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 25
+    },
+    {
+      "type": "settler"
+    }
+  ],
+  "dialogue": "villagepax.quest.yamato_founding_6"
+}

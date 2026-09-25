@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:yamato",
+  "display_name": "villagepax.god.yamato.inari",
+  "domain": "harvest",
+  "offerings": {
+    "minecraft:wheat": 1,
+    "minecraft:bread": 3,
+    "minecraft:cooked_salmon": 4,
+    "villagepax:ale": 9
+  },
+  "artifact": "villagepax:sickle_of_plenty"
+}

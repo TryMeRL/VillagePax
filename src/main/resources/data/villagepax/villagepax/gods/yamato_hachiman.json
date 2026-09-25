@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:yamato",
+  "display_name": "villagepax.god.yamato.hachiman",
+  "domain": "watch",
+  "offerings": {
+    "minecraft:arrow": 1,
+    "minecraft:bamboo": 2,
+    "minecraft:bow": 5,
+    "minecraft:iron_sword": 7
+  },
+  "artifact": "villagepax:watchers_eye"
+}

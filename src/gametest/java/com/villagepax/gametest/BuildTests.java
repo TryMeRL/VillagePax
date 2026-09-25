@@ -1420,13 +1420,17 @@ public class BuildTests extends GameTestSupport {
         // Ратуша рядом со стройкой намеренно: дальше двенадцати блоков
         // билдер не берёт со склада сам, и стройка встала бы по нехватке
         // материалов, а проверяем мы досягаемость.
-        BlockPos hall = context.getAbsolutePos(new BlockPos(8, 9, 8));
+        //
+        // Вся площадка — внутри испытательной клетки: за её краем мир может
+        // быть не загружен, и тело билдера, шагнувшее туда, мир перестаёт
+        // отдавать по опознавателю (см. mayaTempleIsBuiltWithoutStandingInMidair).
+        BlockPos hall = context.getAbsolutePos(new BlockPos(10, 9, 10));
         List<BlockPos> ground = new ArrayList<>();
 
         try {
             // Ровная площадка под здание и вокруг него: билдеру надо где стоять.
-            for (int x = -2; x <= 12; x++) {
-                for (int z = -2; z <= 12; z++) {
+            for (int x = 0; x <= 14; x++) {
+                for (int z = 0; z <= 14; z++) {
                     BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
                     world.setBlockState(at, Blocks.STONE.getDefaultState());
                     ground.add(at);
@@ -1434,7 +1438,7 @@ public class BuildTests extends GameTestSupport {
             }
 
             Settlement colony = colonyWithBuilder(world, manager, hall);
-            BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 9, 0));
+            BlockPos anchor = context.getAbsolutePos(new BlockPos(2, 9, 2));
             Building site = new Building(UUID.randomUUID(), HOUSE_TYPE, 2, anchor,
                     BlockRotation.NONE, BuildProgress.PLANNED, List.of());
             colony.addBuilding(site);
@@ -1442,7 +1446,7 @@ public class BuildTests extends GameTestSupport {
             try {
                 stockFor(world, colony, tall);
                 Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER,
-                        context.getAbsolutePos(new BlockPos(-1, 9, -1)));
+                        context.getAbsolutePos(new BlockPos(1, 9, 1)));
 
                 int stalled = runWorkOnFoot(world, manager, colony, mason, 900);
 

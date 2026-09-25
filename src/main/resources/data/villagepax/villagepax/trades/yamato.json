@@ -1,0 +1,129 @@
+{
+  "culture": "villagepax:yamato",
+  "sells": [
+    {
+      "item": "minecraft:cherry_log",
+      "count": 8,
+      "price": 1
+    },
+    {
+      "item": "minecraft:bamboo",
+      "count": 16,
+      "price": 1
+    },
+    {
+      "item": "minecraft:salmon",
+      "count": 4,
+      "price": 1
+    },
+    {
+      "item": "minecraft:paper",
+      "count": 8,
+      "price": 1
+    },
+    {
+      "item": "minecraft:sweet_berries",
+      "count": 8,
+      "price": 1
+    },
+    {
+      "item": "minecraft:wheat",
+      "count": 12,
+      "price": 1
+    },
+    {
+      "item": "villagepax:paper_lantern",
+      "count": 2,
+      "price": 2
+    },
+    {
+      "item": "minecraft:pink_petals",
+      "count": 8,
+      "price": 1
+    },
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 2,
+      "price": 3,
+      "min_reputation": 15
+    },
+    {
+      "item": "minecraft:bow",
+      "count": 1,
+      "price": 6,
+      "min_reputation": 20
+    },
+    {
+      "item": "villagepax:yamato_helmet",
+      "count": 1,
+      "price": 14,
+      "min_reputation": 45
+    },
+    {
+      "item": "villagepax:yamato_boots",
+      "count": 1,
+      "price": 12,
+      "min_reputation": 45
+    },
+    {
+      "item": "villagepax:yamato_leggings",
+      "count": 1,
+      "price": 20,
+      "min_reputation": 60
+    },
+    {
+      "item": "villagepax:yamato_chestplate",
+      "count": 1,
+      "price": 24,
+      "min_reputation": 80
+    },
+    {
+      "item": "villagepax:yamato_katana",
+      "count": 1,
+      "price": 20,
+      "min_reputation": 45
+    }
+  ],
+  "buys": [
+    {
+      "item": "villagepax:cloth",
+      "count": 2,
+      "price": 5
+    },
+    {
+      "item": "minecraft:bread",
+      "count": 6,
+      "price": 2
+    },
+    {
+      "item": "minecraft:carrot",
+      "count": 12,
+      "price": 1
+    },
+    {
+      "item": "minecraft:coal",
+      "count": 8,
+      "price": 1
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 6,
+      "price": 1
+    },
+    {
+      "item": "minecraft:white_wool",
+      "count": 8,
+      "price": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 2,
+      "price": 2
+    },
+    {
+      "item": "villagepax:ale",
+      "count": 2,
+      "price": 4
+    }
+  ]
+}

@@ -358,6 +358,44 @@ LEGEND = {
     # Ворота в стене, что идёт с запада на восток.
     "ц": ("minecraft:spruce_fence_gate", {"facing": "south", "open": "true",
                                           "in_wall": "false", "powered": "false"}),
+    # --- ямато ---
+    # Тёмная черепица: ступени кровли в четыре стороны, плита свеса, конёк.
+    "α": ("minecraft:deepslate_tile_stairs", {"facing": "north", "half": "bottom",
+                                              "shape": "straight", "waterlogged": "false"}),
+    "β": ("minecraft:deepslate_tile_stairs", {"facing": "south", "half": "bottom",
+                                              "shape": "straight", "waterlogged": "false"}),
+    "γ": ("minecraft:deepslate_tile_stairs", {"facing": "east", "half": "bottom",
+                                              "shape": "straight", "waterlogged": "false"}),
+    "ε": ("minecraft:deepslate_tile_stairs", {"facing": "west", "half": "bottom",
+                                              "shape": "straight", "waterlogged": "false"}),
+    "δ": ("minecraft:deepslate_tiles", {}),
+    "ζ": ("minecraft:deepslate_tile_slab", {"type": "bottom", "waterlogged": "false"}),
+    # Сёдзи — бумажная ширма: белое матовое стекло в раме.
+    "θ": ("minecraft:white_stained_glass_pane", {"north": "false", "south": "false",
+                                                 "east": "false", "west": "false",
+                                                 "waterlogged": "false"}),
+    # Киноварь тории и столбов усадьбы: ошкуренная мангровая древесина красна сама.
+    "λ": ("minecraft:stripped_mangrove_log", {"axis": "y"}),
+    "μ": ("minecraft:stripped_mangrove_log", {"axis": "x"}),
+    "ξ": ("minecraft:cherry_sapling", {"stage": "0"}),
+    "π": ("minecraft:cherry_planks", {}),
+    "σ": ("minecraft:cherry_fence", {"north": "false", "east": "false", "south": "false",
+                                     "west": "false", "waterlogged": "false"}),
+    "φ": ("minecraft:cherry_fence_gate", {"facing": "east", "open": "true",
+                                          "in_wall": "false", "powered": "false"}),
+    "Φ": ("minecraft:cherry_fence_gate", {"facing": "south", "open": "true",
+                                          "in_wall": "false", "powered": "false"}),
+    "ψ": ("villagepax:paper_lantern", {"hanging": "true", "waterlogged": "false"}),
+    # Каменный фонарь-торо: столбик стены и фонарь поверх.
+    "ω": ("minecraft:stone_brick_wall", {"east": "none", "north": "none", "south": "none",
+                                         "west": "none", "up": "true", "waterlogged": "false"}),
+    # Футон: белая постель прямо на полу.
+    "и": ("minecraft:white_bed", {"facing": "south", "part": "foot", "occupied": "false"}),
+    "й": ("minecraft:white_bed", {"facing": "south", "part": "head", "occupied": "false"}),
+    "я": ("minecraft:cherry_leaves", {"distance": "7", "persistent": "true",
+                                      "waterlogged": "false"}),
+    "ч": ("minecraft:pink_petals", {"facing": "north", "flower_amount": "4"}),
+    "д": ("minecraft:gravel", {}),
     "D": ("villagepax:marker_door", {}),
     "K": ("villagepax:marker_workstation", {}),
     "S": ("villagepax:marker_storage", {}),
@@ -632,7 +670,7 @@ SIDES = {"north": (0, -1), "south": (0, 1), "west": (-1, 0), "east": (1, 0)}
 OPPOSITE = {"north": "south", "south": "north", "west": "east", "east": "west"}
 
 # Что считается стеной, к которой прислоняют полку: несущее, а не убранство.
-WALLS = set("WXBHZPMCRVTaiuj{}-?|/omNIG+" "лжзеб")
+WALLS = set("WXBHZPMCRVTaiuj{}-?|/omNIG+" "лжзеб" "δθλμπ")
 
 
 def orient(layers, x, y, z, block_id, properties):
@@ -2195,7 +2233,7 @@ MAYA_WATCHTOWER = [
 # здание без света, забытое исключение — уронит факел на пол.
 # Кириллица — ель северян и кирпич трубы: они такие же глухие, как их
 # латинские соседи, и без них факел не нашёл бы стены в срубе.
-SOLID = set("CdBHZWXMPARVTiuja#123456789nsewomNI[]_-?|/{}" "лжзенюпб")
+SOLID = set("CdBHZWXMPARVTiuja#123456789nsewomNI[]_-?|/{}" "лжзенюпб" "αβγεδζπλμд")
 
 # Куда смотрит факел, прислонённый к стене с этой стороны.
 # Стена на севере — факел смотрит на юг: он торчит ОТ стены, а не в неё.
@@ -3753,6 +3791,591 @@ NORD_SHRINE[-1] = [row if z != 3 else "ф..л..ф" for z, row in enumerate(NORD_
 NORD_SHRINE.append(["...t..." if z == 3 else "......." for z in range(7)])
 
 
+# ======================= ЯМАТО: СЕДЬМОЙ НАРОД =======================
+#
+# Народ цветущей вишни. Узнаётся издалека по кровле: тяжёлая тёмная
+# черепица ступенями к коньку, тонкий свес по краю и приподнятые углы —
+# та самая линия японской крыши, которую не спутать ни с чем. Под свесом —
+# веранда-энгава на столбах вокруг всего дома, стены — белая штукатурка
+# в тёмной раме и бумажные ширмы-сёдзи, внутри — футоны и очаг-ирори
+# с фонарём над ним. У святилища — красные тории, у ратуши — сад камней
+# и пруд, дозорная — двухъярусная пагода.
+#
+# Греческие буквы в легенде нарочно: латиница и кириллица кончились,
+# а у греческих двойников с ними почти нет (ο, ν, κ, ρ, τ, υ, χ не берутся).
+
+def _ring(x, z, width, depth, inset):
+    """Номер кольца клетки, считая от кольца inset: 0 — на нём, меньше — снаружи."""
+    return min(x - inset, z - inset, width - 1 - inset - x, depth - 1 - inset - z)
+
+
+def beam_at(x, z, width, depth, inset):
+    """Балка обвязки на кольце inset: столб в углу, лежень вдоль стены."""
+    lo_x, hi_x, lo_z, hi_z = inset, width - 1 - inset, inset, depth - 1 - inset
+    if x in (lo_x, hi_x) and z in (lo_z, hi_z):
+        return "B"
+    return "H" if z in (lo_z, hi_z) else "Z"
+
+
+def tile_roof(width, depth, inset=0, ceiling="P"):
+    """Черепичная вальмовая кровля с загнутыми углами.
+
+    Первый слой — тонкий свес из плит по краю, под ним лежень на стене
+    и потолок комнаты. Дальше — кольца ступеней к коньку, а на углах
+    свеса лежит ещё одна плита, на слой выше: угол крыши задирается
+    вверх, и это одна-единственная деталь, по которой кровлю ямато
+    узнают с другого края долины.
+    """
+    layers = []
+    rows = []
+    for z in range(depth):
+        row = ""
+        for x in range(width):
+            k = _ring(x, z, width, depth, inset)
+            if k < 0:
+                row += "."
+            elif k == 0:
+                row += "ζ"
+            elif k == 1:
+                row += beam_at(x, z, width, depth, inset + 1)
+            else:
+                row += ceiling
+        rows.append(row)
+    layers.append(rows)
+    level = 1
+    while True:
+        k0 = inset + level
+        lo_x, hi_x, lo_z, hi_z = k0, width - 1 - k0, k0, depth - 1 - k0
+        if lo_x > hi_x or lo_z > hi_z:
+            break
+        rows = []
+        for z in range(depth):
+            row = ""
+            for x in range(width):
+                corner = x in (inset, width - 1 - inset) and z in (inset, depth - 1 - inset)
+                edge = lo_x <= x <= hi_x and lo_z <= z <= hi_z and (
+                    x in (lo_x, hi_x) or z in (lo_z, hi_z))
+                if level == 1 and corner:
+                    row += "ζ"
+                elif edge:
+                    if lo_x == hi_x and lo_z == hi_z:
+                        row += "δ"
+                    elif lo_z == hi_z:
+                        row += "γ" if x == lo_x else ("ε" if x == hi_x else "δ")
+                    elif lo_x == hi_x:
+                        row += "β" if z == lo_z else ("α" if z == hi_z else "δ")
+                    elif z == lo_z:
+                        row += "β"
+                    elif z == hi_z:
+                        row += "α"
+                    elif x == lo_x:
+                        row += "γ"
+                    else:
+                        row += "ε"
+                else:
+                    row += "."
+            rows.append(row)
+        layers.append(rows)
+        level += 1
+    return layers
+
+
+def _grid(width, depth, fill="."):
+    return [[fill] * width for _ in range(depth)]
+
+
+def _rows(grid):
+    return ["".join(row) for row in grid]
+
+
+def shoji_walls(width, depth, inset, level, door=None, windows=(), lower="X"):
+    """Слой стен на кольце inset: тёмные столбы по углам, штукатурка, сёдзи."""
+    grid = _grid(width, depth)
+    lo_x, hi_x, lo_z, hi_z = inset, width - 1 - inset, inset, depth - 1 - inset
+    for z in range(lo_z, hi_z + 1):
+        for x in range(lo_x, hi_x + 1):
+            if not (x in (lo_x, hi_x) or z in (lo_z, hi_z)):
+                continue
+            if x in (lo_x, hi_x) and z in (lo_z, hi_z):
+                grid[z][x] = "B"
+            elif (x, z) == door:
+                grid[z][x] = "D" if level == 1 else "."
+            elif (x, z) in windows:
+                grid[z][x] = "θ"
+            else:
+                grid[z][x] = lower if level == 1 else "X"
+    return grid
+
+
+def minka(width, depth, inset, ground, upper, door, windows=(), posts="B",
+          lanterns=(), extra_posts=(), lower="X", deck="P"):
+    """Дом ямато: помост, стены, обвязка и черепичная кровля.
+
+    inset — кольцо стен: 1 — с верандой вокруг, 0 — без неё (малые дома).
+    ground и upper — ряды комнаты внутри стен на первом и втором венце.
+    """
+    layers = [[deck * width] * depth]
+    for level, interior in ((1, ground), (2, upper)):
+        grid = shoji_walls(width, depth, inset, level, door, windows, lower)
+        for dz, row in enumerate(interior):
+            for dx, ch in enumerate(row):
+                grid[inset + 1 + dz][inset + 1 + dx] = ch
+        if inset >= 1:
+            for x, z in ((0, 0), (width - 1, 0), (0, depth - 1), (width - 1, depth - 1)):
+                grid[z][x] = posts
+            for x, z in extra_posts:
+                grid[z][x] = posts
+        layers.append(_rows(grid))
+    grid = _grid(width, depth)
+    for z in range(depth):
+        for x in range(width):
+            if _ring(x, z, width, depth, inset) == 0:
+                grid[z][x] = beam_at(x, z, width, depth, inset)
+    if inset >= 1:
+        for x, z in ((0, 0), (width - 1, 0), (0, depth - 1), (width - 1, depth - 1)):
+            grid[z][x] = posts
+        for x, z in extra_posts:
+            grid[z][x] = posts
+    for x, z in lanterns:
+        grid[z][x] = "ψ"
+    layers.append(_rows(grid))
+    return layers + tile_roof(width, depth, 0)
+
+
+def upstairs(base, width, depth, floor_hole, ground, upper, windows=(), lanterns=(),
+             posts="B", extra_posts=()):
+    """Второй этаж дома с верандой: юбка-свес вокруг первого и свой ярус кровли.
+
+    Низ дома — как был: первые три слоя берутся целиком. Над ним ложится
+    перекрытие с лазом, а свес первой кровли становится юбкой вокруг
+    второго этажа, как у городских домов-матия.
+    """
+    layers = [list(layer) for layer in base[:3]]
+    grid = _grid(width, depth)
+    for z in range(depth):
+        for x in range(width):
+            ring = _ring(x, z, width, depth, 1)
+            if ring == 0:
+                grid[z][x] = beam_at(x, z, width, depth, 1)
+            elif ring > 0:
+                grid[z][x] = "P"
+    for x, z in ((0, 0), (width - 1, 0), (0, depth - 1), (width - 1, depth - 1)) + tuple(extra_posts):
+        grid[z][x] = posts
+    x, z, rung = floor_hole
+    grid[z][x] = rung
+    layers.append(_rows(grid))
+    for level, interior in ((1, ground), (2, upper)):
+        grid = shoji_walls(width, depth, 1, 2, None, windows)
+        for dz, row in enumerate(interior):
+            for dx, ch in enumerate(row):
+                grid[2 + dz][2 + dx] = ch
+        for zz in range(depth):
+            for xx in range(width):
+                if _ring(xx, zz, width, depth, 0) == 0:
+                    corner = xx in (0, width - 1) and zz in (0, depth - 1)
+                    if level == 1:
+                        grid[zz][xx] = "ζ"
+                    elif corner:
+                        grid[zz][xx] = "ζ"
+        layers.append(_rows(grid))
+    grid = _grid(width, depth)
+    for z in range(depth):
+        for x in range(width):
+            if _ring(x, z, width, depth, 1) == 0:
+                grid[z][x] = beam_at(x, z, width, depth, 1)
+    for x, z in lanterns:
+        grid[z][x] = "ψ"
+    layers.append(_rows(grid))
+    return layers + tile_roof(width, depth, 1)
+
+
+def extend_south(base, rows_by_layer):
+    """Пристроить ряды с юга: низ не трогается, след растёт только на юг."""
+    width = len(base[0][0])
+    extra = len(next(iter(rows_by_layer.values())))
+    layers = [list(layer) + ["." * width] * extra for layer in base]
+    for y, rows in rows_by_layer.items():
+        layers[y][-extra:] = rows
+    return layers
+
+
+# --- минка, уровень 1: дом с верандой 9x9 ---
+#
+# Вход посередине, за ним очаг-ирори с фонарём на цепи. Слева футоны,
+# справа низкий столик с подушкой и полка.
+YAMATO_HOUSE = minka(
+    9, 9, 1,
+    ["ии.:S",
+     "йй.%;",
+     "..c..",
+     "O...O",
+     "....."],
+    [".....",
+     ".....",
+     ".....",
+     ".....",
+     "....."],
+    door=(4, 1), windows=((2, 1), (6, 1), (1, 3), (1, 5), (7, 3), (7, 5), (3, 7), (5, 7)),
+    lanterns=((4, 4),))
+
+# --- минка, уровень 2: второй этаж под своей кровлей ---
+YAMATO_HOUSE_2 = upstairs(
+    YAMATO_HOUSE, 9, 9, (2, 6, "x"),
+    ["ии..S",
+     "йй...",
+     ".....",
+     "....O",
+     "....."],
+    [".....",
+     ".....",
+     ".....",
+     ".....",
+     "....."],
+    windows=((3, 1), (5, 1), (3, 7), (5, 7), (1, 4), (7, 4)),
+    lanterns=((5, 5),))
+for _y in (1, 2):
+    _row = list(YAMATO_HOUSE_2[_y][6])
+    _row[2] = "x"
+    YAMATO_HOUSE_2[_y][6] = "".join(_row)
+
+# --- усадьба даймё, уровень 1: зал на красных столбах ---
+YAMATO_TOWN_HALL = minka(
+    9, 9, 1,
+    ["O...S",
+     "=...=",
+     "..c..",
+     "=...=",
+     "O.K.E"],
+    [".....",
+     ".....",
+     ".....",
+     ".....",
+     "....."],
+    door=(4, 1), windows=((2, 1), (6, 1), (1, 3), (1, 5), (7, 3), (7, 5), (3, 7), (5, 7)),
+    posts="λ", extra_posts=((3, 0), (5, 0)),
+    lanterns=((3, 3), (5, 3), (3, 5), (5, 5)))
+
+# --- усадьба, уровень 2: верхние покои ---
+YAMATO_TOWN_HALL_2 = upstairs(
+    YAMATO_TOWN_HALL, 9, 9, (2, 4, "x"),
+    ["ии.SS",
+     "йй...",
+     ".....",
+     "....O",
+     "O...."],
+    [".....",
+     ".....",
+     ".....",
+     ".....",
+     "....."],
+    windows=((3, 1), (5, 1), (3, 7), (5, 7), (1, 6), (7, 4)),
+    lanterns=((5, 5),), posts="λ", extra_posts=((3, 0), (5, 0)))
+for _y in (1, 2):
+    _row = list(YAMATO_TOWN_HALL_2[_y][4])
+    _row[2] = "x"
+    YAMATO_TOWN_HALL_2[_y][4] = "".join(_row)
+
+# --- усадьба, уровень 3: сад камней за домом ---
+#
+# Материалов у сада нарочно мало: гравий, камень, вишня и фонари. Всё,
+# что приносят на стройку, должно лечь в один сундук, — ратуша норманнов
+# однажды уже упиралась в это, и новый вид блока ради одной клетки —
+# это недостроенная столица.
+YAMATO_TOWN_HALL_3 = extend_south(YAMATO_TOWN_HALL_2, {
+    0: ["ддддддддд",
+        "ддддддддд",
+        "ддддддддд"],
+    1: ["ω.δ...δ.ω",
+        "ω.я...я.ω",
+        "ωωωωωωωωω"],
+    2: ["t.......t",
+        ".........",
+        "t.......t"],
+})
+
+# --- усадьба, уровень 4: пруд с мостиком — столица ---
+YAMATO_TOWN_HALL_4 = extend_south(YAMATO_TOWN_HALL_3, {
+    0: ["ддддддддд",
+        "д~~~P~~~д",
+        "ддддддддд"],
+    1: ["ω.......ω",
+        "ω..λ.λ..ω",
+        "ωωωωωωωωω"],
+    2: ["t.......t",
+        ".........",
+        "t.......t"],
+})
+# Проём в стене сада — к пруду. Проём, а не калитка: калитка считалась бы
+# входом в здание, а ведёт она из сада в сад.
+_gate = list(YAMATO_TOWN_HALL_4[1][11])
+_gate[4] = "."
+YAMATO_TOWN_HALL_4[1][11] = "".join(_gate)
+
+# --- рисовое поле: чеки с водой крестом ---
+YAMATO_FARM = [
+    ["ddddddd"] * 7,
+    ["ddddddd",
+     "dFF~FFd",
+     "dFF~FFd",
+     "d~~d~~d",
+     "dFF~FFd",
+     "dFF~FFd",
+     "ddddddd"],
+    ["σσσσσσσ",
+     "φ**.**σ",
+     "σ**.**σ",
+     "σ..K..σ",
+     "σ**.**σ",
+     "σ**.**σ",
+     "σσσσσσσ"],
+    ["t.....t",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     "t.....t"],
+]
+
+YAMATO_FARM_2 = [
+    ["ddddddddd"] * 9,
+    ["ddddddddd",
+     "dFF~FFdFd",
+     "dFF~FFdFd",
+     "d~~d~~d~d",
+     "dFF~FFdFd",
+     "dFF~FFdFd",
+     "ddddddd~d",
+     "dFFFFFF~d",
+     "ddddddddd"],
+    ["σσσσσσσσσ",
+     "φ**.**.*σ",
+     "σ**.**.*σ",
+     "σ..K....σ",
+     "σ**.**.*σ",
+     "σ**.**.*σ",
+     "σ.......σ",
+     "σ******.σ",
+     "σσσσσσσσσ"],
+    ["t.......t",
+     ".........",
+     ".........",
+     ".........",
+     ".........",
+     ".........",
+     ".........",
+     ".........",
+     "t.......t"],
+]
+
+# --- лесоруб: мастерская у вишнёвой рощи ---
+_YAMATO_HUT = minka(5, 5, 0,
+                    ["K.S",
+                     "...",
+                     ".O."],
+                    ["...",
+                     "...",
+                     "..."],
+                    door=(2, 0), windows=((0, 2), (4, 2), (2, 4)), lanterns=((1, 1),))
+_GROVE = {
+    0: ["ddddd"] * 5,
+    1: ["σσσσσ",
+        "σξ.ξσ",
+        "σ.O.φ",
+        "σξ.ξσ",
+        "σσσσσ"],
+    2: ["t...t",
+        ".....",
+        ".....",
+        ".....",
+        "t...t"],
+}
+YAMATO_LUMBERJACK = []
+for _y, _layer in enumerate(_YAMATO_HUT):
+    _side = _GROVE.get(_y, ["....."] * 5)
+    YAMATO_LUMBERJACK.append([_layer[_z] + _side[_z] for _z in range(5)])
+YAMATO_LUMBERJACK[0] = ["MMMMM" + "ddddd"] * 5
+
+# --- кура: белый склад на тёмном цоколе ---
+#
+# Нижний венец — тёмная черепица по стене, как «намако» старых складов,
+# выше — белая штукатурка с крошечными окнами: кура хранит рис от пожара.
+YAMATO_WAREHOUSE = minka(
+    7, 5, 0,
+    ["S...S",
+     "..O..",
+     "S...S"],
+    [".....",
+     ".....",
+     "....."],
+    door=(3, 0), windows=((1, 4), (5, 4)), lower="δ", lanterns=((3, 2),))
+
+YAMATO_BUILDER_HUT = minka(5, 5, 0,
+                           ["K.S",
+                            "...",
+                            "S.O"],
+                           ["...",
+                            "...",
+                            "..."],
+                           door=(2, 0), windows=((0, 2), (4, 2), (2, 4)), lanterns=((1, 1),))
+
+# Сакэварня: котёл, бочки — и бочка на бочке.
+YAMATO_BREWERY = minka(5, 5, 0,
+                       [".K.",
+                        "0.O",
+                        "S.v"],
+                       ["...",
+                        "...",
+                        "..v"],
+                       door=(2, 0), windows=((0, 2), (4, 2)), lanterns=((1, 1),))
+
+# Шёлковая мастерская: станок и белая шерсть-шёлк.
+YAMATO_WEAVERY = minka(5, 5, 0,
+                       [".K.",
+                        "@..",
+                        "S.#"],
+                       ["...",
+                        "...",
+                        "..."],
+                       door=(2, 0), windows=((0, 2), (4, 2), (2, 4)), lanterns=((1, 1),))
+
+# --- лавка и торговая улица: открытые навесы под черепицей ---
+YAMATO_MARKET_STALL = [
+    ["PPPPP"] * 5,
+    ["BXXXB",
+     "..K..",
+     ".S.O.",
+     ".....",
+     "B.D.B"],
+    ["BXXXB",
+     ".....",
+     ".....",
+     ".....",
+     "B...B"],
+    ["BHHHB",
+     "Zψ.ψZ",
+     "Z...Z",
+     "Z...Z",
+     "BHHHB"],
+] + tile_roof(5, 5, 0)
+
+YAMATO_MARKET = [
+    ["PPPPPPP"] * 7,
+    ["BXXXXXB",
+     "..K.K..",
+     ".S...S.",
+     ".O...O.",
+     ".......",
+     ".......",
+     "B..D..B"],
+    ["BXXXXXB",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     "B.....B"],
+    ["BHHHHHB",
+     "Z.ψ.ψ.Z",
+     "Z.....Z",
+     "Z.....Z",
+     "Z.....Z",
+     "Z.ψ.ψ.Z",
+     "BHHHHHB"],
+] + tile_roof(7, 7, 0)
+
+# --- пагода: дозор в два яруса ---
+#
+# Нижний ярус — закрытая комната с лестницей, над ним юбка черепицы
+# с задранными углами, выше — открытая галерея дозорного под второй,
+# главной кровлей, и шпиль-сорин над коньком.
+YAMATO_WATCHTOWER = [
+    ["MMMMMMM"] * 7,
+    ["M......",
+     ".BXDXB.",
+     ".X...X.",
+     ".Xx..X.",
+     ".X...X.",
+     ".BXXXB.",
+     "......."],
+    ["M......",
+     ".BX.XB.",
+     ".θ...θ.",
+     ".Xx..X.",
+     ".θ...θ.",
+     ".BXθXB.",
+     "......."],
+    [".......",
+     ".BHHHB.",
+     ".Z...Z.",
+     ".Zx..Z.",
+     ".Z.ψ.Z.",
+     ".BHHHB.",
+     "......."],
+    ["βββββββ",
+     "γBHHHBε",
+     "γZPPPZε",
+     "γZxPPZε",
+     "γZPPPZε",
+     "γBHHHBε",
+     "ααααααα"],
+    ["ζ.....ζ",
+     ".BσσσB.",
+     ".σ...σ.",
+     ".σ.K.σ.",
+     ".σ...σ.",
+     ".BσσσB.",
+     "ζ.....ζ"],
+    [".......",
+     ".B...B.",
+     ".......",
+     ".......",
+     "....ψ..",
+     ".B...B.",
+     "......."],
+] + tile_roof(7, 7, 0)
+YAMATO_WATCHTOWER[0] = ["MMMMMMM"] * 7
+YAMATO_WATCHTOWER[1][0] = "......."
+YAMATO_WATCHTOWER[2][0] = "......."
+YAMATO_WATCHTOWER.append(["......."] * 3 + ["...ω..."] + ["......."] * 3)
+
+# --- святилище: тории, каменные фонари и зал на помосте ---
+_SHRINE_HALL = minka(
+    9, 9, 1,
+    ["=...=",
+     "=...=",
+     ".....",
+     ".....",
+     "O.$.O"],
+    [".....",
+     ".....",
+     ".....",
+     ".....",
+     "....."],
+    door=(4, 1), windows=((2, 1), (6, 1), (1, 4), (7, 4)),
+    posts="λ", lanterns=((3, 5), (5, 5)))
+# Нижняя балка тории — на четвёртом слое, а не на третьем: проход под ней
+# в рост с запасом, и проверка входа не принимает её за стену.
+_TORII = {
+    0: ["ддддддддд",
+        "ддддддддд"],
+    1: ["..λ...λ..",
+        "ω.......ω"],
+    2: ["..λ...λ..",
+        "t.......t"],
+    3: ["..λ...λ..",
+        "........."],
+    4: ["..λμμμλ..",
+        "........."],
+    5: [".μμμμμμμ.",
+        "........."],
+    6: ["ζζζζζζζζζ",
+        "........."],
+}
+YAMATO_SHRINE = [_TORII.get(_y, ["........."] * 2) + list(_layer)
+                 for _y, _layer in enumerate(_SHRINE_HALL)]
+
+
 RAW_SCHEMATICS = {
     "norman/town_hall_lvl1": NORMAN_TOWN_HALL,
     "norman/town_hall_lvl2": NORMAN_TOWN_HALL_2,
@@ -3822,6 +4445,23 @@ RAW_SCHEMATICS = {
     "nord/market_lvl1": NORD_MARKET,
     "nord/watchtower_lvl1": NORD_WATCHTOWER,
     "nord/shrine_lvl1": NORD_SHRINE,
+    "yamato/town_hall_lvl1": YAMATO_TOWN_HALL,
+    "yamato/town_hall_lvl2": YAMATO_TOWN_HALL_2,
+    "yamato/town_hall_lvl3": YAMATO_TOWN_HALL_3,
+    "yamato/town_hall_lvl4": YAMATO_TOWN_HALL_4,
+    "yamato/house_lvl1": YAMATO_HOUSE,
+    "yamato/house_lvl2": YAMATO_HOUSE_2,
+    "yamato/farm_lvl1": YAMATO_FARM,
+    "yamato/farm_lvl2": YAMATO_FARM_2,
+    "yamato/lumberjack_lvl1": YAMATO_LUMBERJACK,
+    "yamato/warehouse_lvl1": YAMATO_WAREHOUSE,
+    "yamato/builder_hut_lvl1": YAMATO_BUILDER_HUT,
+    "yamato/brewery_lvl1": YAMATO_BREWERY,
+    "yamato/weavery_lvl1": YAMATO_WEAVERY,
+    "yamato/market_stall_lvl1": YAMATO_MARKET_STALL,
+    "yamato/market_lvl1": YAMATO_MARKET,
+    "yamato/watchtower_lvl1": YAMATO_WATCHTOWER,
+    "yamato/shrine_lvl1": YAMATO_SHRINE,
     "dwarf/town_hall_lvl1": DWARF_TOWN_HALL,
     "dwarf/town_hall_lvl2": DWARF_TOWN_HALL_2,
     "dwarf/town_hall_lvl3": DWARF_TOWN_HALL_3,
@@ -3960,6 +4600,10 @@ def main():
                       ("nord/town_hall_lvl1", "nord/town_hall_lvl2"),
                       ("nord/house_lvl1", "nord/house_lvl2"),
                       ("nord/farm_lvl1", "nord/farm_lvl2"),
+                      ("yamato/town_hall_lvl1", "yamato/town_hall_lvl2"),
+                      ("yamato/house_lvl1", "yamato/house_lvl2"),
+                      ("yamato/farm_lvl1", "yamato/farm_lvl2"),
+                      ("yamato/town_hall_lvl3", "yamato/town_hall_lvl4"),
                       ("dwarf/town_hall_lvl1", "dwarf/town_hall_lvl2"),
                       ("dwarf/town_hall_lvl3", "dwarf/town_hall_lvl4"),
                       ("dwarf/house_lvl1", "dwarf/house_lvl2"),

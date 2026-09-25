@@ -1,0 +1,22 @@
+{
+  "giver": "villagepax:guard",
+  "culture": "villagepax:yamato",
+  "min_reputation": 20,
+  "objectives": [
+    {
+      "type": "build",
+      "workplace": "villagepax:yamato/watchtower",
+      "level": 1
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 20
+    },
+    {
+      "type": "settler"
+    }
+  ],
+  "dialogue": "villagepax.quest.yamato_watcher_2"
+}

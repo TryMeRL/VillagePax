@@ -74,7 +74,9 @@ public final class Streetscape {
         /** Радуга из шерсти над водой — пони. */
         RAINBOW,
         /** Двускатный навес с рогами на коньке — северяне. */
-        GABLE
+        GABLE,
+        /** Черепичный шатёр с загнутыми углами — ямато. */
+        PAGODA
     }
 
     /** Цвета радуги по кругу навеса, с запада на север и дальше посолонь. */
@@ -97,6 +99,12 @@ public final class Streetscape {
             List.of(Blocks.PINK_TULIP, Blocks.AZURE_BLUET, Blocks.CORNFLOWER, Blocks.OXEYE_DAISY,
                     Blocks.ALLIUM),
             Canopy.RAINBOW);
+
+    private static final Palette YAMATO = new Palette(Blocks.MOSSY_STONE_BRICKS,
+            Blocks.CHERRY_FENCE, Blocks.DEEPSLATE_TILE_SLAB, ModBlocks.PAPER_LANTERN,
+            Blocks.CHERRY_SIGN, List.of(Blocks.PINK_TULIP, Blocks.WHITE_TULIP, Blocks.AZURE_BLUET,
+                    Blocks.LILY_OF_THE_VALLEY, Blocks.ALLIUM),
+            Canopy.PAGODA);
 
     private static final Palette NORD = new Palette(Blocks.COBBLESTONE, Blocks.SPRUCE_FENCE,
             Blocks.SPRUCE_SLAB, Blocks.LANTERN, Blocks.SPRUCE_SIGN,
@@ -169,6 +177,7 @@ public final class Streetscape {
             case "maya" -> MAYA;
             case "pony" -> PONY;
             case "nord" -> NORD;
+            case "yamato" -> YAMATO;
             default -> NORMAN;
         };
     }
@@ -224,12 +233,13 @@ public final class Streetscape {
     /**
      * Какие животные у кого стоят у коновязи. Деревня без скотины — декорация:
      * у пони у столба кони, у норманнов овцы, у майя попугаи-ара, у северян
-     * ездовые волки. Гномы и эльфы живут не на площади под небом, их улицы
-     * не убираются, и коновязи у них нет.
+     * ездовые волки, у ямато — лисы, посланницы Инари. Гномы и эльфы живут
+     * не на площади под небом, их улицы не убираются, и коновязи у них нет.
      */
     private static final java.util.Map<String, EntityType<? extends MobEntity>> HERDS =
             java.util.Map.of("norman", EntityType.SHEEP, "maya", EntityType.PARROT,
-                    "pony", EntityType.HORSE, "nord", EntityType.WOLF);
+                    "pony", EntityType.HORSE, "nord", EntityType.WOLF,
+                    "yamato", EntityType.FOX);
 
     /** Сколько животных у одного столба: пара, чтобы было не одиноко. */
     private static final int HERD = 2;
@@ -301,6 +311,10 @@ public final class Streetscape {
         BlockState roof = switch (palette.canopy()) {
             case RAINBOW -> dx == 0 && dz == 0 ? Blocks.PINK_WOOL.getDefaultState()
                     : RAINBOW.get(rainbowIndex(dx, dz)).getDefaultState();
+            case PAGODA -> dx == 0 && dz == 0 ? Blocks.DEEPSLATE_TILES.getDefaultState()
+                    : Blocks.DEEPSLATE_TILE_STAIRS.getDefaultState().with(StairsBlock.FACING,
+                    dz < 0 ? Direction.SOUTH : dz > 0 ? Direction.NORTH
+                            : dx < 0 ? Direction.EAST : Direction.WEST);
             case GABLE -> dz == 0 ? palette.slab().getDefaultState()
                     : Blocks.SPRUCE_STAIRS.getDefaultState().with(StairsBlock.FACING,
                     dz < 0 ? Direction.SOUTH : Direction.NORTH);
@@ -309,6 +323,11 @@ public final class Streetscape {
         put(world, manager, village, ring.up(3), roof);
         if (palette.canopy() == Canopy.GABLE && dz == 0 && dx != 0) {
             put(world, manager, village, ring.up(4), palette.fence().getDefaultState());
+        }
+        // Углы шатра задраны вверх плитой — та же линия, что у кровель ямато;
+        // над серединой — плита-навершие.
+        if (palette.canopy() == Canopy.PAGODA && (corner || (dx == 0 && dz == 0))) {
+            put(world, manager, village, ring.up(4), palette.slab().getDefaultState());
         }
     }
 

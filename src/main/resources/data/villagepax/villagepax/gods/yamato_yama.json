@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:yamato",
+  "display_name": "villagepax.god.yamato.yama",
+  "domain": "stone",
+  "offerings": {
+    "minecraft:cobblestone": 1,
+    "minecraft:cherry_log": 2,
+    "minecraft:stone_bricks": 4,
+    "minecraft:iron_ingot": 6
+  },
+  "artifact": "villagepax:builders_plumb"
+}

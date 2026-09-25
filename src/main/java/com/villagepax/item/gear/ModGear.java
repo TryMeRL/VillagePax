@@ -58,6 +58,7 @@ public final class ModGear {
             case ELF -> new GearWeapons.Sword(gear, 2, -1.9f, settings);
             case DWARF -> new GearWeapons.Hammer(gear, 6, -3.2f, settings);
             case NORD -> new GearWeapons.Axe(gear, 5.5f, -3.0f, settings);
+            case YAMATO -> new GearWeapons.Sword(gear, 3, -2.2f, settings);
         };
     }
 

@@ -1323,6 +1323,7 @@ abstract class GameTestSupport implements FabricGameTest {
                     mob -> mob.isLeashed() || mob instanceof net.minecraft.entity.passive.ParrotEntity
                             || mob instanceof net.minecraft.entity.passive.SheepEntity
                             || mob instanceof net.minecraft.entity.passive.WolfEntity
+                            || mob instanceof net.minecraft.entity.passive.FoxEntity
                             || mob instanceof net.minecraft.entity.passive.AbstractHorseEntity)
                     .forEach(net.minecraft.entity.Entity::discard);
             world.getEntitiesByClass(net.minecraft.entity.decoration.LeashKnotEntity.class, square,

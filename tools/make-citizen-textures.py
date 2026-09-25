@@ -189,8 +189,27 @@ NORD = {
     "helm": rgb(0x8A9098),
 }
 
+# Ямато — народ цветущей вишни. Волосы чёрные, как тушь; кимоно цвета
+# индиго — краска, которой красили одежду веками; пояс-оби и тесьма —
+# киноварь, тот же красный, что у тории. Шлем стража — чёрный лак.
+YAMATO = {
+    "skin": rgb(0xE8C8A6),
+    "skin_dark": rgb(0xCBA888),
+    "hair": rgb(0x201C22),
+    "hair_dark": rgb(0x0F0D12),
+    "cloth": rgb(0x2E416E),
+    "cloth_dark": rgb(0x223156),
+    "cloth_lit": rgb(0x4A5E92),
+    "trousers": rgb(0x4A4540),
+    "trousers_dark": rgb(0x36322E),
+    "boots": rgb(0x6A5238),
+    "belt": rgb(0xB8322A),
+    "accent": rgb(0xC0392B),
+    "helm": rgb(0x2A2A30),
+}
+
 CULTURES = {"norman": NORMAN, "maya": MAYA, "pony": PONY,
-            "dwarf": DWARF, "elf": ELF, "nord": NORD}
+            "dwarf": DWARF, "elf": ELF, "nord": NORD, "yamato": YAMATO}
 
 # Кто носит бороду. Это про народ, а не про моду: северянин и подгорный
 # с бородой, южанин, степняк и лесной без.
@@ -577,6 +596,29 @@ def draw_braid(skin, look, colour=None):
         skin.band(region[name], look["accent"], top=height - 3, rows=1)
 
 
+def draw_topknot(skin, look, colour=None):
+    """Тёммагэ: тугой узел вдоль темени, чуть темнее волос."""
+    region = REGIONS["topknot"]
+    colour = colour or look["hair"]
+    skin.cube(region, colour)
+    for name in SIDES:
+        skin.strands(region[name], colour, tone(colour, 0.75), tone(colour, 1.2))
+    skin.fill(region["top"], tone(colour, 1.15))
+
+
+def draw_bun(skin, look, colour=None):
+    """Узел на затылке и шпилька-кандзаси с киноварной бусиной."""
+    region = REGIONS["bun"]
+    colour = colour or look["hair"]
+    skin.cube(region, colour)
+    for name in SIDES:
+        skin.strands(region[name], colour, tone(colour, 0.75), tone(colour, 1.2))
+    pin = REGIONS["kanzashi"]
+    skin.cube(pin, GOLD)
+    for name in ("left", "right"):
+        skin.fill(pin[name], look["accent"])
+
+
 def draw_ears(skin, look):
     """Острое ухо: кончик светлее, раковина темнее, у корня прядь."""
     region = REGIONS["ear"]
@@ -766,6 +808,17 @@ def craft_guard(skin, parts, look, woman, people):
                     if dy == 0:
                         colour = GOLD
                     skin.image.putpixel((x + dx, y + dy), colour)
+    if people == "yamato":
+        # Кабуто: золотые рога-кувагата и чёрный нашейник в киноварной шнуровке.
+        crest = REGIONS["kuwagata"]
+        skin.cube(crest, GOLD)
+        for name in SIDES:
+            skin.px(crest[name], 0, 0, tone(GOLD, 1.2))
+        shikoro = REGIONS["shikoro"]
+        skin.cube(shikoro, metal)
+        for name in SIDES:
+            skin.band(shikoro[name], look["accent"], top=1, rows=1)
+        skin.fill(shikoro["top"], dark)
     if woman:
         draw_skirt(skin, look, colour=look["accent"], trim=GOLD)
 
@@ -935,6 +988,12 @@ def build(culture, woman, craft):
             draw_hair(skin, look, GREY_HAIR if craft == "elder" else None)
     if culture == "elf":
         draw_ears(skin, look)
+    if culture == "yamato":
+        grey = GREY_HAIR if craft == "elder" else None
+        if woman:
+            draw_bun(skin, look, grey)
+        else:
+            draw_topknot(skin, look, grey)
     if not woman and culture in BEARDED and craft != "elder":
         # Борода — примета народа. У старейшины её рисует само ремесло,
         # и притом седую, поэтому здесь он пропускается.

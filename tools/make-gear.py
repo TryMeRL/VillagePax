@@ -32,10 +32,11 @@ _spec = importlib.util.spec_from_file_location(
 models = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(models)
 
-PEOPLES = ("norman", "maya", "pony", "dwarf", "elf", "nord")
+PEOPLES = ("norman", "maya", "pony", "dwarf", "elf", "nord", "yamato")
 PIECES = ("helmet", "chestplate", "leggings", "boots")
 WEAPONS = {"norman": "longsword", "maya": "macuahuitl", "pony": "horseshoe_flail",
-           "dwarf": "warhammer", "elf": "moon_blade", "nord": "bearded_axe"}
+           "dwarf": "warhammer", "elf": "moon_blade", "nord": "bearded_axe",
+           "yamato": "katana"}
 
 
 def hexa(value):
@@ -62,10 +63,15 @@ PALETTES = {
             "A": "a877e0", "X": "e9e4d4", "G": "6e5236"},
     "nord": {"O": "25180d", "B": "8a8f94", "H": "c3c8cc", "S": "5a5f64", "T": "3d6fb6",
              "A": "e6dcc1", "X": "7a5433", "G": "4a3322"},
+    # Ямато: чёрный лак пластин, золото, киноварная шёлковая шнуровка,
+    # индиго рукавов и белые носки-таби.
+    "yamato": {"O": "18141a", "B": "2a2830", "H": "4e4a5a", "S": "121016", "T": "d9b44a",
+               "A": "b8322a", "X": "2e416e", "G": "6b4a2a", "W": "ece8dc"},
 }
 FUR = {"norman": ("8a6a48", "5e4630", "b08a62"), "maya": ("c9a15a", "8f6a34", "e8c98a"),
        "pony": ("ffffff", "e9d6e6", "ffffff"), "dwarf": ("6b4a2f", "46301e", "8f6844"),
-       "elf": ("e9e4d4", "c9c2ad", "ffffff"), "nord": ("8a6a4a", "5b4330", "c9b79a")}
+       "elf": ("e9e4d4", "c9c2ad", "ffffff"), "nord": ("8a6a4a", "5b4330", "c9b79a"),
+       "yamato": ("d9c38a", "b39a5e", "efdcac")}
 RAINBOW = ("e8413c", "f39a2b", "f6d83a", "5cc85a", "3aa0e8", "8d5ad8")
 
 
@@ -231,6 +237,20 @@ def sets():
         [cube("leg", *LEG, ("rainbow", "y"), inflate=0.5)],
         [cube("boot", *BOOT, ("hoof", None), inflate=1.0),
          cube("fetlock", (-4, 3.5, -2), (4, 2.5, 4), ("fur", None), inflate=1.3)])
+    kuwagata = cube("kuwagata", (-3.2, 32, -5.8), (1, 5.5, 0.6), ("gold", None),
+                    pivot=(-2.7, 32, -5.5), rotation=(0, 0, -24))
+    fukigaeshi = cube("fukigaeshi", (-6.3, 26.5, -4.4), (1.2, 3, 2.2), ("lacquer", "gold"))
+    sode = cube("sode", (-10.4, 15.5, -3.2), (1.3, 8, 6.4), ("lamellar", "sode"))
+    out["yamato"] = outfit(
+        [cube("helm", *HELM, ("helm", "kabuto"), inflate=1.0),
+         cube("shikoro", (-6, 23.5, -2.5), (12, 3, 8), ("lamellar", "shikoro")),
+         fukigaeshi, mirrored(fukigaeshi), kuwagata, mirrored(kuwagata),
+         cube("maedate", (-1, 31, -5.9), (2, 2, 0.6), ("gold", "sun"))],
+        [cube("torso", *TORSO, ("lamellar", "do"), inflate=1.01),
+         cube("kusazuri", (-4.8, 7, -2.8), (9.6, 5, 5.6), ("lamellar", "skirt"))],
+        [cube("arm", *ARM, ("kote", None), inflate=1.0), sode],
+        [cube("leg", *LEG, ("haidate", None), inflate=0.5)],
+        [cube("boot", *BOOT, ("waraji", None), inflate=0.9)])
     return out
 
 
@@ -268,6 +288,12 @@ def helm_mask(style, face, x, y, w, h):
     if style == "circlet":
         return face in ("front", "back", "right", "left") and y == 2 or (
             face == "front" and y == 1 and x in (3, 4))
+    if style == "kabuto":
+        if face == "front":
+            return y <= 2
+        if face in ("right", "left"):
+            return y <= 3
+        return face != "bottom"
     if style == "cap":
         if face == "front":
             return y <= 2
@@ -349,6 +375,8 @@ def texel(people, paint, face, x, y, w, h, rng, name):
             return P("A")
         return shade(base, 1.0 + rng.uniform(-0.07, 0.07))
     if kind == "gold":
+        if style == "sun":
+            return P("A") if face == "front" and 0 < x < w - 1 else P("T")
         return P("T") if (x + y) % 3 else shade(P("T"), 1.2)
     if kind == "horn":
         light = P("A")
@@ -419,6 +447,32 @@ def texel(people, paint, face, x, y, w, h, rng, name):
         if y == h - 2:
             return P("T")
         return shade(P("G"), 1.0 + rng.uniform(-0.05, 0.05))
+    if kind == "helm_kabuto":
+        return None
+    if kind == "lamellar":
+        # Пластины чёрного лака рядами, между рядами — киноварная шнуровка.
+        if style in ("shikoro", "skirt") and face in ("top", "bottom"):
+            return None
+        if style == "shikoro" and face == "front":
+            return None
+        if y % 3 == 2:
+            return P("A") if x % 2 == 0 else shade(P("A"), 0.8)
+        if style == "do" and face == "front" and 3 <= x <= 4 and 3 <= y <= 4:
+            return P("T")
+        return P("H") if (x + y // 3) % 4 == 0 else P("B")
+    if kind == "lacquer":
+        return P("T") if edge and style == "gold" else P("B")
+    if kind == "kote":
+        # Рукав индиго, по нему — полосы лакированных пластин.
+        return P("B") if y % 4 == 0 or y >= h - 2 else P("X")
+    if kind == "haidate":
+        if y <= 5:
+            return P("A") if y % 3 == 2 else P("B")
+        return P("B") if x % 2 else P("H")
+    if kind == "waraji":
+        if y >= h - 1:
+            return P("T")
+        return P("W") if y >= 1 else P("A")
     raise ValueError("нет краски %s" % kind)
 
 
@@ -662,6 +716,57 @@ OVERLAYS = {
         "     66  66     ",
         "     11  11     ",
         "     22  22     "],
+    ("yamato", "helmet"): [
+        "   T        T   ",
+        "    T      T    ",
+        "     T    T     ",
+        "      TAAT      ",
+        "                ",
+        "                ",
+        "                ",
+        "  AAAAAAAAAAAA  ",
+        " OBBBBBBBBBBBBO ",
+        "OBBO........OBBO",
+        "OBO..........OBO"],
+    ("yamato", "chestplate"): [
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+        "    AAAAAAAA    ",
+        "                ",
+        "    AAATTAAA    ",
+        "                ",
+        "    AAAAAAAA    ",
+        "                ",
+        "                ",
+        "    AAAAAAAA    ",
+        "                ",
+        "    AAAAAAAA    "],
+    ("yamato", "leggings"): [
+        "                ",
+        "                ",
+        "                ",
+        "     AA  AA     ",
+        "                ",
+        "     AA  AA     ",
+        "                ",
+        "     AA  AA     "],
+    ("yamato", "boots"): [
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+        "     W    W     ",
+        "     W    W     ",
+        "     W    W     ",
+        "    WW    WW    ",
+        "  WWWW    WWWW  ",
+        "  TTTT    TTTT  "],
     ("nord", "boots"): [
         "                ",
         "                ",
@@ -797,6 +902,25 @@ WEAPON_ART = {
     ],
 }
 
+WEAPON_ART["katana"] = [
+    "...............O",
+    "..............OH",
+    ".............OHO",
+    "............OHBO",
+    "...........OHBO.",
+    "..........OHBO..",
+    ".........OHBO...",
+    "........OHBO....",
+    ".......OHBO.....",
+    "......TTBO......",
+    ".....TTTT.......",
+    "....OATT........",
+    "...OAO..........",
+    "..OAO...........",
+    ".OAO............",
+    ".OO.............",
+]
+
 WEAPON_PALETTE = {
     "longsword": {"H": "e9eef2", "B": "a9b1b9", "T": "d9b44a", "G": "5a3a22"},
     "macuahuitl": {"G": "8a5a32", "A": "1d1426", "O": "2a1a0c"},
@@ -804,6 +928,7 @@ WEAPON_PALETTE = {
     "warhammer": {"H": "9aa4b0", "B": "6a727d", "S": "3f454d", "T": "57e1e6", "G": "5a3a22"},
     "moon_blade": {"H": "f2fbff", "B": "b9d3ea", "A": "a877e0", "T": "d7e4ea", "G": "3d6e35"},
     "bearded_axe": {"H": "d0d5da", "B": "8a8f94", "S": "5a5f64", "G": "6b4a2f"},
+    "katana": {"H": "f4f8fb", "B": "b8c2cc", "T": "d9b44a", "A": "8a1f1a", "O": "15121a"},
 }
 
 
@@ -841,7 +966,8 @@ MATERIAL = {"norman": ("minecraft:iron_ingot", "minecraft:red_wool"),
             "pony": ("minecraft:leather", "minecraft:gold_ingot"),
             "dwarf": ("minecraft:iron_ingot", "minecraft:diamond"),
             "elf": ("minecraft:leather", "minecraft:amethyst_shard"),
-            "nord": ("minecraft:iron_ingot", "minecraft:leather")}
+            "nord": ("minecraft:iron_ingot", "minecraft:leather"),
+            "yamato": ("minecraft:iron_ingot", "minecraft:string")}
 SHAPES = {"helmet": ["MXM", "M M"], "chestplate": ["M M", "MXM", "MMM"],
           "leggings": ["MXM", "M M", "M M"], "boots": ["X X", "M M"]}
 WEAPON_RECIPES = {
@@ -855,6 +981,7 @@ WEAPON_RECIPES = {
     "moon_blade": ([" A ", " I ", " S "], {"A": "minecraft:amethyst_shard",
                                            "I": "minecraft:iron_ingot", "S": "minecraft:stick"}),
     "bearded_axe": (["MMM", "MS ", " S "], {"M": "minecraft:iron_ingot", "S": "minecraft:stick"}),
+    "katana": (["  M", " M ", "S  "], {"M": "minecraft:iron_ingot", "S": "minecraft:stick"}),
 }
 
 

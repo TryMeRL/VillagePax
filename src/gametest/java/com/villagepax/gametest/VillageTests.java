@@ -107,6 +107,53 @@ public class VillageTests extends GameTestSupport {
     }
 
     /**
+     * Ямато встают под вишнями: пагоды, черепичный шатёр над колодцем и лисы
+     * Инари у коновязи — седьмой народ целиком из данных и схем.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "sakura")
+    public void aYamatoVillageRisesUnderTheCherries(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+        Identifier yamato = new Identifier("villagepax", "yamato");
+        try {
+            for (int x = -24; x <= 24; x++) {
+                for (int z = -24; z <= 24; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+            village = Villages.found(world, yamato, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Ямато не встали на лугу: помеха="
+                        + whoBlocks(manager, centre));
+                return;
+            }
+            long done = village.buildings().stream().filter(Building::isOperational).count();
+            if (done < 3) {
+                context.throwGameTestException("У ямато готово всего " + done + " зданий");
+            }
+            boolean pagoda = manager.decorOf(village.id()).stream()
+                    .anyMatch(at -> world.getBlockState(at).isOf(Blocks.DEEPSLATE_TILE_STAIRS));
+            if (!pagoda) {
+                context.throwGameTestException("Над колодцем ямато нет черепичного шатра");
+            }
+            long foxes = world.getEntitiesByClass(net.minecraft.entity.passive.FoxEntity.class,
+                    new net.minecraft.util.math.Box(centre).expand(24, 8, 24),
+                    net.minecraft.entity.mob.MobEntity::isLeashed).size();
+            if (foxes < 2) {
+                context.throwGameTestException("У коновязи ямато нет лис: " + foxes);
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+        context.complete();
+    }
+
+    /**
      * Северяне встают на снегу: снежный покров — не преграда, а их земля.
      */
     @GameTest(templateName = WIDE_STRUCTURE, batchId = "snow")
@@ -697,12 +744,19 @@ public class VillageTests extends GameTestSupport {
         // Ратуша вплотную: дальше двенадцати блоков билдер не берёт
         // со склада сам, и проверка досягаемости выродилась бы в проверку
         // подвоза.
-        BlockPos hall = context.getAbsolutePos(new BlockPos(8, 9, 8));
+        //
+        // И вся площадка — внутри своей испытательной клетки, с запасом
+        // в два блока до края. Билдер встаёт и за следом стройки, а клетка
+        // мира за краем испытания бывает не загружена: тело, шагнувшее
+        // туда, мир перестаёт отдавать по опознавателю, решения жителя
+        // молча пропускаются, и храм «вставал» на одном и том же шаге —
+        // в зависимости от того, какая проверка стояла по соседству.
+        BlockPos hall = context.getAbsolutePos(new BlockPos(10, 9, 10));
         List<BlockPos> ground = new ArrayList<>();
 
         try {
-            for (int x = -2; x <= 12; x++) {
-                for (int z = -2; z <= 12; z++) {
+            for (int x = 0; x <= 14; x++) {
+                for (int z = 0; z <= 14; z++) {
                     BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
                     world.setBlockState(at, Blocks.STONE.getDefaultState());
                     ground.add(at);
@@ -710,7 +764,7 @@ public class VillageTests extends GameTestSupport {
             }
 
             Settlement colony = colonyWithBuilder(world, manager, hall, MAYA);
-            BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 9, 0));
+            BlockPos anchor = context.getAbsolutePos(new BlockPos(2, 9, 2));
             Building site = new Building(UUID.randomUUID(), MAYA_TOWN_HALL_TYPE, 2, anchor,
                     BlockRotation.NONE, BuildProgress.PLANNED, List.of());
             colony.addBuilding(site);
@@ -718,14 +772,27 @@ public class VillageTests extends GameTestSupport {
             try {
                 stockFor(world, colony, temple);
                 Citizen mason = hireWithBody(world, colony, BuildJob.BUILDER,
-                        context.getAbsolutePos(new BlockPos(-1, 9, -1)));
+                        context.getAbsolutePos(new BlockPos(1, 9, 1)));
 
                 int stalled = runWorkOnFoot(world, manager, colony, mason, 1_200);
 
                 if (!site.isOperational()) {
+                    // Что именно встало: клетка шага, что в ней и где билдер.
+                    String where = "";
+                    if (site.nextStep() < temple.plan().steps().size()) {
+                        com.villagepax.sim.build.BuildStep step =
+                                temple.plan().steps().get(site.nextStep());
+                        BlockPos at = com.villagepax.sim.build.BuildSite.toWorld(anchor,
+                                temple.size(), BlockRotation.NONE, step.pos());
+                        where = " (клетка " + at.toShortString() + ": там "
+                                + world.getBlockState(at).getBlock() + ", нужно "
+                                + temple.blockAt(step.paletteIndex()).getBlock() + ")";
+                    }
+                    com.villagepax.entity.CitizenEntity body = bodyOf(world, colony, mason);
                     context.throwGameTestException("Храм не достроился: билдер встал на шаге "
-                            + site.nextStep() + " из " + temple.plan().steps().size() + ", и "
-                            + stalled + " раз его посылали туда, где человек стоять не может");
+                            + site.nextStep() + " из " + temple.plan().steps().size() + where
+                            + ", билдер на " + (body == null ? "?" : body.getBlockPos().toShortString())
+                            + ", и " + stalled + " раз его посылали туда, где человек стоять не может");
                 }
                 if (stalled > 0) {
                     context.throwGameTestException("Билдера " + stalled

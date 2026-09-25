@@ -1,0 +1,73 @@
+{
+  "display_name": "villagepax.culture.yamato",
+  "kind": "historical",
+  "spawn": {
+    "biomes": "#villagepax:yamato_home",
+    "weight": 10,
+    "min_distance_chunks": 32
+  },
+  "name_pools": {
+    "male": [
+      "Haruto",
+      "Ren",
+      "Sota",
+      "Yuto",
+      "Kaito",
+      "Hiroshi",
+      "Takeshi",
+      "Kenji"
+    ],
+    "female": [
+      "Hina",
+      "Yui",
+      "Aoi",
+      "Sakura",
+      "Mei",
+      "Rin",
+      "Hana"
+    ],
+    "settlement": [
+      "Sakuragawa",
+      "Hanamura",
+      "Kawaguchi",
+      "Momiji",
+      "Tsukimura",
+      "Hoshino",
+      "Kazeoka"
+    ]
+  },
+  "buildings": [
+    "villagepax:yamato/town_hall",
+    "villagepax:yamato/market_stall",
+    "villagepax:yamato/market",
+    "villagepax:yamato/watchtower",
+    "villagepax:yamato/shrine",
+    "villagepax:yamato/house",
+    "villagepax:yamato/farm",
+    "villagepax:yamato/lumberjack",
+    "villagepax:yamato/warehouse",
+    "villagepax:yamato/builder_hut",
+    "villagepax:yamato/brewery",
+    "villagepax:yamato/weavery"
+  ],
+  "road": [
+    "minecraft:gravel",
+    "minecraft:stone_bricks"
+  ],
+  "decor": [
+    "villagepax:paper_lantern",
+    "minecraft:potted_bamboo",
+    "minecraft:potted_cherry_sapling",
+    "minecraft:barrel",
+    "villagepax:grain_sack",
+    "minecraft:flower_pot",
+    "villagepax:bench",
+    "villagepax:table",
+    "villagepax:shelf"
+  ],
+  "traits": [],
+  "diplomacy_defaults": {
+    "villagepax:elf": 10,
+    "villagepax:nord": -5
+  }
+}

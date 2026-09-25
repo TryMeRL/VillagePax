@@ -215,6 +215,8 @@ public class GearTests extends GameTestSupport {
             case ELF -> target.hasStatusEffect(StatusEffects.GLOWING) ? null : "добыча не помечена";
             case NORD -> target.getFrozenTicks() > target.getMinFreezeDamageTicks()
                     ? null : "мороза нет";
+            case YAMATO -> target.hasStatusEffect(StatusEffects.WEAKNESS)
+                    ? null : "разрез не ослабил врага";
         };
     }
 

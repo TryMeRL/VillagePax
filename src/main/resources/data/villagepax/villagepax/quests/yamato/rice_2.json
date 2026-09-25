@@ -1,0 +1,24 @@
+{
+  "giver": "villagepax:farmer",
+  "culture": "villagepax:yamato",
+  "min_reputation": 15,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:bucket",
+      "count": 2
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 12
+    },
+    {
+      "type": "item",
+      "item": "minecraft:iron_hoe",
+      "count": 1
+    }
+  ],
+  "dialogue": "villagepax.quest.yamato_rice_2"
+}

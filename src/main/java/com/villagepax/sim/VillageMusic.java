@@ -115,7 +115,16 @@ public final class VillageMusic {
                                     + ". . . .")),
                     new Voice(SoundEvents.BLOCK_NOTE_BLOCK_BASEDRUM, 0.8f, notes(
                             "4 . . . 4 . . . 4 . . . 4 . 4 . 4 . . . 4 . . . 4 . . . 4 . 4 .")),
-                    new Call(SoundEvents.GOAT_HORN_SOUNDS.get(0), 1.0f, 1, 1)));
+                    new Call(SoundEvents.GOAT_HORN_SOUNDS.get(0), 1.0f, 1, 1)),
+            // Ямато: кото на лад «ин» и долгая флейта-сякухати, а к вечеру —
+            // низкий удар храмового колокола.
+            "yamato", new Tune(
+                    new Voice(SoundEvents.BLOCK_NOTE_BLOCK_HARP, 0.6f, notes(
+                            "12 . 13 . 17 . 19 . 20 . 19 17 13 . 12 . . . 8 . 12 . 13 17 "
+                                    + "13 12 8 . . . . .")),
+                    new Voice(SoundEvents.BLOCK_NOTE_BLOCK_FLUTE, 0.45f, notes(
+                            "12 . . . . . . . 17 . . . . . . . 13 . . . . . . . 8 . . . . . . .")),
+                    new Call(RegistryEntry.of(SoundEvents.BLOCK_BELL_USE), 0.5f, 2, 20)));
 
     public static void register() {
         ServerTickEvents.END_WORLD_TICK.register(VillageMusic::tick);

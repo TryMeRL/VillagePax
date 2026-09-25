@@ -12,6 +12,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.LanternBlock;
 import net.minecraft.block.SignBlock;
+import net.minecraft.block.StairsBlock;
 import net.minecraft.block.entity.SignBlockEntity;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
@@ -56,26 +57,50 @@ public final class Streetscape {
      * @param flowers цветы у домов
      */
     record Palette(Block wall, Block fence, Block slab, Block lamp, Block sign,
-                   List<Block> flowers) {
+                   List<Block> flowers, Canopy canopy) {
     }
+
+    /**
+     * Чем накрыт колодец. Колодец — первое, что видит пришедший на площадь,
+     * и у каждого народа он свой: «пусть каждый народ будет уникальным».
+     */
+    enum Canopy {
+        /** Навес-плита на четырёх стойках — норманнский двор. */
+        SLAB,
+        /** Без кровли: резные столбы с фонарями — открытый сенот майя. */
+        PILLARS,
+        /** Радуга из шерсти над водой — пони. */
+        RAINBOW,
+        /** Двускатный навес с рогами на коньке — северяне. */
+        GABLE
+    }
+
+    /** Цвета радуги по кругу навеса, с запада на север и дальше посолонь. */
+    private static final List<Block> RAINBOW = List.of(Blocks.RED_WOOL, Blocks.ORANGE_WOOL,
+            Blocks.YELLOW_WOOL, Blocks.LIME_WOOL, Blocks.LIGHT_BLUE_WOOL, Blocks.BLUE_WOOL,
+            Blocks.PURPLE_WOOL, Blocks.MAGENTA_WOOL);
 
     private static final Palette NORMAN = new Palette(Blocks.COBBLESTONE, Blocks.DARK_OAK_FENCE,
             Blocks.DARK_OAK_SLAB, Blocks.LANTERN, Blocks.DARK_OAK_SIGN,
-            List.of(Blocks.POPPY, Blocks.DANDELION, Blocks.OXEYE_DAISY, Blocks.CORNFLOWER));
+            List.of(Blocks.POPPY, Blocks.DANDELION, Blocks.OXEYE_DAISY, Blocks.CORNFLOWER),
+            Canopy.SLAB);
 
     private static final Palette MAYA = new Palette(Blocks.MOSSY_COBBLESTONE, Blocks.JUNGLE_FENCE,
             Blocks.JUNGLE_SLAB, ModBlocks.PAPER_LANTERN, Blocks.JUNGLE_SIGN,
-            List.of(Blocks.ORANGE_TULIP, Blocks.RED_TULIP, Blocks.ALLIUM, Blocks.POPPY));
+            List.of(Blocks.ORANGE_TULIP, Blocks.RED_TULIP, Blocks.ALLIUM, Blocks.POPPY),
+            Canopy.PILLARS);
 
     private static final Palette PONY = new Palette(Blocks.SMOOTH_SANDSTONE, Blocks.ACACIA_FENCE,
             Blocks.ACACIA_SLAB, ModBlocks.PAPER_LANTERN, Blocks.ACACIA_SIGN,
             List.of(Blocks.PINK_TULIP, Blocks.AZURE_BLUET, Blocks.CORNFLOWER, Blocks.OXEYE_DAISY,
-                    Blocks.ALLIUM));
+                    Blocks.ALLIUM),
+            Canopy.RAINBOW);
 
     private static final Palette NORD = new Palette(Blocks.COBBLESTONE, Blocks.SPRUCE_FENCE,
             Blocks.SPRUCE_SLAB, Blocks.LANTERN, Blocks.SPRUCE_SIGN,
             List.of(Blocks.CORNFLOWER, Blocks.LILY_OF_THE_VALLEY, Blocks.OXEYE_DAISY,
-                    Blocks.BLUE_ORCHID));
+                    Blocks.BLUE_ORCHID),
+            Canopy.GABLE);
 
     /** Колодец — в этом кольце вокруг ратуши: на площади, но не у её дверей. */
     private static final int WELL_NEAR = 6;
@@ -171,14 +196,12 @@ public final class Streetscape {
                 } else {
                     put(world, manager, village, ring, palette.wall().getDefaultState());
                 }
-                if (Math.abs(dx) == 1 && Math.abs(dz) == 1) {
-                    put(world, manager, village, ring.up(), palette.fence().getDefaultState());
-                    put(world, manager, village, ring.up(2), palette.fence().getDefaultState());
-                }
-                put(world, manager, village, ring.up(3), palette.slab().getDefaultState());
+                canopy(world, manager, village, palette, ring, dx, dz);
             }
         }
-        put(world, manager, village, centre.up(2), lamp(palette, true));
+        if (palette.canopy() != Canopy.PILLARS) {
+            put(world, manager, village, centre.up(2), lamp(palette, true));
+        }
 
         // Табличка — со стороны ратуши, лицом к ней: её читают с площади.
         Direction toward = Direction.getFacing(village.center().getX() - centre.getX(), 0,
@@ -193,6 +216,46 @@ public final class Streetscape {
                 world.updateListeners(at, world.getBlockState(at), world.getBlockState(at), 3);
             }
         }
+    }
+
+    /** Одна клетка навеса над колодцем, по обычаю народа. */
+    private static void canopy(ServerWorld world, SettlementManager manager, Settlement village,
+                               Palette palette, BlockPos ring, int dx, int dz) {
+        boolean corner = Math.abs(dx) == 1 && Math.abs(dz) == 1;
+        if (palette.canopy() == Canopy.PILLARS) {
+            if (corner) {
+                put(world, manager, village, ring.up(), ModBlocks.CARVED_STONE.getDefaultState());
+                put(world, manager, village, ring.up(2), lamp(palette, false));
+            }
+            return;
+        }
+        if (corner) {
+            put(world, manager, village, ring.up(), palette.fence().getDefaultState());
+            put(world, manager, village, ring.up(2), palette.fence().getDefaultState());
+        }
+        BlockState roof = switch (palette.canopy()) {
+            case RAINBOW -> dx == 0 && dz == 0 ? Blocks.PINK_WOOL.getDefaultState()
+                    : RAINBOW.get(rainbowIndex(dx, dz)).getDefaultState();
+            case GABLE -> dz == 0 ? palette.slab().getDefaultState()
+                    : Blocks.SPRUCE_STAIRS.getDefaultState().with(StairsBlock.FACING,
+                    dz < 0 ? Direction.SOUTH : Direction.NORTH);
+            default -> palette.slab().getDefaultState();
+        };
+        put(world, manager, village, ring.up(3), roof);
+        if (palette.canopy() == Canopy.GABLE && dz == 0 && dx != 0) {
+            put(world, manager, village, ring.up(4), palette.fence().getDefaultState());
+        }
+    }
+
+    /** Место клетки в кольце восьми соседей, посолонь от северо-запада. */
+    static int rainbowIndex(int dx, int dz) {
+        int[][] order = {{-1, -1}, {0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}};
+        for (int i = 0; i < order.length; i++) {
+            if (order[i][0] == dx && order[i][1] == dz) {
+                return i;
+            }
+        }
+        throw new IllegalArgumentException("не сосед: " + dx + ", " + dz);
     }
 
     /**

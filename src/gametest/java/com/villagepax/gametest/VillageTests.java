@@ -138,6 +138,12 @@ public class VillageTests extends GameTestSupport {
             if (done < 3) {
                 context.throwGameTestException("У северян готово всего " + done + " зданий");
             }
+            // Колодец у северян свой: двускатный навес из еловых ступеней.
+            boolean gable = manager.decorOf(village.id()).stream()
+                    .anyMatch(at -> world.getBlockState(at).isOf(Blocks.SPRUCE_STAIRS));
+            if (!gable) {
+                context.throwGameTestException("Колодец северян без своего навеса");
+            }
         } finally {
             cleanUpVillage(world, manager, village, centre, meadow);
         }

@@ -23,7 +23,7 @@
     "fabricloader": ">=0.19.0",
     "minecraft": "~1.20.1",
     "java": ">=17",
-    "fabric-api": "*",
+    "fabric-api": ">=0.92.0",
     "owo": ">=0.11.2",
     "geckolib": ">=4.8"
   },

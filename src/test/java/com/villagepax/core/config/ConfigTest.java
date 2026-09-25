@@ -27,7 +27,7 @@ class ConfigTest {
     @Test
     void roundTripsThroughJson() {
         Config config = new Config(false, 32, 2.5, 3, 9, 128, 24, 4, 20, false, false, 7, false,
-                6, 90, false);
+                6, 90, false, 11);
 
         DataResult<com.google.gson.JsonElement> encoded =
                 Config.CODEC.encodeStart(JsonOps.INSTANCE, config);
@@ -137,7 +137,7 @@ class ConfigTest {
     void everyFieldHasAnAllowedRange() {
         com.google.gson.JsonElement full = Config.CODEC.encodeStart(JsonOps.INSTANCE,
                 new Config(false, 32, 2.5, 3, 9, 128, 24, 4, 20, false, false, 7, false,
-                6, 90, false))
+                6, 90, false, 11))
                 .result().orElseThrow();
 
         for (String key : full.getAsJsonObject().keySet()) {
@@ -158,6 +158,10 @@ class ConfigTest {
         // Ноль значит «шаг сетки берётся из культуры», а не «деревни вплотную».
         assertEquals(0, Config.DEFAULT.villageSpacingChunks());
         assertNotEquals(0.0, Config.DEFAULT.populationScale());
+
+        // Деревня народа держится от ванильных построек из коробки:
+        // вросшая в ванильную деревню ратуша выглядит поломкой обеих.
+        assertEquals(6, Config.DEFAULT.structureDistanceChunks());
     }
 
     /**

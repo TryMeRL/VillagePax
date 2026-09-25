@@ -1,6 +1,7 @@
 package com.villagepax.core.config;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import java.util.List;
@@ -39,6 +40,8 @@ import java.util.stream.Collectors;
  * @param buildingLabels        показывать ли подписи над зданиями
  * @param carrySlots            сколько видов груза житель унесёт за раз
  * @param greetNewcomers        говорить ли вошедшему без колонии, с чего начать
+ * @param structureDistanceChunks насколько деревня народа держится от ванильных
+ *                              построек; 0 — не держится вовсе
  */
 public record Config(
         boolean autonomousVillages,
@@ -56,11 +59,12 @@ public record Config(
         boolean greetNewcomers,
         int childDays,
         int lifeDays,
-        boolean mortality
+        boolean mortality,
+        int structureDistanceChunks
 ) {
 
     public static final Config DEFAULT = new Config(
-            true, 0, 1.0, 4, 6, 64, 16, 16, 10, true, true, 4, true, 8, 120, true);
+            true, 0, 1.0, 4, 6, 64, 16, 16, 10, true, true, 4, true, 8, 120, true, 6);
 
     /**
      * Что можно записать в поле: выключатель, целое или дробное в границах.
@@ -108,6 +112,7 @@ public record Config(
     private static final Whole AMOUNT = new Whole(0, 6_400);
     private static final Whole TEMPO = new Whole(1, 200);
     private static final Whole SLOTS = new Whole(1, 27);
+    private static final Whole DISTANCE = new Whole(0, 32);
 
     /**
      * Настройка: имя поля в файле, раздел экрана и допустимые значения.
@@ -129,6 +134,7 @@ public record Config(
             new Setting("autonomous_villages", "world", FLAG),
             new Setting("village_spacing_chunks", "world", SPACING),
             new Setting("population_scale", "world", SCALE),
+            new Setting("structure_distance_chunks", "world", DISTANCE),
             new Setting("ticks_per_decision", "people", TEMPO),
             new Setting("carry_slots", "people", SLOTS),
             new Setting("hunger_warn_days", "people", DAYS),
@@ -156,6 +162,27 @@ public record Config(
                     setting -> setting.bounds().codec()));
 
     /**
+     * Где встают деревни: шаг сетки и отступ от ванильных построек.
+     * <p>
+     * Парой только потому, что кодек записи в DFU берёт не больше
+     * шестнадцати полей, а настроек стало семнадцать. В файле пары не видно:
+     * {@link MapCodec} кладёт её поля рядом с остальными, как и прежде.
+     */
+    private record Placement(int spacing, int distance) {
+    }
+
+    private static final MapCodec<Placement> PLACEMENT = RecordCodecBuilder.mapCodec(
+            instance -> instance.group(
+                    SPACING.codec().fieldOf("village_spacing_chunks")
+                            .orElse(DEFAULT.villageSpacingChunks).forGetter(Placement::spacing),
+                    // Шесть чанков от ванильной деревни, аванпоста или храма:
+                    // ратуша не врастает в чужой дом, а улица не идёт сквозь
+                    // колокольню. Ноль — для тех, кому соседство милее.
+                    DISTANCE.codec().fieldOf("structure_distance_chunks")
+                            .orElse(DEFAULT.structureDistanceChunks).forGetter(Placement::distance)
+            ).apply(instance, Placement::new));
+
+    /**
      * Кодек настроек.
      * <p>
      * Поля — {@code fieldOf(...).orElse(...)}, а не {@code optionalFieldOf}:
@@ -169,8 +196,8 @@ public record Config(
     public static final Codec<Config> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             FLAG.codec().fieldOf("autonomous_villages").orElse(DEFAULT.autonomousVillages)
                     .forGetter(Config::autonomousVillages),
-            SPACING.codec().fieldOf("village_spacing_chunks").orElse(DEFAULT.villageSpacingChunks)
-                    .forGetter(Config::villageSpacingChunks),
+            PLACEMENT.forGetter(config -> new Placement(config.villageSpacingChunks(),
+                    config.structureDistanceChunks())),
             SCALE.codec().fieldOf("population_scale").orElse(DEFAULT.populationScale)
                     .forGetter(Config::populationScale),
             DAYS.codec().fieldOf("hunger_warn_days").orElse(DEFAULT.hungerWarnDays)
@@ -209,7 +236,11 @@ public record Config(
             // и колония живёт вечно, только не растёт сама.
             FLAG.codec().fieldOf("mortality").orElse(DEFAULT.mortality)
                     .forGetter(Config::mortality)
-    ).apply(instance, Config::new));
+    ).apply(instance, (autonomous, placement, scale, warn, leave, trade, income, reserve,
+                       tempo, citizenLabels, buildingLabels, slots, greet, child, life,
+                       mortality) -> new Config(autonomous, placement.spacing(), scale, warn,
+            leave, trade, income, reserve, tempo, citizenLabels, buildingLabels, slots, greet,
+            child, life, mortality, placement.distance())));
 
     /**
      * Приведение к осмысленному виду.

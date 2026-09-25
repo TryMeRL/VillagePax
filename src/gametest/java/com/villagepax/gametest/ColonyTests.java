@@ -1269,7 +1269,7 @@ public class ColonyTests extends GameTestSupport {
                     Config.DEFAULT.villageTradePerDay(), Config.DEFAULT.villageIncomePerDay(),
                     8, 3, false, false, Config.DEFAULT.carrySlots(), false,
                     Config.DEFAULT.childDays(), Config.DEFAULT.lifeDays(),
-                    Config.DEFAULT.mortality()));
+                    Config.DEFAULT.mortality(), Config.DEFAULT.structureDistanceChunks()));
 
             WorkTicker.decide(world, manager, colony, worker, Schedule.MORNING_WORK);
             if (body.getCustomName() != null || body.isCustomNameVisible()) {

@@ -642,7 +642,8 @@ public class EconomyTests extends GameTestSupport {
                     Config.DEFAULT.roadReserve(), Config.DEFAULT.ticksPerDecision(),
                     true, true, Config.DEFAULT.carrySlots(), true,
                     Config.DEFAULT.childDays(), Config.DEFAULT.lifeDays(),
-                    Config.DEFAULT.mortality()));
+                    Config.DEFAULT.mortality(),
+                    Config.DEFAULT.structureDistanceChunks()));
 
             for (int x = -20; x <= 20; x++) {
                 for (int z = -20; z <= 20; z++) {

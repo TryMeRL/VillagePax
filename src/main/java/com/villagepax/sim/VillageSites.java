@@ -7,6 +7,12 @@ import com.villagepax.sim.build.Footing;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.server.world.ServerChunkManager;
+import net.minecraft.structure.StructureSet;
+import net.minecraft.world.gen.GenerationStep;
+import net.minecraft.world.gen.chunk.placement.RandomSpreadStructurePlacement;
+import net.minecraft.world.gen.chunk.placement.StructurePlacementCalculator;
+import net.minecraft.world.gen.structure.Structure;
+import net.minecraft.world.gen.structure.StructureType;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.world.biome.source.BiomeCoords;
 import net.minecraft.world.gen.chunk.ChunkGenerator;
@@ -242,7 +248,116 @@ public final class VillageSites {
         }
 
         // Под водой деревню не ставят: жителям надо где стоять.
-        return surface > world.getSeaLevel() ? where : null;
+        if (surface <= world.getSeaLevel()) {
+            return null;
+        }
+        return vanillaStructureNear(world, where, Configs.get().structureDistanceChunks())
+                .isPresent() ? null : where;
+    }
+
+    /**
+     * Ванильная постройка у земли будущей деревни — если генератор её туда
+     * поставит.
+     * <p>
+     * Деревня народа, вставшая в ванильную деревню, аванпост или храм, —
+     * не соседство, а наложение: ратуша врастает в чужой дом, улица идёт
+     * сквозь колокольню, и на глаз это поломка обоих. Дизайн-документ
+     * обещал обходить их с первого дня; обходить начали только теперь.
+     * <p>
+     * Спрашивается <b>генератор</b>, а не мир — тем же способом, каким
+     * ваниль сама решает, где встанет её деревня: сетка расстановки,
+     * частота и биом. Чанки не загружаются, и потому проверка одна и та же
+     * для указателя «куда идти» и для самого основания: иначе игрока
+     * привели бы туда, где деревня потом откажется встать.
+     * <p>
+     * В счёт идут только постройки <b>у поверхности</b>. Шахты, крепость,
+     * древний город лежат глубоко и деревне не мешают, а отказывать из-за
+     * них значило бы отказывать почти везде. Кольца крепостей по той же
+     * причине не смотрятся вовсе.
+     *
+     * @param distance на сколько чанков держаться; 0 — не держаться
+     * @return какая постройка мешает; пусто, если никакая
+     */
+    public static Optional<Identifier> vanillaStructureNear(ServerWorld world, BlockPos where,
+                                                           int distance) {
+        if (distance <= 0 || !world.getStructureAccessor().shouldGenerateStructures()) {
+            return Optional.empty();
+        }
+        ServerChunkManager chunks = world.getChunkManager();
+        StructurePlacementCalculator calculator = chunks.getStructurePlacementCalculator();
+        ChunkGenerator generator = chunks.getChunkGenerator();
+        NoiseConfig noise = chunks.getNoiseConfig();
+        ChunkPos centre = new ChunkPos(where);
+
+        for (RegistryEntry<StructureSet> set : calculator.getStructureSets()) {
+            if (!(set.value().placement() instanceof RandomSpreadStructurePlacement spread)) {
+                continue;
+            }
+            List<Structure> surface = new ArrayList<>();
+            for (StructureSet.WeightedEntry entry : set.value().structures()) {
+                Structure structure = entry.structure().value();
+                if (structure.getFeatureGenerationStep()
+                        == GenerationStep.Feature.SURFACE_STRUCTURES) {
+                    surface.add(structure);
+                }
+            }
+            if (surface.isEmpty()) {
+                continue;
+            }
+            int reach = distance;
+            for (Structure structure : surface) {
+                reach = Math.max(reach, distance + extent(structure));
+            }
+
+            // В каждой области сетки у набора одно начало, и областей
+            // вокруг места — от одной до четырёх: перебирать чанки
+            // по одному незачем.
+            int spacing = spread.getSpacing();
+            for (int regionX = Math.floorDiv(centre.x - reach, spacing);
+                 regionX <= Math.floorDiv(centre.x + reach, spacing); regionX++) {
+                for (int regionZ = Math.floorDiv(centre.z - reach, spacing);
+                     regionZ <= Math.floorDiv(centre.z + reach, spacing); regionZ++) {
+                    ChunkPos start = spread.getStartChunk(calculator.getStructureSeed(),
+                            regionX * spacing, regionZ * spacing);
+                    int away = Math.max(Math.abs(start.x - centre.x),
+                            Math.abs(start.z - centre.z));
+                    if (away > reach || !spread.shouldGenerate(calculator, start.x, start.z)) {
+                        continue;
+                    }
+                    int x = start.getCenterX();
+                    int z = start.getCenterZ();
+                    int y = generator.getHeight(x, z, Heightmap.Type.WORLD_SURFACE_WG, world, noise);
+                    RegistryEntry<Biome> biome = generator.getBiomeSource().getBiome(
+                            BiomeCoords.fromBlock(x), BiomeCoords.fromBlock(y),
+                            BiomeCoords.fromBlock(z), noise.getMultiNoiseSampler());
+                    for (Structure structure : surface) {
+                        if (away <= distance + extent(structure)
+                                && structure.getValidBiomes().contains(biome)) {
+                            return Optional.ofNullable(world.getRegistryManager()
+                                    .get(RegistryKeys.STRUCTURE).getId(structure));
+                        }
+                    }
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * На сколько чанков постройка раскидывается от своего начала.
+     * <p>
+     * Отступ меряется от <b>домов</b>, а не от точки, из которой ваниль
+     * начала их раскладывать: деревня собирается кусками до восьмидесяти
+     * блоков от начала, и замер «от начала» подпускал ратушу народа
+     * вплотную к её крайнему дому. Храм, хижина, портал — в пределах
+     * своего чанка.
+     */
+    private static int extent(Structure structure) {
+        StructureType<?> type = structure.getType();
+        if (type == StructureType.JIGSAW) {
+            return 5;
+        }
+        return type == StructureType.WOODLAND_MANSION ? 4 : 1;
     }
 
     /**

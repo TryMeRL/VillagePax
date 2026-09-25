@@ -786,7 +786,8 @@ public class ComplaintTests extends GameTestSupport {
                     Config.DEFAULT.villageTradePerDay(), Config.DEFAULT.villageIncomePerDay(),
                     Config.DEFAULT.roadReserve(), Config.DEFAULT.ticksPerDecision(),
                     true, true, Config.DEFAULT.carrySlots(), true,
-                    Config.DEFAULT.childDays(), Config.DEFAULT.lifeDays(), false));
+                    Config.DEFAULT.childDays(), Config.DEFAULT.lifeDays(), false,
+                    Config.DEFAULT.structureDistanceChunks()));
 
             int before = colony.population();
             Life.newDay(world, manager, colony, new java.util.Random(5));

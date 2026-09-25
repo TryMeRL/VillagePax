@@ -709,5 +709,7 @@
   "villagepax.config.building_labels": "Labels above buildings",
   "villagepax.config.building_labels.tooltip": "Show names above the buildings of the colony.",
   "villagepax.config.greet_newcomers": "Hint for newcomers",
-  "villagepax.config.greet_newcomers.tooltip": "Tell a player who joins without a colony where to begin."
+  "villagepax.config.greet_newcomers.tooltip": "Tell a player who joins without a colony where to begin.",
+  "villagepax.config.structure_distance_chunks": "Distance from vanilla structures, chunks",
+  "villagepax.config.structure_distance_chunks.tooltip": "How far a village of the peoples keeps from vanilla villages, outposts and temples so as not to grow into them. 0 means no distance at all. Only affects land where no village has risen yet."
 }

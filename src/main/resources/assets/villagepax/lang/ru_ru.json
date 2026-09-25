@@ -709,5 +709,7 @@
   "villagepax.config.building_labels": "Подписи над зданиями",
   "villagepax.config.building_labels.tooltip": "Показывать названия над зданиями колонии.",
   "villagepax.config.greet_newcomers": "Подсказка новичку",
-  "villagepax.config.greet_newcomers.tooltip": "Подсказать вошедшему в мир без колонии, с чего начать."
+  "villagepax.config.greet_newcomers.tooltip": "Подсказать вошедшему в мир без колонии, с чего начать.",
+  "villagepax.config.structure_distance_chunks": "Отступ от ванильных построек, чанков",
+  "villagepax.config.structure_distance_chunks.tooltip": "Насколько деревня народа держится от ванильных деревень, аванпостов и храмов, чтобы не врасти в них. 0 — не держится вовсе. Меняет только земли, где деревни ещё не возникали."
 }

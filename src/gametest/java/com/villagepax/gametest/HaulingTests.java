@@ -24,7 +24,6 @@ import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import com.villagepax.sim.work.Hauling;
-import net.minecraft.registry.Registries;
 import com.villagepax.sim.build.BuildStep;
 import com.villagepax.sim.build.MarkerKind;
 import com.villagepax.sim.build.Schematic;

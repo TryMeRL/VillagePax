@@ -34,7 +34,6 @@ import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.ModTags;
 import com.villagepax.sim.build.Decor;
 import net.minecraft.block.Block;
-import net.minecraft.registry.Registries;
 import com.villagepax.sim.build.BuildCategory;
 import com.villagepax.sim.build.BuildPlan;
 import com.villagepax.sim.build.BuildPlanner;

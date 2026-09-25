@@ -28,7 +28,6 @@ import net.minecraft.item.Items;
 import com.villagepax.sim.build.SchematicLoader;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3i;
 
 import java.util.ArrayList;

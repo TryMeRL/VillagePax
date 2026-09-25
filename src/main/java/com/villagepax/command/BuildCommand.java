@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Ground;
 import com.villagepax.sim.VillageSites;
-import com.villagepax.sim.VillageSites;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;

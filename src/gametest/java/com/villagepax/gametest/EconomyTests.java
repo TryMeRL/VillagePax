@@ -36,7 +36,6 @@ import com.villagepax.sim.trade.Trading;
 import com.villagepax.item.ModItems;
 import com.villagepax.item.PurseItem;
 import com.villagepax.sim.Villages;
-import net.minecraft.registry.Registries;
 import com.villagepax.sim.work.Housing;
 import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.Warehouse;

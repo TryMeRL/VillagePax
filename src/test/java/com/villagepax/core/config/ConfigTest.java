@@ -70,8 +70,8 @@ class ConfigTest {
      * Число за границами <b>не принимается, но и не роняет мод</b>: кодек
      * подставляет значение по умолчанию.
      * <p>
-     * Так устроен DFU: {@code optionalFieldOf} глотает ошибку вложенного
-     * кодека и молча берёт значение по умолчанию. Проверяется здесь именно
+     * Так устроен DFU: {@code orElse} глотает ошибку вложенного кодека
+     * и молча берёт значение по умолчанию. Проверяется здесь именно
      * это поведение, а не желаемое, — потому что оно и будет у игрока.
      */
     @Test
@@ -175,5 +175,53 @@ class ConfigTest {
     void aCompleteFileIsLeftAlone() {
         var full = Config.CODEC.encodeStart(JsonOps.INSTANCE, Config.DEFAULT).result().orElseThrow();
         assertFalse(Configs.missesFields(full, Config.DEFAULT));
+    }
+
+    /**
+     * Таблица настроек — полный и точный список полей файла, по разделам.
+     * <p>
+     * По ней рисуется экран настроек: поле, которого в таблице нет, игрок
+     * мог бы поменять только в файле, а поле таблицы, которого нет в кодеке,
+     * экран сохранял бы в никуда. И раздел не должен встречаться дважды
+     * вразброс — экран начинает новую карточку на каждой смене раздела.
+     */
+    @Test
+    void theSettingsTableIsTheWholeFileInGroups() {
+        var full = Config.CODEC.encodeStart(JsonOps.INSTANCE, Config.DEFAULT).result()
+                .orElseThrow().getAsJsonObject();
+        java.util.Set<String> listed = new java.util.LinkedHashSet<>();
+        java.util.List<String> groups = new java.util.ArrayList<>();
+        for (Config.Setting setting : Config.SETTINGS) {
+            assertTrue(listed.add(setting.key()), "настройка дважды: " + setting.key());
+            if (groups.isEmpty() || !groups.get(groups.size() - 1).equals(setting.group())) {
+                assertFalse(groups.contains(setting.group()),
+                        "раздел " + setting.group() + " разорван другим");
+                groups.add(setting.group());
+            }
+        }
+        assertEquals(full.keySet(), listed, "таблица настроек и поля файла разошлись");
+    }
+
+    /**
+     * Границы экрана — те же, что у кодека: значение на краю принимается,
+     * за краем — нет.
+     */
+    @Test
+    void theBoundsAreTheCodecsOwn() {
+        for (Config.Setting setting : Config.SETTINGS) {
+            if (setting.bounds() instanceof Config.Whole whole) {
+                assertTrue(whole.codec().parse(JsonOps.INSTANCE,
+                        new com.google.gson.JsonPrimitive(whole.max())).result().isPresent());
+                assertTrue(whole.codec().parse(JsonOps.INSTANCE,
+                        new com.google.gson.JsonPrimitive(whole.max() + 1)).error().isPresent(),
+                        setting.key());
+            } else if (setting.bounds() instanceof Config.Fraction fraction) {
+                assertTrue(fraction.codec().parse(JsonOps.INSTANCE,
+                        new com.google.gson.JsonPrimitive(fraction.min())).result().isPresent());
+                assertTrue(fraction.codec().parse(JsonOps.INSTANCE,
+                        new com.google.gson.JsonPrimitive(fraction.min() / 2)).error().isPresent(),
+                        setting.key());
+            }
+        }
     }
 }

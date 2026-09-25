@@ -2,6 +2,7 @@ package com.villagepax;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.villagepax.core.config.Config;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -104,6 +105,33 @@ class LangTest {
             }
         }
         assertTrue(uneven.isEmpty(), "Разное число подстановок в переводах: " + uneven);
+    }
+
+    /**
+     * У каждой настройки есть имя и подсказка на обоих языках, у каждого
+     * раздела — заголовок.
+     * <p>
+     * Экран собирает эти ключи из имени поля, и общий сбор ключей из кода
+     * их не видит: «villagepax.config.» + поле — начало, а не ключ.
+     */
+    @Test
+    void everySettingIsNamedAndExplained() throws IOException {
+        JsonObject ru = read("ru_ru");
+        JsonObject en = read("en_us");
+        List<String> missing = new ArrayList<>();
+        for (Config.Setting setting : Config.SETTINGS) {
+            for (String key : List.of("villagepax.config." + setting.key(),
+                    "villagepax.config." + setting.key() + ".tooltip",
+                    "villagepax.config.group." + setting.group())) {
+                if (!ru.has(key)) {
+                    missing.add(key + " (ru)");
+                }
+                if (!en.has(key)) {
+                    missing.add(key + " (en)");
+                }
+            }
+        }
+        assertTrue(missing.isEmpty(), "Настройка без имени в словаре: " + missing);
     }
 
     private static Set<String> keysInCode() throws IOException {

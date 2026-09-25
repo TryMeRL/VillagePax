@@ -14,6 +14,9 @@
     ],
     "client": [
       "com.villagepax.client.VillagePaxClient"
+    ],
+    "modmenu": [
+      "com.villagepax.client.ModMenuEntry"
     ]
   },
   "depends": {
@@ -23,5 +26,8 @@
     "fabric-api": "*",
     "owo": ">=0.11.2",
     "geckolib": ">=4.8"
+  },
+  "suggests": {
+    "modmenu": "*"
   }
 }

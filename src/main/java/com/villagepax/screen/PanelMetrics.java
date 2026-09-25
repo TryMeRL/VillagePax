@@ -35,6 +35,18 @@ public final class PanelMetrics {
     public static final int ELDER_WIDTH = 330;
     public static final int ELDER_HEIGHT = 224;
 
+    /**
+     * Экран настроек: список полей между заголовком и рядом кнопок.
+     * <p>
+     * Тело здесь не последнее — под ним «Готово» и «Отмена». Счёт от этого
+     * не меняется: промежутков столько же, сколько частей, кроме тела.
+     */
+    public static final int SETTINGS_WIDTH = 320;
+    public static final int SETTINGS_HEIGHT = 236;
+
+    /** Ряд кнопок под телом экрана настроек. */
+    public static final int FOOTER = 16;
+
     /** Ниже этого прокрутка бессмысленна: в ней не поместится и строки. */
     public static final int LEAST_BODY = 24;
 
@@ -69,7 +81,7 @@ public final class PanelMetrics {
      * промежутков и будет, потому что тело идёт последним.
      *
      * @param panelHeight высота панели целиком
-     * @param above       высоты частей над телом
+     * @param above       высоты остальных частей панели — над телом или под ним
      */
     public static int bodyHeight(int panelHeight, int... above) {
         int taken = 2 * PADDING + GAP * above.length;

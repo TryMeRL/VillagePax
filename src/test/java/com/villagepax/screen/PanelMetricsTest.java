@@ -34,6 +34,16 @@ class PanelMetricsTest {
                 "разговор со старейшиной не сходится по высоте");
     }
 
+    @Test
+    void settingsPanelAddsUp() {
+        assertTrue(PanelMetrics.addsUp(PanelMetrics.SETTINGS_HEIGHT,
+                        PanelMetrics.HEADER, PanelMetrics.FOOTER),
+                "экран настроек не сходится по высоте");
+        assertTrue(PanelMetrics.bodyHeight(PanelMetrics.SETTINGS_HEIGHT,
+                        PanelMetrics.HEADER, PanelMetrics.FOOTER) >= 120,
+                "в экране настроек список короче пяти строк");
+    }
+
     /** Тело обязано быть больше строки: иначе прокрутка бессмысленна. */
     @Test
     void bodyIsWorthScrolling() {

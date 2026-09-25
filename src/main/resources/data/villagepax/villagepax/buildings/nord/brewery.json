@@ -1,0 +1,22 @@
+{
+  "display_name": "villagepax.building.nord.brewery",
+  "role": "workplace",
+  "profession": "villagepax:brewer",
+  "min_level": "village",
+  "crafts": [
+    {
+      "from": {
+        "minecraft:honey_bottle": 2
+      },
+      "to": "villagepax:ale",
+      "count": 1
+    },
+    {
+      "from": {
+        "minecraft:wheat": 4
+      },
+      "to": "villagepax:ale",
+      "count": 1
+    }
+  ]
+}

@@ -322,6 +322,29 @@ LEGEND = {
     # Кирпич трубы. Буквы латиницы кончились — кирпич пишется кириллицей:
     # легенде всё равно, а читается «б» как то, что оно и есть.
     "б": ("minecraft:bricks", {}),
+    # --- северяне ---
+    # Ель и камень: народ заснеженной тайги строит из того, что растёт
+    # у него под боком, — тем же правилом, что акация у пони. Латиница
+    # в легенде кончилась, и ель пишется кириллицей.
+    "л": ("minecraft:spruce_log", {"axis": "y"}),
+    "ж": ("minecraft:spruce_log", {"axis": "x"}),
+    "з": ("minecraft:spruce_log", {"axis": "z"}),
+    "е": ("minecraft:spruce_planks", {}),
+    "ф": ("minecraft:spruce_fence", {"north": "false", "east": "false", "south": "false",
+                                     "west": "false", "waterlogged": "false"}),
+    # Калитка, как у всех соседей, сразу открыта: закрытую поиск пути
+    # считает стеной.
+    "в": ("minecraft:spruce_fence_gate", {"facing": "east", "open": "true",
+                                          "in_wall": "false", "powered": "false"}),
+    "с": ("minecraft:spruce_sapling", {"stage": "0"}),
+    "н": ("minecraft:spruce_stairs", {"facing": "north", "half": "bottom",
+                                      "shape": "straight", "waterlogged": "false"}),
+    "ю": ("minecraft:spruce_stairs", {"facing": "south", "half": "bottom",
+                                      "shape": "straight", "waterlogged": "false"}),
+    "п": ("minecraft:spruce_slab", {"type": "bottom", "waterlogged": "false"}),
+    # Синяя постель вместо красной: северянин спит под шерстью цвета фьорда.
+    "к": ("minecraft:blue_bed", {"facing": "south", "part": "foot", "occupied": "false"}),
+    "г": ("minecraft:blue_bed", {"facing": "south", "part": "head", "occupied": "false"}),
     "D": ("villagepax:marker_door", {}),
     "K": ("villagepax:marker_workstation", {}),
     "S": ("villagepax:marker_storage", {}),
@@ -596,7 +619,7 @@ SIDES = {"north": (0, -1), "south": (0, 1), "west": (-1, 0), "east": (1, 0)}
 OPPOSITE = {"north": "south", "south": "north", "west": "east", "east": "west"}
 
 # Что считается стеной, к которой прислоняют полку: несущее, а не убранство.
-WALLS = set("WXBHZPMCRVTaiuj{}-?|/omNIG+")
+WALLS = set("WXBHZPMCRVTaiuj{}-?|/omNIG+" "лжзеб")
 
 
 def orient(layers, x, y, z, block_id, properties):
@@ -2157,7 +2180,9 @@ MAYA_WATCHTOWER = [
 # стена, ступень и плита её дают, а решётка, лестница, забор и маркер —
 # нет. Список белый, а не чёрный, намеренно: забытый символ оставит
 # здание без света, забытое исключение — уронит факел на пол.
-SOLID = set("CdBHZWXMPARVTiuja#123456789nsewomNI[]_-?|/{}")
+# Кириллица — ель северян и кирпич трубы: они такие же глухие, как их
+# латинские соседи, и без них факел не нашёл бы стены в срубе.
+SOLID = set("CdBHZWXMPARVTiuja#123456789nsewomNI[]_-?|/{}" "лжзенюпб")
 
 # Куда смотрит факел, прислонённый к стене с этой стороны.
 # Стена на севере — факел смотрит на юг: он торчит ОТ стены, а не в неё.
@@ -3308,6 +3333,23 @@ ELF_SHRINE = bower([
 ], height=7, door=(3, 0), panes=ELF_PANES)
 
 
+# --- северяне: те же проверенные формы, что у пони, из ели и камня ---
+#
+# Северяне — шестой народ, и схемы им не рисуются заново, а переводятся
+# с пони: акация становится елью, красная постель синей. Формы у пони
+# прошли все проверки — вход с земли, стройку с опоры, лестницы на второй
+# этаж, — и перевод материала их не ломает: ступень остаётся ступенью,
+# плита плитой, бревно бревном. Облик выходит свой — тёмный сруб на
+# каменном цоколе под еловой кровлей, — а надёжность та же.
+NORD_SWAP = str.maketrans({"o": "л", "m": "ж", "N": "з", "I": "е", "&": "ф", "(": "в",
+                           ")": "с", "[": "н", "]": "ю", "_": "п", "f": "к", "h": "г"})
+
+
+def nordic(layers):
+    """Слои пони, переложенные в ель и камень."""
+    return [[row.translate(NORD_SWAP) for row in layer] for layer in layers]
+
+
 RAW_SCHEMATICS = {
     "norman/town_hall_lvl1": NORMAN_TOWN_HALL,
     "norman/town_hall_lvl2": NORMAN_TOWN_HALL_2,
@@ -3360,6 +3402,23 @@ RAW_SCHEMATICS = {
     "pony/market_lvl1": PONY_MARKET,
     "pony/watchtower_lvl1": PONY_WATCHTOWER,
     "pony/shrine_lvl1": PONY_SHRINE,
+    "nord/town_hall_lvl1": nordic(PONY_TOWN_HALL),
+    "nord/town_hall_lvl2": nordic(PONY_TOWN_HALL_2),
+    "nord/town_hall_lvl3": nordic(PONY_TOWN_HALL_3),
+    "nord/town_hall_lvl4": nordic(PONY_TOWN_HALL_4),
+    "nord/house_lvl1": nordic(PONY_HOUSE),
+    "nord/house_lvl2": nordic(PONY_HOUSE_2),
+    "nord/farm_lvl1": nordic(PONY_FARM),
+    "nord/farm_lvl2": nordic(PONY_FARM_2),
+    "nord/lumberjack_lvl1": nordic(PONY_LUMBERJACK),
+    "nord/warehouse_lvl1": nordic(PONY_WAREHOUSE),
+    "nord/builder_hut_lvl1": nordic(PONY_BUILDER_HUT),
+    "nord/brewery_lvl1": nordic(PONY_BREWERY),
+    "nord/weavery_lvl1": nordic(PONY_WEAVERY),
+    "nord/market_stall_lvl1": nordic(PONY_MARKET_STALL),
+    "nord/market_lvl1": nordic(PONY_MARKET),
+    "nord/watchtower_lvl1": nordic(PONY_WATCHTOWER),
+    "nord/shrine_lvl1": nordic(PONY_SHRINE),
     "dwarf/town_hall_lvl1": DWARF_TOWN_HALL,
     "dwarf/town_hall_lvl2": DWARF_TOWN_HALL_2,
     "dwarf/town_hall_lvl3": DWARF_TOWN_HALL_3,
@@ -3495,6 +3554,9 @@ def main():
                       ("pony/house_lvl1", "pony/house_lvl2"),
                       ("pony/farm_lvl1", "pony/farm_lvl2"),
                       ("pony/town_hall_lvl3", "pony/town_hall_lvl4"),
+                      ("nord/town_hall_lvl1", "nord/town_hall_lvl2"),
+                      ("nord/house_lvl1", "nord/house_lvl2"),
+                      ("nord/farm_lvl1", "nord/farm_lvl2"),
                       ("dwarf/town_hall_lvl1", "dwarf/town_hall_lvl2"),
                       ("dwarf/town_hall_lvl3", "dwarf/town_hall_lvl4"),
                       ("dwarf/house_lvl1", "dwarf/house_lvl2"),

@@ -1,0 +1,22 @@
+{
+  "giver": "villagepax:guard",
+  "culture": "villagepax:nord",
+  "min_reputation": 20,
+  "objectives": [
+    {
+      "type": "build",
+      "workplace": "villagepax:nord/watchtower",
+      "level": 1
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 20
+    },
+    {
+      "type": "settler"
+    }
+  ],
+  "dialogue": "villagepax.quest.nord_watcher_2"
+}

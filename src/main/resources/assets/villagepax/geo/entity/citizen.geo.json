@@ -52,7 +52,7 @@
           ]
         },
         {
-          "name": "beard@dwarf+male+adult",
+          "name": "beard@dwarf|nord+male+adult",
           "parent": "head",
           "pivot": [0, 24, 0],
           "cubes": [
@@ -64,7 +64,7 @@
           ]
         },
         {
-          "name": "braid@dwarf+female",
+          "name": "braid@dwarf|nord+female",
           "parent": "head",
           "pivot": [0, 24, 0],
           "cubes": [
@@ -143,7 +143,7 @@
           ]
         },
         {
-          "name": "hair@female+!dwarf",
+          "name": "hair@female+!dwarf+!nord",
           "parent": "head",
           "pivot": [0, 24, 0],
           "cubes": [
@@ -243,7 +243,7 @@
           ]
         },
         {
-          "name": "helm@guard+norman",
+          "name": "helm@guard+norman|nord",
           "parent": "head",
           "pivot": [0, 24, 0],
           "cubes": [

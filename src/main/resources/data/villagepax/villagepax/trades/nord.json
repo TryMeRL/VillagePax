@@ -1,0 +1,100 @@
+{
+  "culture": "villagepax:nord",
+  "sells": [
+    {
+      "item": "minecraft:spruce_log",
+      "count": 8,
+      "price": 1
+    },
+    {
+      "item": "minecraft:cod",
+      "count": 6,
+      "price": 1
+    },
+    {
+      "item": "minecraft:salmon",
+      "count": 4,
+      "price": 1
+    },
+    {
+      "item": "minecraft:leather",
+      "count": 4,
+      "price": 1
+    },
+    {
+      "item": "minecraft:rabbit_hide",
+      "count": 6,
+      "price": 1
+    },
+    {
+      "item": "minecraft:packed_ice",
+      "count": 4,
+      "price": 2
+    },
+    {
+      "item": "minecraft:honey_bottle",
+      "count": 2,
+      "price": 2
+    },
+    {
+      "item": "minecraft:iron_ingot",
+      "count": 2,
+      "price": 3,
+      "min_reputation": 15
+    },
+    {
+      "item": "minecraft:shield",
+      "count": 1,
+      "price": 8,
+      "min_reputation": 25
+    },
+    {
+      "item": "villagepax:dwarven_stout",
+      "count": 1,
+      "price": 3,
+      "min_reputation": 10
+    }
+  ],
+  "buys": [
+    {
+      "item": "villagepax:cloth",
+      "count": 2,
+      "price": 5
+    },
+    {
+      "item": "minecraft:bread",
+      "count": 6,
+      "price": 2
+    },
+    {
+      "item": "minecraft:wheat",
+      "count": 16,
+      "price": 1
+    },
+    {
+      "item": "minecraft:carrot",
+      "count": 12,
+      "price": 1
+    },
+    {
+      "item": "minecraft:coal",
+      "count": 8,
+      "price": 1
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 6,
+      "price": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 2,
+      "price": 2
+    },
+    {
+      "item": "villagepax:ale",
+      "count": 2,
+      "price": 4
+    }
+  ]
+}

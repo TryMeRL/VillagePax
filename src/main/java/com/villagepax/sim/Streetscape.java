@@ -72,6 +72,11 @@ public final class Streetscape {
             List.of(Blocks.PINK_TULIP, Blocks.AZURE_BLUET, Blocks.CORNFLOWER, Blocks.OXEYE_DAISY,
                     Blocks.ALLIUM));
 
+    private static final Palette NORD = new Palette(Blocks.COBBLESTONE, Blocks.SPRUCE_FENCE,
+            Blocks.SPRUCE_SLAB, Blocks.LANTERN, Blocks.SPRUCE_SIGN,
+            List.of(Blocks.CORNFLOWER, Blocks.LILY_OF_THE_VALLEY, Blocks.OXEYE_DAISY,
+                    Blocks.BLUE_ORCHID));
+
     /** Колодец — в этом кольце вокруг ратуши: на площади, но не у её дверей. */
     private static final int WELL_NEAR = 6;
     private static final int WELL_FAR = 11;
@@ -136,6 +141,7 @@ public final class Streetscape {
         return switch (culture.getPath()) {
             case "maya" -> MAYA;
             case "pony" -> PONY;
+            case "nord" -> NORD;
             default -> NORMAN;
         };
     }

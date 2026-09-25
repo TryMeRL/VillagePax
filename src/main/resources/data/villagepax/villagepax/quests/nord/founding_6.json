@@ -1,0 +1,22 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:nord",
+  "min_reputation": 70,
+  "objectives": [
+    {
+      "type": "friendship",
+      "culture": "villagepax:dwarf",
+      "trust": 20
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 25
+    },
+    {
+      "type": "settler"
+    }
+  ],
+  "dialogue": "villagepax.quest.nord_founding_6"
+}

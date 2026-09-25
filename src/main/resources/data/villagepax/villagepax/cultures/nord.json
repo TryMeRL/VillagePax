@@ -1,0 +1,75 @@
+{
+  "display_name": "villagepax.culture.nord",
+  "kind": "historical",
+  "spawn": {
+    "biomes": "#villagepax:nord_home",
+    "weight": 10,
+    "min_distance_chunks": 32
+  },
+  "name_pools": {
+    "male": [
+      "Bjorn",
+      "Leif",
+      "Ragnar",
+      "Sigurd",
+      "Eirik",
+      "Harald",
+      "Ulf",
+      "Torvald"
+    ],
+    "female": [
+      "Astrid",
+      "Freydis",
+      "Ingrid",
+      "Sigrid",
+      "Gudrun",
+      "Thora",
+      "Solveig"
+    ],
+    "settlement": [
+      "Skarvik",
+      "Hvitfjord",
+      "Ulfheim",
+      "Snaeby",
+      "Isgard",
+      "Nordvik",
+      "Frostholm"
+    ],
+    "son_of": "%sson",
+    "daughter_of": "%sdottir"
+  },
+  "buildings": [
+    "villagepax:nord/town_hall",
+    "villagepax:nord/market_stall",
+    "villagepax:nord/market",
+    "villagepax:nord/watchtower",
+    "villagepax:nord/shrine",
+    "villagepax:nord/house",
+    "villagepax:nord/farm",
+    "villagepax:nord/lumberjack",
+    "villagepax:nord/warehouse",
+    "villagepax:nord/builder_hut",
+    "villagepax:nord/brewery",
+    "villagepax:nord/weavery"
+  ],
+  "road": [
+    "minecraft:gravel",
+    "minecraft:cobblestone"
+  ],
+  "decor": [
+    "minecraft:barrel",
+    "villagepax:grain_sack",
+    "minecraft:cauldron",
+    "minecraft:smoker",
+    "minecraft:flower_pot",
+    "villagepax:bench",
+    "villagepax:table",
+    "villagepax:shelf",
+    "villagepax:paper_lantern"
+  ],
+  "traits": [],
+  "diplomacy_defaults": {
+    "villagepax:norman": -5,
+    "villagepax:dwarf": 10
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:nord",
+  "min_reputation": 25,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:bread",
+      "count": 12
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 20
+    },
+    {
+      "type": "item",
+      "item": "villagepax:town_hall_blueprint",
+      "count": 1
+    }
+  ],
+  "dialogue": "villagepax.quest.nord_founding_3",
+  "next": "villagepax:nord/founding_4"
+}

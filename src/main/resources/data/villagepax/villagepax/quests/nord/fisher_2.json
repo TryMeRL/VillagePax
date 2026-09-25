@@ -1,0 +1,24 @@
+{
+  "giver": "villagepax:farmer",
+  "culture": "villagepax:nord",
+  "min_reputation": 15,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:leather",
+      "count": 8
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 12
+    },
+    {
+      "type": "item",
+      "item": "minecraft:fishing_rod",
+      "count": 1
+    }
+  ],
+  "dialogue": "villagepax.quest.nord_fisher_2"
+}

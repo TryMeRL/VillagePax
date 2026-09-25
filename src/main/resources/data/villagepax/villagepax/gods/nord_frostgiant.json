@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:nord",
+  "display_name": "villagepax.god.nord.frostgiant",
+  "domain": "stone",
+  "offerings": {
+    "minecraft:cobblestone": 1,
+    "minecraft:spruce_log": 2,
+    "minecraft:packed_ice": 4,
+    "minecraft:iron_ingot": 6
+  },
+  "artifact": "villagepax:builders_plumb"
+}

@@ -239,6 +239,19 @@ public final class ModBlocks {
     public static final Block FLOWER_BOX = register("flower_box", furniture(
             Block.createCuboidShape(0, 0, 9, 16, 8, 16)));
 
+    /**
+     * Верстовой столб: щелчок — и видно, где ближайшая деревня каждого
+     * народа и в какой она стороне. Дерево, как у мебели.
+     */
+    public static final Block SIGNPOST = register("signpost", new SignpostBlock(
+            Block.createCuboidShape(6, 0, 6, 10, 16, 10), AbstractBlock.Settings.create()
+                    .mapColor(MapColor.SPRUCE_BROWN)
+                    .instrument(Instrument.BASS)
+                    .burnable()
+                    .strength(1.5f, 3.0f)
+                    .sounds(BlockSoundGroup.WOOD)
+                    .nonOpaque()));
+
     public static final Block MARKER_WORKSTATION = registerMarker("marker_workstation");
     public static final Block MARKER_BED = registerMarker("marker_bed");
     public static final Block MARKER_STORAGE = registerMarker("marker_storage");

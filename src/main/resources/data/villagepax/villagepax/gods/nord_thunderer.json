@@ -1,0 +1,12 @@
+{
+  "culture": "villagepax:nord",
+  "display_name": "villagepax.god.nord.thunderer",
+  "domain": "watch",
+  "offerings": {
+    "minecraft:arrow": 1,
+    "minecraft:leather": 2,
+    "minecraft:iron_sword": 6,
+    "minecraft:shield": 8
+  },
+  "artifact": "villagepax:watchers_eye"
+}

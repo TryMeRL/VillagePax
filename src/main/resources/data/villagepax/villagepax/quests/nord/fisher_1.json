@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:farmer",
+  "culture": "villagepax:nord",
+  "min_reputation": 0,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:cod",
+      "count": 6
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 10
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 8
+    }
+  ],
+  "dialogue": "villagepax.quest.nord_fisher_1",
+  "next": "villagepax:nord/fisher_2"
+}

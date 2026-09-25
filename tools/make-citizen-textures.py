@@ -169,12 +169,36 @@ ELF = {
     "helm": rgb(0xC3D0D8),
 }
 
+# Северяне — народ заснеженной тайги. Кожа бледная, как у тех, кто полгода
+# не видит солнца; волосы соломенные, у кого-то рыжие; шерсть синяя,
+# как вода фьорда подо льдом, и латунная тесьма — единственное, что
+# блестит у них зимой.
+NORD = {
+    "skin": rgb(0xECC8AC),
+    "skin_dark": rgb(0xCFA88C),
+    "hair": rgb(0xD8B868),
+    "hair_dark": rgb(0xB0883E),
+    "cloth": rgb(0x4E6E92),
+    "cloth_dark": rgb(0x3C5878),
+    "cloth_lit": rgb(0x6A8AAE),
+    "trousers": rgb(0x6A5A48),
+    "trousers_dark": rgb(0x524536),
+    "boots": rgb(0x5A5048),
+    "belt": rgb(0x3E2E20),
+    "accent": rgb(0xC8A040),
+    "helm": rgb(0x8A9098),
+}
+
 CULTURES = {"norman": NORMAN, "maya": MAYA, "pony": PONY,
-            "dwarf": DWARF, "elf": ELF}
+            "dwarf": DWARF, "elf": ELF, "nord": NORD}
 
 # Кто носит бороду. Это про народ, а не про моду: северянин и подгорный
 # с бородой, южанин, степняк и лесной без.
-BEARDED = ("norman", "dwarf")
+BEARDED = ("norman", "dwarf", "nord")
+
+# У кого борода длинная, до пояса, и косы у женщин: подгорный народ
+# и северяне — оба живут там, где холодно, и оба этим гордятся.
+LONG_HAIRED = ("dwarf", "nord")
 
 EYE = rgb(0x2B2B33)
 EYE_WHITE = rgb(0xE6E6DE)
@@ -905,7 +929,7 @@ def build(culture, woman, craft):
     draw_leg(skin, parts, look)
     if woman:
         draw_skirt(skin, look)
-        if culture == "dwarf":
+        if culture in LONG_HAIRED:
             draw_braid(skin, look)
         else:
             draw_hair(skin, look, GREY_HAIR if craft == "elder" else None)
@@ -915,11 +939,11 @@ def build(culture, woman, craft):
         # Борода — примета народа. У старейшины её рисует само ремесло,
         # и притом седую, поэтому здесь он пропускается.
         draw_beard(skin, parts, look)
-    if not woman and culture == "dwarf":
+    if not woman and culture in LONG_HAIRED:
         draw_long_beard(skin, look, GREY_HAIR if craft == "elder" else None)
     if craft in CRAFTS:
         CRAFTS[craft](skin, parts, look, woman, culture)
-    if woman and culture == "dwarf" and craft == "elder":
+    if woman and culture in LONG_HAIRED and craft == "elder":
         draw_braid(skin, look, GREY_HAIR)
     for name in ("jacket", "sleeve", "pants"):
         skin.outline(parts[name], tone(look["cloth_dark"], 0.8))

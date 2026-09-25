@@ -259,11 +259,32 @@ def flower_box():
                   "particle": "minecraft:block/spruce_planks"}, elements)
 
 
+# --- верстовой столб ------------------------------------------------------------
+#
+# Еловый столб в рост и три указателя на разной высоте, повёрнутые в
+# разные стороны: так столб читается развилкой, а не забором.
+
+def signpost():
+    post = {"*": "#post", "up": "#post_top", "down": "#post_top"}
+    elements = [box("столб", (7, 0, 7), (9, 16, 9), post, cull=("down",))]
+    for low, angle, reach in ((12, 0, 15), (8, 45, 14), (4, -45, 14)):
+        # Доска в три текселя шириной: уже — и указатель читается сучком.
+        board = box("указатель", (8, low, 7.5), (reach, low + 3, 8.5), "#board")
+        board["rotation"] = {"origin": [8, low, 8], "axis": "y", "angle": angle}
+        tip = box("остриё", (reach, low + 0.75, 7.5), (reach + 1, low + 2.25, 8.5), "#board")
+        tip["rotation"] = {"origin": [8, low, 8], "axis": "y", "angle": angle}
+        elements += [board, tip]
+    return model({"post": "minecraft:block/stripped_spruce_log",
+                  "post_top": "minecraft:block/stripped_spruce_log_top",
+                  "board": "minecraft:block/spruce_planks",
+                  "particle": "minecraft:block/spruce_planks"}, elements)
+
+
 def main():
     for name, build in (("bench", bench), ("table", table), ("shelf", shelf), ("altar", altar),
                         ("paper_lantern", lambda: paper_lantern(False)),
                         ("paper_lantern_hanging", lambda: paper_lantern(True)),
-                        ("flower_box", flower_box)):
+                        ("flower_box", flower_box), ("signpost", signpost)):
         path = MODELS / (name + ".json")
         path.write_text(json.dumps(build(), indent=2, ensure_ascii=False) + "\n",
                         encoding="utf-8", newline="\n")

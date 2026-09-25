@@ -219,6 +219,28 @@ public class ColonyTests extends GameTestSupport {
         context.complete();
     }
 
+    /**
+     * Убранство народа называет настоящие блоки.
+     * <p>
+     * Неизвестный опознаватель превращается в воздух молча, и у пони с
+     * эльфами пункт «верёвка» годами не значил ничего: такого блока нет.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void everyDecorOfAPeopleIsARealBlock(TestContext context) {
+        List<String> unknown = new ArrayList<>();
+        CultureManager.all().forEach((id, culture) -> {
+            for (Identifier block : culture.decor()) {
+                if (!Registries.BLOCK.containsId(block)) {
+                    unknown.add(id.getPath() + ": " + block);
+                }
+            }
+        });
+        if (!unknown.isEmpty()) {
+            context.throwGameTestException("В убранстве неизвестные блоки: " + unknown);
+        }
+        context.complete();
+    }
+
     @GameTest(templateName = EMPTY_STRUCTURE)
     public void cultureIsLoadedFromDatapack(TestContext context) {
         Culture norman = CultureManager.get(NORMAN);

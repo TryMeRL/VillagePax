@@ -1,0 +1,25 @@
+{
+  "giver": "villagepax:elder",
+  "culture": "villagepax:nord",
+  "min_reputation": 40,
+  "objectives": [
+    {
+      "type": "build",
+      "workplace": "villagepax:nord/farm",
+      "level": 1
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "minecraft:wheat_seeds",
+      "count": 16
+    }
+  ],
+  "dialogue": "villagepax.quest.nord_founding_4",
+  "next": "villagepax:nord/founding_5"
+}

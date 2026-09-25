@@ -62,8 +62,7 @@
     "minecraft:barrel",
     "villagepax:bench",
     "villagepax:table",
-    "villagepax:shelf",
-    "villagepax:laundry_rope"
+    "villagepax:shelf"
   ],
   "traits": [],
   "diplomacy_defaults": {

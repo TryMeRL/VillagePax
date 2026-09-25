@@ -60,8 +60,7 @@
     "minecraft:lantern",
     "villagepax:bench",
     "villagepax:table",
-    "villagepax:shelf",
-    "villagepax:laundry_rope"
+    "villagepax:shelf"
   ],
   "traits": [
     "villagepax:builds_in_canopy"

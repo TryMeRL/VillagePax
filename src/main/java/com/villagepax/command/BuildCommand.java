@@ -25,12 +25,14 @@ import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
+import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.config.Config;
 import com.villagepax.core.config.Configs;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.CommandSource;
 import net.minecraft.command.argument.IdentifierArgumentType;
 import net.minecraft.item.Item;
+import net.minecraft.registry.Registries;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.world.ServerWorld;
@@ -122,27 +124,27 @@ public final class BuildCommand {
         // Разбор образцами, а не switch: switch по типам в Java 17 —
         // предпросмотр, а цель мода 17.
         if (result instanceof BuildOrders.Result.Placed placed) {
-            tell(context, "Стройка размечена: " + placed.site().type()
-                    + " ур. " + placed.site().level()
-                    + ", след " + placed.footprint().getX() + "x" + placed.footprint().getZ()
-                    + ", блоков " + placed.blocks()
-                    + ". Нужен житель с профессией " + BuildJob.BUILDER + ".");
+            say(context, "villagepax.command.build.placed", building(placed.site().type()),
+                    placed.site().level(),
+                    placed.footprint().getX() + "x" + placed.footprint().getZ(), placed.blocks(),
+                    profession(BuildJob.BUILDER));
             return 1;
         }
         if (result instanceof BuildOrders.Result.NoSchematic missing) {
-            tell(context, "Схемы " + missing.schematic() + " нет. Загружены: "
-                    + SchematicLoader.ids());
+            say(context, "villagepax.command.build.no_schematic", missing.schematic(),
+                    SchematicLoader.ids());
         } else if (result instanceof BuildOrders.Result.BadName wrong) {
-            tell(context, "Имя схемы обязано кончаться на _lvl<число>: " + wrong.schematic());
+            say(context, "villagepax.command.build.bad_name", wrong.schematic());
         } else if (result instanceof BuildOrders.Result.OutsideClaim outside) {
-            tell(context, "Здесь не твоя земля: " + outside.anchor().toShortString()
-                    + " вне границ колонии «" + colony.name() + "»");
+            say(context, "villagepax.command.build.outside", outside.anchor().toShortString(),
+                    colony.name());
         } else if (result instanceof BuildOrders.Result.Locked locked) {
-            tell(context, "Такое здание строят не раньше ступени «" + locked.needs().id()
-                    + "»: " + locked.type());
+            say(context, "villagepax.command.build.locked",
+                    Text.translatable("villagepax.level." + locked.needs().id()),
+                    building(locked.type()));
         } else if (result instanceof BuildOrders.Result.Overlaps clash) {
-            tell(context, "След пересекается с уже размеченным " + clash.clash().type()
-                    + " в " + clash.clash().anchor().toShortString());
+            say(context, "villagepax.command.build.overlaps", building(clash.clash().type()),
+                    clash.clash().anchor().toShortString());
         }
         return 0;
     }
@@ -160,14 +162,14 @@ public final class BuildCommand {
         Identifier schematicId = IdentifierArgumentType.getIdentifier(context, "schematic");
         Schematic schematic = SchematicLoader.get(schematicId).orElse(null);
         if (schematic == null) {
-            tell(context, "Схемы " + schematicId + " нет");
+            say(context, "villagepax.command.build.no_schematic", schematicId,
+                    SchematicLoader.ids());
             return 0;
         }
 
         Warehouse warehouse = Warehouse.of(context.getSource().getWorld(), colony);
         if (warehouse.containerCount() == 0) {
-            tell(context, "Складывать некуда: у колонии нет ни одного хранилища. "
-                    + "Ратуша — стартовое, поставь её чертежом.");
+            say(context, "villagepax.command.supply.no_storage");
             return 0;
         }
 
@@ -179,8 +181,8 @@ public final class BuildCommand {
             delivered += deliver(warehouse, entry.getKey(), entry.getValue());
         }
 
-        tell(context, "Завезено " + delivered + " из " + asked + " штук по " + needed.size()
-                + " видам предметов" + (delivered < asked ? " — дальше некуда класть" : ""));
+        say(context, delivered < asked ? "villagepax.command.supply.full"
+                : "villagepax.command.supply.done", delivered, asked, needed.size());
         return 1;
     }
 
@@ -217,12 +219,13 @@ public final class BuildCommand {
 
         Identifier profession = IdentifierArgumentType.getIdentifier(context, "profession");
         if (Jobs.forProfession(Optional.of(profession)).isEmpty()) {
-            tell(context, "Профессии " + profession + " нет. Есть: " + ProfessionManager.ids());
+            say(context, "villagepax.command.hire.unknown", profession, ProfessionManager.ids());
             return 0;
         }
         if (!colony.hasRoomForCitizen()) {
-            tell(context, "Некуда селить: уровень «" + colony.level().id() + "» держит "
-                    + colony.level().maxCitizens() + " жителей, а их уже " + colony.population());
+            say(context, "villagepax.command.hire.no_room",
+                    Text.translatable("villagepax.level." + colony.level().id()),
+                    colony.level().maxCitizens(), colony.population());
             return 0;
         }
 
@@ -236,8 +239,8 @@ public final class BuildCommand {
         manager.update(colony.id(), settlement -> settlement.addCitizen(hired));
         CitizenSpawner.spawnBody(world, colony, hired);
 
-        tell(context, "Нанят " + hired.fullName() + " — " + profession.getPath()
-                + ". Жителей в колонии: " + colony.population());
+        say(context, "villagepax.command.hire.done", hired.fullName(), profession(profession),
+                colony.population());
         return 1;
     }
 
@@ -335,18 +338,19 @@ public final class BuildCommand {
         SettlementManager manager = SettlementManager.get(world);
 
         VillageSites.Guess nearest = VillageSites.guessNearest(world, from);
-        source.sendFeedback(() -> Text.literal("Ближайшее место по сетке: "
-                + (nearest == null ? "нет в шести клетках"
-                        : nearest.culture() + " " + nearest.where().toShortString())), false);
+        source.sendFeedback(() -> Text.translatable("villagepax.command.sites.nearest",
+                nearest == null ? Text.translatable("villagepax.command.sites.none_near")
+                        : Text.literal(nearest.culture() + " " + nearest.where().toShortString())),
+                false);
 
         for (Map.Entry<Identifier, Culture> entry : CultureManager.all().entrySet()) {
             BlockPos column = VillageSites.plannedSite(world, entry.getKey(), entry.getValue(),
                     Math.floorDiv(from.getX() >> 4, VillageSites.spacing(entry.getValue())),
                     Math.floorDiv(from.getZ() >> 4, VillageSites.spacing(entry.getValue())));
 
-            String about;
+            Text about;
             if (column == null) {
-                about = "в этой клетке места нет (биом или высота)";
+                about = Text.translatable("villagepax.command.sites.no_place");
             } else {
                 boolean loaded = world.isChunkLoaded(column);
                 BlockPos ground = loaded
@@ -360,15 +364,18 @@ public final class BuildCommand {
                         ? world.getTopY(net.minecraft.world.Heightmap.Type.WORLD_SURFACE,
                                 column.getX(), column.getZ())
                         : -1;
-                about = column.toShortString()
-                        + ", чанк " + (loaded ? "загружен" : "не загружен")
-                        + ", земля " + (ground == null ? "не найдена" : "на " + ground.getY())
-                        + ", карта высот " + heightmap
-                        + ", занято " + manager.isSettled(column);
+                about = Text.translatable("villagepax.command.sites.site", column.toShortString(),
+                        Text.translatable(loaded ? "villagepax.command.sites.loaded"
+                                : "villagepax.command.sites.not_loaded"),
+                        ground == null ? Text.translatable("villagepax.command.sites.no_ground")
+                                : Text.literal(String.valueOf(ground.getY())),
+                        heightmap,
+                        Text.translatable(manager.isSettled(column)
+                                ? "villagepax.command.yes" : "villagepax.command.no"));
             }
 
-            String line = entry.getKey() + ": " + about;
-            source.sendFeedback(() -> Text.literal(line), false);
+            Text line = Text.literal(entry.getKey() + ": ").append(about);
+            source.sendFeedback(() -> line, false);
         }
 
         return 1;
@@ -385,27 +392,27 @@ public final class BuildCommand {
 
         Warehouse warehouse = Warehouse.of(context.getSource().getWorld(), colony);
         for (Citizen citizen : colony.citizens()) {
-            tell(context, "  " + citizen.fullName()
-                    + " — " + citizen.profession().map(Identifier::getPath).orElse("без профессии")
-                    + ", " + citizen.jobState().phase().id()
-                    + citizen.jobState().firstLoad()
-                            .map(load -> ", несёт " + load.count() + " x " + load.item())
-                            .orElse(""));
+            say(context, "villagepax.command.status.citizen", citizen.fullName(),
+                    citizen.profession().map(BuildCommand::profession)
+                            .orElse(Text.translatable("villagepax.profession.none")),
+                    citizen.jobState().phase().id(),
+                    citizen.jobState().firstLoad()
+                            .map(load -> (Text) Text.translatable("villagepax.command.status.carries",
+                                    load.count(), Registries.ITEM.get(load.item()).getName()))
+                            .orElse(Text.empty()));
         }
 
-        tell(context, "Колония «" + colony.name() + "»: жителей " + colony.population()
-                + ", зданий " + colony.buildings().size()
-                + ", хранилищ " + warehouse.containerCount()
-                + ", на складе штук " + warehouse.totalItems());
+        say(context, "villagepax.command.status.colony", colony.name(), colony.population(),
+                colony.buildings().size(), warehouse.containerCount(), warehouse.totalItems());
 
         for (Building building : colony.buildings()) {
             Optional<Schematic> schematic = SchematicLoader.get(BuildJob.schematicId(building));
-            String progress = schematic
-                    .map(s -> building.nextStep() + "/" + s.plan().steps().size())
-                    .orElse("схемы нет");
-            tell(context, "  " + building.type() + " ур. " + building.level()
-                    + " — " + building.progress().id() + ", шагов " + progress
-                    + ", в запасе площадки " + building.stock().total());
+            Text progress = schematic
+                    .map(s -> (Text) Text.literal(building.nextStep() + "/" + s.plan().steps().size()))
+                    .orElse(Text.translatable("villagepax.command.status.no_schematic"));
+            say(context, "villagepax.command.status.building", building(building.type()),
+                    building.level(), building.progress().id(), progress,
+                    building.stock().total());
         }
         return 1;
     }
@@ -414,7 +421,7 @@ public final class BuildCommand {
                                            SettlementManager manager, UUID player) {
         Settlement colony = Founding.colonyOf(manager, player).orElse(null);
         if (colony == null) {
-            tell(context, "У тебя нет колонии. Поставь ратушу чертежом.");
+            say(context, "villagepax.command.no_colony");
         }
         return colony;
     }
@@ -429,15 +436,41 @@ public final class BuildCommand {
      */
     private static int reloadConfig(CommandContext<ServerCommandSource> context) {
         Config config = Configs.load();
-        tell(context, "Настройки перечитаны: деревни народов "
-                + (config.autonomousVillages() ? "есть" : "выключены")
-                + ", предел жителей x" + config.populationScale()
-                + ", голод " + config.hungerWarnDays() + "/" + config.hungerLeaveDays()
-                + " дней. Файл: " + Configs.path());
+        say(context, "villagepax.command.config.reloaded",
+                Text.translatable(config.autonomousVillages()
+                        ? "villagepax.command.config.villages_on"
+                        : "villagepax.command.config.villages_off"),
+                config.populationScale(), config.hungerWarnDays(), config.hungerLeaveDays(),
+                Configs.path());
         return 1;
     }
 
-    private static void tell(CommandContext<ServerCommandSource> context, String message) {
-        context.getSource().sendFeedback(() -> Text.literal(message), false);
+    /**
+     * Ответ команды — ключом словаря, а не готовой строкой.
+     * <p>
+     * Отвечает сервер, а читает игрок на своём языке: переводит клиент.
+     * Прежде ответы были русскими строками, и англоязычный игрок получал
+     * на «что с моей колонией» ответ, который не мог прочесть. Числа
+     * и имена уходят как есть, тексты — своими ключами.
+     */
+    private static void say(CommandContext<ServerCommandSource> context, String key,
+                            Object... args) {
+        Object[] parts = new Object[args.length];
+        for (int at = 0; at < args.length; at++) {
+            parts[at] = args[at] instanceof Text text ? text : String.valueOf(args[at]);
+        }
+        context.getSource().sendFeedback(() -> Text.translatable(key, parts), false);
+    }
+
+    /** Название здания на языке игрока. */
+    private static Text building(Identifier type) {
+        return Text.translatable(BuildingTypes.displayName(type));
+    }
+
+    /** Название ремесла на языке игрока; незнакомое — опознавателем. */
+    private static Text profession(Identifier id) {
+        return ProfessionManager.get(id)
+                .map(known -> (Text) Text.translatable(known.displayName()))
+                .orElse(Text.literal(id.toString()));
     }
 }

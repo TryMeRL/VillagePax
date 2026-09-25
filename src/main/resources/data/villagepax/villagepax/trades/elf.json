@@ -40,6 +40,16 @@
       "item": "minecraft:white_wool",
       "count": 6,
       "price": 2
+    },
+    {
+      "item": "villagepax:elven_nectar",
+      "count": 1,
+      "price": 2
+    },
+    {
+      "item": "villagepax:moonflower",
+      "count": 2,
+      "price": 1
     }
   ],
   "buys": [

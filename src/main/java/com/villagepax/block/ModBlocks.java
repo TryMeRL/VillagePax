@@ -10,6 +10,8 @@ import net.minecraft.block.Blocks;
 import net.minecraft.block.MapColor;
 import net.minecraft.block.PillarBlock;
 import net.minecraft.block.enums.Instrument;
+import net.minecraft.block.LanternBlock;
+import net.minecraft.block.piston.PistonBehavior;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.sound.BlockSoundGroup;
@@ -210,6 +212,32 @@ public final class ModBlocks {
                     .sounds(BlockSoundGroup.STONE)
                     .luminance(state -> 5)
                     .nonOpaque()));
+
+    /**
+     * Бумажный фонарик: праздничный свет — красная бумага на бамбуковых
+     * рёбрах. Висит под балкой или стоит на столе, как ванильный фонарь,
+     * но бумажный: ломается рукой и гаснет под поршнем.
+     */
+    public static final Block PAPER_LANTERN = register("paper_lantern",
+            new LanternBlock(AbstractBlock.Settings.create()
+                    .mapColor(MapColor.RED)
+                    .strength(0.5f)
+                    .sounds(BlockSoundGroup.WOOL)
+                    .luminance(state -> 15)
+                    .nonOpaque()
+                    .pistonBehavior(PistonBehavior.DESTROY)));
+
+    /** Лунник: эльфийский цветок, светится и искрит ночью. */
+    public static final Block MOONFLOWER = register("moonflower",
+            new MoonflowerBlock(AbstractBlock.Settings.copy(Blocks.DANDELION)
+                    .luminance(state -> 7)));
+
+    /**
+     * Цветочный ящик под окно: доска, земля и три цветка. Ставится
+     * лицом к игроку и прижимается к дальней стороне клетки — к стене.
+     */
+    public static final Block FLOWER_BOX = register("flower_box", furniture(
+            Block.createCuboidShape(0, 0, 9, 16, 8, 16)));
 
     public static final Block MARKER_WORKSTATION = registerMarker("marker_workstation");
     public static final Block MARKER_BED = registerMarker("marker_bed");

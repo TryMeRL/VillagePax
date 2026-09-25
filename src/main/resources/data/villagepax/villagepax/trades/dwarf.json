@@ -40,6 +40,11 @@
       "item": "villagepax:ale",
       "count": 2,
       "price": 2
+    },
+    {
+      "item": "villagepax:dwarven_stout",
+      "count": 1,
+      "price": 2
     }
   ],
   "buys": [

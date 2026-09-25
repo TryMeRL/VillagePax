@@ -1,5 +1,6 @@
 package com.villagepax;
 
+import com.villagepax.effect.ModEffects;
 import com.villagepax.block.Kindling;
 import com.villagepax.block.ModBlocks;
 import com.villagepax.block.entity.ModBlockEntities;
@@ -44,6 +45,7 @@ public class VillagePax implements ModInitializer {
         Configs.load();
 
         ModBlocks.init();
+        ModEffects.init();
         Kindling.init();
         ModBlockEntities.init();
         ModItems.registerBlockItems();

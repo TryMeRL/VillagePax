@@ -58,7 +58,8 @@ public final class Guide {
             "villagepax.guide.errands_more",
             "villagepax.guide.life",
             "villagepax.guide.kin",
-            "villagepax.guide.bonds");
+            "villagepax.guide.bonds",
+            "villagepax.guide.treats");
 
     private Guide() {
     }

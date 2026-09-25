@@ -721,5 +721,18 @@
   "villagepax.command.untrust.not_trusted": "%s и не было среди доверенных.",
   "villagepax.command.trusted.none": "Колонии «%s» никто не доверен: строит только хозяин.",
   "villagepax.command.trusted.list": "Строить на земле колонии «%s» доверено: %s",
-  "villagepax.guide.neighbours": "§lСоседи§r\n\nНа земле колонии строят только хозяин и те, кому он доверил. Гость ходит и говорит.\n\n§o/villagepax trust§r — доверить.\n§o/villagepax untrust§r — забрать."
+  "villagepax.guide.neighbours": "§lСоседи§r\n\nНа земле колонии строят только хозяин и те, кому он доверил. Гость ходит и говорит.\n\n§o/villagepax trust§r — доверить.\n§o/villagepax untrust§r — забрать.",
+  "item.villagepax.rainbow_cupcake": "Радужный кекс",
+  "item.villagepax.dwarven_stout": "Гномий стаут",
+  "item.villagepax.elven_nectar": "Эльфийский нектар",
+  "item.villagepax.popper": "Хлопушка",
+  "block.villagepax.paper_lantern": "Бумажный фонарик",
+  "block.villagepax.moonflower": "Лунник",
+  "block.villagepax.flower_box": "Цветочный ящик",
+  "effect.villagepax.rainbow": "Радуга",
+  "effect.villagepax.ore_sense": "Рудное чутьё",
+  "effect.villagepax.lightness": "Лёгкость",
+  "villagepax.effect.ore_sense.near": "Чутьё: %s — в %s блоках",
+  "villagepax.effect.ore_sense.none": "Чутьё: руды поблизости нет",
+  "villagepax.guide.treats": "§lДиковинки§r\n\nУ каждого народа своё угощение.\n\nКекс пони — радуга и бег.\nСтаут гномов — чуешь руду.\nНектар эльфов — лёгкость.\n\nХлопушка — праздник: жители машут."
 }

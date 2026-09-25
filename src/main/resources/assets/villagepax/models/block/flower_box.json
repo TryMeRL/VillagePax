@@ -1,0 +1,324 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "planks": "minecraft:block/spruce_planks",
+    "soil": "minecraft:block/rooted_dirt",
+    "poppy": "minecraft:block/poppy",
+    "dandelion": "minecraft:block/dandelion",
+    "cornflower": "minecraft:block/cornflower",
+    "particle": "minecraft:block/spruce_planks"
+  },
+  "elements": [
+    {
+      "__comment": "ящик",
+      "from": [
+        0,
+        0,
+        9
+      ],
+      "to": [
+        16,
+        6,
+        16
+      ],
+      "faces": {
+        "north": {
+          "texture": "#planks"
+        },
+        "south": {
+          "texture": "#planks",
+          "cullface": "south"
+        },
+        "east": {
+          "texture": "#planks"
+        },
+        "west": {
+          "texture": "#planks"
+        },
+        "up": {
+          "texture": "#planks"
+        },
+        "down": {
+          "texture": "#planks",
+          "cullface": "down"
+        }
+      }
+    },
+    {
+      "__comment": "земля",
+      "from": [
+        1,
+        6,
+        10
+      ],
+      "to": [
+        15,
+        6.5,
+        15
+      ],
+      "faces": {
+        "up": {
+          "texture": "#soil"
+        }
+      }
+    },
+    {
+      "__comment": "цветок",
+      "from": [
+        1.0,
+        6,
+        12.5
+      ],
+      "to": [
+        6.0,
+        14,
+        12.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#poppy",
+          "uv": [
+            4,
+            4,
+            12,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#poppy",
+          "uv": [
+            4,
+            4,
+            12,
+            16
+          ]
+        }
+      },
+      "rotation": {
+        "origin": [
+          3.5,
+          6,
+          12.5
+        ],
+        "axis": "y",
+        "angle": 45
+      },
+      "shade": false
+    },
+    {
+      "__comment": "цветок",
+      "from": [
+        1.0,
+        6,
+        12.5
+      ],
+      "to": [
+        6.0,
+        14,
+        12.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#poppy",
+          "uv": [
+            4,
+            4,
+            12,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#poppy",
+          "uv": [
+            4,
+            4,
+            12,
+            16
+          ]
+        }
+      },
+      "rotation": {
+        "origin": [
+          3.5,
+          6,
+          12.5
+        ],
+        "axis": "y",
+        "angle": -45
+      },
+      "shade": false
+    },
+    {
+      "__comment": "цветок",
+      "from": [
+        5.5,
+        6,
+        12.5
+      ],
+      "to": [
+        10.5,
+        14,
+        12.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#dandelion",
+          "uv": [
+            4,
+            4,
+            12,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#dandelion",
+          "uv": [
+            4,
+            4,
+            12,
+            16
+          ]
+        }
+      },
+      "rotation": {
+        "origin": [
+          8,
+          6,
+          12.5
+        ],
+        "axis": "y",
+        "angle": 45
+      },
+      "shade": false
+    },
+    {
+      "__comment": "цветок",
+      "from": [
+        5.5,
+        6,
+        12.5
+      ],
+      "to": [
+        10.5,
+        14,
+        12.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#dandelion",
+          "uv": [
+            4,
+            4,
+            12,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#dandelion",
+          "uv": [
+            4,
+            4,
+            12,
+            16
+          ]
+        }
+      },
+      "rotation": {
+        "origin": [
+          8,
+          6,
+          12.5
+        ],
+        "axis": "y",
+        "angle": -45
+      },
+      "shade": false
+    },
+    {
+      "__comment": "цветок",
+      "from": [
+        10.0,
+        6,
+        12.5
+      ],
+      "to": [
+        15.0,
+        14,
+        12.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#cornflower",
+          "uv": [
+            4,
+            4,
+            12,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#cornflower",
+          "uv": [
+            4,
+            4,
+            12,
+            16
+          ]
+        }
+      },
+      "rotation": {
+        "origin": [
+          12.5,
+          6,
+          12.5
+        ],
+        "axis": "y",
+        "angle": 45
+      },
+      "shade": false
+    },
+    {
+      "__comment": "цветок",
+      "from": [
+        10.0,
+        6,
+        12.5
+      ],
+      "to": [
+        15.0,
+        14,
+        12.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#cornflower",
+          "uv": [
+            4,
+            4,
+            12,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#cornflower",
+          "uv": [
+            4,
+            4,
+            12,
+            16
+          ]
+        }
+      },
+      "rotation": {
+        "origin": [
+          12.5,
+          6,
+          12.5
+        ],
+        "axis": "y",
+        "angle": -45
+      },
+      "shade": false
+    }
+  ]
+}

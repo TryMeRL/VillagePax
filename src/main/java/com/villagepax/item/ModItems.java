@@ -3,6 +3,7 @@ package com.villagepax.item;
 import com.villagepax.VillagePax;
 import com.villagepax.block.ModBlocks;
 import com.villagepax.core.faith.Domain;
+import com.villagepax.effect.ModEffects;
 import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
 import net.minecraft.block.Block;
 import net.minecraft.entity.effect.StatusEffectInstance;
@@ -114,6 +115,50 @@ public final class ModItems {
      * иметь в виду, и вешается на бельевую верёвку уже сейчас.
      */
     public static final Item CLOTH = register("cloth", new Item(new Item.Settings()));
+
+    // --- угощения народов: у каждого свой нрав и свой эффект ---
+
+    /**
+     * Радужный кекс пони: розовая глазурь, посыпка и радуга на полминуты —
+     * бежишь быстрее и оставляешь за собой цветной след.
+     */
+    public static final Item RAINBOW_CUPCAKE = register("rainbow_cupcake", new Item(
+            new Item.Settings().food(new FoodComponent.Builder()
+                    .hunger(3)
+                    .saturationModifier(0.3f)
+                    .snack()
+                    .alwaysEdible()
+                    .statusEffect(new StatusEffectInstance(ModEffects.RAINBOW_DASH, 20 * 45, 0), 1.0f)
+                    .build())));
+
+    /**
+     * Гномий стаут: тёмный, как штольня, — и камень начинает подсказывать,
+     * где руда. Ночное зрение в придачу: в забое без него не разглядеть.
+     */
+    public static final Item DWARVEN_STOUT = register("dwarven_stout", new DrinkItem(
+            new Item.Settings().maxCount(16).food(new FoodComponent.Builder()
+                    .hunger(3)
+                    .saturationModifier(0.4f)
+                    .alwaysEdible()
+                    .statusEffect(new StatusEffectInstance(ModEffects.ORE_SENSE, 20 * 90, 0), 1.0f)
+                    .statusEffect(new StatusEffectInstance(StatusEffects.NIGHT_VISION, 20 * 90, 0), 1.0f)
+                    .build())));
+
+    /**
+     * Эльфийский нектар: мёд и светящиеся ягоды. Лёгкость на две минуты:
+     * прыгаешь выше и падаешь, как лист.
+     */
+    public static final Item ELVEN_NECTAR = register("elven_nectar", new DrinkItem(
+            new Item.Settings().maxCount(16).food(new FoodComponent.Builder()
+                    .hunger(2)
+                    .saturationModifier(0.5f)
+                    .alwaysEdible()
+                    .statusEffect(new StatusEffectInstance(ModEffects.LIGHTNESS, 20 * 120, 0), 1.0f)
+                    .statusEffect(new StatusEffectInstance(StatusEffects.JUMP_BOOST, 20 * 120, 1), 1.0f)
+                    .build())));
+
+    /** Хлопушка норманнского праздника: конфетти, и деревня машет в ответ. */
+    public static final Item POPPER = register("popper", new PopperItem(new Item.Settings().maxCount(16)));
 
     /**
      * Артефакты: три вещи, которых нельзя добыть, скрафтить и купить.

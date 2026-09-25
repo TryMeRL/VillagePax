@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "hanging=false": {
+      "model": "villagepax:block/paper_lantern"
+    },
+    "hanging=true": {
+      "model": "villagepax:block/paper_lantern_hanging"
+    }
+  }
+}

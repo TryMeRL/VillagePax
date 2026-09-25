@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "fff",
+    "pdp"
+  ],
+  "key": {
+    "f": {
+      "tag": "minecraft:small_flowers"
+    },
+    "p": {
+      "tag": "minecraft:planks"
+    },
+    "d": {
+      "item": "minecraft:dirt"
+    }
+  },
+  "result": {
+    "item": "villagepax:flower_box",
+    "count": 2
+  }
+}

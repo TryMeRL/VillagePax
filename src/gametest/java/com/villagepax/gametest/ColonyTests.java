@@ -174,6 +174,51 @@ public class ColonyTests extends GameTestSupport {
                         net.minecraft.util.math.Direction.UP, at, false));
     }
 
+    /** Гномье чутьё ведёт к ближайшей руде, а не к первой попавшейся. */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void oreSenseLeadsToTheNearestOre(TestContext context) {
+        ServerWorld world = context.getWorld();
+        BlockPos from = context.getAbsolutePos(new BlockPos(1, 2, 1));
+        BlockPos near = context.getAbsolutePos(new BlockPos(3, 2, 2));
+        BlockPos far = context.getAbsolutePos(new BlockPos(6, 2, 6));
+        try {
+            world.setBlockState(near, Blocks.IRON_ORE.getDefaultState());
+            world.setBlockState(far, Blocks.COAL_ORE.getDefaultState());
+            BlockPos found = com.villagepax.effect.ModEffects.nearestOre(world, from, 7)
+                    .orElse(null);
+            if (!near.equals(found)) {
+                context.throwGameTestException("Чутьё привело не к ближней руде: " + found);
+            }
+        } finally {
+            world.setBlockState(near, Blocks.AIR.getDefaultState());
+            world.setBlockState(far, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    /** На хлопок жители машут: праздник слышен тем, кто рядом. */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void aPopperMakesTheCitizensCheer(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        try {
+            hireWithBody(world, colony, com.villagepax.sim.work.FarmJob.FARMER,
+                    context.getAbsolutePos(new BlockPos(3, 1, 3)));
+            int cheered = com.villagepax.item.PopperItem.cheer(world,
+                    Vec3d.ofCenter(context.getAbsolutePos(new BlockPos(3, 2, 3))));
+            if (cheered < 1) {
+                context.throwGameTestException("На хлопок никто не откликнулся");
+            }
+        } finally {
+            discardBodies(world, colony);
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
     @GameTest(templateName = EMPTY_STRUCTURE)
     public void cultureIsLoadedFromDatapack(TestContext context) {
         Culture norman = CultureManager.get(NORMAN);

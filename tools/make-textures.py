@@ -1084,6 +1084,237 @@ def parchment():
     return t
 
 
+# --- угощения и праздник -------------------------------------------------------
+#
+# Заказчик: «добавь разнообразия, веселья». У каждого народа своё угощение
+# со своим эффектом, у норманнов — хлопушка. Рисуются они ярче остального
+# мода нарочно: это не стройматериал, а радость, и в сумке её должно быть
+# видно сразу.
+
+def rainbow_cupcake():
+    """Кекс пони: полосатая формочка, розовая глазурь, посыпка и вишенка."""
+    t = Tex(CLEAR)
+    cake = {
+        "o": rgb(0x6A2A4A), "c": rgb(0xD8283A), "C": rgb(0xF86070),
+        "p": rgb(0xF08AB8), "P": rgb(0xF8B8D8), "s": rgb(0x3A9AE8),
+        "y": rgb(0xF8E04A), "g": rgb(0x5AC85A), "v": rgb(0x8A4AC8),
+        "w": rgb(0xF8F4F0), "k": rgb(0xF070A8), "K": rgb(0xC8508A),
+    }
+    t.sprite([
+        "     cC     ",
+        "     co     ",
+        "   pPPPp    ",
+        "  pPsPPyPp  ",
+        " pPPPgPPPvp ",
+        " pPyPPPsPPp ",
+        "oooooooooooo",
+        " wkwkwkwkwK ",
+        " wkwkwkwkwK ",
+        "  wkwkwkwK  ",
+        "  wkwkwkwK  ",
+        "   oooooo   ",
+    ], cake, ox=2, oy=2)
+    return t
+
+
+def dwarven_stout():
+    """Стаут гномов: каменная кружка в золотых обручах, тёмное пиво, рыжая пена."""
+    t = Tex(CLEAR)
+    mug = {
+        "o": rgb(0x2E2E30), "w": rgb(0x7A7A78), "W": rgb(0x9A9A96),
+        "d": rgb(0x5A5A58), "i": rgb(0xE0B02C), "f": rgb(0xE8C890),
+        "F": rgb(0xC8A06A), "a": rgb(0x3A2418),
+    }
+    t.sprite([
+        "ooooooooo",
+        "offfffffo",
+        "ofFffFfFo",
+        "oWaaaaado",
+        "oWaaaaado",
+        "oiiiiiiio",
+        "oWwwwwwdo",
+        "oWwwwwwdo",
+        "oiiiiiiio",
+        "oWwwwwwdo",
+        "oWwwwwwdo",
+        "ooooooooo",
+    ], mug, ox=2, oy=2)
+    t.dots(rgb(0x2E2E30), (11, 6), (12, 7), (12, 8), (12, 9), (11, 10))
+    t.dots(rgb(0x7A7A78), (11, 7), (11, 8), (11, 9))
+    return t
+
+
+def elven_nectar():
+    """Нектар эльфов: склянка с золотым светящимся мёдом и листок вместо пробки."""
+    t = Tex(CLEAR)
+    vial = {
+        "o": rgb(0x3A5A4A), "g": rgb(0x5AB84A), "G": rgb(0x8AE06A),
+        "n": rgb(0xB8D8E8), "L": rgb(0xF0C83A), "l": rgb(0xF8E890),
+        "D": rgb(0xC89A2A), ".": rgb(0xD8ECF4),
+    }
+    t.sprite([
+        "   gG   ",
+        "  gGg   ",
+        "   nn   ",
+        "   nn   ",
+        "  o..o  ",
+        " o.LL.o ",
+        "o.LlLL.o",
+        "o.LLlL.o",
+        "o.LLLD.o",
+        "o.LlLD.o",
+        " o.DD.o ",
+        "  oooo  ",
+    ], vial, ox=4, oy=2)
+    return t
+
+
+def popper():
+    """Хлопушка: полосатый конус и конфетти, вылетающее из раструба.
+
+    Конус считается треугольником, а не рисуется по рядам: узкий носик
+    внизу слева, раструб наверху справа, полосы поперёк оси.
+    """
+    t = Tex(CLEAR)
+    apex, left, right = (2.0, 14.0), (8.0, 4.0), (13.0, 9.0)
+
+    def inside(x, y):
+        def side(a, b):
+            return (b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0])
+        s1, s2, s3 = side(apex, left), side(left, right), side(right, apex)
+        return (s1 >= 0 and s2 >= 0 and s3 >= 0) or (s1 <= 0 and s2 <= 0 and s3 <= 0)
+
+    for y in range(N):
+        for x in range(N):
+            if inside(x + 0.5, y + 0.5):
+                stripe = (x - y) // 2 % 2
+                t.set(x, y, rgb(0xD83A3A) if stripe else rgb(0xF8C83A))
+    t.line(2, 14, 8, 4, rgb(0x5A2A1A))
+    t.line(2, 14, 13, 9, rgb(0x5A2A1A))
+    t.line(8, 4, 13, 9, rgb(0xA02A22))
+    t.dots(rgb(0x3A9AE8), (11, 2), (15, 5))
+    t.dots(rgb(0xF8E04A), (9, 1), (14, 3))
+    t.dots(rgb(0x5AC85A), (13, 0), (12, 5))
+    t.dots(rgb(0xF070B0), (15, 1), (15, 8))
+    return t
+
+
+def paper_lantern_item():
+    """Фонарик в сумке: красный бумажный бочонок, золотые донца, шнурок."""
+    t = Tex(CLEAR)
+    lamp = {"s": rgb(0x5A3A1A), "g": rgb(0xE0B02C), "G": rgb(0xA67C22),
+            "r": rgb(0xD83A2E), "R": rgb(0xF06A4A), "d": rgb(0xA02A22),
+            "y": rgb(0xF8D060)}
+    t.sprite([
+        "   s    ",
+        "   s    ",
+        "  gggG  ",
+        " rRrrrd ",
+        "rRrryrrd",
+        "rRryyyrd",
+        "rRrryrrd",
+        "rRrrrrrd",
+        " rRrrrd ",
+        "  gggG  ",
+        "   y    ",
+        "   y    ",
+    ], lamp, ox=4, oy=2)
+    return t
+
+
+def paper_lantern_block():
+    """Развёртка фонарика для модели: бок, донце и шнурок на одном листе.
+
+    Бок — шесть на семь: красная бумага с тёмными рёбрами и тёплым
+    свечением посередине. Донце — золото четыре на четыре. Шнурок —
+    столбец в один тексель.
+    """
+    t = Tex(CLEAR)
+    t.rect(0, 0, 5, 6, rgb(0xD83A2E))
+    for x in (0, 3):
+        t.rect(x, 0, x, 6, rgb(0xA02A22))
+    t.rect(1, 2, 2, 4, rgb(0xF06A4A))
+    t.rect(4, 2, 5, 4, rgb(0xF06A4A))
+    t.dots(rgb(0xF8D060), (1, 3), (4, 3))
+    t.rect(6, 0, 9, 3, rgb(0xE0B02C))
+    t.rect(6, 3, 9, 3, rgb(0xA67C22))
+    t.rect(10, 0, 10, 5, rgb(0x5A3A1A))
+    return t
+
+
+def moonflower():
+    """Лунник: бледно-голубые лепестки, светлая сердцевина, тонкий стебель."""
+    t = Tex(CLEAR)
+    flower = {"g": rgb(0x3E8A4A), "G": rgb(0x5AB866), "p": rgb(0xB8D8F8),
+              "P": rgb(0xE8F4FF), "c": rgb(0xFFF8C8), "d": rgb(0x8AB0E0)}
+    t.sprite([
+        "   pPp   ",
+        "  pPPPp  ",
+        " dpPcPpd ",
+        "pPPcccPPp",
+        " dpPcPpd ",
+        "  pPPPp  ",
+        "   pgp   ",
+        "    g    ",
+        "  G g    ",
+        "  GGg    ",
+        "    gG   ",
+        "    gGG  ",
+        "    g    ",
+    ], flower, ox=3, oy=3)
+    return t
+
+
+def effect_rainbow():
+    """Значок радуги: дуга в шесть полос."""
+    t = Tex(CLEAR)
+    colours = (0xE8403A, 0xF4A03A, 0xF8E04A, 0x5AC85A, 0x3A9AE8, 0x8A4AC8)
+    for band, value in enumerate(colours):
+        t.ring(8, 12, 7.5 - band, 6.5 - band, rgb(value))
+    t.rect(0, 12, 15, 15, CLEAR)
+    return t
+
+
+def effect_ore_sense():
+    """Значок чутья: самородок в камне и искры вокруг."""
+    t = Tex(CLEAR)
+    t.disc(8, 8, 5.5, rgb(0x6A6A68))
+    t.disc(8, 8, 4.2, rgb(0x8A8A84))
+    t.rect(6, 6, 9, 9, rgb(0xE0B02C))
+    t.dots(rgb(0xF6D96A), (6, 6), (7, 7))
+    t.dots(rgb(0xF6D96A), (2, 2), (13, 3), (3, 13), (14, 12), (8, 1))
+    return t
+
+
+def effect_lightness():
+    """Значок лёгкости: лист, плывущий по ветру."""
+    t = Tex(CLEAR)
+    leaf = {"g": rgb(0x5AB866), "G": rgb(0x8AE06A), "s": rgb(0x3E7A3A)}
+    t.sprite([
+        "        gG",
+        "      gGGg",
+        "    gGGggs",
+        "   gGGgsg ",
+        "  gGgsgg  ",
+        " gGsgg    ",
+        " gsgg     ",
+        "s         ",
+    ], leaf, ox=3, oy=4)
+    return t
+
+
+def save_icon(tex, name):
+    """Значок эффекта — 18 на 18, как ждёт игра: 16 посередине и рамка воздуха."""
+    image = Image.new("RGBA", (18, 18), CLEAR)
+    tile = Image.new("RGBA", (N, N), CLEAR)
+    tile.putdata([tex.px[y][x] for y in range(N) for x in range(N)])
+    image.paste(tile, (1, 1))
+    path = OUT / "mob_effect" / (name + ".png")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(path)
+    return path
+
+
 def main():
     made = []
     made.append(linen().save("gui", "linen"))
@@ -1134,6 +1365,16 @@ def main():
     made.append(cacao().save("item", "cacao"))
     made.append(laundry_item().save("item", "laundry"))
     made.append(cloth().save("item", "cloth"))
+    made.append(rainbow_cupcake().save("item", "rainbow_cupcake"))
+    made.append(dwarven_stout().save("item", "dwarven_stout"))
+    made.append(elven_nectar().save("item", "elven_nectar"))
+    made.append(popper().save("item", "popper"))
+    made.append(paper_lantern_item().save("item", "paper_lantern"))
+    made.append(paper_lantern_block().save("block", "paper_lantern"))
+    made.append(moonflower().save("block", "moonflower"))
+    made.append(save_icon(effect_rainbow(), "rainbow"))
+    made.append(save_icon(effect_ore_sense(), "ore_sense"))
+    made.append(save_icon(effect_lightness(), "lightness"))
     made.append(purse().save("item", "purse"))
     made.append(purse_empty().save("item", "purse_empty"))
     made.append(blueprint().save("item", "town_hall_blueprint"))

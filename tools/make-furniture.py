@@ -205,8 +205,65 @@ def altar():
          *horns, *bowl, *candles])
 
 
+# --- бумажный фонарик -----------------------------------------------------------
+#
+# Бочонок красной бумаги между двумя золотыми донцами; висячий поднят
+# под потолок и держится на шнурке. Развёртка — один лист
+# (block/paper_lantern): бок, донце и шнурок рядом.
+
+def paper_lantern(hanging):
+    lift = 5 if hanging else 0
+    paper = {"*": "#paper"}
+    side = {"north": [0, 0, 6, 7], "south": [0, 0, 6, 7], "east": [0, 0, 6, 7],
+            "west": [0, 0, 6, 7], "up": [6, 0, 10, 4], "down": [6, 0, 10, 4]}
+    cap = {face: [6, 0, 10, 4] for face in FACES}
+    elements = [
+        box("бумажный бочонок", (5, 1 + lift, 5), (11, 8 + lift, 11), paper, uv=side),
+        box("нижнее донце", (6, lift, 6), (10, 1 + lift, 10), paper, uv=cap),
+        box("верхнее донце", (6, 8 + lift, 6), (10, 9 + lift, 10), paper, uv=cap),
+    ]
+    if hanging:
+        cord = {face: [10, 0, 11, 5] for face in FACES}
+        elements.append(box("шнурок", (7.5, 14, 7.5), (8.5, 16, 8.5), paper, uv=cord,
+                            faces=("north", "south", "east", "west")))
+    return model({"paper": "villagepax:block/paper_lantern",
+                  "particle": "villagepax:block/paper_lantern"}, elements, ao=False)
+
+
+# --- цветочный ящик -----------------------------------------------------------
+#
+# Ящик из еловой доски, земля вровень с краем и три цветка крест-накрест:
+# мак, одуванчик, василёк. Ящик прижат к дальней стороне клетки — к стене,
+# под окно.
+
+def flower_box():
+    planks = "#planks"
+    elements = [box("ящик", (0, 0, 9), (16, 6, 16), planks, cull=("south", "down")),
+                box("земля", (1, 6, 10), (15, 6.5, 15), "#soil", faces=("up",))]
+    for x, texture in ((3.5, "#poppy"), (8, "#dandelion"), (12.5, "#cornflower")):
+        for angle in (45, -45):
+            # Развёртка — сам цветок без пустых полей ванильной текстуры:
+            # иначе на плоскость в пять текселей ложилась вся клетка 16x16,
+            # и цветок выходил с ноготь.
+            element = box("цветок", (x - 2.5, 6, 12.5), (x + 2.5, 14, 12.5), texture,
+                          faces=("north", "south"),
+                          uv={"north": [4, 4, 12, 16], "south": [4, 4, 12, 16]})
+            element["rotation"] = {"origin": [x, 6, 12.5], "axis": "y", "angle": angle}
+            element["shade"] = False
+            elements.append(element)
+    return model({"planks": "minecraft:block/spruce_planks",
+                  "soil": "minecraft:block/rooted_dirt",
+                  "poppy": "minecraft:block/poppy",
+                  "dandelion": "minecraft:block/dandelion",
+                  "cornflower": "minecraft:block/cornflower",
+                  "particle": "minecraft:block/spruce_planks"}, elements)
+
+
 def main():
-    for name, build in (("bench", bench), ("table", table), ("shelf", shelf), ("altar", altar)):
+    for name, build in (("bench", bench), ("table", table), ("shelf", shelf), ("altar", altar),
+                        ("paper_lantern", lambda: paper_lantern(False)),
+                        ("paper_lantern_hanging", lambda: paper_lantern(True)),
+                        ("flower_box", flower_box)):
         path = MODELS / (name + ".json")
         path.write_text(json.dumps(build(), indent=2, ensure_ascii=False) + "\n",
                         encoding="utf-8", newline="\n")

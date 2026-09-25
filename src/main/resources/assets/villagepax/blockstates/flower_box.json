@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "villagepax:block/flower_box"
+    },
+    "facing=east": {
+      "model": "villagepax:block/flower_box",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "villagepax:block/flower_box",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "villagepax:block/flower_box",
+      "y": 270
+    }
+  }
+}

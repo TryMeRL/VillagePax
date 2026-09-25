@@ -47,6 +47,11 @@
       "count": 1,
       "price": 24,
       "min_reputation": 45
+    },
+    {
+      "item": "villagepax:flower_box",
+      "count": 2,
+      "price": 1
     }
   ],
   "buys": [

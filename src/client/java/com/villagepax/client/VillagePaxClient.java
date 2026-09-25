@@ -97,6 +97,10 @@ public class VillagePaxClient implements ClientModInitializer {
      */
     private static void registerCutouts() {
         BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.LAUNDRY, RenderLayer.getCutout());
+        // Цветы и бумага с прорезями: прозрачное в текстуре должно быть
+        // прозрачным и в мире, иначе лунник стоит чёрным квадратом.
+        BlockRenderLayerMap.INSTANCE.putBlocks(RenderLayer.getCutout(),
+                ModBlocks.PAPER_LANTERN, ModBlocks.MOONFLOWER, ModBlocks.FLOWER_BOX);
     }
 
     /**

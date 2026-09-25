@@ -721,5 +721,18 @@
   "villagepax.command.untrust.not_trusted": "%s was not among the trusted.",
   "villagepax.command.trusted.none": "Nobody is trusted in the colony \"%s\": only the owner builds.",
   "villagepax.command.trusted.list": "Trusted to build in the colony \"%s\": %s",
-  "villagepax.guide.neighbours": "§lNeighbours§r\n\nOn colony land only the owner and those they trust build. A guest walks and talks.\n\n§o/villagepax trust§r to trust.\n§o/villagepax untrust§r to take it back."
+  "villagepax.guide.neighbours": "§lNeighbours§r\n\nOn colony land only the owner and those they trust build. A guest walks and talks.\n\n§o/villagepax trust§r to trust.\n§o/villagepax untrust§r to take it back.",
+  "item.villagepax.rainbow_cupcake": "Rainbow Cupcake",
+  "item.villagepax.dwarven_stout": "Dwarven Stout",
+  "item.villagepax.elven_nectar": "Elven Nectar",
+  "item.villagepax.popper": "Party Popper",
+  "block.villagepax.paper_lantern": "Paper Lantern",
+  "block.villagepax.moonflower": "Moonflower",
+  "block.villagepax.flower_box": "Flower Box",
+  "effect.villagepax.rainbow": "Rainbow",
+  "effect.villagepax.ore_sense": "Ore Sense",
+  "effect.villagepax.lightness": "Lightness",
+  "villagepax.effect.ore_sense.near": "Ore sense: %s, %s blocks away",
+  "villagepax.effect.ore_sense.none": "Ore sense: no ore nearby",
+  "villagepax.guide.treats": "§lTreats§r\n\nEach people has its own treat.\n\nPony cupcake: a rainbow and speed.\nDwarven stout: sense the ore.\nElven nectar: fall like a leaf.\n\nA popper: a party, and citizens wave back."
 }

@@ -221,6 +221,8 @@ public final class Villages {
         openForBusiness(world, village);
         // А это она строит при игроке.
         planNext(world, manager, village, culture);
+        // И улицы уже убраны: колодец, фонари, цветы — деревня старше игрока.
+        Streetscape.dress(world, manager, village);
 
         Levels.refresh(village);
         VillagePax.LOGGER.info("Деревня {} народа {} встала на {}",
@@ -356,6 +358,8 @@ public final class Villages {
 
         if (seen) {
             planNext(world, manager, village, culture);
+            // Достроенный за день дом получает свой фонарь и цветы.
+            Streetscape.dress(world, manager, village);
         }
     }
 

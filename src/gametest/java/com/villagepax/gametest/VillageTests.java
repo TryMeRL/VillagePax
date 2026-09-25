@@ -53,6 +53,52 @@ public class VillageTests extends GameTestSupport {
      * блоков в каждую сторону, и с соседом по партии они наступили бы друг
      * другу на застройку.
      */
+    /**
+     * Деревня народа встаёт с убранными улицами: колодец с водой на площади,
+     * табличка с названием и фонарь у крыльца. «Чтоб прям хотелось жить».
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "streets")
+    public void aVillageRisesWithAWellAndLamps(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+        try {
+            for (int x = -24; x <= 24; x++) {
+                for (int z = -24; z <= 24; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала на ровном лугу");
+                return;
+            }
+            List<BlockPos> decor = manager.decorOf(village.id());
+            boolean water = decor.stream().anyMatch(at -> world.getBlockState(at).isOf(Blocks.WATER));
+            boolean sign = decor.stream().anyMatch(at ->
+                    world.getBlockEntity(at) instanceof net.minecraft.block.entity.SignBlockEntity);
+            boolean lamp = decor.stream().anyMatch(at -> world.getBlockState(at).isOf(Blocks.LANTERN));
+            if (!water || !sign || !lamp) {
+                context.throwGameTestException("Улицы не убраны: колодец=" + water
+                        + ", табличка=" + sign + ", фонарь=" + lamp + " (поставлено " + decor.size() + ")");
+            }
+            // И убирается это однажды: второй день не ставит второй колодец.
+            int before = decor.size();
+            com.villagepax.sim.Streetscape.dress(world, manager, village);
+            if (manager.decorOf(village.id()).size() != before) {
+                context.throwGameTestException("Убранство приросло на второй раз: было " + before
+                        + ", стало " + manager.decorOf(village.id()).size());
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+        context.complete();
+    }
+
     @GameTest(templateName = WIDE_STRUCTURE, batchId = "village")
     public void villageRisesAlreadyStandingAndKeepsBuilding(TestContext context) {
         ServerWorld world = context.getWorld();

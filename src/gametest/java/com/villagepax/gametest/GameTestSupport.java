@@ -1308,6 +1308,11 @@ abstract class GameTestSupport implements FabricGameTest {
         if (village != null) {
             razeVillage(world, village);
             discardBodies(world, village);
+            // Убранство улиц — колодец, фонари, цветы — тоже в общем мире
+            // проверок, и оставленное мешало бы следующей деревне на том же месте.
+            for (BlockPos at : manager.decorOf(village.id())) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
             manager.remove(village.id());
         }
         manager.forget(centre);

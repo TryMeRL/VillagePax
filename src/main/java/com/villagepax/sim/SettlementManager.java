@@ -36,6 +36,8 @@ public class SettlementManager extends PersistentState {
     public static final String KEY = "villagepax_settlements";
     private static final String LIST_TAG = "settlements";
     private static final String SITES_TAG = "settled_sites";
+    private static final String DECOR_TAG = "decor";
+    private static final String DRESSED_TAG = "dressed";
 
     private final Map<UUID, Settlement> settlements = new LinkedHashMap<>();
 
@@ -63,6 +65,18 @@ public class SettlementManager extends PersistentState {
      * уходят в файл такими же, какими пришли.
      */
     private final List<NbtElement> unreadable = new ArrayList<>();
+
+    /**
+     * Убранство улиц, поставленное деревне: колодец, фонари, цветы.
+     * <p>
+     * Помнится поблочно, чтобы его можно было убрать вместе с деревней:
+     * снесённая деревня, после которой на лугу стоят одинокие фонари, —
+     * это уже не убранство, а мусор.
+     */
+    private final Map<UUID, List<Long>> decor = new LinkedHashMap<>();
+
+    /** Что уже убрано: здания и сами деревни (их колодец). Убирается однажды. */
+    private final Set<UUID> dressed = new HashSet<>();
 
     public static SettlementManager get(ServerWorld world) {
         return world.getPersistentStateManager()
@@ -93,6 +107,17 @@ public class SettlementManager extends PersistentState {
 
         for (long site : nbt.getLongArray(SITES_TAG)) {
             manager.settledSites.add(site);
+        }
+        for (NbtElement element : nbt.getList(DECOR_TAG, NbtElement.COMPOUND_TYPE)) {
+            NbtCompound entry = (NbtCompound) element;
+            List<Long> placed = new ArrayList<>();
+            for (long at : entry.getLongArray("at")) {
+                placed.add(at);
+            }
+            manager.decor.put(entry.getUuid("village"), placed);
+        }
+        for (NbtElement element : nbt.getList(DRESSED_TAG, NbtElement.INT_ARRAY_TYPE)) {
+            manager.dressed.add(net.minecraft.nbt.NbtHelper.toUuid(element));
         }
         return manager;
     }
@@ -127,6 +152,17 @@ public class SettlementManager extends PersistentState {
         nbt.put(LIST_TAG, list);
         nbt.putLongArray(SITES_TAG,
                 settledSites.stream().mapToLong(Long::longValue).toArray());
+        NbtList placed = new NbtList();
+        decor.forEach((village, positions) -> {
+            NbtCompound entry = new NbtCompound();
+            entry.putUuid("village", village);
+            entry.putLongArray("at", positions.stream().mapToLong(Long::longValue).toArray());
+            placed.add(entry);
+        });
+        nbt.put(DECOR_TAG, placed);
+        NbtList done = new NbtList();
+        dressed.forEach(id -> done.add(net.minecraft.nbt.NbtHelper.fromUuid(id)));
+        nbt.put(DRESSED_TAG, done);
         return nbt;
     }
 
@@ -160,8 +196,34 @@ public class SettlementManager extends PersistentState {
         markDirty();
     }
 
+    /** Убрано ли уже здание (или колодец деревни — по её опознавателю). */
+    public boolean isDressed(UUID id) {
+        return dressed.contains(id);
+    }
+
+    public void markDressed(UUID id) {
+        if (dressed.add(id)) {
+            markDirty();
+        }
+    }
+
+    /** Запомнить блок убранства, поставленный деревне. */
+    public void recordDecor(UUID village, BlockPos at) {
+        decor.computeIfAbsent(village, ignored -> new ArrayList<>()).add(at.asLong());
+        markDirty();
+    }
+
+    /** Всё убранство деревни — чтобы убрать его вместе с ней. */
+    public List<BlockPos> decorOf(UUID village) {
+        return decor.getOrDefault(village, List.of()).stream().map(BlockPos::fromLong).toList();
+    }
+
     public boolean remove(UUID id) {
         boolean removed = settlements.remove(id) != null;
+        // Убранство забывается вместе с деревней: сносящий зовёт decorOf
+        // до remove, если хочет убрать и его.
+        decor.remove(id);
+        dressed.remove(id);
         if (removed) {
             markDirty();
         }

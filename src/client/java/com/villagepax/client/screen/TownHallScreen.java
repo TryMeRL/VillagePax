@@ -304,6 +304,10 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
     }
 
     /**
+     * Вкладка «Обзор»: совет, ярмо, рост, затем числа колонии и стройка.
+     * <p>
+     * Порядок — от «что делать» к «как обстоят дела»: игрок, открывший
+     * пульт на минуту, должен уйти с ответом, а не с таблицей.
      */
     private void overview(TownHallView view) {
         // Совет — самой первой строкой, до всех чисел. Числа правдивы,

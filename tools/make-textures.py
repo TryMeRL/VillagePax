@@ -526,91 +526,6 @@ def grain_sack():
     return t
 
 
-def laundry():
-    """Бельё на верёвке: прозрачная плитка, две рубахи.
-
-    Единственная текстура с прозрачностью: это не стена, а плоскость
-    посреди улицы, и фон у неё — сама улица.
-    """
-    t = Tex(CLEAR)
-    t.rect(0, 1, 15, 1, ROPE)
-    cloth = {
-        "w": LINEN,
-        "W": LINEN_LIT,
-        "s": LINEN_DARK,
-        "d": DYED,
-        "D": DYED_DARK,
-    }
-    # Рубаха, а не полоса: узко у прищепки, шире книзу, с рукавом
-    # и складкой. Плоский прямоугольник на верёвке читается тряпкой.
-    t.sprite([
-        " wWw ",
-        " WwW ",
-        "wwwww",
-        "Wwwsw",
-        "wwwsw",
-        "wwwww",
-        "wswww",
-        "wswws",
-        "sw ws",
-        "ss  s",
-    ], cloth, ox=1, oy=2)
-    t.sprite([
-        " dDd ",
-        " ddd ",
-        "ddddd",
-        "dDdDd",
-        "ddDdd",
-        "dddDd",
-        "dDddd",
-        "DdddD",
-        "Dd dD",
-        "DD  D",
-    ], cloth, ox=9, oy=2)
-    t.dots(ROPE, (3, 1), (11, 1))
-    t.dots(BEAM_DARK, (3, 2), (11, 2))
-    return t
-
-
-def cloth_frames(base, dark, lit, frames=3):
-    """Ткань в несколько кадров: складки сдвигаются, и бельё трепещет.
-
-    Анимация в Minecraft — это кадры, сложенные в столбик, и .mcmeta
-    рядом. Три кадра с переливом дают тихое колыхание, от которого
-    висящая рубаха перестаёт быть наклейкой. Дороже это ничего не стоит:
-    16 на 48 пикселей.
-    """
-    sheets = []
-    for frame in range(frames):
-        t = Tex(base)
-        # Кайма: у настоящей рубахи виден край полотна.
-        t.rect(0, 0, 15, 0, lit)
-        t.rect(0, 15, 15, 15, dark)
-        t.rect(0, 0, 0, 15, lit)
-        t.rect(15, 0, 15, 15, dark)
-        # Складки: три вертикальных, и каждый кадр они гуляют на пиксель.
-        for index, column in enumerate((3, 7, 11)):
-            shift = ((frame + index) % 3) - 1
-            x = max(1, min(14, column + shift))
-            for y in range(2, 14):
-                t.set(x, y, dark if (y + frame) % 4 else lit)
-        sheets.append(t)
-    return sheets
-
-
-def save_frames(sheets, folder, name):
-    """Столбик кадров одной картинкой: так их и ждёт игра."""
-    tall = Image.new("RGBA", (N, N * len(sheets)), CLEAR)
-    for index, sheet in enumerate(sheets):
-        frame = Image.new("RGBA", (N, N), CLEAR)
-        frame.putdata([sheet.px[y][x] for y in range(N) for x in range(N)])
-        tall.paste(frame, (0, index * N))
-    path = OUT / folder / (name + ".png")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tall.save(path)
-    return path
-
-
 def rope_texture():
     """Верёвка: витое волокно, сплошная плитка."""
     t = Tex(ROPE)
@@ -901,28 +816,77 @@ def ale():
 
 
 def cacao():
-    """Чаша какао: обожжённая глина, красный узор, густой напиток."""
+    """Чаша какао: высокий расписной сосуд майя и шапка пены.
+
+    Пена — как у эля, главное, по чему питьё узнаётся: майя взбивали какао,
+    переливая его с высоты, и подавали с пеной выше края. Без неё чаша
+    читалась горшком. Роспись — поясом по плечу, красным и охрой, как
+    на настоящих сосудах; ниже пояса глина чистая, свет слева.
+    """
     t = Tex(CLEAR)
     cup = {
-        "o": rgb(0x5E3320),
-        "c": rgb(0x9E5436),
-        "C": rgb(0xBA6842),
-        "r": rgb(0xD8A03C),
-        "d": rgb(0x3E2418),
-        "D": rgb(0x55331F),
+        "o": rgb(0x4A2616),
+        "c": rgb(0xA85A38),
+        "C": rgb(0xC47048),
+        "s": rgb(0x86452A),
+        "r": rgb(0x8E2E22),
+        "R": rgb(0xA83A2A),
+        "q": rgb(0x6E231A),
+        "y": rgb(0xD8A03C),
+        "Y": rgb(0xECC05A),
+        "z": rgb(0xB0802C),
+        "f": rgb(0xC99A6C),
+        "F": rgb(0xE6C89C),
+        "d": rgb(0x7A4A2A),
     }
     t.sprite([
+        "   oooo   ",
+        "  oFFffo  ",
+        " oFFfffdo ",
         "oooooooooo",
-        "oddddddddo",
-        "oDddddddDo",
-        "ocCccccCco",
-        "crrccccrrc",
-        "cCcccccCco",
-        "cCcccccCco",
-        "ocCccccCco",
-        " occcccco ",
-        "  oooooo  ",
-    ], cup, ox=3, oy=3)
+        "oCccccccso",
+        "oRrrrrrrqo",
+        "oYyryyryzo",
+        "oRrrrrrrqo",
+        "oCccccccso",
+        "oCccccccso",
+        "oCccccccso",
+        " oooooooo ",
+    ], cup, ox=3, oy=2)
+    return t
+
+
+def laundry_item():
+    """Верёвка в руке: провисшая бечева и полотно на двух прищепках.
+
+    Как блок она — нитка поперёк клетки, и в сумке от неё оставался
+    косой волосок, который не узнать. Значок рисует вещь плашмя, как
+    ванильную цепь: бечеву с провисом и то, ради чего её натягивают.
+    Полотно здесь — подпись, а не обещание: на поставленной верёвке
+    висит только то, что повесили.
+    """
+    t = Tex(CLEAR)
+    sag = [3, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 4, 4, 4, 3, 3]
+    for x in range(4, 12):
+        for y in range(sag[x] + 1, 13):
+            shade = LINEN
+            if x == 4:
+                shade = LINEN_LIT
+            elif x == 11 or y == 12:
+                shade = LINEN_DARK
+            t.set(x, y, shade)
+    # Крашеная кайма, как у сукна ткача: без неё белый лоскут
+    # читается бумагой.
+    t.rect(4, 10, 11, 10, DYED)
+    t.set(11, 10, DYED_DARK)
+    for x, y in enumerate(sag):
+        t.set(x, y, BURLAP_LIT if x % 3 == 0 else ROPE)
+        if not 4 <= x <= 11:
+            t.set(x, y + 1, BARK_DARK)
+    for x in (5, 10):
+        t.set(x, sag[x] - 1, PLANK_LIT)
+        t.set(x, sag[x], PLANK)
+        t.set(x, sag[x] + 1, BEAM_DARK)
     return t
 
 
@@ -1168,6 +1132,7 @@ def main():
                     .save("item", name + "_pile"))
     made.append(ale().save("item", "ale"))
     made.append(cacao().save("item", "cacao"))
+    made.append(laundry_item().save("item", "laundry"))
     made.append(cloth().save("item", "cloth"))
     made.append(purse().save("item", "purse"))
     made.append(purse_empty().save("item", "purse_empty"))

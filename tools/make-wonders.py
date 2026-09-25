@@ -333,14 +333,14 @@ def charm(pendant, palette, cord=CORD):
 
 CHARMS = {
     "pilgrim_reliquary": ([
-        "......OO........",
-        ".....OSSO.......",
-        "....OSRRSO......",
-        "....OSRRSO......",
+        "....OOOOOO......",
+        "....OSSRSO......",
         "....ORRRRO......",
-        "....OSRRSO......",
+        "....OSSRSO......",
+        "....OSSRSO......",
         "....OSSSSO......",
-        ".....OOOO.......",
+        "....OOOOOO......",
+        "................",
     ], {"O": SILVER_D, "S": SILVER, "R": RED}),
     "jade_jaguar": ([
         ".....O..O.......",

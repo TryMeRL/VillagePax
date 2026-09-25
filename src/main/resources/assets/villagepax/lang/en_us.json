@@ -734,5 +734,6 @@
   "effect.villagepax.lightness": "Lightness",
   "villagepax.effect.ore_sense.near": "Ore sense: %s, %s blocks away",
   "villagepax.effect.ore_sense.none": "Ore sense: no ore nearby",
-  "villagepax.guide.treats": "§lTreats§r\n\nEach people has its own treat.\n\nPony cupcake: a rainbow and speed.\nDwarven stout: sense the ore.\nElven nectar: fall like a leaf.\n\nA popper: a party, and citizens wave back."
+  "villagepax.guide.treats": "§lTreats§r\n\nEach people has its own treat.\n\nPony cupcake: a rainbow and speed.\nDwarven stout: sense the ore.\nElven nectar: fall like a leaf.\n\nA popper: a party, and citizens wave back.",
+  "villagepax.advice.thin_food": "Food for a day or two. Sow a field or bring bread to the town hall chest before your people go hungry."
 }

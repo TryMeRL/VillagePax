@@ -94,7 +94,7 @@ class AdviceWordsTest {
      */
     @Test
     void theLadderIsAsLongAsItClaims() {
-        assertEquals(16, Advice.keys().size(),
+        assertEquals(17, Advice.keys().size(),
                 "ступеней в лестнице совета стало другое число — проверь, "
                         + "что новая попала и в keys(), и в оба словаря");
         assertEquals(Advice.keys().size(), List.copyOf(new java.util.LinkedHashSet<>(

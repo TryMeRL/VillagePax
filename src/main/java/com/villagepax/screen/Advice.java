@@ -69,6 +69,7 @@ public final class Advice {
     private static final String DESERTED = "villagepax.advice.deserted";
     private static final String NO_STORAGE = "villagepax.advice.no_storage";
     private static final String NO_FOOD = "villagepax.advice.no_food";
+    private static final String THIN_FOOD = "villagepax.advice.thin_food";
     private static final String NO_BUILDER = "villagepax.advice.no_builder";
     private static final String NO_BEDS = "villagepax.advice.no_beds";
     private static final String NO_FARM = "villagepax.advice.no_farm";
@@ -81,7 +82,7 @@ public final class Advice {
 
     /** Все советы, какие мод умеет дать: их проверяет словарь. */
     public static List<String> keys() {
-        return List.of(SIEGE, UNDER_YOKE, DESERTED, NO_STORAGE, NO_FOOD, NO_BUILDER,
+        return List.of(SIEGE, UNDER_YOKE, DESERTED, NO_STORAGE, NO_FOOD, THIN_FOOD, NO_BUILDER,
                 NO_BEDS, NO_FARM, EMPTY_PURSE, IDLE_HANDS, COIN_LEAKS, NO_NEIGHBOURS,
                 NO_TEMPLE, NO_FAITH, NOTHING_BUILDING, RAISE_THE_HALL);
     }
@@ -118,6 +119,12 @@ public final class Advice {
         }
         if (!warehouse.hasAny(ModTags.CITIZEN_FOOD)) {
             return Optional.of(NO_FOOD);
+        }
+        // Еда есть, но на день-два: сказать сейчас, пока не поздно. Молчание
+        // до последней моркови — и совет «еды нет» приходил тогда, когда
+        // жители уже голодали.
+        if (TownHallView.daysOfFood(warehouse.tally(), colony.population()) < THIN_FOOD_DAYS) {
+            return Optional.of(THIN_FOOD);
         }
         if (colony.citizens().stream().noneMatch(Advice::isBuilder)) {
             return Optional.of(NO_BUILDER);

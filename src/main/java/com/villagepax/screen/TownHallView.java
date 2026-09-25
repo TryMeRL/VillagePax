@@ -665,7 +665,7 @@ public record TownHallView(
      * Число, по которому игрок действительно решает, ехать ли за хлебом:
      * «14 порций» ничего не говорит, «на два дня» говорит всё.
      */
-    private static int daysOfFood(ItemTally stock, int population) {
+    static int daysOfFood(ItemTally stock, int population) {
         int nourishment = 0;
         for (Map.Entry<Identifier, Integer> entry : stock.contents().entrySet()) {
             Identifier id = entry.getKey();

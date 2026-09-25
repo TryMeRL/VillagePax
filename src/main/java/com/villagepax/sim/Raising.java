@@ -297,16 +297,6 @@ public final class Raising {
     }
 
     /**
-     * Земля под колонной — та, на которой можно строить.
-     * <p>
-     * Не карта высот мира: она считает поверхностью верхушку листвы, и
-     * деревня в лесу размечала бы дома по кронам деревьев.
-     */
-    private static BlockPos surface(ServerWorld world, BlockPos column) {
-        return Ground.buildableAt(world, column.getX(), column.getZ()).orElse(null);
-    }
-
-    /**
      * Можно ли дойти от середины поселения до этого места пешком.
      * <p>
      * Написано по настоящей деревне из игры заказчика: дом и ферма встали

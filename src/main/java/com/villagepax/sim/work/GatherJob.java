@@ -46,9 +46,6 @@ public final class GatherJob implements Job {
     public static final Identifier LOGIC = new Identifier(VillagePax.MOD_ID, "gather");
     public static final Identifier LUMBERJACK = new Identifier(VillagePax.MOD_ID, "lumberjack");
 
-    /** Насколько высоко тянется ствол: выше лесоруб не полезет. */
-    private static final int TRUNK_HEIGHT = 16;
-
     /** Докуда достаёт топор от подножия ствола. */
     private static final double CHOP_REACH = 6.0;
 

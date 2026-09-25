@@ -601,6 +601,114 @@ public class RaidTests extends GameTestSupport {
     }
 
     /**
+     * Из каждого зала чертога можно выйти к небу — сразу, в день основания.
+     * <p>
+     * Жалоба заказчика: «у гномов их поселение просто зарыто в земле,
+     * и никуда не могут выйти». Прежняя проверка спрашивала выход только
+     * у ратуши: ворота от неё прорублены, а изба и поле стояли в сплошной
+     * толще, и галерея к ним шла по прямой к середине — по диагонали,
+     * где клетки касаются лишь углами, и упиралась в стену ратуши, а не
+     * в её дверь. Житель, которому дали постель в избе, в неё не попадал,
+     * а проснувшийся в ней — не выходил.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "hold", tickLimit = 900)
+    public void everyHallOfTheHoldLeadsOutside(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos foot = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        List<BlockPos> mountain = raiseMountain(world, foot);
+        BlockPos floor = Hold.floorUnder(world, foot.getX(), foot.getZ()).orElse(foot);
+        Settlement hold = null;
+
+        try {
+            hold = Villages.found(world, DWARF, floor).orElse(null);
+            if (hold == null) {
+                context.throwGameTestException("Чертог не встал в горе");
+                return;
+            }
+            List<String> sealed = new ArrayList<>();
+            for (Building building : hold.buildings()) {
+                Schematic plan = SchematicLoader.get(BuildJob.schematicId(building)).orElseThrow();
+                for (BlockPos door : com.villagepax.sim.build.Access.entrances(building, plan)) {
+                    if (!escapesToSky(world, door)) {
+                        sealed.add(building.type().getPath() + " у двери " + door.toShortString());
+                    }
+                }
+            }
+            if (!sealed.isEmpty()) {
+                context.throwGameTestException("Залы чертога замурованы в горе: " + sealed);
+            }
+
+            // И к залу, который только размечен, штольня ведёт сразу:
+            // иначе билдеру не к чему подойти, чтобы его вырубить.
+            Building site = com.villagepax.sim.Raising.placeNear(world, manager, hold,
+                    new Identifier("villagepax", "dwarf/warehouse_lvl1")).orElse(null);
+            if (site == null) {
+                context.throwGameTestException("Склад не нашёл места в горе — проверять нечего");
+                return;
+            }
+            {
+                Schematic plan = SchematicLoader.get(BuildJob.schematicId(site)).orElseThrow();
+                for (BlockPos door : com.villagepax.sim.build.Access.entrances(site, plan)) {
+                    BlockPos step = door.offset(com.villagepax.sim.build.Access.awayFrom(site, plan, door));
+                    if (!escapesToSky(world, step)) {
+                        context.throwGameTestException("К размеченному складу нет штольни: порог "
+                                + step.toShortString() + " замурован");
+                    }
+                }
+            }
+        } finally {
+            cleanUpVillage(world, manager, hold, floor, mountain);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Из каждого эльфийского дома в кронах можно спуститься на землю.
+     * <p>
+     * Та же проверка, что у чертога, и по той же жалобе: прежняя спрашивала
+     * спуск только у ратуши, а до остальных помостов мост ещё надо было
+     * настлать — и житель, поселённый в дальнем доме, висел над лесом.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "grove", tickLimit = 900)
+    public void everyHouseOfTheGroveComesDownToTheGround(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos soil = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        List<BlockPos> forest = raiseForest(world, soil);
+        BlockPos deck = Canopy.deckOver(world, soil.getX(), soil.getZ()).orElse(soil);
+        Settlement grove = null;
+
+        try {
+            grove = Villages.found(world, ELF, deck).orElse(null);
+            if (grove == null) {
+                context.throwGameTestException("Деревня в кронах не встала");
+                return;
+            }
+            int floor = soil.getY() + 2;
+            List<String> adrift = new ArrayList<>();
+            for (Building building : grove.buildings()) {
+                Schematic plan = SchematicLoader.get(BuildJob.schematicId(building)).orElseThrow();
+                for (BlockPos door : com.villagepax.sim.build.Access.entrances(building, plan)) {
+                    if (!escapes(world, door, at -> at.getY() <= floor)) {
+                        adrift.add(building.type().getPath() + " у двери " + door.toShortString());
+                    }
+                }
+            }
+            if (!adrift.isEmpty()) {
+                context.throwGameTestException("Дома в кронах, с которых не спуститься: " + adrift);
+            }
+        } finally {
+            cleanUpVillage(world, manager, grove, deck, forest);
+        }
+
+        context.complete();
+    }
+
+    /**
      * Колония гномов под открытым небом не основывается — и говорит почему.
      * <p>
      * Молчаливый отказ был бы здесь худшим из возможных: ратуша встала бы,

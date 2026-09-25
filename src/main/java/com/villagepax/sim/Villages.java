@@ -11,6 +11,7 @@ import com.villagepax.entity.CitizenSpawner;
 import com.villagepax.sim.build.Ascent;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Footing;
+import com.villagepax.sim.build.Galleries;
 import com.villagepax.sim.build.Gate;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.Schematic;
@@ -213,6 +214,9 @@ public final class Villages {
             Raising.raise(world, manager, village, type);
         }
         raiseStall(world, manager, village, culture);
+        // Залы чертога соединяются штольнями с порогом ратуши: без них
+        // изба и поле стояли бы замурованными в толще горы.
+        Galleries.cutAll(world, village);
         // Места раздаются тут же, а не на первой суточной смене: купец,
         // которому ларёк достанется только завтра, сегодня бродит по
         // деревне, и игрок ищет его по всей улице. Тот же урок, что
@@ -345,6 +349,9 @@ public final class Villages {
             // что осталось, а не из того, что должна соседу.
             Citizenship.newDay(world, manager, village);
             deliver(world, village, warehouse);
+            // Чертоги, основанные до штолен, достают их сами на рассвете:
+            // иначе гномы в старых мирах так и сидели бы замурованными.
+            Galleries.cutAll(world, village);
         }
 
         // И обоз к колонии игрока, если ей есть что предложить. Это та

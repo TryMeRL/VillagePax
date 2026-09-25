@@ -4,6 +4,7 @@ import com.villagepax.sim.build.BuildStep;
 import com.villagepax.VillagePax;
 import com.villagepax.screen.BuildOrders;
 import com.villagepax.sim.build.BuildJob;
+import com.villagepax.sim.build.Galleries;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Footing;
@@ -191,6 +192,9 @@ public final class Raising {
         }
         if (best != null && BuildOrders.place(manager, settlement, schematicId, best.anchor(),
                 best.rotation()) instanceof BuildOrders.Result.Placed placed) {
+            // В горе к размеченному залу сперва ведут штольню: иначе
+            // билдеру не к чему подойти.
+            Galleries.cutAll(world, settlement);
             return Optional.of(placed.site());
         }
         return Optional.empty();

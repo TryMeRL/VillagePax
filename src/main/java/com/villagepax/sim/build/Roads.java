@@ -344,6 +344,16 @@ public final class Roads {
             return List.of();
         }
 
+        if (Footing.of(colony).keepsOneLevel()) {
+            // В горе и в кронах прямая улице не годится: по диагонали меж
+            // углов не пройти ни штольней, ни мостом, а середина поселения —
+            // стена ратуши, а не её дверь. Путь ищется в обход (см. Galleries).
+            List<BlockPos> gallery = Galleries.path(colony, building);
+            if (!gallery.isEmpty()) {
+                return gallery;
+            }
+        }
+
         List<Footprint> footprints = footprints(colony);
         List<BlockPos> tiles = new ArrayList<>();
         int height = door.getY() - 1;

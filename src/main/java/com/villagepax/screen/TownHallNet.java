@@ -211,6 +211,7 @@ public final class TownHallNet {
         // Разбор образцами, а не switch: switch по типам в Java 17 —
         // предпросмотр, а цель мода 17.
         if (result instanceof BuildOrders.Result.Placed placed) {
+            com.villagepax.sim.build.Galleries.cutAll(world, colony);
             Vec3i footprint = placed.footprint();
             tell(player, "villagepax.screen.order.placed",
                     Text.translatable(buildingKey(placed.site().type())),

@@ -8,7 +8,18 @@
   "environment": "*",
   "entrypoints": {
     "fabric-gametest": [
-      "com.villagepax.gametest.VillagePaxGameTests"
+      "com.villagepax.gametest.ColonyTests",
+      "com.villagepax.gametest.BuildTests",
+      "com.villagepax.gametest.HaulingTests",
+      "com.villagepax.gametest.CraftTests",
+      "com.villagepax.gametest.ConsoleTests",
+      "com.villagepax.gametest.RoadTests",
+      "com.villagepax.gametest.VillageTests",
+      "com.villagepax.gametest.EconomyTests",
+      "com.villagepax.gametest.RelationsTests",
+      "com.villagepax.gametest.RaidTests",
+      "com.villagepax.gametest.ComplaintTests",
+      "com.villagepax.gametest.PassabilityTests"
     ]
   },
   "depends": {

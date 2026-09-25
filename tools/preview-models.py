@@ -103,6 +103,10 @@ def texture(textures, key):
     namespace, path = split(key)
     raw = read(namespace, "textures/" + path + ".png")
     image = None
+    if raw is None and (namespace != "minecraft" or vanilla() is not None):
+        # Игра нарисует на месте такой текстуры чёрно-фиолетовую клетку:
+        # фонтан пони однажды получил «smooth_quartz», которой у ванили нет.
+        print("НЕТ ТЕКСТУРЫ: %s" % key)
     if raw is not None:
         from io import BytesIO
         image = Image.open(BytesIO(raw)).convert("RGBA")

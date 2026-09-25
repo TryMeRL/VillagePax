@@ -3,8 +3,8 @@
   "textures": {
     "rim": "villagepax:block/fountain_rim",
     "water": "villagepax:block/fountain_water",
-    "marble": "minecraft:block/smooth_quartz",
-    "particle": "minecraft:block/smooth_quartz"
+    "marble": "minecraft:block/quartz_block_bottom",
+    "particle": "minecraft:block/quartz_block_bottom"
   },
   "elements": [
     {

@@ -545,8 +545,8 @@ def jaguar_idol():
 def rainbow_fountain():
     rim, water = "#rim", "#water"
     return model({"rim": "villagepax:block/fountain_rim", "water": "villagepax:block/fountain_water",
-                  "marble": "minecraft:block/smooth_quartz",
-                  "particle": "minecraft:block/smooth_quartz"}, [
+                  "marble": "minecraft:block/quartz_block_bottom",
+                  "particle": "minecraft:block/quartz_block_bottom"}, [
         box((1, 0, 1), (15, 1, 15), "#marble"),
         box((1, 1, 1), (15, 4, 2), rim),
         box((1, 1, 14), (15, 4, 15), rim),

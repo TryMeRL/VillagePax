@@ -910,7 +910,16 @@ public final class QuestNet {
             return;
         }
 
-        Settlement home = manager.byId(homeId).orElse(null);
+        // Чей обоз — знает сам обоз, а не пакет. Деревня из пакета — лишь
+        // то, что экран думал открыть; поверь ей сервер, и подложенный пакет
+        // торговал бы товаром этой телеги по ценам любой деревни мира
+        // и копил бы доверие у той, с которой и не встречался.
+        if (!guest.home().equals(homeId)) {
+            player.sendMessage(Text.translatable("villagepax.trade.gone"), true);
+            openCaravan(player, world, host.id(), caravanId);
+            return;
+        }
+        Settlement home = manager.byId(guest.home()).orElse(null);
         if (home == null) {
             player.sendMessage(Text.translatable("villagepax.caravan.homeless"), true);
             return;

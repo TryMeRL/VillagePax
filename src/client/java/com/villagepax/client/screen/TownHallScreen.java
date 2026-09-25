@@ -59,7 +59,7 @@ import java.util.UUID;
  * Прокрутка стояла в панели рядом с заголовком и вкладками и получала
  * высоту всей панели: содержимое «влезало», листать было нечего, а лишнее
  * рисовалось за краем панели. Теперь высота тела вычитается явно
- * ({@link Look#bodyHeight}), и прокрутка знает своё место.
+ * ({@link PanelMetrics#bodyHeight}), и прокрутка знает своё место.
  */
 public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScreenHandler> {
 

@@ -19,7 +19,8 @@
       "com.villagepax.gametest.RelationsTests",
       "com.villagepax.gametest.RaidTests",
       "com.villagepax.gametest.ComplaintTests",
-      "com.villagepax.gametest.PassabilityTests"
+      "com.villagepax.gametest.PassabilityTests",
+      "com.villagepax.gametest.LoadTests"
     ]
   },
   "depends": {

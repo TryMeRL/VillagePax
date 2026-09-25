@@ -19,6 +19,7 @@ import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.diplomacy.Relations;
 import com.villagepax.sim.work.Schedule;
+import com.villagepax.core.Profiled;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
@@ -115,7 +116,7 @@ public final class Caravans {
     }
 
     public static void register() {
-        ServerTickEvents.END_WORLD_TICK.register(Caravans::tick);
+        ServerTickEvents.END_WORLD_TICK.register(Profiled.tick("caravans", Caravans::tick));
     }
 
     /**

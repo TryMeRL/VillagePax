@@ -14,6 +14,7 @@ import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Villages;
 import com.villagepax.sim.work.Schedule;
+import com.villagepax.core.Profiled;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.item.ItemStack;
@@ -104,7 +105,7 @@ public final class Raids {
     }
 
     public static void register() {
-        ServerTickEvents.END_WORLD_TICK.register(Raids::tick);
+        ServerTickEvents.END_WORLD_TICK.register(Profiled.tick("raids", Raids::tick));
     }
 
     /**

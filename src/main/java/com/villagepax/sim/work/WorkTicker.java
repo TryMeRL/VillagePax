@@ -12,6 +12,7 @@ import com.villagepax.sim.trade.Wages;
 import com.villagepax.sim.faith.Faith;
 import com.villagepax.sim.war.Campaigns;
 import com.villagepax.sim.Villages;
+import com.villagepax.core.Profiled;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.Entity;
 import net.minecraft.server.world.ServerWorld;
@@ -50,7 +51,7 @@ public final class WorkTicker {
     }
 
     public static void register() {
-        ServerTickEvents.END_WORLD_TICK.register(WorkTicker::tick);
+        ServerTickEvents.END_WORLD_TICK.register(Profiled.tick("work", WorkTicker::tick));
     }
 
     public static void tick(ServerWorld world) {

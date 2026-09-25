@@ -23,6 +23,7 @@ import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.work.Workplaces;
 import com.villagepax.sim.trade.Coins;
 import com.villagepax.sim.trade.Trading;
+import com.villagepax.core.Profiled;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -144,7 +145,7 @@ public final class Villages {
     }
 
     public static void register() {
-        ServerTickEvents.END_WORLD_TICK.register(Villages::tick);
+        ServerTickEvents.END_WORLD_TICK.register(Profiled.tick("villages", Villages::tick));
     }
 
     private static void tick(ServerWorld world) {

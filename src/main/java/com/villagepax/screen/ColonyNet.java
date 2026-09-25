@@ -11,6 +11,7 @@ import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
+import com.villagepax.core.Profiled;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -60,7 +61,7 @@ public final class ColonyNet {
     }
 
     public static void register() {
-        ServerTickEvents.END_WORLD_TICK.register(ColonyNet::tick);
+        ServerTickEvents.END_WORLD_TICK.register(Profiled.tick("colony_map", ColonyNet::tick));
     }
 
     private static void tick(ServerWorld world) {

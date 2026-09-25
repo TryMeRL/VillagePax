@@ -980,6 +980,49 @@ public class ColonyTests extends GameTestSupport {
     }
 
     /**
+     * На лежанке без кровати житель дремлет, а не подскакивает всю ночь.
+     * <p>
+     * Жалоба заказчика: «строители при наступлении ночи и недостатке
+     * кровати прыгают на месте и вертят головой». Ванильный сон вне
+     * кровати игра обрывает на следующем тике, а стратегия укладывала
+     * снова — отсюда и прыжки.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "home")
+    public void aCitizenDozesOnABedrollInsteadOfJumping(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos bedroll = context.getAbsolutePos(new BlockPos(4, 1, 4));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        try {
+            context.setBlockState(new BlockPos(4, 0, 4), Blocks.STONE);
+            Citizen sleeper = hireWithBody(world, colony, HaulJob.COURIER, hall.up());
+            sleeper.setBed(bedroll);
+            CitizenEntity body = (CitizenEntity) world.getEntity(sleeper.entityUuid().orElseThrow());
+
+            body.refreshPositionAndAngles(bedroll.getX() + 0.5, bedroll.getY(),
+                    bedroll.getZ() + 0.5, 0f, 0f);
+            WorkTicker.decide(world, manager, colony, sleeper, Schedule.SLEEP);
+            if (body.isSleeping()) {
+                context.throwGameTestException("Житель лёг ванильным сном на пол: "
+                        + "игра разбудит его на следующем тике");
+            }
+            if (!body.isDozing()) {
+                context.throwGameTestException("На лежанке житель не дремлет");
+            }
+            WorkTicker.decide(world, manager, colony, sleeper, Schedule.MORNING_WORK);
+            if (body.isDozing()) {
+                context.throwGameTestException("Утром житель так и дремлет");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    /**
      * Приток жителей: один за игровой день, если есть свободная кровать и еда.
      * <p>
      * Еда в условии не для строгости: без неё пришедший сразу начал бы

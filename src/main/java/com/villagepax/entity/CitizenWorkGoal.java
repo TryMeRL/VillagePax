@@ -90,6 +90,10 @@ public class CitizenWorkGoal extends Goal {
         if (next == null) {
             return;
         }
+        // Дремлющий стоит, где лёг: ни шага, ни поворота головы.
+        if (body.isDozing()) {
+            return;
+        }
 
         body.getLookControl().lookAt(next.getX() + 0.5, next.getY() + 0.5, next.getZ() + 0.5);
 

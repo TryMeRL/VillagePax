@@ -441,6 +441,18 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
             DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
     /**
+     * Дремлет на лежанке — на полу, где кровати нет.
+     * <p>
+     * Ванильный сон тут не годится: игра каждый тик будит того, кто спит
+     * не в кровати, а стратегия через полсекунды укладывала снова. Житель
+     * всю ночь подскакивал и крутил головой — заказчик так и описал:
+     * «прыгают на месте и вертят головой». На лежанке он теперь стоит
+     * и дремлет: та же дремота, что во сне, без укладывания.
+     */
+    private static final TrackedData<Boolean> DOZING =
+            DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+
+    /**
      * Рост народа, каким его объявил датапак.
      * <p>
      * Отслеживаемым полем по той же причине, что облик и детство: культура
@@ -749,6 +761,20 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
 
     public boolean isChildBody() {
         return dataTracker.get(CHILD);
+    }
+
+    /** Дремлет ли на лежанке: см. {@link #DOZING}. */
+    public boolean isDozing() {
+        return dataTracker.get(DOZING);
+    }
+
+    public void setDozing(boolean dozing) {
+        if (dozing != isDozing()) {
+            dataTracker.set(DOZING, dozing);
+            if (dozing) {
+                getNavigation().stop();
+            }
+        }
     }
 
     /**
@@ -1279,7 +1305,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
                 state.setAndContinue(armsFor(state.isMoving())))
                 .triggerableAnim("greet", GREET));
         dancers.add(new AnimationController<>(this, "дыхание", 8, state ->
-                state.setAndContinue(isSleeping() ? DOZE
+                state.setAndContinue(isSleeping() || isDozing() ? DOZE
                         : limbAnimator.getSpeed() > RUNNING ? LEAN : BREATHE)));
     }
 
@@ -1292,7 +1318,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
      * а лесоруб с мотыгой и должен рыхлить, а не рубить.
      */
     private RawAnimation armsFor(boolean moving) {
-        if (isSleeping()) {
+        if (isSleeping() || isDozing()) {
             return SLEEP;
         }
         ItemStack held = getMainHandStack();
@@ -1344,6 +1370,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         super.initDataTracker();
         dataTracker.startTracking(LOOK, Looks.UNKNOWN.toString());
         dataTracker.startTracking(CHILD, false);
+        dataTracker.startTracking(DOZING, false);
         dataTracker.startTracking(STATURE, Culture.PLAIN_STATURE);
     }
 

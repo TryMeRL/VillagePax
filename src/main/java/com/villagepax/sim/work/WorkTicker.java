@@ -209,6 +209,9 @@ public final class WorkTicker {
         if (part != Schedule.SLEEP && body.isSleeping()) {
             body.wakeUp();
         }
+        if (part != Schedule.SLEEP) {
+            body.setDozing(false);
+        }
 
         switch (part) {
             case SLEEP -> {
@@ -256,8 +259,20 @@ public final class WorkTicker {
         }
 
         context.body().setWorkTarget(bed);
-        if (context.hasArrivedAt(bed) && !context.body().isSleeping()) {
+        if (!context.hasArrivedAt(bed)) {
+            // Лежанку сменили или житель сдвинулся — идти, а не дремать.
+            context.body().setDozing(false);
+            return;
+        }
+        if (context.body().isSleeping()) {
+            return;
+        }
+        // Настоящая кровать — ложится. Лежанка на полу — дремлет стоя:
+        // ванильный сон вне кровати игра обрывает на следующем же тике.
+        if (context.world().getBlockState(bed).isIn(net.minecraft.registry.tag.BlockTags.BEDS)) {
             context.body().sleep(bed);
+        } else {
+            context.body().setDozing(true);
         }
     }
 

@@ -45,6 +45,36 @@
       "item": "villagepax:dwarven_stout",
       "count": 1,
       "price": 2
+    },
+    {
+      "item": "villagepax:dwarf_helmet",
+      "count": 1,
+      "price": 14,
+      "min_reputation": 45
+    },
+    {
+      "item": "villagepax:dwarf_boots",
+      "count": 1,
+      "price": 12,
+      "min_reputation": 45
+    },
+    {
+      "item": "villagepax:dwarf_leggings",
+      "count": 1,
+      "price": 20,
+      "min_reputation": 60
+    },
+    {
+      "item": "villagepax:dwarf_chestplate",
+      "count": 1,
+      "price": 24,
+      "min_reputation": 80
+    },
+    {
+      "item": "villagepax:dwarf_warhammer",
+      "count": 1,
+      "price": 20,
+      "min_reputation": 45
     }
   ],
   "buys": [

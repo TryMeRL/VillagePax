@@ -79,6 +79,8 @@ public class VillagePaxClient implements ClientModInitializer {
                 RopeBlockEntityRenderer::new);
         registerCutouts();
         registerItemLooks();
+        // Броня народов объёмная: рог, перья и бородник — кубы модели, а не слой.
+        GearArmorRenderer.install();
         HandledScreens.register(TownHallScreens.TOWN_HALL, TownHallScreen::new);
         registerViewUpdates();
         registerColonyMap();

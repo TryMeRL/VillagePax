@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "villagepax:item/pony_horseshoe_flail"
+  }
+}

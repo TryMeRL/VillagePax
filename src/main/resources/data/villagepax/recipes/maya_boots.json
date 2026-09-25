@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "X X",
+    "M M"
+  ],
+  "key": {
+    "M": {
+      "item": "minecraft:white_wool"
+    },
+    "X": {
+      "item": "minecraft:emerald"
+    }
+  },
+  "result": {
+    "item": "villagepax:maya_boots"
+  }
+}

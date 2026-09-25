@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "villagepax:nord_helmet",
+    "villagepax:nord_chestplate",
+    "villagepax:nord_leggings",
+    "villagepax:nord_boots"
+  ]
+}

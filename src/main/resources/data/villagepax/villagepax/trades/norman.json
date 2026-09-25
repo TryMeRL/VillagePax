@@ -62,6 +62,36 @@
       "item": "villagepax:paper_lantern",
       "count": 2,
       "price": 1
+    },
+    {
+      "item": "villagepax:norman_helmet",
+      "count": 1,
+      "price": 14,
+      "min_reputation": 45
+    },
+    {
+      "item": "villagepax:norman_boots",
+      "count": 1,
+      "price": 12,
+      "min_reputation": 45
+    },
+    {
+      "item": "villagepax:norman_leggings",
+      "count": 1,
+      "price": 20,
+      "min_reputation": 60
+    },
+    {
+      "item": "villagepax:norman_chestplate",
+      "count": 1,
+      "price": 24,
+      "min_reputation": 80
+    },
+    {
+      "item": "villagepax:norman_longsword",
+      "count": 1,
+      "price": 20,
+      "min_reputation": 45
     }
   ],
   "buys": [

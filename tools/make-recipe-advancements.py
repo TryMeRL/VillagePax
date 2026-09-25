@@ -28,6 +28,7 @@ OUT = DATA / "advancements/recipes"
 FOLDERS = {
     "building": "building_blocks",
     "misc": "misc",
+    "equipment": "combat",
     None: "building_blocks",
 }
 

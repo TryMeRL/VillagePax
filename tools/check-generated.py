@@ -37,6 +37,7 @@ GENERATORS = (
     "make-furniture.py",
     "make-decor.py",
     "make-schematics.py",
+    "make-gear.py",
     "make-recipe-advancements.py",
     "make-icon.py",
 )

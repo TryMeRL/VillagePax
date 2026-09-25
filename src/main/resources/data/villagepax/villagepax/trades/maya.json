@@ -52,6 +52,36 @@
       "item": "villagepax:flower_box",
       "count": 2,
       "price": 1
+    },
+    {
+      "item": "villagepax:maya_helmet",
+      "count": 1,
+      "price": 14,
+      "min_reputation": 45
+    },
+    {
+      "item": "villagepax:maya_boots",
+      "count": 1,
+      "price": 12,
+      "min_reputation": 45
+    },
+    {
+      "item": "villagepax:maya_leggings",
+      "count": 1,
+      "price": 20,
+      "min_reputation": 60
+    },
+    {
+      "item": "villagepax:maya_chestplate",
+      "count": 1,
+      "price": 24,
+      "min_reputation": 80
+    },
+    {
+      "item": "villagepax:maya_macuahuitl",
+      "count": 1,
+      "price": 20,
+      "min_reputation": 45
     }
   ],
   "buys": [

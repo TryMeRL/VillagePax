@@ -49,6 +49,7 @@ public class VillagePax implements ModInitializer {
         Kindling.init();
         ModBlockEntities.init();
         ModItems.registerBlockItems();
+        com.villagepax.item.gear.ModGear.register();
         ModItems.init();
         ModEntities.init();
         CitizenSpawner.register();

@@ -13,6 +13,7 @@ import net.minecraft.item.FoodComponent;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemGroup;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.text.Text;
@@ -142,7 +143,7 @@ public final class ModItems {
                     .alwaysEdible()
                     .statusEffect(new StatusEffectInstance(ModEffects.ORE_SENSE, 20 * 90, 0), 1.0f)
                     .statusEffect(new StatusEffectInstance(StatusEffects.NIGHT_VISION, 20 * 90, 0), 1.0f)
-                    .build())));
+                    .build()), Items.GLASS_BOTTLE));
 
     /**
      * Эльфийский нектар: мёд и светящиеся ягоды. Лёгкость на две минуты:

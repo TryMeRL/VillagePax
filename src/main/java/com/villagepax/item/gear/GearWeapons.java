@@ -23,6 +23,20 @@ public final class GearWeapons {
     private GearWeapons() {
     }
 
+    /** Чьё это оружие — если это оружие народа. */
+    public static java.util.Optional<Gear> gearOf(ItemStack stack) {
+        if (stack.getItem() instanceof Sword sword) {
+            return java.util.Optional.of(sword.gear());
+        }
+        if (stack.getItem() instanceof Axe axe) {
+            return java.util.Optional.of(axe.gear());
+        }
+        if (stack.getItem() instanceof Hammer hammer) {
+            return java.util.Optional.of(hammer.gear());
+        }
+        return java.util.Optional.empty();
+    }
+
     private static void tooltip(Gear gear, List<Text> lines) {
         lines.add(Text.translatable(gear.strikeKey()).formatted(Formatting.GRAY));
     }

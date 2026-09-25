@@ -69,4 +69,20 @@ public final class ModGear {
     public static Item weaponOf(Gear gear) {
         return WEAPONS.get(gear);
     }
+
+    /**
+     * Чем вооружить бойца народа: его собственным оружием, а народ без
+     * своего снаряжения (дописанный чужим датапаком) — железным мечом.
+     * Страж северян выходит с секирой, гном — с молотом, и кто пришёл,
+     * видно ещё до имени над головой.
+     */
+    public static net.minecraft.item.ItemStack armsFor(net.minecraft.util.Identifier culture) {
+        for (Gear gear : Gear.values()) {
+            if (culture != null && culture.getNamespace().equals(com.villagepax.VillagePax.MOD_ID)
+                    && culture.getPath().equals(gear.id())) {
+                return new net.minecraft.item.ItemStack(weaponOf(gear));
+            }
+        }
+        return new net.minecraft.item.ItemStack(net.minecraft.item.Items.IRON_SWORD);
+    }
 }

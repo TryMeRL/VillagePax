@@ -47,7 +47,6 @@ import net.minecraft.entity.ai.goal.ActiveTargetGoal;
 import net.minecraft.entity.ai.goal.FleeEntityGoal;
 import net.minecraft.entity.ai.goal.LookAroundGoal;
 import net.minecraft.entity.ai.goal.LookAtEntityGoal;
-import net.minecraft.entity.ai.goal.MeleeAttackGoal;
 import net.minecraft.entity.ai.goal.RevengeGoal;
 import net.minecraft.entity.ai.goal.SwimGoal;
 import net.minecraft.entity.ai.goal.WanderAroundFarGoal;
@@ -152,6 +151,23 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
                 // поэтому стража с железом бьёт всерьёз, а пахарь,
                 // схватившийся за вилы, почти никак.
                 .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 1.0);
+    }
+
+    /**
+     * Удар жителя — и удар оружия его народа.
+     * <p>
+     * У игрока особый удар случается сам: ваниль зовёт {@code postHit}
+     * у предмета в руке. У моба — нет, он бьёт атрибутом, и секира
+     * в руке стража морозила бы только в руках игрока. Поэтому здесь.
+     */
+    @Override
+    public boolean tryAttack(net.minecraft.entity.Entity target) {
+        boolean hit = super.tryAttack(target);
+        if (hit && target instanceof net.minecraft.entity.LivingEntity struck) {
+            com.villagepax.item.gear.GearWeapons.gearOf(getMainHandStack())
+                    .ifPresent(gear -> gear.strike(struck, this));
+        }
+        return hit;
     }
 
     /**
@@ -298,7 +314,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         // Драка выше дела: боец, у которого есть цель, бросает работу.
         // У мирного жителя цели не бывает — её ставят только тем, кто
         // воюет, — и потому эта цель для пахаря всё равно что нет её.
-        goalSelector.add(1, new MeleeAttackGoal(this, 1.0, false));
+        goalSelector.add(1, new CitizenMeleeGoal(this));
         // А трус бежит от того, кого прочие ещё не заметили. Выше общего
         // бегства, потому что иначе оба спорили бы за ноги: побеждает
         // старший, и старшим должен быть тот, у кого шире круг. Для всех

@@ -5,8 +5,6 @@ import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Villages;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
@@ -50,7 +48,7 @@ public class GuardJob implements Job {
 
     @Override
     public Optional<BlockPos> tick(WorkContext context) {
-        context.hold(new ItemStack(Items.IRON_SWORD));
+        context.hold(com.villagepax.item.gear.ModGear.armsFor(context.settlement().culture()));
 
         // Страж всегда «в простое», и это не небрежность: фаза работы
         // означает привязку к зданию, а у стражи здания нет — есть

@@ -18,7 +18,6 @@ import com.villagepax.core.Profiled;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -321,7 +320,8 @@ public final class Raids {
             fighter.setCustomNameVisible(true);
             // Оружие в руках — и это не только вид: модификатор меча
             // считается в силу удара, как у любого моба с мечом.
-            fighter.equipStack(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
+            fighter.equipStack(EquipmentSlot.MAINHAND,
+                    com.villagepax.item.gear.ModGear.armsFor(party.culture()));
         }
 
         if (first) {

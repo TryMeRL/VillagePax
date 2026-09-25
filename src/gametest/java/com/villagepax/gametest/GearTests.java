@@ -121,6 +121,88 @@ public class GearTests extends GameTestSupport {
         context.complete();
     }
 
+    /**
+     * Житель с оружием народа бьёт не сильнее, чем с железным мечом, — в секунду.
+     * <p>
+     * Моб бьёт атрибутом, а не скоростью оружия, и без поправки гномий молот
+     * раз в секунду стал бы вдвое злее меча: налёт гномов срезал бы стражу
+     * за миг. Проверяется урон в секунду каждого оружия против меча:
+     * разница — в самом ударе, а не в числе.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "gear")
+    public void peoplesWeaponsHitAsHardAsASwordPerSecond(TestContext context) {
+        double sword = perSecond(new ItemStack(net.minecraft.item.Items.IRON_SWORD));
+        if (com.villagepax.entity.CitizenMeleeGoal.interval(
+                new ItemStack(net.minecraft.item.Items.IRON_SWORD)) != 20) {
+            context.throwGameTestException("Железный меч сменил темп: бой стражи разбалансирован");
+        }
+        if (com.villagepax.entity.CitizenMeleeGoal.interval(ItemStack.EMPTY) != 20) {
+            context.throwGameTestException("Кулак стал бить чаще прежнего");
+        }
+        List<String> complaints = new ArrayList<>();
+        for (Gear gear : Gear.values()) {
+            double own = perSecond(new ItemStack(ModGear.weaponOf(gear)));
+            if (own > sword * 1.2 || own < sword * 0.75) {
+                complaints.add(String.format("%s: %.2f в секунду против %.2f у меча",
+                        gear.weaponName(), own, sword));
+            }
+        }
+        if (!complaints.isEmpty()) {
+            context.throwGameTestException("Оружие народов вне баланса:\n  "
+                    + String.join("\n  ", complaints));
+        }
+        context.complete();
+    }
+
+    /** Каждый народ идёт в бой со своим оружием, чужой датапак — с мечом. */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "gear")
+    public void fightersCarryTheirPeoplesWeapon(TestContext context) {
+        for (Gear gear : Gear.values()) {
+            ItemStack arms = ModGear.armsFor(new Identifier("villagepax", gear.id()));
+            if (!arms.isOf(ModGear.weaponOf(gear))) {
+                context.throwGameTestException(gear.id() + " идёт в бой не со своим: " + arms);
+            }
+        }
+        if (!ModGear.armsFor(new Identifier("somepack", "vikings")).isOf(
+                net.minecraft.item.Items.IRON_SWORD)) {
+            context.throwGameTestException("Народ без снаряжения остался без меча");
+        }
+
+        // Удар жителя с секирой морозит так же, как удар игрока.
+        com.villagepax.entity.CitizenEntity guard = com.villagepax.entity.CitizenSpawner
+                .spawnPuppet(context.getWorld(), context.getAbsolutePos(new BlockPos(3, 2, 1)));
+        PigEntity target = context.spawnMob(EntityType.PIG, new BlockPos(2, 2, 1));
+        try {
+            if (guard == null) {
+                context.throwGameTestException("Страж не появился");
+                return;
+            }
+            guard.equipStack(EquipmentSlot.MAINHAND, ModGear.armsFor(
+                    new Identifier("villagepax", "nord")));
+            guard.tryAttack(target);
+            if (target.getFrozenTicks() <= target.getMinFreezeDamageTicks()) {
+                context.throwGameTestException("Секира в руке стража не морозит");
+            }
+        } finally {
+            if (guard != null) {
+                guard.discard();
+            }
+            target.discard();
+        }
+        context.complete();
+    }
+
+    /** Урон в секунду в руке жителя: сила удара на частоту ударов. */
+    private static double perSecond(ItemStack weapon) {
+        double damage = 1.0;
+        for (net.minecraft.entity.attribute.EntityAttributeModifier modifier : weapon
+                .getAttributeModifiers(EquipmentSlot.MAINHAND)
+                .get(net.minecraft.entity.attribute.EntityAttributes.GENERIC_ATTACK_DAMAGE)) {
+            damage += modifier.getValue();
+        }
+        return damage * 20.0 / com.villagepax.entity.CitizenMeleeGoal.interval(weapon);
+    }
+
     /** Что должно было случиться после удара — или null, если случилось. */
     private static String struck(Gear gear, LivingEntity target, LivingEntity attacker) {
         return switch (gear) {

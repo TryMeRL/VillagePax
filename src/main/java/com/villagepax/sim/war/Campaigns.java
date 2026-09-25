@@ -15,8 +15,6 @@ import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Standing;
 import com.villagepax.sim.Villages;
 import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -284,7 +282,8 @@ public final class Campaigns {
                 return;
             }
             body.linkRaid(village.id(), party.id());
-            body.equipStack(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
+            body.equipStack(EquipmentSlot.MAINHAND,
+                    com.villagepax.item.gear.ModGear.armsFor(colony.culture()));
         }
 
         if (first) {

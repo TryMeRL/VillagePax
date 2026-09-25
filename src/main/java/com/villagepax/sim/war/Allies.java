@@ -10,8 +10,6 @@ import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.diplomacy.Alliance;
 import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
@@ -99,7 +97,8 @@ public final class Allies {
             fighter.setLook(Looks.puppet(from.culture(), "guard"));
             fighter.setCustomName(Text.translatable("villagepax.ally.fighter", from.name()));
             fighter.setCustomNameVisible(true);
-            fighter.equipStack(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
+            fighter.equipStack(EquipmentSlot.MAINHAND,
+                    com.villagepax.item.gear.ModGear.armsFor(from.culture()));
         }
 
         if (already == 0) {

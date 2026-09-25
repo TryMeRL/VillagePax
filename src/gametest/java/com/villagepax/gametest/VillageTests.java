@@ -54,6 +54,44 @@ public class VillageTests extends GameTestSupport {
      * другу на застройку.
      */
     /**
+     * Северяне встают на снегу: снежный покров — не преграда, а их земля.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "snow")
+    public void aNordVillageRisesOnSnow(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+        Identifier nord = new Identifier("villagepax", "nord");
+        try {
+            for (int x = -24; x <= 24; x++) {
+                for (int z = -24; z <= 24; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState()
+                            .with(net.minecraft.block.SnowyBlock.SNOWY, true));
+                    world.setBlockState(at.up(), Blocks.SNOW.getDefaultState());
+                    meadow.add(at);
+                    meadow.add(at.up());
+                }
+            }
+            village = Villages.found(world, nord, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Северяне не встали на снегу: помеха="
+                        + whoBlocks(manager, centre));
+                return;
+            }
+            long done = village.buildings().stream().filter(Building::isOperational).count();
+            if (done < 3) {
+                context.throwGameTestException("У северян готово всего " + done + " зданий");
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+        context.complete();
+    }
+
+    /**
      * Деревня народа встаёт с убранными улицами: колодец с водой на площади,
      * табличка с названием и фонарь у крыльца. «Чтоб прям хотелось жить».
      */

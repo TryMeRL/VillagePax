@@ -138,6 +138,12 @@ public class VillageTests extends GameTestSupport {
             if (done < 3) {
                 context.throwGameTestException("У северян готово всего " + done + " зданий");
             }
+            long wolves = world.getEntitiesByClass(net.minecraft.entity.passive.WolfEntity.class,
+                    new net.minecraft.util.math.Box(centre).expand(24, 8, 24),
+                    net.minecraft.entity.mob.MobEntity::isLeashed).size();
+            if (wolves < 2) {
+                context.throwGameTestException("У северян у коновязи нет волков: " + wolves);
+            }
             // Колодец у северян свой: двускатный навес из еловых ступеней.
             boolean gable = manager.decorOf(village.id()).stream()
                     .anyMatch(at -> world.getBlockState(at).isOf(Blocks.SPRUCE_STAIRS));
@@ -183,6 +189,13 @@ public class VillageTests extends GameTestSupport {
                 context.throwGameTestException("Улицы не убраны: колодец=" + water
                         + ", табличка=" + sign + ", фонарь=" + lamp + " (поставлено " + decor.size() + ")");
             }
+            // У коновязи — овцы народа, и на привязи: вольные к утру разбредутся.
+            net.minecraft.util.math.Box square = new net.minecraft.util.math.Box(centre).expand(24, 8, 24);
+            long herd = world.getEntitiesByClass(net.minecraft.entity.passive.SheepEntity.class, square,
+                    net.minecraft.entity.mob.MobEntity::isLeashed).size();
+            if (herd < 2) {
+                context.throwGameTestException("У коновязи норманнов нет овец на привязи: " + herd);
+            }
             // И убирается это однажды: второй день не ставит второй колодец.
             int before = decor.size();
             com.villagepax.sim.Streetscape.dress(world, manager, village);
@@ -192,6 +205,21 @@ public class VillageTests extends GameTestSupport {
             }
         } finally {
             cleanUpVillage(world, manager, village, centre, meadow);
+        }
+        context.complete();
+    }
+
+    /** Напев есть у каждого народа из датапака: вечер у всех звучит по-своему. */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "streets")
+    public void everyPeopleHasItsEveningSong(TestContext context) {
+        List<String> silent = new ArrayList<>();
+        com.villagepax.core.culture.CultureManager.all().keySet().forEach(id -> {
+            if (!com.villagepax.sim.VillageMusic.hasTune(id.getPath())) {
+                silent.add(id.toString());
+            }
+        });
+        if (!silent.isEmpty()) {
+            context.throwGameTestException("Народы без вечерней песни: " + silent);
         }
         context.complete();
     }

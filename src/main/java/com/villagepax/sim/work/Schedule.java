@@ -37,6 +37,9 @@ public enum Schedule implements Named {
     private static final long MEAL_FROM = 5_000L;
     private static final long DAY_WORK_FROM = 7_000L;
     private static final long LEISURE_FROM = 11_000L;
+
+    /** С какого часа суток досуг — вечерний сбор, песня и зов. */
+    public static final long LEISURE_START = LEISURE_FROM;
     private static final long SLEEP_FROM = 13_000L;
 
     private final String id;

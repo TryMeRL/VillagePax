@@ -1313,6 +1313,20 @@ abstract class GameTestSupport implements FabricGameTest {
             for (BlockPos at : manager.decorOf(village.id())) {
                 world.setBlockState(at, Blocks.AIR.getDefaultState());
             }
+            // И скотина у коновязи: узел привязи висит на столбе, которого
+            // уже нет, а животное пошло бы бродить по чужим проверкам.
+            net.minecraft.util.math.Box square =
+                    new net.minecraft.util.math.Box(village.center()).expand(32, 12, 32);
+            // Сорвавшийся с привязи попугай уже не «на привязи», а летает
+            // по чужим проверкам — поэтому убирается весь скот коновязи.
+            world.getEntitiesByClass(net.minecraft.entity.mob.MobEntity.class, square,
+                    mob -> mob.isLeashed() || mob instanceof net.minecraft.entity.passive.ParrotEntity
+                            || mob instanceof net.minecraft.entity.passive.SheepEntity
+                            || mob instanceof net.minecraft.entity.passive.WolfEntity
+                            || mob instanceof net.minecraft.entity.passive.AbstractHorseEntity)
+                    .forEach(net.minecraft.entity.Entity::discard);
+            world.getEntitiesByClass(net.minecraft.entity.decoration.LeashKnotEntity.class, square,
+                    knot -> true).forEach(net.minecraft.entity.Entity::discard);
             manager.remove(village.id());
         }
         manager.forget(centre);

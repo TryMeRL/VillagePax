@@ -56,6 +56,7 @@ public class VillagePax implements ModInitializer {
         SchematicLoader.register();
         WorkTicker.register();
         Villages.register();
+        com.villagepax.sim.VillageMusic.register();
         Greeting.register();
         Protection.register();
         BuildCommand.register();

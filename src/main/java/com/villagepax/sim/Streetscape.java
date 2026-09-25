@@ -14,6 +14,8 @@ import net.minecraft.block.LanternBlock;
 import net.minecraft.block.SignBlock;
 import net.minecraft.block.StairsBlock;
 import net.minecraft.block.entity.SignBlockEntity;
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
@@ -215,6 +217,69 @@ public final class Streetscape {
                 sign.markDirty();
                 world.updateListeners(at, world.getBlockState(at), world.getBlockState(at), 3);
             }
+        }
+        hitch(world, manager, village, palette, centre, toward);
+    }
+
+    /**
+     * Какие животные у кого стоят у коновязи. Деревня без скотины — декорация:
+     * у пони у столба кони, у норманнов овцы, у майя попугаи-ара, у северян
+     * ездовые волки. Гномы и эльфы живут не на площади под небом, их улицы
+     * не убираются, и коновязи у них нет.
+     */
+    private static final java.util.Map<String, EntityType<? extends MobEntity>> HERDS =
+            java.util.Map.of("norman", EntityType.SHEEP, "maya", EntityType.PARROT,
+                    "pony", EntityType.HORSE, "nord", EntityType.WOLF);
+
+    /** Сколько животных у одного столба: пара, чтобы было не одиноко. */
+    private static final int HERD = 2;
+
+    /**
+     * Коновязь у колодца: столб и животные народа на привязи.
+     * <p>
+     * На привязи нарочно: вольная скотина к утру разбредается по лесу,
+     * и площадь снова пуста. Привязанное животное не пропадает само и не
+     * уходит — оно и есть та жизнь, которую видно с улицы.
+     */
+    private static void hitch(ServerWorld world, SettlementManager manager, Settlement village,
+                              Palette palette, BlockPos well, Direction away) {
+        EntityType<? extends MobEntity> kind = HERDS.get(village.culture().getPath());
+        if (kind == null) {
+            return;
+        }
+        BlockPos post = null;
+        for (Direction side : new Direction[]{away.getOpposite(), away.rotateYClockwise(),
+                away.rotateYCounterclockwise()}) {
+            for (int up = 1; up >= -1 && post == null; up--) {
+                BlockPos at = well.offset(side, 4).up(up);
+                if (freeFor(world, village, at, 3)
+                        && world.getBlockState(at.down()).isSolidBlock(world, at.down())) {
+                    post = at;
+                }
+            }
+            if (post != null) {
+                break;
+            }
+        }
+        if (post == null) {
+            return;
+        }
+        put(world, manager, village, post, palette.fence().getDefaultState());
+        net.minecraft.entity.decoration.LeashKnotEntity knot =
+                net.minecraft.entity.decoration.LeashKnotEntity.getOrCreate(world, post);
+        for (int i = 0; i < HERD; i++) {
+            MobEntity animal = kind.create(world);
+            if (animal == null) {
+                continue;
+            }
+            double dx = i == 0 ? 1.5 : -1.5;
+            animal.refreshPositionAndAngles(post.getX() + 0.5 + dx, post.getY(),
+                    post.getZ() + 0.5, world.getRandom().nextFloat() * 360f, 0f);
+            animal.initialize(world, world.getLocalDifficulty(post),
+                    net.minecraft.entity.SpawnReason.STRUCTURE, null, null);
+            animal.setPersistent();
+            world.spawnEntity(animal);
+            animal.attachLeash(knot, true);
         }
     }
 

@@ -319,6 +319,9 @@ LEGEND = {
     "]": ("minecraft:acacia_stairs", {"facing": "south", "half": "bottom",
                                       "shape": "straight", "waterlogged": "false"}),
     "_": ("minecraft:acacia_slab", {"type": "bottom", "waterlogged": "false"}),
+    # Кирпич трубы. Буквы латиницы кончились — кирпич пишется кириллицей:
+    # легенде всё равно, а читается «б» как то, что оно и есть.
+    "б": ("minecraft:bricks", {}),
     "D": ("villagepax:marker_door", {}),
     "K": ("villagepax:marker_workstation", {}),
     "S": ("villagepax:marker_storage", {}),
@@ -413,6 +416,76 @@ def gable(width, depth, levels, ridge=None, body="I", north="[", south="]"):
                        for z in range(depth)])
 
     return layers
+
+
+def steep_gable(width, depth, rise_north, rise_south, end, ridge, beam=None, window=None):
+    """Крутая двускатная кровля: полая, в один ряд ступеней, с фронтонами.
+
+    Жалоба заказчика: «исправь дома». Прежние дома накрывались шатром
+    в два яруса — плоским ящиком с крышкой, из-за которого дом читался
+    коробкой. Эта кровля поднимается на полширины дома, как у настоящей
+    избы или фахверка: скаты идут ступенями до конька, торцы закрыты
+    фронтонами — со своей балкой посередине и оконцем под коньком.
+
+    Полая нарочно. Сплошное тело кровли съедало бы полсотни досок на дом,
+    которых никто не видит, а полая даёт комнате высокий потолок под
+    скатами — дом изнутри становится просторнее, а не только снаружи.
+
+    Ступень северного ската смотрит НА ЮГ: у ванильной ступени высокая
+    часть лежит с той стороны, куда она смотрит, а скат обязан расти
+    к коньку. Повернуть наоборот — и край кровли торчит гребешком наружу.
+    """
+    levels = depth // 2
+    middle = depth // 2
+    layers = []
+    for level in range(levels):
+        rows = []
+        for z in range(depth):
+            if z == level:
+                rows.append(rise_north * width)
+            elif z == depth - 1 - level:
+                rows.append(rise_south * width)
+            elif level < z < depth - 1 - level:
+                inside = "." * (width - 2)
+                gable_end = end
+                if z == middle and level == 0 and beam is not None:
+                    gable_end = beam
+                if z == middle and level == 1 and window is not None:
+                    gable_end = window
+                rows.append(gable_end + inside + gable_end)
+            else:
+                rows.append("." * width)
+        layers.append(rows)
+    layers.append([(ridge * width) if z == middle else ("." * width) for z in range(depth)])
+    return layers
+
+
+def with_flue(layers, x, z, through_from, ring_from):
+    """Дымоход сквозь полую кровлю: колонна открыта, вокруг — кладка.
+
+    Прежняя труба ставилась кольцом НАД крышей и под крутым скатом
+    повисла бы в воздухе. Здесь кладка поднимается вдоль колонны от
+    первого же слоя кровли — там, где снаружи воздух, — кирпичом, а не
+    камнем: каменная труба на фахверке читалась глыбой, — и выходит над
+    коньком венцом, из которого идёт дым.
+    """
+    layers = [list(layer) for layer in layers]
+    for y in range(through_from, len(layers)):
+        row = list(layers[y][z])
+        row[x] = "."
+        layers[y][z] = "".join(row)
+    for y in range(ring_from, len(layers)):
+        for rz in range(z - 1, z + 2):
+            row = list(layers[y][rz])
+            for rx in range(x - 1, x + 2):
+                if (rx, rz) != (x, z) and 0 <= rx < len(row) and row[rx] == ".":
+                    row[rx] = "б"
+            layers[y][rz] = "".join(row)
+    top = []
+    for rz in range(len(layers[0])):
+        top.append("".join("Y" if max(abs(rx - x), abs(rz - z)) == 1 else "."
+                           for rx in range(len(layers[0][0]))))
+    return layers + [top]
 
 
 def pyramid(size, symbol, cap=None):
@@ -518,6 +591,44 @@ def chimney_stack(width, depth, x, z, levels):
     return layers
 
 
+# Стороны света в осях схемы: север — к z=0, как у ванили.
+SIDES = {"north": (0, -1), "south": (0, 1), "west": (-1, 0), "east": (1, 0)}
+OPPOSITE = {"north": "south", "south": "north", "west": "east", "east": "west"}
+
+# Что считается стеной, к которой прислоняют полку: несущее, а не убранство.
+WALLS = set("WXBHZPMCRVTaiuj{}-?|/omNIG+")
+
+
+def orient(layers, x, y, z, block_id, properties):
+    """Мебель, повёрнутая по комнате, а не по одной букве легенды.
+
+    Жалоба заказчика: «мебель одной лишь стороной». Так и было: у стола
+    обе лавки сидели к нему спиной — северная смотрела на север, южная
+    на юг, — потому что лавка в легенде одна на всю схему и повёрнута
+    одинаково, где бы ни стояла. Теперь поворот выводится из соседей:
+    лавка у стола смотрит на стол, полка стоит спиной к стене. Схема
+    говорит «здесь лавка», а куда ей смотреть, решает комната.
+    """
+    def at(dx, dz):
+        row_z, col_x = z + dz, x + dx
+        layer = layers[y]
+        if 0 <= row_z < len(layer) and 0 <= col_x < len(layer[row_z]):
+            return layer[row_z][col_x]
+        return "."
+
+    if block_id == "villagepax:bench":
+        for side, (dx, dz) in SIDES.items():
+            if at(dx, dz) == "%":
+                return {**properties, "facing": side}
+    if block_id == "villagepax:shelf":
+        for side, (dx, dz) in SIDES.items():
+            ox, oz = SIDES[OPPOSITE[side]]
+            if at(dx, dz) in WALLS and at(ox, oz) not in WALLS:
+                # У полки facing — куда смотрит лицо, а спина — к стене.
+                return {**properties, "facing": OPPOSITE[side]}
+    return properties
+
+
 def compile_layers(layers):
     """Послойная карта → размер, палитра, список блоков."""
     height = len(layers)
@@ -541,6 +652,7 @@ def compile_layers(layers):
                 if symbol not in LEGEND:
                     raise ValueError(f"неизвестный символ {symbol!r} в слое {y}, строке {z}")
                 block_id, properties = LEGEND[symbol]
+                properties = orient(layers, x, y, z, block_id, properties)
                 key = (block_id, tuple(sorted(properties.items())))
                 if key not in index_of:
                     index_of[key] = len(palette)
@@ -656,7 +768,7 @@ NORMAN_HOUSE = [
      "Z.....Z",
      "Z.....Z",
      "HHHHHHH"],
-] + hip_roof(7, 2, ridge="7")
+] + steep_gable(7, 7, "s", "n", "X", "7", beam="B", window="G")
 
 # Домик лесоруба, 10x5x5: жильё слева, огороженная роща справа.
 #
@@ -849,13 +961,15 @@ NORMAN_HOUSE_2 = storey(
          "ZPPPPPZ",
          "HHHHHHH"],
     ],
-    2,
-    flue=(3, 5),
-    stack=1,
+    0,
     # Лестница снизу доверху: там, где у первого уровня воздух.
     # У западной стены, в углу за кроватями, — единственное место,
     # где она не встаёт ни на проходе, ни поверх мебели.
-    extra=((1, 1, 4, "x"), (2, 1, 4, "x")))
+    extra=((1, 1, 4, "x"), (2, 1, 4, "x")),
+    roof=steep_gable(7, 7, "s", "n", "X", "7", beam="B", window="G"))
+# Дым очага идёт сквозь пол горницы и полую кровлю: колонна над костром
+# открыта с потолка первого этажа, кладка трубы — от первого слоя кровли.
+NORMAN_HOUSE_2 = with_flue(NORMAN_HOUSE_2, 3, 5, 3, 7)
 
 # --- ферма норманнов, уровень 1 ---
 
@@ -2406,7 +2520,7 @@ PONY_HOUSE = [
      "N.....N",
      "N.....N",
      "mmmmmmm"],
-] + gable(7, 7, 2, ridge="_")
+] + steep_gable(7, 7, "]", "[", "I", "_", beam="o", window="G")
 
 # --- дом пони, уровень 2 ---
 #
@@ -2443,7 +2557,7 @@ PONY_HOUSE_2 = storey(
     ],
     0,
     extra=((1, 1, 4, "k"), (2, 1, 4, "k")),
-    roof=gable(7, 7, 2, ridge="_"))
+    roof=steep_gable(7, 7, "]", "[", "I", "_", beam="o", window="G"))
 
 # --- ратуша пони, уровень 2 ---
 PONY_TOWN_HALL_2 = storey(

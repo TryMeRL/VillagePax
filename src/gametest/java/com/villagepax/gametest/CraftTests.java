@@ -230,7 +230,7 @@ public class CraftTests extends GameTestSupport {
      * из брёвен. Без проверки «внутри здания» лесоруб унёс бы на склад стены
      * той самой мастерской, в которой работает.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "lumberjack")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "lumberjack")
     public void lumberjackClearsWildForestButSparesBuildings(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1036,7 +1036,7 @@ public class CraftTests extends GameTestSupport {
      * Курьера — тоже: он ходит между складом и стройкой, и обе точки
      * выбирает стратегия.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trades")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "trades")
     public void courierIsSentOnlyWhereHeCanStand(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);

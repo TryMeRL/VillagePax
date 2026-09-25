@@ -50,7 +50,7 @@ public class RoadTests extends GameTestSupport {
      * Что считать дорогой, решает тег {@code villagepax:preferred_path}:
      * этот тест заодно проверяет, что тег вообще доехал до датапака.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "road")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "road")
     public void citizenPrefersThePavedRoute(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);

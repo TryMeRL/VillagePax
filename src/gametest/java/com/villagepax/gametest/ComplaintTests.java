@@ -161,7 +161,7 @@ public class ComplaintTests extends GameTestSupport {
      * стройка сперва отодвигает своего, а если клетка всё равно занята —
      * ждёт, а не ставит.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "fire")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "fire")
     public void nothingIsBuiltInsideTheLiving(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -306,7 +306,7 @@ public class ComplaintTests extends GameTestSupport {
      * Проверяется на настоящем пологе: поляна с листвой в шести блоках
      * над землёй. Деревня обязана встать и разметить здания <b>у земли</b>.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "fire")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "fire")
     public void villageRisesUnderTheCanopy(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2241,7 +2241,7 @@ public class ComplaintTests extends GameTestSupport {
      * Проверка нарочно одна на все схемы: добавится девятнадцатая — она
      * проверится сама, и забыть о ней будет нельзя.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "everything")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "everything")
     public void everySchematicIsBuiltFromStandableSpots(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);

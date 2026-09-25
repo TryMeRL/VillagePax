@@ -56,7 +56,7 @@ public class VillageTests extends GameTestSupport {
      * блоков в каждую сторону, и с соседом по партии они наступили бы друг
      * другу на застройку.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "village")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "village")
     public void villageRisesAlreadyStandingAndKeepsBuilding(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -137,7 +137,7 @@ public class VillageTests extends GameTestSupport {
      * деревня начинает без монеты, зарабатывает её сама и на неё же
      * покупает. Прежде материалы появлялись даром.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "village")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "village")
     public void villageGrowsFromDayToDay(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -335,7 +335,7 @@ public class VillageTests extends GameTestSupport {
      * Мир между прогонами возвращается в прежний вид — иначе второй прогон
      * получил бы даром то, что первый уже расчистил, и сравнение врало бы.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "traits")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "traits")
     public void masonsFinishStoneworkSooner(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -431,7 +431,7 @@ public class VillageTests extends GameTestSupport {
      * норманнской, а материал — общим. Поэтому смотрим и на объявленные
      * типы, и на то, что <b>в мире действительно стоит охряная стена</b>.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "maya")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "maya")
     public void mayaVillageIsBuiltOfItsOwnMaterial(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -520,7 +520,7 @@ public class VillageTests extends GameTestSupport {
      * норманнов. Если билдер не дотянется до гребня, играть за майя будет
      * нельзя: ратуша у них выше всего остального.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "reach")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "reach")
     public void mayaTempleIsBuiltWithoutStandingInMidair(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);

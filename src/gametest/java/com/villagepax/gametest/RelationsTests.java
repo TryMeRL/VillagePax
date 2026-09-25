@@ -44,7 +44,7 @@ public class RelationsTests extends GameTestSupport {
      * И проверяется <b>на трёх деревнях сразу</b>, потому что двумя это
      * правило не отличить от «доверие складывается»: нужны и свои, и чужие.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "diplomacy")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "diplomacy")
     public void fameSpreadsToKinAndCostsRivals(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -172,7 +172,7 @@ public class RelationsTests extends GameTestSupport {
      * имеет, и подмешивать её ноль значило бы наказывать игрока за
      * существование деревень, до которых он не дошёл.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "diplomacy")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "diplomacy")
     public void peopleJudgePlayerByAllTheirVillages(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -223,7 +223,7 @@ public class RelationsTests extends GameTestSupport {
      * и вышло — с грузом обоза, — и стоило это всех модульных тестов
      * поселения.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "diplomacy")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "diplomacy")
     public void elderScreenShowsThePeopleAndTheGift(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);

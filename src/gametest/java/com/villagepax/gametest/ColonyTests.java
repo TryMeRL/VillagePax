@@ -253,7 +253,7 @@ public class ColonyTests extends GameTestSupport {
     // границы поселения — два чанка. Любой сосед, зарегистрировавший своё
     // поселение, ломал бы основание по "слишком близко", и падение зависело
     // бы от порядка запуска.
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "founding")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "founding")
     public void colonyIsFoundedOnSolidGround(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1597,7 +1597,7 @@ public class ColonyTests extends GameTestSupport {
      * от решения к решению (иначе житель метался бы); отпущенное, когда
      * дошёл (иначе он стоял бы в строю кругом).
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "evening")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "evening")
     public void eveningBringsCitizensToTheSquare(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);

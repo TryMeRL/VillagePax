@@ -102,7 +102,7 @@ public class RaidTests extends GameTestSupport {
      * разбойник получил бы отряд каждое утро и не смог бы ни отстроиться,
      * ни помириться.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "raid")
     public void patienceEndsAndAWarBandIsSent(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -199,7 +199,7 @@ public class RaidTests extends GameTestSupport {
      * что тела <b>не</b> появляются раньше срока: иначе предупреждение
      * теряло бы смысл, а игрок просыпался бы уже в бою.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "raid")
     public void warBandStandsUpOnTheDayItPromised(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -303,7 +303,7 @@ public class RaidTests extends GameTestSupport {
      * анимацию, — и весь смысл проверки в том, что путь от удара до
      * записи отряда действительно связан.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid", tickLimit = 200)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "raid", tickLimit = 200)
     public void fallenFighterThinsTheBand(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -355,7 +355,7 @@ public class RaidTests extends GameTestSupport {
      * И проверяется <b>решение стратегии</b>, а не бой: драться умеет
      * ванильная тактика, и проверять её заново незачем.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "guard")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "guard")
     public void guardGoesForTheRaiderAndPatrolsOtherwise(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -450,7 +450,7 @@ public class RaidTests extends GameTestSupport {
      * друга, а страж чует налётчика на сорок восемь блоков. Соседняя
      * проверка так однажды и увела чужого бойца.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid_fight", tickLimit = 200)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "raid_fight", tickLimit = 200)
     public void raiderGoesForTheColonysPeople(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -985,7 +985,7 @@ public class RaidTests extends GameTestSupport {
      * у него второй уровень задним числом значило бы наказать
      * за вчерашнее правилом, которого вчера не было.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "terrace")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "terrace")
     public void housesStandApartWithAStreetBetween(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1214,7 +1214,7 @@ public class RaidTests extends GameTestSupport {
      * «дорасти до старейшины»: дом и почёт вместе дают право говорить,
      * а порознь — нет.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "citizenship")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "citizenship")
     public void theStrangerIsEvictedAndTheHonouredIsHeard(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1870,7 +1870,7 @@ public class RaidTests extends GameTestSupport {
      * потому что порознь каждая согласилась бы с поломкой: «берёт всегда»
      * проходит первую, «не берёт никогда» — вторую.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "conquest")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "conquest")
     public void aWholeWarBandTakesTheColony(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1944,7 +1944,7 @@ public class RaidTests extends GameTestSupport {
      * единственная настоящая угроза вассала — не заплатил, значит
      * приблизил следующий отряд.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "conquest")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "conquest")
     public void theYokeIsPaidFromTheColonyPurse(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2022,7 +2022,7 @@ public class RaidTests extends GameTestSupport {
      * побеждённому оставалось бы только ждать конца срока, а ждать —
      * это не игра.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "conquest")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "conquest")
     public void beatingTheOverlordThrowsOffTheYoke(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2080,7 +2080,7 @@ public class RaidTests extends GameTestSupport {
      * это загадка, а не правило. Отдельной строкой — друг: дружба
      * защищает деревню от игрока ровно так же, как игрока от неё.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "conquest")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "conquest")
     public void theMarchNeedsATownAndTwoSwords(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2152,7 +2152,7 @@ public class RaidTests extends GameTestSupport {
      * пока отряд в пути, колония <b>без стражи</b>; ушедший целым берёт
      * деревню; вернувшиеся снова дома и снова работают.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "conquest")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "conquest")
     public void theWarBandTakesTheVillageAndComesHome(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2352,7 +2352,7 @@ public class RaidTests extends GameTestSupport {
      * посылает людей не затем, чтобы сжечь чужое, и не в последнюю
      * очередь затем, чтобы взять своё.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "siege")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "siege")
     public void survivorsCarryTheLootHome(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);

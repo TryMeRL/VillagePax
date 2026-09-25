@@ -758,7 +758,7 @@ public class BuildTests extends GameTestSupport {
      * дёргают двигатель напрямую и потому не доказывают, что он вообще
      * подключён к игре; этот доказывает.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, tickLimit = 220, batchId = "playerPath")
+    @GameTest(templateName = WIDE_STRUCTURE, tickLimit = 220, batchId = "playerPath")
     public void playerPathRaisesBuildingByItself(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1123,7 +1123,7 @@ public class BuildTests extends GameTestSupport {
      * здание правами</b>: неописанное здание строится и чинится, но
      * колонии уровня не даёт и мастерской никому не служит.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "orders")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "orders")
     public void onlyDeclaredTypesGetRights(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1190,7 +1190,7 @@ public class BuildTests extends GameTestSupport {
      * Проверяется на двух стройках, из которых <b>вторая</b> объявлена
      * важной: если бы очередь не работала, билдер взялся бы за первую.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "orders")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "orders")
     public void builderTakesTheUrgentSiteFirst(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1412,7 +1412,7 @@ public class BuildTests extends GameTestSupport {
      * майя; теперь выше него храм совета второго уровня, и у него своя
      * проверка — {@link #mayaTempleIsBuiltWithoutStandingInMidair}.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "reach")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "reach")
     public void tallHouseIsBuiltWithoutStandingInMidair(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);

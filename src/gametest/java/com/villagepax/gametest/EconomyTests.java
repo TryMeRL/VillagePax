@@ -355,7 +355,7 @@ public class EconomyTests extends GameTestSupport {
      * Старейшина ставится явно при основании, а не через приоритет найма:
      * без неё деревня — набор домов, в котором игроку нечего делать.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "quests")
     public void villageHasAnElderToTalkTo(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -625,7 +625,7 @@ public class EconomyTests extends GameTestSupport {
      * монетой — получает. Если однажды привоз снова станет подарком,
      * первая половина теста упадёт.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trade")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "trade")
     public void caravanBringsNothingWithoutCoin(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1103,7 +1103,7 @@ public class EconomyTests extends GameTestSupport {
      * а не из воздуха. Иначе торговля печатала бы вещи, и деревня стала
      * бы бездонным сундуком с ногами.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "caravan")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "caravan")
     public void caravanBringsTheVillageGoodsNotThinAir(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1247,7 +1247,7 @@ public class EconomyTests extends GameTestSupport {
      * достаётся грабителю, но доверие пославшей деревни падает — и её
      * старейшина перестанет и говорить, и торговать.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "caravan")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "caravan")
     public void robbingTheCaravanCostsTrust(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);

@@ -212,7 +212,7 @@ public class PassabilityTests extends GameTestSupport {
      * без подхода. Игрок сказал про это «не пройти ни к зданиям, ни
      * к фермам».
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "playable")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "playable")
     public void streetStepsDownALedge(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -332,7 +332,7 @@ public class PassabilityTests extends GameTestSupport {
      * над недостроенным домом без единого объяснения. Это и есть его
      * «строить здания не могу», вид второй.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "playable")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "playable")
     public void colonyWithoutABuilderSaysSo(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -381,7 +381,7 @@ public class PassabilityTests extends GameTestSupport {
      * склад → еда → новый житель» порвётся, колония не вырастет — и здесь
      * это будет видно сразу, а не через неделю у игрока.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "week", tickLimit = 400)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "week", tickLimit = 400)
     public void colonyLivesAWeekOnItsOwn(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -655,7 +655,7 @@ public class PassabilityTests extends GameTestSupport {
      * Хвост проверки про то же: через десять дней, когда тишина кончится,
      * отряд выходит снова — потому что обиду никто не отменял.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "peace")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "peace")
     public void paidPeaceSendsTheBandHomeButBuysNoTrust(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -781,7 +781,7 @@ public class PassabilityTests extends GameTestSupport {
      * убитый боец деревню не примиряет. Кровью, как и монетой, покупается
      * только время.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "peace")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "peace")
     public void fallenFightersBuyQuietDays(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -878,7 +878,7 @@ public class PassabilityTests extends GameTestSupport {
      * навсегда, и единственным способом от них избавиться было бы
      * перебить их всех.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "peace", tickLimit = 100)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "peace", tickLimit = 100)
     public void forgottenFighterLeavesOnItsOwn(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1225,7 +1225,7 @@ public class PassabilityTests extends GameTestSupport {
      * и пробует и то и другое. Обе сделки обязаны пройти на нулевом
      * доверии — на большее в первую встречу ему рассчитывать не на что.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trade_first", tickLimit = 300)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "trade_first", tickLimit = 300)
     public void villageMeetsThePlayerWithAFullStall(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1307,7 +1307,7 @@ public class PassabilityTests extends GameTestSupport {
      * долго, и дом, в который нельзя войти всю стройку, бесполезен ровно
      * так же, как дом, в который нельзя войти совсем.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "porch", tickLimit = 400)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "porch", tickLimit = 400)
     public void farmCanBeWalkedIntoFromTheGround(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1581,7 +1581,7 @@ public class PassabilityTests extends GameTestSupport {
      * что <b>сукно у деревень в цене</b>: ради этого оно и заведено,
      * иначе это просто ещё одна вещь на складе.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "growth", tickLimit = 400)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "growth", tickLimit = 400)
     public void townOpensTheWeaverAndClothIsWorthSelling(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1744,7 +1744,7 @@ public class PassabilityTests extends GameTestSupport {
      * Здание ставится на цоколь <b>выше земли вокруг</b> — так, как оно
      * и выходит в игре на склоне, потому что мод сам подсыпает опору.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "walkin", tickLimit = 600)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "walkin", tickLimit = 600)
     public void citizensCanWalkIntoHouseAndFarm(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -1959,7 +1959,7 @@ public class PassabilityTests extends GameTestSupport {
      * Судит по-прежнему ванильный поиск пути: «расчищено» — это не когда
      * клетка пуста по нашей мерке, а когда житель дошёл.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "walkin", tickLimit = 600)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "walkin", tickLimit = 600)
     public void theBuilderFellsTheTreeAtTheGate(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2071,7 +2071,7 @@ public class PassabilityTests extends GameTestSupport {
      * поиск пути; здесь же — <b>геометрия у порога</b>, зато у всех зданий
      * и быстро.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "walkin", tickLimit = 900)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "walkin", tickLimit = 900)
     public void everyBuildingLetsYouInFromTheGround(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2174,7 +2174,7 @@ public class PassabilityTests extends GameTestSupport {
      * записанное готовым и не поставленное, — ровно та беда, от которой
      * игрок и жаловался, только теперь молча.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "founding", tickLimit = 600)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "founding", tickLimit = 600)
     public void colonyStartsWithARoofAndAField(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2252,7 +2252,7 @@ public class PassabilityTests extends GameTestSupport {
      * у обоих, выглядел бы как работающее разделение ровно до того мига,
      * когда игрок подойдёт к старейшине.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests", tickLimit = 600)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "quests", tickLimit = 600)
     public void theCounterIsKeptByTheMerchantNotTheElder(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2346,7 +2346,7 @@ public class PassabilityTests extends GameTestSupport {
      * переставшая торговать, выглядит сломанной — это уже проходили
      * с пустой полкой при первой встрече.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests", tickLimit = 600)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "quests", tickLimit = 600)
     public void withoutAMerchantTheElderKeepsTheCounter(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2538,7 +2538,7 @@ public class PassabilityTests extends GameTestSupport {
      * иначе не проверить — тест не может прождать трое суток, а шесть
      * вызовов в одном тике для мода один и тот же день.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "caravan", tickLimit = 900)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "caravan", tickLimit = 900)
     public void theMarketBringsACaravanEveryDay(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2617,7 +2617,7 @@ public class PassabilityTests extends GameTestSupport {
      * хватает на каждом шагу, что дар уходит деревне и что союз
      * <b>перестаёт действовать</b>, если игрок растерял дружбу.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "peace", tickLimit = 600)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "peace", tickLimit = 600)
     public void anAllianceNeedsFriendshipATownAndGold(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2714,7 +2714,7 @@ public class PassabilityTests extends GameTestSupport {
      * что её не считают налётчиками свои же проверки, и что обе стороны
      * взяли друг друга на прицел.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid", tickLimit = 600)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "raid", tickLimit = 600)
     public void alliesComeWhenRaidersDo(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2832,7 +2832,7 @@ public class PassabilityTests extends GameTestSupport {
      * Теперь чужая ратуша пульта не открывает вовсе и говорит, что
      * здесь можно на самом деле.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "founding")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "founding")
     public void aVillageTownHallIsNotYourConsole(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -2943,7 +2943,7 @@ public class PassabilityTests extends GameTestSupport {
      * Разница видна на второй половине проверки: отряд, ушедший целым,
      * дня разгрома не оставляет — его и не было.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "raid")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "raid")
     public void aBeatenWarBandIsRemembered(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -3015,7 +3015,7 @@ public class PassabilityTests extends GameTestSupport {
      * Проверяется каждый отказ по очереди, потому что каждый из них —
      * отдельное правило, и выпади любое, дань перестанет что-то значить.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "peace")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "peace")
     public void tributeIsTakenFromTheBeatenNotFromFriends(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -3109,7 +3109,7 @@ public class PassabilityTests extends GameTestSupport {
      * доходом, а она — решение: монета сегодня против отряда у ворот
      * послезавтра.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "peace")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "peace")
     public void tributeMovesCoinAndBreedsResentment(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -3188,7 +3188,7 @@ public class PassabilityTests extends GameTestSupport {
      * грабить. Зато у разбитой она есть сразу, и у платящей — тоже:
      * игрок должен видеть, сколько ему ещё несут.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "quests")
     public void theLevyCardSpeaksForItself(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);

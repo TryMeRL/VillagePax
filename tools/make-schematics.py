@@ -345,6 +345,19 @@ LEGEND = {
     # Синяя постель вместо красной: северянин спит под шерстью цвета фьорда.
     "к": ("minecraft:blue_bed", {"facing": "south", "part": "foot", "occupied": "false"}),
     "г": ("minecraft:blue_bed", {"facing": "south", "part": "head", "occupied": "false"}),
+    # Стяги северян: синий, как постель. Висят на стене и ставятся
+    # последними, вместе с убранством, — к недостроенной стене не прибить.
+    "щ": ("minecraft:blue_wall_banner", {"facing": "south"}),
+    "ш": ("minecraft:blue_wall_banner", {"facing": "north"}),
+    "э": ("minecraft:blue_wall_banner", {"facing": "east"}),
+    "ы": ("minecraft:blue_wall_banner", {"facing": "west"}),
+    "ё": ("minecraft:blue_banner", {"rotation": "0"}),
+    # Сухая кладка поля и двора тинга.
+    "ъ": ("minecraft:cobblestone_wall", {"east": "none", "north": "none", "south": "none",
+                                         "west": "none", "up": "true", "waterlogged": "false"}),
+    # Ворота в стене, что идёт с запада на восток.
+    "ц": ("minecraft:spruce_fence_gate", {"facing": "south", "open": "true",
+                                          "in_wall": "false", "powered": "false"}),
     "D": ("villagepax:marker_door", {}),
     "K": ("villagepax:marker_workstation", {}),
     "S": ("villagepax:marker_storage", {}),
@@ -483,7 +496,7 @@ def steep_gable(width, depth, rise_north, rise_south, end, ridge, beam=None, win
     return layers
 
 
-def with_flue(layers, x, z, through_from, ring_from):
+def with_flue(layers, x, z, through_from, ring_from, stone="б"):
     """Дымоход сквозь полую кровлю: колонна открыта, вокруг — кладка.
 
     Прежняя труба ставилась кольцом НАД крышей и под крутым скатом
@@ -502,7 +515,7 @@ def with_flue(layers, x, z, through_from, ring_from):
             row = list(layers[y][rz])
             for rx in range(x - 1, x + 2):
                 if (rx, rz) != (x, z) and 0 <= rx < len(row) and row[rx] == ".":
-                    row[rx] = "б"
+                    row[rx] = stone
             layers[y][rz] = "".join(row)
     top = []
     for rz in range(len(layers[0])):
@@ -3333,21 +3346,411 @@ ELF_SHRINE = bower([
 ], height=7, door=(3, 0), panes=ELF_PANES)
 
 
-# --- северяне: те же проверенные формы, что у пони, из ели и камня ---
+# ======================= СЕВЕРЯНЕ: ШЕСТОЙ НАРОД =======================
 #
-# Северяне — шестой народ, и схемы им не рисуются заново, а переводятся
-# с пони: акация становится елью, красная постель синей. Формы у пони
-# прошли все проверки — вход с земли, стройку с опоры, лестницы на второй
-# этаж, — и перевод материала их не ломает: ступень остаётся ступенью,
-# плита плитой, бревно бревном. Облик выходит свой — тёмный сруб на
-# каменном цоколе под еловой кровлей, — а надёжность та же.
-NORD_SWAP = str.maketrans({"o": "л", "m": "ж", "N": "з", "I": "е", "&": "ф", "(": "в",
-                           ")": "с", "[": "н", "]": "ю", "_": "п", "f": "к", "h": "г"})
+# Заказчик: «пусть каждый народ будет уникальным, всё своё, прям чтоб вау
+# было». Сначала северянам схемы переводились с пони — акация в ель, —
+# и деревня выходила деревней пони в другом цвете. Теперь у них свой дом.
+#
+# Чем северянин узнаётся издалека:
+#   * ДЛИННЫЙ ДОМ. Сруб вытянут вдоль конька, вход с длинной стороны,
+#     стены низкие — в два венца, — и кровля начинается почти от земли:
+#     в снежном краю тепло держит крыша, а не стена.
+#   * СРУБ ИЗ ЛЕЖАЧИХ БРЁВЕН. Венцы вдоль стены, столбы по углам —
+#     не тёс на каркасе, как у пони, а бревно на бревне.
+#   * ДРАКОНЬИ РОГА. Конёк — цельное бревно, и на обоих его концах торчат
+#     жерди: силуэт кровли с рогами виден с другого берега фьорда.
+#   * СИНИЕ СТЯГИ на стенах зала и у алтаря и ОЧАГ посреди дома.
+#
+# Проверки те же, что у всех: вход с земли, стройка с опоры, свет,
+# свободный порог. Схемы пишутся кириллицей, и в ней есть двойники
+# латиницы: «с» — саженец, «c» — костёр; «е» — доска, «e» — ступень;
+# «к» — синяя постель, «k» — лестница. Сверка идёт по палитре готового
+# файла, а не по глазам.
 
 
-def nordic(layers):
-    """Слои пони, переложенные в ель и камень."""
-    return [[row.translate(NORD_SWAP) for row in layer] for layer in layers]
+def dragon_roof(width, depth, window="G"):
+    """Крутая еловая кровля с коньком-бревном и рогами на его концах."""
+    roof = steep_gable(width, depth, "ю", "н", "е", "ж", beam="л", window=window)
+    middle = depth // 2
+    roof.append([("ф" + "." * (width - 2) + "ф") if z == middle else "." * width
+                 for z in range(depth)])
+    return roof
+
+
+def nord_hut(ground, upper, width, depth):
+    """Сруб в два венца на каменном цоколе под драконьей кровлей.
+
+    Под коньком посередине висит фонарь: у сруба с полой кровлей нет
+    плоского потолка, под которым генератор нашёл бы место факелу, а
+    фонарь на цепи с конькового бревна и есть северный светильник.
+    """
+    roof = dragon_roof(width, depth)
+    under_ridge = roof[-3]
+    row = under_ridge[depth // 2]
+    middle = width // 2
+    under_ridge[depth // 2] = row[:middle] + "'" + row[middle + 1:]
+    return [["C" * width] * depth, ground, upper] + roof
+
+
+def svalgang(base, posts="л", deck="е", eave="н"):
+    """Крытая галерея вдоль южной стены: столбы, настил и скат-навес.
+
+    Свалганг — открытая галерея северных срубов, где сидят летом и
+    сушат зимой. Ратуша растёт ею вширь, а не вверх, и только на юг:
+    якорь здания — северо-западный угол, и он остаётся на месте.
+    """
+    width = len(base[0][0])
+    layers = [list(layer) + ["." * width, "." * width] for layer in base]
+    layers[0][-2:] = ["C" * width, "C" * width]
+    pillars = "".join(posts if x % 2 == 0 else "." for x in range(width))
+    benches = list("." * width)
+    for x in (1, width - 2):
+        benches[x] = "="
+    for x in (3, width - 4):
+        benches[x] = "O"
+    lamps = list("." * width)
+    for x in (2, width - 3):
+        lamps[x] = "'"
+    layers[1][-2:] = ["".join(benches), pillars]
+    layers[2][-2:] = ["".join(lamps), pillars]
+    layers[3][-2:] = [deck * width, eave * width]
+    return layers
+
+
+# --- изба северян, уровень 1: длинный дом 9x5 ---
+#
+# Вход посередине длинной стены, против него очаг. Слева лежанки, справа
+# стол с лавкой и полка, по стенам синие стяги.
+NORD_HOUSE = nord_hut(
+    ["лжжжDжжжл",
+     "зкк...:Sз",
+     "згг.c.%;з",
+     "зO..O...з",
+     "лжжжжжжжл"],
+    ["лжGж.жGжл",
+     "з.......з",
+     "G......ыз",
+     "з...ш...з",
+     "лжGжжжGжл"],
+    9, 5)
+
+# --- изба северян, уровень 2: полати над столом ---
+#
+# Вторым уровнем дом не надстраивается сплошным этажом, а поднимает стены
+# и получает полати — помост под крышей над восточным концом, с перилами
+# и ещё двумя постелями. Над очагом по-прежнему открыто до самой кровли:
+# дым уходит вверх, а зал становится высоким, как настоящий скаали.
+NORD_HOUSE_2 = storey(
+    NORD_HOUSE,
+    ["жжжжжжжжж",
+     "з....ееез",
+     "з....ееез",
+     "з....ееkз",
+     "жжжжжжжжж"],
+    [
+        ["лжжжжжжжл",
+         "з....фккз",
+         "з....фггз",
+         "з....ф..з",
+         "лжжжжжжжл"],
+        ["лжGжжжGжл",
+         "з.......з",
+         "G.......G",
+         "з.......з",
+         "лжGжжжGжл"],
+    ],
+    0,
+    extra=((1, 7, 3, "k"), (2, 7, 3, "k")),
+    roof=dragon_roof(9, 5))
+
+# --- ратуша северян, уровень 1: палаты ярла 9x7 ---
+#
+# Один высокий зал: лавки вдоль длинных стен, посередине долгий очаг
+# в каменной оправе, в восточном торце — место ярла под тремя стягами.
+NORD_TOWN_HALL = nord_hut(
+    ["лжжжDжжжл",
+     "зS==.==Oз",
+     "з.......з",
+     "з..CcC.Kз",
+     "з.......з",
+     "зO::.::Eз",
+     "лжжжжжжжл"],
+    ["лжGж.жGжл",
+     "з.......з",
+     "з......ыз",
+     "G......ыз",
+     "з......ыз",
+     "з.......з",
+     "лжжGжGжжл"],
+    9, 7)
+
+# --- ратуша северян, уровень 2: верхние палаты с каменной трубой ---
+NORD_TOWN_HALL_2 = with_flue(storey(
+    NORD_TOWN_HALL,
+    ["жжжжжжжжж",
+     "зееееееез",
+     "зxеееееез",
+     "зееееееез",
+     "зееееееез",
+     "зееееееез",
+     "жжжжжжжжж"],
+    [
+        ["лжжжжжжжл",
+         "з.S...ккз",
+         "з.....ггз",
+         "з.......з",
+         "зS......з",
+         "зO.....Oз",
+         "лжжжжжжжл"],
+        ["лжGжжжGжл",
+         "з.......з",
+         "з.......з",
+         "G.......G",
+         "з.......з",
+         "з.......з",
+         "лжGжжжGжл"],
+    ],
+    0,
+    extra=((1, 1, 2, "x"), (2, 1, 2, "x")),
+    roof=dragon_roof(9, 7)), 4, 3, 3, 4, stone="C")
+
+# --- ратуша северян, уровень 3: галерея-свалганг на юг ---
+NORD_TOWN_HALL_3 = svalgang(NORD_TOWN_HALL_2)
+
+
+def thing_yard(base):
+    """Четвёртый уровень: двор тинга за палатами — стена, стяги, колокол.
+
+    Тинг — народное собрание северян, и столица узнаётся по нему: мощёный
+    двор за галереей, обнесённый камнем, с колоколом посередине, двумя
+    кострами по бокам и стягами у ворот.
+    """
+    width = len(base[0][0])
+    layers = [list(layer) + ["." * width] * 3 for layer in base]
+    layers[0][-3:] = ["C" * width] * 3
+    middle = width // 2
+    gate = list("ъ" * width)
+    gate[middle - 1], gate[middle], gate[middle + 1] = "ё", "ц", "ё"
+    side = "ъ" + "." * (width - 2) + "ъ"
+    # Колокол — у галереи, а не у ворот: клетка за воротами обязана
+    # быть свободной, как за любой дверью.
+    bell = list(side)
+    bell[middle] = "J"
+    fires = list(side)
+    fires[1], fires[width - 2] = "c", "c"
+    layers[1][-3:] = ["".join(bell), "".join(fires), "".join(gate)]
+    layers[2][-3:] = ["." * width, "." * width, "t" + "." * (width - 2) + "t"]
+    return layers
+
+
+NORD_TOWN_HALL_4 = thing_yard(NORD_TOWN_HALL_3)
+
+# --- поле северян: каменная ограда и стога на жердях ---
+#
+# Поле обнесено не жердями, а сухой кладкой из булыжника — так огораживают
+# каменистую землю, где камень выходит из пашни сам. Сено сушат не в снопах,
+# а на жердях, как северяне сушат его до сих пор, а по углам ограды горят
+# фонари.
+NORD_FARM = [
+    ["ddddddd"] * 7,
+    ["ddddddd",
+     "dFFFFFd",
+     "dFF~FFd",
+     "dFFFFFd",
+     "dFFFFFd",
+     "dFFFFFd",
+     "ddddddd"],
+    ["ъъъъъъъ",
+     "в*****ъ",
+     "ъ**.**ъ",
+     "ъ*ф*ф*ъ",
+     "ъ**K**ъ",
+     "ъ*****ъ",
+     "ъъъъъъъ"],
+    ["t.....t",
+     ".......",
+     ".......",
+     "..A.A..",
+     ".......",
+     ".......",
+     "t.....t"],
+]
+
+NORD_FARM_2 = [
+    ["ddddddddd"] * 9,
+    ["ddddddddd",
+     "dFFFFFdFd",
+     "dFF~FFdFd",
+     "dFFFFFdFd",
+     "dFFFFFdFd",
+     "dFFFFFdFd",
+     "dddddddFd",
+     "dFFFFFFFd",
+     "ddddddddd"],
+    ["ъъъъъъъъъ",
+     "в*******ъ",
+     "ъ**.****ъ",
+     "ъ*ф*ф***ъ",
+     "ъ**K****ъ",
+     "ъ*******ъ",
+     "ъ*******ъ",
+     "ъ*******ъ",
+     "ъъъъъъъъъ"],
+    ["t.......t",
+     ".........",
+     ".........",
+     "..A.A....",
+     ".........",
+     ".........",
+     ".........",
+     ".........",
+     "t.......t"],
+]
+
+# --- лесоруб северян: сруб у ельника ---
+NORD_LUMBERJACK = [
+    ["CCCCCddddd"] * 5,
+    ["лжDжлффффф",
+     "зK.Sзфс.сф",
+     "з...зф.O.в",
+     "з.O.зфс.сф",
+     "лжжжлффффф"],
+    ["лж.жлt...t",
+     "з...з.....",
+     "G...G.....",
+     "з...з.....",
+     "лжGжлt...t"],
+] + [[row + "....." for row in layer] for layer in dragon_roof(5, 5)]
+
+# --- склад северян: длинный амбар 7x5 ---
+NORD_WAREHOUSE = nord_hut(
+    ["лжжDжжл",
+     "зS...Sз",
+     "з..O..з",
+     "зS...Sз",
+     "лжжжжжл"],
+    ["лжж.жжл",
+     "з.....з",
+     "G.....G",
+     "з.....з",
+     "лжGжGжл"],
+    7, 5)
+
+NORD_BUILDER_HUT = nord_hut(
+    ["лжDжл",
+     "зK.Sз",
+     "з...з",
+     "зS.Oз",
+     "лжжжл"],
+    ["лж.жл",
+     "з...з",
+     "G...G",
+     "з...з",
+     "лжGжл"],
+    5, 5)
+
+# Медоварня: котёл, бочка и вторая бочка поверх первой.
+NORD_BREWERY = nord_hut(
+    ["лжDжл",
+     "з.K.з",
+     "з0.Oз",
+     "зS.vз",
+     "лжжжл"],
+    ["лж.жл",
+     "з...з",
+     "G...G",
+     "з..vз",
+     "лжGжл"],
+    5, 5)
+
+# Ткацкая: станок, шерсть и стяг на стене — ткачи их и ткут.
+NORD_WEAVERY = nord_hut(
+    ["лжDжл",
+     "з.K.з",
+     "з@..з",
+     "зS.#з",
+     "лжжжл"],
+    ["лж.жл",
+     "з...з",
+     "G...G",
+     "з.ш.з",
+     "лGжGл"],
+    5, 5)
+
+# --- ларёк и торг северян: навесы на столбах, фонари на задней стене ---
+NORD_MARKET_STALL = [
+    ["CCCCC"] * 5,
+    ["лжжжл",
+     "..K..",
+     ".S.O.",
+     ".....",
+     "л.D.л"],
+    ["лt.tл",
+     ".....",
+     ".....",
+     ".....",
+     "л...л"],
+] + dragon_roof(5, 5)
+
+NORD_MARKET = [
+    ["CCCCCCC"] * 7,
+    ["лжжжжжл",
+     "..KvK..",
+     ".S...S.",
+     ".O...O.",
+     ".......",
+     ".......",
+     "лё.D.ёл"],
+    ["лt...tл",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     ".......",
+     "л.....л"],
+] + dragon_roof(7, 7)
+
+# --- дозорная башня северян: сруб с сигнальным костром наверху ---
+#
+# Варде — сигнальный огонь на вершине: увидел врага — зажги, и соседняя
+# башня зажжёт свой. Костёр горит на площадке всегда, и башню северян
+# ночью видно за полмира. Углы площадки венчают рога.
+NORD_WATCHTOWER = [
+    ["CCCCC"] * 5,
+    ["лжDжл", "з...з", "зx..з", "з...з", "лжжжл"],
+    ["лж.жл", "з...з", "зx..з", "з...з", "лжGжл"],
+    ["лжжжл", "з...з", "зx..G", "з...з", "лжжжл"],
+    ["лжGжл", "з...з", "зx..з", "з...з", "лжGжл"],
+    ["лжжжл", "з...з", "зx..з", "з...з", "лжжжл"],
+    ["лееел", "еееее", "еxеее", "еееее", "лееел"],
+    ["л...л", ".....", ".xK..", "...c.", "л...л"],
+    ["лж.жл", "з...з", "л...л", "з...з", "лж.жл"],
+    ["ф...ф", ".....", ".....", ".....", "ф...ф"],
+]
+
+# --- капище северян ---
+#
+# Лавки у входа, алтарь в дальнем конце между двумя кострами, по стенам
+# стяги. Над коньком — мачта с фонарём: капище видно поверх изб.
+NORD_SHRINE = nord_hut(
+    ["лжжDжжл",
+     "з=...=з",
+     "з=...=з",
+     "з.....з",
+     "з.....з",
+     "зc.$.cз",
+     "лжжжжжл"],
+    ["лжG.Gжл",
+     "з.....з",
+     "G.....G",
+     "з.....з",
+     "зэ...ыз",
+     "з..ш..з",
+     "лжжжжжл"],
+    7, 7)
+NORD_SHRINE[-1] = [row if z != 3 else "ф..л..ф" for z, row in enumerate(NORD_SHRINE[-1])]
+NORD_SHRINE.append(["...t..." if z == 3 else "......." for z in range(7)])
 
 
 RAW_SCHEMATICS = {
@@ -3402,23 +3805,23 @@ RAW_SCHEMATICS = {
     "pony/market_lvl1": PONY_MARKET,
     "pony/watchtower_lvl1": PONY_WATCHTOWER,
     "pony/shrine_lvl1": PONY_SHRINE,
-    "nord/town_hall_lvl1": nordic(PONY_TOWN_HALL),
-    "nord/town_hall_lvl2": nordic(PONY_TOWN_HALL_2),
-    "nord/town_hall_lvl3": nordic(PONY_TOWN_HALL_3),
-    "nord/town_hall_lvl4": nordic(PONY_TOWN_HALL_4),
-    "nord/house_lvl1": nordic(PONY_HOUSE),
-    "nord/house_lvl2": nordic(PONY_HOUSE_2),
-    "nord/farm_lvl1": nordic(PONY_FARM),
-    "nord/farm_lvl2": nordic(PONY_FARM_2),
-    "nord/lumberjack_lvl1": nordic(PONY_LUMBERJACK),
-    "nord/warehouse_lvl1": nordic(PONY_WAREHOUSE),
-    "nord/builder_hut_lvl1": nordic(PONY_BUILDER_HUT),
-    "nord/brewery_lvl1": nordic(PONY_BREWERY),
-    "nord/weavery_lvl1": nordic(PONY_WEAVERY),
-    "nord/market_stall_lvl1": nordic(PONY_MARKET_STALL),
-    "nord/market_lvl1": nordic(PONY_MARKET),
-    "nord/watchtower_lvl1": nordic(PONY_WATCHTOWER),
-    "nord/shrine_lvl1": nordic(PONY_SHRINE),
+    "nord/town_hall_lvl1": NORD_TOWN_HALL,
+    "nord/town_hall_lvl2": NORD_TOWN_HALL_2,
+    "nord/town_hall_lvl3": NORD_TOWN_HALL_3,
+    "nord/town_hall_lvl4": NORD_TOWN_HALL_4,
+    "nord/house_lvl1": NORD_HOUSE,
+    "nord/house_lvl2": NORD_HOUSE_2,
+    "nord/farm_lvl1": NORD_FARM,
+    "nord/farm_lvl2": NORD_FARM_2,
+    "nord/lumberjack_lvl1": NORD_LUMBERJACK,
+    "nord/warehouse_lvl1": NORD_WAREHOUSE,
+    "nord/builder_hut_lvl1": NORD_BUILDER_HUT,
+    "nord/brewery_lvl1": NORD_BREWERY,
+    "nord/weavery_lvl1": NORD_WEAVERY,
+    "nord/market_stall_lvl1": NORD_MARKET_STALL,
+    "nord/market_lvl1": NORD_MARKET,
+    "nord/watchtower_lvl1": NORD_WATCHTOWER,
+    "nord/shrine_lvl1": NORD_SHRINE,
     "dwarf/town_hall_lvl1": DWARF_TOWN_HALL,
     "dwarf/town_hall_lvl2": DWARF_TOWN_HALL_2,
     "dwarf/town_hall_lvl3": DWARF_TOWN_HALL_3,

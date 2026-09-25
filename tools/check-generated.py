@@ -38,6 +38,7 @@ GENERATORS = (
     "make-decor.py",
     "make-schematics.py",
     "make-recipe-advancements.py",
+    "make-icon.py",
 )
 
 

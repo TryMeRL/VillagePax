@@ -1027,6 +1027,12 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         return 400;
     }
 
+    /** Высота голоса — по облику: см. {@link Voice}. */
+    @Override
+    public float getSoundPitch() {
+        return super.getSoundPitch() * Voice.pitch(Looks.words(look()), isChildBody());
+    }
+
     @Override
     protected SoundEvent getHurtSound(DamageSource source) {
         return SoundEvents.ENTITY_VILLAGER_HURT;

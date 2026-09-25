@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
  * @param greetNewcomers        говорить ли вошедшему без колонии, с чего начать
  * @param structureDistanceChunks насколько деревня народа держится от ванильных
  *                              построек; 0 — не держится вовсе
+ * @param protectColonies       закрыта ли земля колонии от чужих рук
  */
 public record Config(
         boolean autonomousVillages,
@@ -60,11 +61,12 @@ public record Config(
         int childDays,
         int lifeDays,
         boolean mortality,
-        int structureDistanceChunks
+        int structureDistanceChunks,
+        boolean protectColonies
 ) {
 
     public static final Config DEFAULT = new Config(
-            true, 0, 1.0, 4, 6, 64, 16, 16, 10, true, true, 4, true, 8, 120, true, 6);
+            true, 0, 1.0, 4, 6, 64, 16, 16, 10, true, true, 4, true, 8, 120, true, 6, true);
 
     /**
      * Что можно записать в поле: выключатель, целое или дробное в границах.
@@ -135,6 +137,7 @@ public record Config(
             new Setting("village_spacing_chunks", "world", SPACING),
             new Setting("population_scale", "world", SCALE),
             new Setting("structure_distance_chunks", "world", DISTANCE),
+            new Setting("protect_colonies", "world", FLAG),
             new Setting("ticks_per_decision", "people", TEMPO),
             new Setting("carry_slots", "people", SLOTS),
             new Setting("hunger_warn_days", "people", DAYS),
@@ -165,7 +168,7 @@ public record Config(
      * Где встают деревни: шаг сетки и отступ от ванильных построек.
      * <p>
      * Парой только потому, что кодек записи в DFU берёт не больше
-     * шестнадцати полей, а настроек стало семнадцать. В файле пары не видно:
+     * шестнадцати полей, а настроек больше. В файле пары не видно:
      * {@link MapCodec} кладёт её поля рядом с остальными, как и прежде.
      */
     private record Placement(int spacing, int distance) {
@@ -183,6 +186,23 @@ public record Config(
             ).apply(instance, Placement::new));
 
     /**
+     * Что закрыто в мире: живут ли деревни народов и пускает ли колония
+     * чужих. Парой по той же причине, что и {@link Placement}.
+     */
+    private record Rules(boolean villages, boolean protect) {
+    }
+
+    private static final MapCodec<Rules> RULES = RecordCodecBuilder.mapCodec(
+            instance -> instance.group(
+                    FLAG.codec().fieldOf("autonomous_villages")
+                            .orElse(DEFAULT.autonomousVillages).forGetter(Rules::villages),
+                    // Земля колонии закрыта от чужих рук из коробки: на общем
+                    // сервере открытая колония живёт до первого прохожего.
+                    FLAG.codec().fieldOf("protect_colonies")
+                            .orElse(DEFAULT.protectColonies).forGetter(Rules::protect)
+            ).apply(instance, Rules::new));
+
+    /**
      * Кодек настроек.
      * <p>
      * Поля — {@code fieldOf(...).orElse(...)}, а не {@code optionalFieldOf}:
@@ -194,8 +214,8 @@ public record Config(
      * одной настройки было негде.
      */
     public static final Codec<Config> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-            FLAG.codec().fieldOf("autonomous_villages").orElse(DEFAULT.autonomousVillages)
-                    .forGetter(Config::autonomousVillages),
+            RULES.forGetter(config -> new Rules(config.autonomousVillages(),
+                    config.protectColonies())),
             PLACEMENT.forGetter(config -> new Placement(config.villageSpacingChunks(),
                     config.structureDistanceChunks())),
             SCALE.codec().fieldOf("population_scale").orElse(DEFAULT.populationScale)
@@ -236,11 +256,11 @@ public record Config(
             // и колония живёт вечно, только не растёт сама.
             FLAG.codec().fieldOf("mortality").orElse(DEFAULT.mortality)
                     .forGetter(Config::mortality)
-    ).apply(instance, (autonomous, placement, scale, warn, leave, trade, income, reserve,
+    ).apply(instance, (rules, placement, scale, warn, leave, trade, income, reserve,
                        tempo, citizenLabels, buildingLabels, slots, greet, child, life,
-                       mortality) -> new Config(autonomous, placement.spacing(), scale, warn,
-            leave, trade, income, reserve, tempo, citizenLabels, buildingLabels, slots, greet,
-            child, life, mortality, placement.distance())));
+                       mortality) -> new Config(rules.villages(), placement.spacing(), scale,
+            warn, leave, trade, income, reserve, tempo, citizenLabels, buildingLabels, slots,
+            greet, child, life, mortality, placement.distance(), rules.protect())));
 
     /**
      * Приведение к осмысленному виду.

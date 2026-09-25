@@ -1,5 +1,6 @@
 package com.villagepax.command;
 
+import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -29,6 +30,7 @@ import com.villagepax.core.config.Config;
 import com.villagepax.core.config.Configs;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.CommandSource;
+import net.minecraft.command.argument.GameProfileArgumentType;
 import net.minecraft.command.argument.IdentifierArgumentType;
 import net.minecraft.item.Item;
 import net.minecraft.registry.Registries;
@@ -99,6 +101,15 @@ public final class BuildCommand {
                         .then(literal("sites").executes(BuildCommand::sites))
                         .then(literal("status").executes(BuildCommand::status))
                         .then(literal("guide").executes(BuildCommand::guide))
+                        // Доверие — хозяину колонии, а не оператору: своей
+                        // землёй распоряжается тот, чья она.
+                        .then(literal("trust")
+                                .then(argument("player", GameProfileArgumentType.gameProfile())
+                                        .executes(BuildCommand::trust)))
+                        .then(literal("untrust")
+                                .then(argument("player", GameProfileArgumentType.gameProfile())
+                                        .executes(BuildCommand::untrust)))
+                        .then(literal("trusted").executes(BuildCommand::trusted))
                         .then(literal("config")
                                 .requires(source -> source.hasPermissionLevel(2))
                                 .executes(BuildCommand::reloadConfig))));
@@ -423,6 +434,91 @@ public final class BuildCommand {
             say(context, "villagepax.command.no_colony");
         }
         return colony;
+    }
+
+    /**
+     * Доверить свою землю другому игроку.
+     * <p>
+     * Командой, а не кнопкой пульта: имя в пульте пришлось бы набирать
+     * по буквам, а у команды есть подсказка по именам на сервере. Доверяет
+     * только хозяин: доверенный строит, но доверие дальше не раздаёт.
+     */
+    private static int trust(CommandContext<ServerCommandSource> context)
+            throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        SettlementManager manager = SettlementManager.get(context.getSource().getWorld());
+        Settlement colony = colonyOrTell(context, manager, player.getUuid());
+        if (colony == null) {
+            return 0;
+        }
+
+        int changed = 0;
+        for (GameProfile profile : GameProfileArgumentType.getProfileArgument(context, "player")) {
+            if (colony.owner().mayBuild(profile.getId())) {
+                say(context, "villagepax.command.trust.already", profile.getName());
+                continue;
+            }
+            manager.update(colony.id(), state ->
+                    state.setOwner(state.owner().trusting(profile.getId())));
+            say(context, "villagepax.command.trust.done", profile.getName(), colony.name());
+            changed++;
+        }
+        return changed;
+    }
+
+    /** Забрать доверие. Хозяина из хозяев так не вывести — только доверенного. */
+    private static int untrust(CommandContext<ServerCommandSource> context)
+            throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        SettlementManager manager = SettlementManager.get(context.getSource().getWorld());
+        Settlement colony = colonyOrTell(context, manager, player.getUuid());
+        if (colony == null) {
+            return 0;
+        }
+
+        int changed = 0;
+        for (GameProfile profile : GameProfileArgumentType.getProfileArgument(context, "player")) {
+            if (!colony.owner().trusted().contains(profile.getId())) {
+                say(context, "villagepax.command.untrust.not_trusted", profile.getName());
+                continue;
+            }
+            manager.update(colony.id(), state ->
+                    state.setOwner(state.owner().distrusting(profile.getId())));
+            say(context, "villagepax.command.untrust.done", profile.getName(), colony.name());
+            changed++;
+        }
+        return changed;
+    }
+
+    /**
+     * Кому доверена земля.
+     * <p>
+     * Имена — из памяти сервера о тех, кто на нём бывал: доверенного можно
+     * назвать и тогда, когда его нет в игре. Кого сервер не помнит, того
+     * называет опознавателем, но не прячет.
+     */
+    private static int trusted(CommandContext<ServerCommandSource> context)
+            throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        SettlementManager manager = SettlementManager.get(context.getSource().getWorld());
+        Settlement colony = colonyOrTell(context, manager, player.getUuid());
+        if (colony == null) {
+            return 0;
+        }
+
+        List<UUID> trusted = colony.owner().trusted();
+        if (trusted.isEmpty()) {
+            say(context, "villagepax.command.trusted.none", colony.name());
+            return 0;
+        }
+        var names = context.getSource().getServer().getUserCache();
+        List<String> shown = new ArrayList<>();
+        for (UUID id : trusted) {
+            shown.add(names == null ? id.toString()
+                    : names.getByUuid(id).map(GameProfile::getName).orElse(id.toString()));
+        }
+        say(context, "villagepax.command.trusted.list", colony.name(), String.join(", ", shown));
+        return trusted.size();
     }
 
     /**

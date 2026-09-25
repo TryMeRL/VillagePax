@@ -115,6 +115,65 @@ public class ColonyTests extends GameTestSupport {
         context.complete();
     }
 
+    /**
+     * Чужой на земле колонии ходит и говорит, но не ломает и не берёт.
+     * <p>
+     * Вызываются те самые обработчики, которые зовёт сервер, когда
+     * игрок бьёт или щёлкает блок, — чтобы проверка видела и правило,
+     * и то, что оно вообще подключено.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void aStrangerCanOpenTheDoorButNotTheChest(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos chest = context.getAbsolutePos(new BlockPos(3, 1, 3));
+        BlockPos door = context.getAbsolutePos(new BlockPos(5, 1, 3));
+        net.minecraft.entity.player.PlayerEntity stranger = context.createMockSurvivalPlayer();
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        try {
+            world.setBlockState(chest, Blocks.CHEST.getDefaultState());
+            world.setBlockState(door, Blocks.OAK_DOOR.getDefaultState());
+
+            boolean breaks = net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents.BEFORE
+                    .invoker().beforeBlockBreak(world, stranger, chest,
+                            world.getBlockState(chest), world.getBlockEntity(chest));
+            if (breaks) {
+                context.throwGameTestException("Чужой ломает сундук на земле колонии");
+            }
+            if (use(world, stranger, chest) != net.minecraft.util.ActionResult.FAIL) {
+                context.throwGameTestException("Чужой открывает сундук колонии");
+            }
+            if (use(world, stranger, door) != net.minecraft.util.ActionResult.PASS) {
+                context.throwGameTestException("Чужому не открыть дверь: гость не может и войти");
+            }
+
+            // Доверенному — можно всё.
+            manager.update(colony.id(), state ->
+                    state.setOwner(state.owner().trusting(stranger.getUuid())));
+            if (use(world, stranger, chest) != net.minecraft.util.ActionResult.PASS) {
+                context.throwGameTestException("Доверенному не открыть сундук колонии");
+            }
+        } finally {
+            world.setBlockState(chest, Blocks.AIR.getDefaultState());
+            world.setBlockState(door, Blocks.AIR.getDefaultState());
+            world.setBlockState(door.up(), Blocks.AIR.getDefaultState());
+            cleanUpVillage(world, manager, colony, hall, List.of());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    private static net.minecraft.util.ActionResult use(ServerWorld world,
+                                                       net.minecraft.entity.player.PlayerEntity who,
+                                                       BlockPos at) {
+        return net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.invoker().interact(
+                who, world, net.minecraft.util.Hand.MAIN_HAND,
+                new net.minecraft.util.hit.BlockHitResult(Vec3d.ofCenter(at),
+                        net.minecraft.util.math.Direction.UP, at, false));
+    }
+
     @GameTest(templateName = EMPTY_STRUCTURE)
     public void cultureIsLoadedFromDatapack(TestContext context) {
         Culture norman = CultureManager.get(NORMAN);
@@ -1269,7 +1328,8 @@ public class ColonyTests extends GameTestSupport {
                     Config.DEFAULT.villageTradePerDay(), Config.DEFAULT.villageIncomePerDay(),
                     8, 3, false, false, Config.DEFAULT.carrySlots(), false,
                     Config.DEFAULT.childDays(), Config.DEFAULT.lifeDays(),
-                    Config.DEFAULT.mortality(), Config.DEFAULT.structureDistanceChunks()));
+                    Config.DEFAULT.mortality(), Config.DEFAULT.structureDistanceChunks(),
+                    Config.DEFAULT.protectColonies()));
 
             WorkTicker.decide(world, manager, colony, worker, Schedule.MORNING_WORK);
             if (body.getCustomName() != null || body.isCustomNameVisible()) {

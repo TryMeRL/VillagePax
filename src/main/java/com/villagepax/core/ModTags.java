@@ -44,6 +44,17 @@ public final class ModTags {
             RegistryKeys.ITEM, new Identifier(VillagePax.MOD_ID, "hangable"));
 
     /**
+     * Что гость трогает на земле чужой колонии.
+     * <p>
+     * Двери, калитки, кнопки, колокол, пульт ратуши — то, чем ходят
+     * и говорят, а не то, чем строят и берут. Тегом, чтобы датапак
+     * сервера мог открыть гостям свои блоки: лавку, почтовый ящик,
+     * верстак на площади.
+     */
+    public static final TagKey<Block> GUEST_USABLE = TagKey.of(
+            RegistryKeys.BLOCK, new Identifier(VillagePax.MOD_ID, "guest_usable"));
+
+    /**
      * По чему жителю приятнее идти.
      * <p>
      * Ванильный поиск пути не различает траву и мостовую, поэтому все

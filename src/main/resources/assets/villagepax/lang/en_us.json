@@ -711,5 +711,15 @@
   "villagepax.config.greet_newcomers": "Hint for newcomers",
   "villagepax.config.greet_newcomers.tooltip": "Tell a player who joins without a colony where to begin.",
   "villagepax.config.structure_distance_chunks": "Distance from vanilla structures, chunks",
-  "villagepax.config.structure_distance_chunks.tooltip": "How far a village of the peoples keeps from vanilla villages, outposts and temples so as not to grow into them. 0 means no distance at all. Only affects land where no village has risen yet."
+  "villagepax.config.structure_distance_chunks.tooltip": "How far a village of the peoples keeps from vanilla villages, outposts and temples so as not to grow into them. 0 means no distance at all. Only affects land where no village has risen yet.",
+  "villagepax.config.protect_colonies": "Colony land is protected",
+  "villagepax.config.protect_colonies.tooltip": "Only the owner and those they trust (/villagepax trust) may break, place, open chests and strike citizens on colony land. Guests walk, open doors and talk.",
+  "villagepax.protection.denied": "This is the land of the colony \"%s\": only its owner and those they trust build here.",
+  "villagepax.command.trust.done": "%s may now build and break on the land of the colony \"%s\".",
+  "villagepax.command.trust.already": "%s may already build on the colony land.",
+  "villagepax.command.untrust.done": "%s may no longer build on the land of the colony \"%s\".",
+  "villagepax.command.untrust.not_trusted": "%s was not among the trusted.",
+  "villagepax.command.trusted.none": "Nobody is trusted in the colony \"%s\": only the owner builds.",
+  "villagepax.command.trusted.list": "Trusted to build in the colony \"%s\": %s",
+  "villagepax.guide.neighbours": "§lNeighbours§r\n\nOn colony land only the owner and those they trust build. A guest walks and talks.\n\n§o/villagepax trust§r to trust.\n§o/villagepax untrust§r to take it back."
 }

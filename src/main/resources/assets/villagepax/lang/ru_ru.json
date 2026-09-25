@@ -711,5 +711,15 @@
   "villagepax.config.greet_newcomers": "Подсказка новичку",
   "villagepax.config.greet_newcomers.tooltip": "Подсказать вошедшему в мир без колонии, с чего начать.",
   "villagepax.config.structure_distance_chunks": "Отступ от ванильных построек, чанков",
-  "villagepax.config.structure_distance_chunks.tooltip": "Насколько деревня народа держится от ванильных деревень, аванпостов и храмов, чтобы не врасти в них. 0 — не держится вовсе. Меняет только земли, где деревни ещё не возникали."
+  "villagepax.config.structure_distance_chunks.tooltip": "Насколько деревня народа держится от ванильных деревень, аванпостов и храмов, чтобы не врасти в них. 0 — не держится вовсе. Меняет только земли, где деревни ещё не возникали.",
+  "villagepax.config.protect_colonies": "Земля колонии закрыта",
+  "villagepax.config.protect_colonies.tooltip": "Ломать, ставить, открывать сундуки и бить жителей на земле колонии могут только её хозяин и те, кому он доверил (/villagepax trust). Гости ходят, открывают двери и говорят.",
+  "villagepax.protection.denied": "Это земля колонии «%s»: здесь строят только её хозяин и те, кому он доверил.",
+  "villagepax.command.trust.done": "%s теперь может строить и ломать на земле колонии «%s».",
+  "villagepax.command.trust.already": "%s и так вправе строить на земле колонии.",
+  "villagepax.command.untrust.done": "%s больше не может строить на земле колонии «%s».",
+  "villagepax.command.untrust.not_trusted": "%s и не было среди доверенных.",
+  "villagepax.command.trusted.none": "Колонии «%s» никто не доверен: строит только хозяин.",
+  "villagepax.command.trusted.list": "Строить на земле колонии «%s» доверено: %s",
+  "villagepax.guide.neighbours": "§lСоседи§r\n\nНа земле колонии строят только хозяин и те, кому он доверил. Гость ходит и говорит.\n\n§o/villagepax trust§r — доверить.\n§o/villagepax untrust§r — забрать."
 }

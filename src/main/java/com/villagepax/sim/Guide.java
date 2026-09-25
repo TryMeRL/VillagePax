@@ -39,6 +39,7 @@ public final class Guide {
             "villagepax.guide.blueprint",
             "villagepax.guide.homes",
             "villagepax.guide.console",
+            "villagepax.guide.neighbours",
             "villagepax.guide.order",
             "villagepax.guide.storage",
             "villagepax.guide.citizens",

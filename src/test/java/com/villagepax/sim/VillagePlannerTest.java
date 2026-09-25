@@ -1,0 +1,91 @@
+package com.villagepax.sim;
+
+import com.villagepax.core.building.BuildingType;
+import net.minecraft.util.BlockRotation;
+import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockPos;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Деревня строит то, чего ей не хватает, — а не лавку за лавкой.
+ */
+class VillagePlannerTest {
+
+    private static final Identifier MAYA = new Identifier("villagepax", "maya");
+    private static final Identifier HALL = type("town_hall");
+    private static final Identifier STALL = type("market_stall");
+    private static final Identifier SHRINE = type("shrine");
+    private static final Identifier HOUSE = type("house");
+    private static final Identifier FARM = type("farm");
+    private static final List<Identifier> LIST = List.of(HALL, STALL, SHRINE, HOUSE, FARM);
+
+    private static final Map<Identifier, BuildingType> TYPES = Map.of(
+            HALL, kind(BuildingType.Role.TOWN_HALL, SettlementLevel.HAMLET),
+            STALL, kind(BuildingType.Role.WORKPLACE, SettlementLevel.HAMLET),
+            SHRINE, kind(BuildingType.Role.PLAIN, SettlementLevel.VILLAGE),
+            HOUSE, kind(BuildingType.Role.HOME, SettlementLevel.HAMLET),
+            FARM, kind(BuildingType.Role.WORKPLACE, SettlementLevel.HAMLET));
+
+    private static Identifier type(String name) {
+        return new Identifier("villagepax", "maya/" + name);
+    }
+
+    private static BuildingType kind(BuildingType.Role role, SettlementLevel level) {
+        return new BuildingType("", role, Optional.empty(), false, level, List.of());
+    }
+
+    private static Settlement village(int people, Identifier... buildings) {
+        Settlement village = Settlement.found(MAYA, Owner.AUTONOMOUS, "Коба", BlockPos.ORIGIN);
+        for (Identifier type : buildings) {
+            village.addBuilding(new Building(UUID.randomUUID(), type, 1, BlockPos.ORIGIN,
+                    BlockRotation.NONE, BuildProgress.DONE, List.of()));
+        }
+        for (int i = 0; i < people; i++) {
+            village.addCitizen(Citizen.newborn("Имя" + i, "", MAYA, Gender.MALE));
+        }
+        return village;
+    }
+
+    private static List<Identifier> wishes(Settlement village, int beds) {
+        return VillagePlanner.wishes(village, LIST, beds,
+                type -> Optional.ofNullable(TYPES.get(type)), FARM::equals);
+    }
+
+    @Test
+    void aVillageWithNowhereToSleepBuildsAHouseFirst() {
+        Settlement village = village(3, HALL, STALL, FARM);
+        assertEquals(HOUSE, wishes(village, 2).get(0));
+    }
+
+    /** Прежняя беда: лавка первой в списке, и деревня ставила лавку за лавкой. */
+    @Test
+    void aSecondStallIsNeverWished() {
+        Settlement village = village(2, HALL, STALL, HOUSE, FARM);
+        List<Identifier> wishes = wishes(village, 8);
+        assertFalse(wishes.contains(STALL), "вторая лавка: " + wishes);
+        assertFalse(wishes.contains(HALL), "вторая ратуша: " + wishes);
+    }
+
+    @Test
+    void aGrowingVillageSowsMoreFields() {
+        Settlement village = village(6, HALL, STALL, HOUSE, HOUSE, HOUSE, HOUSE, FARM);
+        assertEquals(FARM, wishes(village, 10).get(0));
+    }
+
+    @Test
+    void theShrineWaitsForItsLevel() {
+        Settlement village = village(2, HALL, STALL, HOUSE, FARM);
+        assertFalse(wishes(village, 8).contains(SHRINE));
+        village.setLevel(SettlementLevel.VILLAGE);
+        assertTrue(wishes(village, 8).contains(SHRINE));
+    }
+}

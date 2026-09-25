@@ -5,6 +5,7 @@ import com.villagepax.VillagePax;
 import com.villagepax.screen.BuildOrders;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Materials;
+import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Footing;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
@@ -15,6 +16,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3i;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -161,43 +163,110 @@ public final class Raising {
             return Optional.empty();
         }
 
-        for (BlockPos anchor : spots(world, settlement, schematic, rings)) {
+        // Лучшее из первых годных мест, а не первое попавшееся: ближе
+        // к середине и дверью к ней. Дальше искать незачем — дальнее место
+        // хуже ближнего уже тем, что дальнее.
+        Candidate best = null;
+        int found = 0;
+        for (BlockPos column : columns(settlement.center(), rings * PLACE_STEP)) {
+            BlockPos anchor = spot(world, settlement, column);
+            if (anchor == null || !isWalkableFrom(settlement.center(), anchor)) {
+                continue;
+            }
             for (BlockRotation rotation : BlockRotation.values()) {
-                if (!(BuildOrders.check(settlement, schematicId, anchor, rotation)
+                if (!fits(world, settlement, anchor, schematic, rotation)
+                        || !(BuildOrders.check(settlement, schematicId, anchor, rotation)
                         instanceof BuildOrders.Result.Placed)) {
                     continue;
                 }
-                if (BuildOrders.place(manager, settlement, schematicId, anchor, rotation)
-                        instanceof BuildOrders.Result.Placed placed) {
-                    return Optional.of(placed.site());
+                double score = score(settlement.center(), schematic, anchor, rotation);
+                if (best == null || score < best.score()) {
+                    best = new Candidate(anchor, rotation, score);
                 }
+                found++;
             }
+            if (found >= ENOUGH) {
+                break;
+            }
+        }
+        if (best != null && BuildOrders.place(manager, settlement, schematicId, best.anchor(),
+                best.rotation()) instanceof BuildOrders.Result.Placed placed) {
+            return Optional.of(placed.site());
         }
         return Optional.empty();
     }
 
-    /** Возможные углы застройки: кольца вокруг ратуши по ровной земле. */
-    private static List<BlockPos> spots(ServerWorld world, Settlement settlement,
-                                        Schematic schematic, int rings) {
-        List<BlockPos> spots = new ArrayList<>();
-        BlockPos centre = settlement.center();
+    /** Место и поворот, которые уже годятся, и во что они обходятся. */
+    private record Candidate(BlockPos anchor, BlockRotation rotation, double score) {
+    }
 
-        for (int ring = 1; ring <= rings; ring++) {
-            int reach = ring * PLACE_STEP;
-            for (int dx = -reach; dx <= reach; dx += PLACE_STEP) {
-                for (int dz = -reach; dz <= reach; dz += PLACE_STEP) {
-                    if (Math.max(Math.abs(dx), Math.abs(dz)) != reach) {
-                        continue;
-                    }
-                    BlockPos anchor = spot(world, settlement, centre.add(dx, 0, dz));
-                    if (anchor != null && isWalkableFrom(centre, anchor)
-                            && fits(world, settlement, anchor, schematic)) {
-                        spots.add(anchor);
+    /**
+     * Сколько годных мест посмотреть, прежде чем выбрать лучшее: дюжины
+     * хватает, чтобы среди ближних нашлось место дверью к площади.
+     */
+    private static final int ENOUGH = 12;
+
+    /**
+     * Шаг сетки мест. Прежде он был в ширину дома, и с обязательным
+     * зазором годилась лишь каждая вторая клетка: дома стояли редко,
+     * через пустырь, и деревня расползалась по склону. Сетка в клетку
+     * ставит дом в зазоре от соседа — улицей, а не хутором, — и находит
+     * у эльфов опору помоста там, где крупный шаг её перешагивал.
+     */
+    private static final int FINE_STEP = 1;
+
+    /** Ближе этого к ратуше не строят: там площадь. */
+    private static final int MIN_RING = 4;
+
+    /** Во что обходится дверь, отвёрнутая от площади: как шесть шагов лишней дороги. */
+    private static final double DOOR_AWAY = 6;
+
+    /**
+     * Цена места: расстояние от середины поселения и то, куда смотрит дверь.
+     * <p>
+     * Дверь — главное, по чему деревня читается деревней, а не складом
+     * коробок. Прежде дом вставал в первом годном повороте, то есть почти
+     * всегда в одном и том же, и половина домов смотрела дверью в лес.
+     * Теперь дом разворачивается к площади, если место позволяет, и улицы
+     * сходятся к ратуше сами.
+     */
+    static double score(BlockPos centre, Schematic schematic, BlockPos anchor,
+                        BlockRotation rotation) {
+        Vec3i size = schematic.size();
+        BlockPos middle = BuildSite.toWorld(anchor, size, rotation,
+                new BlockPos(size.getX() / 2, 0, size.getZ() / 2));
+        double away = Math.sqrt(middle.getSquaredDistance(centre.getX(), middle.getY(),
+                centre.getZ()));
+        List<Schematic.Entrance> doors = schematic.entrances();
+        if (doors.isEmpty()) {
+            return away;
+        }
+        Schematic.Entrance door = doors.get(0);
+        BlockPos inside = BuildSite.toWorld(anchor, size, rotation, door.pos());
+        BlockPos outside = BuildSite.toWorld(anchor, size, rotation,
+                door.pos().offset(door.wayOut()));
+        double fx = outside.getX() - inside.getX();
+        double fz = outside.getZ() - inside.getZ();
+        double tx = centre.getX() - inside.getX();
+        double tz = centre.getZ() - inside.getZ();
+        double length = Math.sqrt(tx * tx + tz * tz);
+        double facing = length < 1e-6 ? 1 : (fx * tx + fz * tz) / length;
+        return away + (1 - facing) * DOOR_AWAY;
+    }
+
+    /** Колонны вокруг середины — квадратными кольцами наружу, по мелкой сетке. */
+    private static List<BlockPos> columns(BlockPos centre, int reach) {
+        List<BlockPos> columns = new ArrayList<>();
+        for (int ring = MIN_RING; ring <= reach; ring += FINE_STEP) {
+            for (int dx = -ring; dx <= ring; dx += FINE_STEP) {
+                for (int dz = -ring; dz <= ring; dz += FINE_STEP) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) == ring) {
+                        columns.add(centre.add(dx, 0, dz));
                     }
                 }
             }
         }
-        return spots;
+        return columns;
     }
 
     /**
@@ -220,8 +289,11 @@ public final class Raising {
      * — тот самый вопрос, который отличает чертог от ямы.
      */
     private static boolean fits(ServerWorld world, Settlement settlement, BlockPos anchor,
-                                Schematic schematic) {
-        return Footing.of(settlement).fits(world, settlement, anchor, schematic.size());
+                                Schematic schematic, BlockRotation rotation) {
+        // Повёрнутый след: у дома восемь на шесть поворот меняет то, что
+        // лежит под ним, и ровность надо спрашивать про тот след, что встанет.
+        return Footing.of(settlement).fits(world, settlement, anchor,
+                BuildSite.rotatedSize(schematic.size(), rotation));
     }
 
     /**

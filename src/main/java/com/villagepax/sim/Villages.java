@@ -447,9 +447,16 @@ public final class Villages {
             return;
         }
 
-        for (Identifier type : culture.buildings()) {
+        // По нуждам, а не по списку: см. VillagePlanner. Первое желание,
+        // которому нашлось место, и строится; не нашлось ни одному — деревня
+        // подождёт до завтра.
+        int beds = com.villagepax.sim.work.Housing.sleepingSpots(world, village).size();
+        for (Identifier type : VillagePlanner.wishes(village, culture.buildings(), beds,
+                com.villagepax.core.building.BuildingTypes::get,
+                type -> com.villagepax.core.building.BuildingTypes.employs(type,
+                        com.villagepax.sim.work.FarmJob.FARMER))) {
             Identifier schematicId = new Identifier(type.getNamespace(), type.getPath() + "_lvl1");
-            if (SchematicLoader.get(schematicId).isEmpty() || isTownHall(type)) {
+            if (SchematicLoader.get(schematicId).isEmpty()) {
                 continue;
             }
             if (Raising.placeNear(world, manager, village, schematicId).isPresent()) {

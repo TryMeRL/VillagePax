@@ -365,91 +365,98 @@ HUMAN = Body(
 PONY = Body(
     "geometry.citizen_pony", 64, 128,
     [
+        # Пони в духе мультфильма, а не конь. Заказчик: «пусть пони будут
+        # похожи больше не на лошадей, а как вдохновлены My Little Pony».
+        # Отсюда пропорции: голова с тело размером, глаза спереди и в пол-
+        # лица, короткая мордочка, круглое тельце на тонких ножках, пышные
+        # грива и хвост. Имена костей прежние: на них держатся движения.
         Bone("root", None, (0, 0, 0)),
-        Bone("body", "root", (0, 12, 0), [
-            Cube((-4, 8, -6), (8, 8, 12), share="barrel"),
-            # Попона — второй слой бочки: на ней написано ремесло, как
-            # у человека на куртке. Где попоны нет — прозрачно.
-            Cube((-4, 8, -6), (8, 8, 12), inflate=0.4, share="blanket"),
+        Bone("body", "root", (0, 8.5, 0), [
+            Cube((-3, 6, -4.5), (6, 5, 9), share="barrel"),
+            # Попона — второй слой тельца: у стража доспех, у старейшины
+            # покров. У остальных прозрачно: ремесло видно по знаку на боку.
+            Cube((-3, 6, -4.5), (6, 5, 9), inflate=0.35, share="blanket"),
         ]),
-        # Груз едет на спине — к этой кости его и привязывает отрисовщик.
-        Bone("pack", "body", (0, 16, 1)),
-        Bone("tail", "body", (0, 15, 6), [
-            Cube((-1, 13, 5.5), (2, 3, 2), share="dock"),
-        ], rotation=(34, 0, 0)),
-        Bone("tail_hair", "tail", (0, 13.5, 6.5), [
-            Cube((-1.5, 5, 5.5), (3, 9, 2), share="tail"),
-        ], rotation=(-26, 0, 0)),
-        # Шея поднята вперёд: у коня голова держится выше холки,
-        # и горизонтальная шея читалась собакой.
-        Bone("neck", "body", (0, 14, -5), [
-            Cube((-2, 13, -8.5), (4, 8, 5), share="neck"),
-        ], rotation=(26, 0, 0)),
-        # Грива — по гребню шеи и дальше чёлкой между ушей: у буланого
-        # масть узнаётся по тёмной гриве, и видна она должна быть сбоку.
-        Bone("mane", "neck", (0, 14, -4), [
-            Cube((-0.5, 14, -4), (1, 8, 2), share="mane"),
+        Bone("pack", "body", (0, 11, 1)),
+        Bone("tail", "body", (0, 10, 4.5), [
+            Cube((-1, 9.5, 4.5), (2, 1.5, 1.5), share="dock"),
+        ], rotation=(15, 0, 0)),
+        # Хвост пышный и свисает волной: у пони из мультфильма он почти
+        # с тело величиной, и по нему фигурку узнают со спины.
+        Bone("tail_hair", "tail", (0, 10, 5.5), [
+            Cube((-1.5, 3.5, 5), (3, 7, 3), share="tail"),
+        ], rotation=(-5, 0, 0)),
+        Bone("neck", "body", (0, 10, -3.5), [
+            Cube((-1.5, 10, -4.5), (3, 3, 3), share="neck"),
+        ], rotation=(10, 0, 0)),
+        # Грива спадает по затылку и шее.
+        Bone("mane", "neck", (0, 11, -3), [
+            Cube((-2, 11, -3.5), (4, 6.5, 2.5), share="mane"),
         ]),
-        Bone("head", "neck", (0, 21, -6), [
-            Cube((-2.5, 18.5, -10), (5, 5, 6), share="skull"),
-            Cube((-2.5, 18.5, -10), (5, 5, 6), inflate=0.3, share="cap"),
-            Cube((-1, 23, -7.5), (2, 1, 2), share="forelock"),
-        ], rotation=(14, 0, 0)),
-        Bone("muzzle", "head", (0, 19.5, -11), [
-            Cube((-2, 18.5, -13), (4, 4, 3), share="muzzle"),
+        Bone("head", "neck", (0, 12.5, -4.5), [
+            Cube((-4, 12, -8.5), (8, 7, 7), share="skull"),
+            Cube((-4, 12, -8.5), (8, 7, 7), inflate=0.3, share="cap"),
+            # Шапка волос поверх головы и чёлка над одним глазом.
+            Cube((-4.5, 17.5, -8.8), (9, 2.5, 7.8), share="forelock"),
+            Cube((-4.4, 17, -9.1), (5, 1.5, 1), share="bangs"),
         ]),
-        # Веки коня — по одному на каждую скулу, и выдвигаются они наружу,
-        # в разные стороны, поэтому костей две. Тексель — масть скулы
-        # рядом с глазом: правая грань черепа, столбец 4, ряд 3.
-        Bone("eyelid_right", "head", (0, 21, -6), [
-            Cube((-2.4, 20.5, -7), (0, 1, 2), texel=(28, 49)),
+        Bone("muzzle", "head", (0, 13, -8.5), [
+            Cube((-2, 12, -9.8), (4, 2, 1.3), share="muzzle"),
         ]),
-        Bone("eyelid_left", "head", (0, 21, -6), [
-            Cube((2.4, 20.5, -7), (0, 1, 2), texel=(28, 49)),
+        # Веки — пластинки перед глазами, спрятанные в лицо: моргание
+        # выдвигает их вперёд. Тексель — масть лица, его ставят ниже.
+        Bone("eyelid_right", "head", (0, 15.5, -8.5), [
+            Cube((-3, 14, -8.45), (2, 3, 0), texel=(0, 0)),
         ]),
-        Bone("ear_right", "head", (-1.5, 23.5, -6), [
-            Cube((-2.5, 23.5, -6.5), (2, 3, 1), share="ear"),
-        ], rotation=(0, 0, 8)),
-        Bone("ear_left", "head", (1.5, 23.5, -6), [
-            Cube((0.5, 23.5, -6.5), (2, 3, 1), share="ear", mirror=True),
-        ], rotation=(0, 0, -8)),
+        Bone("eyelid_left", "head", (0, 15.5, -8.5), [
+            Cube((1, 14, -8.45), (2, 3, 0), texel=(0, 0)),
+        ]),
+        Bone("ear_right", "head", (-2.5, 19.5, -6), [
+            Cube((-3.5, 19.5, -6.5), (1.5, 2.5, 1), share="ear"),
+        ], rotation=(0, 0, 12)),
+        Bone("ear_left", "head", (2.5, 19.5, -6), [
+            Cube((2, 19.5, -6.5), (1.5, 2.5, 1), share="ear", mirror=True),
+        ], rotation=(0, 0, -12)),
 
         # --- приметы ремесла ----------------------------------------------------
-        # Соломенная шляпа между ушей — пахарь даже у коня пахарь.
-        Bone("hat@farmer", "head", (0, 23.5, -7), [
-            Cube((-1.5, 23.8, -8.5), (3, 2, 3), share="hat_crown"),
-            Cube((-3.5, 23.3, -10.5), (7, 1, 7), flat=True, share="hat_brim"),
+        Bone("hat@farmer", "head", (0, 20, -5), [
+            Cube((-2, 20, -7), (4, 2, 4), share="hat_crown"),
+            Cube((-4.5, 19.8, -9.5), (9, 1, 9), flat=True, share="hat_brim"),
         ]),
-        # Султан на оголовье стража.
-        Bone("plume@guard", "head", (0, 23.5, -8), [
-            Cube((-0.5, 23.5, -9), (1, 4, 2), rotation=(-20, 0, 0),
-                 pivot=(0, 23.5, -8), share="plume"),
+        Bone("plume@guard", "head", (0, 20, -6), [
+            Cube((-0.5, 20, -7), (1, 4, 2), rotation=(-20, 0, 0),
+                 pivot=(0, 20, -6), share="plume"),
         ]),
-        # Перемётные сумы — у курьера и у купца: оба возят.
-        Bone("saddlebags@courier|merchant", "body", (0, 12, 0), [
-            Cube((-5.5, 9, -2.5), (1.5, 4, 5), share="saddlebag"),
-            Cube((4, 9, -2.5), (1.5, 4, 5), share="saddlebag", mirror=True),
+        Bone("saddlebags@courier|merchant", "body", (0, 8.5, 0), [
+            Cube((-4.2, 7, -1.5), (1.2, 3, 3), share="saddlebag"),
+            Cube((3, 7, -1.5), (1.2, 3, 3), share="saddlebag", mirror=True),
         ]),
-        # Долгая попона старейшины свисает ниже бочки.
-        Bone("caparison@elder", "body", (0, 12, 0), [
-            Cube((-4, 4.5, -5.5), (8, 4, 11), inflate=0.45, share="caparison"),
+        Bone("caparison@elder", "body", (0, 8.5, 0), [
+            Cube((-3, 4.5, -4), (6, 3, 8), inflate=0.45, share="caparison"),
         ]),
     ]
     + [
         Bone(name, "root", pivot, [
-            Cube(origin, (3, 8, 3), share="leg", mirror=mirror),
-            Cube((origin[0], 0, origin[2]), (3, 1.5, 3), inflate=0.25,
+            Cube(origin, (2, 6, 2), share="leg", mirror=mirror),
+            Cube((origin[0], 0, origin[2]), (2, 1.5, 2), inflate=0.2,
                  share="hoof", mirror=mirror),
         ])
         for name, pivot, origin, mirror in (
-            ("leg_front_right", (-2.5, 8, -4), (-4, 0, -5.5), False),
-            ("leg_front_left", (2.5, 8, -4), (1, 0, -5.5), True),
-            ("leg_back_right", (-2.5, 8, 3.5), (-4, 0, 2.5), False),
-            ("leg_back_left", (2.5, 8, 3.5), (1, 0, 2.5), True),
+            ("leg_front_right", (-2, 6, -3), (-3, 0, -4), False),
+            ("leg_front_left", (2, 6, -3), (1, 0, -4), True),
+            ("leg_back_right", (-2, 6, 3), (-3, 0, 2), False),
+            ("leg_back_left", (2, 6, 3), (1, 0, 2), True),
         )
     ],
     pack_area=(0, 0, 64, 128),
     bounds=(3, 2.5, 1.25),
 )
+
+# Веко — масть лица: тексель берётся из развёртки лица, которую только что
+# посчитал упаковщик, — левый столбец под глазами, где нет ни мордочки, ни чёлки.
+_FACE = PONY.regions["skull"]["front"]
+for _name in ("eyelid_right", "eyelid_left"):
+    for _cube in PONY.bone(_name).cubes:
+        _cube.texel = _cube.uv = (_FACE[0], _FACE[1] + 5)
 
 BODIES = {"citizen": HUMAN, "citizen_pony": PONY}

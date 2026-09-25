@@ -942,85 +942,141 @@ def build(culture, woman, craft):
 QUADRUPEDS = ("pony",)
 
 
-def draw_pony(skin, look, woman):
-    """Конь: масть, грива, копыта и глаз на скуле.
+# Масть, грива, глаза — у каждой пони своя пара цветов, как в мультфильме,
+# где по цвету узнают раньше, чем по лицу. Пастельная шёрстка и яркая
+# грива; глаза в тон гриве, но глубже. Кобылы и жеребцы одного ремесла
+# окрашены по-разному: одинаковый пахарь в двух полах читался бы клоном.
+#                  шёрстка     грива       прядь       глаза
+PONY_COATS = {
+    (False, None): (0x9FD3F0, 0x3B5BA8, 0x6F8FD8, 0x2E4A9A),
+    (False, "builder"): (0xE8C48A, 0x8A4A1E, 0xB8743E, 0x6A3A1A),
+    (False, "farmer"): (0xF4A560, 0xF8E08A, 0xFFF0B8, 0x3E8A3A),
+    (False, "lumberjack"): (0xA8D08D, 0x3E7A3A, 0x62A05A, 0x2E5A2A),
+    (False, "courier"): (0xC9B4E8, 0x3AA8A0, 0x6CD0C8, 0x2A7A74),
+    (False, "guard"): (0xB8C4D0, 0x2E4A8A, 0x4E6EB0, 0x243A70),
+    (False, "elder"): (0xD8D8E0, 0xF4F4F8, 0xC8C8D8, 0x6A6A90),
+    (False, "brewer"): (0xF0D070, 0xB83A2E, 0xE0604A, 0x8A2A22),
+    (False, "merchant"): (0xA8E8C8, 0x7A3AA8, 0xA868D0, 0x5A2A80),
+    (False, "weaver"): (0xF8C8B0, 0x4A7AD8, 0x7AA4F0, 0x3A5AA8),
+    (True, None): (0xF8B8D8, 0xD83A8A, 0xF070B0, 0x3A7AD0),
+    (True, "builder"): (0xD0B8F0, 0x4A2E8A, 0x7050B8, 0x5A2E9A),
+    (True, "farmer"): (0xF8E8A0, 0xF08AB0, 0xF8B0CC, 0x3AA0B8),
+    (True, "lumberjack"): (0xC8F0B0, 0xE8803A, 0xF8A860, 0x2E7A3A),
+    (True, "courier"): (0xB0E0F8, None, None, 0xB8305A),
+    (True, "guard"): (0xF0F0F8, 0x3A5AD8, 0x6A8AF0, 0x2A4AB0),
+    (True, "elder"): (0xE0E0E8, 0xB8A0D8, 0xD8C8F0, 0x6A4A9A),
+    (True, "brewer"): (0xF8C090, 0xC8302E, 0xE86050, 0x3A7A3A),
+    (True, "merchant"): (0xE0C8F0, 0x2E9A9A, 0x5AC8C8, 0x2A6A8A),
+    (True, "weaver"): (0xF8F4F0, 0x7A4AC8, 0xA07AE0, 0x3A60C8),
+}
 
-    Глаз сбоку, а не спереди, и это не мелочь: у коня глаза на висках,
-    и вынеси мы их на морду — вышел бы человек в маске лошади. Ровно того,
-    от чего уходим.
+# Радужная грива — одна на весь народ: у курьерши, самой быстрой.
+RAINBOW = [rgb(v) for v in (0xE8403A, 0xF4A03A, 0xF8E04A, 0x5AC85A, 0x3A9AE8, 0x8A4AC8)]
+
+# Знак на боку — ремесло, нарисованное так, как в мультфильме у пони
+# нарисован её дар. Три на три текселя; буквы — цвета из CUTIE_INK.
+CUTIE_MARKS = {
+    None: ["R.R", "RRR", ".R."],
+    "builder": ["SSS", ".W.", ".W."],
+    "farmer": ["R.R", "...", ".R."],
+    "lumberjack": [".G.", "GGG", ".W."],
+    "courier": ["LLL", "LBL", "LLL"],
+    "guard": ["SRS", "SSS", ".S."],
+    "elder": [".Y.", "YYY", ".Y."],
+    "brewer": ["LL.", "YYW", "YY."],
+    "merchant": [".Y.", "YOY", ".Y."],
+    "weaver": [".P.", "PLP", ".P."],
+}
+CUTIE_INK = {
+    "R": rgb(0xE0405A), "S": rgb(0xA8B0B8), "W": rgb(0x8A5A2E), "G": rgb(0x4AA04A),
+    "L": rgb(0xF8F8F0), "B": rgb(0x3A6AC8), "Y": rgb(0xF0C030), "O": rgb(0xC8901A),
+    "P": rgb(0x9A5AD8),
+}
+
+
+def rainbow_strands(skin, rect):
+    """Грива полосами радуги: по столбцу на цвет, волной вниз."""
+    x, y, width, height = rect
+    for dx in range(width):
+        for dy in range(height):
+            skin.image.putpixel((x + dx, y + dy), RAINBOW[(dx + dy // 3) % len(RAINBOW)])
+
+
+def mix_pink(colour):
+    return tuple(min(255, int(c * 0.6 + p * 0.4))
+                 for c, p in zip(colour[:3], (0xF8, 0xA8, 0xC0))) + (255,)
+
+
+def draw_pony(skin, look, woman, craft=None):
+    """Пони: пастельная шёрстка, яркая грива, большие глаза спереди.
+
+    Прежний пони был конём нарочно — глаза на скулах, буланая масть,
+    длинная морда. Заказчик попросил другого: «как вдохновлены
+    My Little Pony». Поэтому глаза вынесены вперёд и на пол-лица, морда
+    коротка и в тон шёрстке, а масть — у каждой своя и нежная.
     """
     at = PONY_REGIONS
-    coat, dark, lit = look["skin"], look["skin_dark"], tone(look["skin"], 1.08)
-    for part in ("barrel", "neck", "skull", "leg", "dock", "ear"):
+    coat_v, mane_v, streak_v, eye_v = PONY_COATS[(woman, craft)]
+    coat = rgb(coat_v)
+    dark, lit = tone(coat, 0.9), tone(coat, 1.06)
+    for part in ("barrel", "neck", "skull", "leg", "dock", "ear", "muzzle"):
         for name in ALL:
-            skin.weave(at[part][name], coat, tone(coat, 0.95), lit, density=0.12, salt=20)
-    # Брюхо темнее спины: конь освещён сверху и сам по себе светлее по хребту.
+            skin.weave(at[part][name], coat, tone(coat, 0.97), lit, density=0.06, salt=20)
     skin.fill(at["barrel"]["bottom"], dark)
     for name in ("left", "right", "front", "back"):
-        skin.band(at["barrel"][name], dark, top=6, rows=2)
-        skin.band(at["barrel"][name], lit, rows=1)
+        skin.band(at["barrel"][name], dark, top=4, rows=1)
+    # Уши: внутри розовее.
+    skin.fill(at["ear"]["front"], mix_pink(coat))
 
-    # Морда темнее масти: так она читается мордой, а не продолжением лба.
-    muzzle = at["muzzle"]
-    skin.cube(muzzle, dark)
-    skin.px(muzzle["front"], 0, 1, tone(dark, 0.6))
-    skin.px(muzzle["front"], 3, 1, tone(dark, 0.6))
-    skin.band(muzzle["front"], tone(dark, 0.85), top=3, rows=1)
-    # Проточина — светлая полоса по лбу: у буланого её часто нет, но она
-    # отделяет лоб от морды и делает голову головой, а не чурбаком.
-    skull = at["skull"]
-    skin.column(skull["front"], lit, left=2, cols=1, rows=4)
+    # Лицо: два больших глаза. Лицо — восемь столбцов на семь рядов;
+    # два верхних ряда под чёлкой, глаза в рядах 2–4, по два столбца
+    # с зазором посередине. Внешний столбец — белок с бликом, внутренний
+    # — радужка; сверху тёмная кромка века.
+    face = at["skull"]["front"]
+    iris = rgb(eye_v)
+    for inner, outer in ((2, 1), (5, 6)):
+        skin.px(face, inner, 2, EYE)
+        skin.px(face, outer, 2, EYE)
+        skin.px(face, outer, 3, rgb(0xFFFFFF))
+        skin.px(face, inner, 3, iris)
+        skin.px(face, outer, 4, tone(iris, 1.25))
+        skin.px(face, inner, 4, tone(iris, 0.7))
+        if woman:
+            # Ресница кобылы — наружу и вверх.
+            skin.px(face, outer + (outer - inner), 2, EYE)
+    # Мордочка — в тон шёрстке, с улыбкой и ноздрями.
+    muzzle = at["muzzle"]["front"]
+    skin.px(muzzle, 0, 0, tone(coat, 0.8))
+    skin.px(muzzle, 3, 0, tone(coat, 0.8))
+    skin.px(muzzle, 1, 1, tone(coat, 0.75))
+    skin.px(muzzle, 2, 1, tone(coat, 0.75))
 
-    # Глаз на скуле — по одному с каждой стороны головы, и в одном месте
-    # по длине морды. Боковые грани развёрнуты навстречу друг другу:
-    # у правой столбцы идут от затылка к морде, у левой — от морды
-    # к затылку, поэтому одинаковые номера столбцов давали глаза в разных
-    # местах: левый сидел на два текселя ближе к ноздрям. Зрачок — к морде,
-    # белок — к уху, как и смотрит конь.
-    for name, pupil, white in (("right", 2, 1), ("left", 3, 4)):
-        skin.px(skull[name], pupil, 2, EYE)
-        skin.px(skull[name], white, 2, EYE_WHITE)
-        skin.px(skull[name], pupil, 1, tone(dark, 0.8))
-        skin.px(skull[name], white, 1, tone(dark, 0.8))
-    # Уши: снаружи масть, внутри тень.
-    skin.fill(at["ear"]["front"], tone(dark, 0.8))
-
-    # Грива и хвост — тем же цветом, что волосы народа. У кобылы светлее,
-    # у жеребца темнее: примета пола, видная со спины, а другой у коня нет.
-    hair = look["hair"] if woman else look["hair_dark"]
-    streak = look["hair_dark"] if woman else look["hair"]
-    for part in ("mane", "tail", "forelock"):
+    # Грива, чёлка, хвост.
+    for part in ("mane", "tail", "forelock", "bangs"):
         for name in ALL:
-            skin.strands(at[part][name], hair, streak)
-    # Ноги темнеют к копыту — «чулки» буланого.
+            if mane_v is None:
+                rainbow_strands(skin, at[part][name])
+            else:
+                skin.strands(at[part][name], rgb(mane_v), rgb(streak_v))
+
+    # Копытца — светлее ножек, как у мультяшной пони, а не тёмный рог коня.
+    skin.cube(at["hoof"], tone(coat, 0.82))
     for name in SIDES:
-        skin.band(at["leg"][name], dark, top=5, rows=3)
-        skin.band(at["leg"][name], tone(look["hair_dark"], 1.0), top=7, rows=1)
-    skin.cube(at["hoof"], tone(look["boots"], 0.9))
-    for name in SIDES:
-        skin.band(at["hoof"][name], tone(look["boots"], 1.2), rows=1)
+        skin.band(at["hoof"][name], tone(coat, 0.95), rows=1)
 
-
-def blanket(skin, look, colour, trim=None, rows=5):
-    """Попона — второй слой бочки, место, где у коня видно ремесло.
-
-    У двуногого ремесло написано на куртке; у коня куртки нет, зато есть
-    спина. Все девять ремёсел различаются попоной и тем, что надето
-    на голову, — больше у лошади ничего и нет.
-    """
-    part = PONY_REGIONS["blanket"]
-    skin.weave(part["top"], colour, tone(colour, 0.9), tone(colour, 1.07), salt=21)
-    for name in ("left", "right"):
-        x, y, width, height = part[name]
-        skin.weave((x, y, width, rows), colour, tone(colour, 0.9), tone(colour, 1.07), salt=22)
-        if trim is not None:
-            skin.band(part[name], trim, top=rows, rows=1)
-        else:
-            skin.band(part[name], tone(colour, 0.8), top=rows - 1, rows=1)
+    # Знак на боку: на заду, с обеих сторон. У правой грани столбцы идут
+    # от хвоста к голове, у левой — наоборот, поэтому знак стоит в разных
+    # столбцах, но на одном месте тела.
+    mark = CUTIE_MARKS.get(craft, CUTIE_MARKS[None])
+    for name, left in (("right", 1), ("left", at["barrel"]["left"][2] - 4)):
+        for dy, row in enumerate(mark):
+            for dx, ink in enumerate(row):
+                if ink != ".":
+                    skin.px(at["barrel"][name], left + dx, dy, CUTIE_INK[ink])
 
 
 def headgear(skin, colour, dark=None):
-    """Что надето на голову: шлем стража, повязка плотника, оголовье."""
+    """Что надето на голову: шлем стража, косынка работницы."""
     cap = PONY_REGIONS["cap"]
     skin.fill(cap["top"], colour)
     for name in SIDES:
@@ -1029,29 +1085,13 @@ def headgear(skin, colour, dark=None):
             skin.band(cap[name], dark, top=1, rows=1)
 
 
-def bridle(skin, colour):
-    """Оголовье: ремни по морде — у коня в работе оно есть всегда."""
-    cap = PONY_REGIONS["cap"]
-    for name in ("left", "right"):
-        skin.column(cap[name], colour, left=4, cols=1)
-    skin.band(cap["front"], colour, top=3, rows=1)
-
-
 def pony_builder(skin, look):
-    """Плотник: кожаная упряжь через бочку и повязка на лбу."""
-    part = PONY_REGIONS["blanket"]
-    for name in ("left", "right"):
-        skin.band(part[name], LEATHER, top=1, rows=2)
-        skin.band(part[name], LEATHER_DARK, top=6, rows=1)
-        skin.px(part[name], 5, 1, IRON)
-    skin.fill(part["top"], LEATHER_DARK)
-    headgear(skin, LEATHER)
+    """Строитель: косынка на лбу."""
+    headgear(skin, rgb(0xE8803A))
 
 
 def pony_farmer(skin, look):
-    """Пахарь: соломенная шляпа между ушей и холщовая попона."""
-    blanket(skin, look, LINEN)
-    bridle(skin, LEATHER_DARK)
+    """Пахарь: соломенная шляпа."""
     for name in ("hat_crown", "hat_brim"):
         for face in ALL:
             x, y, width, height = PONY_REGIONS[name][face]
@@ -1060,97 +1100,61 @@ def pony_farmer(skin, look):
                     skin.image.putpixel((x + dx, y + dy),
                                         STRAW if (dx + dy) % 2 else STRAW_LIT)
     for name in SIDES:
-        skin.band(PONY_REGIONS["hat_crown"][name], look["accent"], top=1, rows=1)
+        skin.band(PONY_REGIONS["hat_crown"][name], rgb(0xE0405A), top=1, rows=1)
 
 
 def pony_lumberjack(skin, look):
-    """Делянщик: попона в клетку и упряжь."""
-    blanket(skin, look, look["cloth"])
-    part = PONY_REGIONS["blanket"]
-    for name in ("left", "right"):
-        x, y, width, height = part[name]
-        for dy in range(5):
-            for dx in range(width):
-                if ((dx // 3) + (dy // 2)) % 2 == 0:
-                    skin.px(part[name], dx, dy, look["cloth_dark"])
-        skin.band(part[name], LEATHER, top=6, rows=1)
-    bridle(skin, LEATHER_DARK)
+    """Делянщица: зелёная косынка."""
+    headgear(skin, rgb(0x3E8A3A))
+
+
+def saddlebags(skin, colour, trim):
+    bag = PONY_REGIONS["saddlebag"]
+    skin.cube(bag, colour)
+    for name in SIDES:
+        skin.band(bag[name], trim, rows=1)
+    skin.fill(bag["top"], tone(colour, 0.85))
 
 
 def pony_courier(skin, look):
-    """Курьер: перемётные сумы по бокам."""
-    blanket(skin, look, LEATHER_DARK, rows=3)
-    bridle(skin, LEATHER_DARK)
-    bag = PONY_REGIONS["saddlebag"]
-    skin.cube(bag, LEATHER)
-    for name in SIDES:
-        skin.band(bag[name], LEATHER_DARK, rows=1)
-    skin.px(bag["right"], 2, 1, IRON)
-    skin.fill(bag["top"], LEATHER_DARK)
+    """Курьер: перемётные сумочки."""
+    saddlebags(skin, LEATHER, LEATHER_DARK)
 
 
 def pony_guard(skin, look):
-    """Страж: железная попона поверх цветной, шлем и султан."""
-    blanket(skin, look, look["accent"])
+    """Страж: латы по спине, шлем и султан."""
     part = PONY_REGIONS["blanket"]
-    for name in ("left", "right"):
+    for name in ("left", "right", "front", "back"):
         skin.band(part[name], IRON, rows=3)
-        for dy in range(3):
-            for dx in range(0, part[name][2], 2):
-                skin.px(part[name], dx + dy % 2, dy, IRON_DARK)
+        skin.band(part[name], IRON_DARK, top=3, rows=1)
     skin.fill(part["top"], IRON)
     headgear(skin, IRON, IRON_DARK)
-    skin.column(PONY_REGIONS["cap"]["front"], IRON, left=1, cols=3, rows=3)
     skin.cube(PONY_REGIONS["plume"], RED)
     skin.fill(PONY_REGIONS["plume"]["top"], tone(RED, 1.2))
 
 
 def pony_elder(skin, look):
-    """Старейшина: долгая попона с золотой каймой и седая грива."""
-    blanket(skin, look, look["accent"], GOLD, rows=7)
+    """Старейшина: покров с золотой каймой."""
     cap = PONY_REGIONS["caparison"]
+    purple = rgb(0x7A4AB0)
     for name in SIDES:
-        skin.weave(cap[name], look["accent"], tone(look["accent"], 0.9),
-                   tone(look["accent"], 1.06), salt=23)
+        skin.weave(cap[name], purple, tone(purple, 0.9), tone(purple, 1.08), salt=23)
         skin.band(cap[name], GOLD, top=cap[name][3] - 1, rows=1)
     skin.fill(cap["top"], CLEAR)
     skin.fill(cap["bottom"], CLEAR)
-    for part in ("mane", "tail", "forelock"):
-        for name in ALL:
-            skin.strands(PONY_REGIONS[part][name], GREY_HAIR, GREY_HAIR_DARK)
-    bridle(skin, GOLD)
 
 
 def pony_brewer(skin, look):
-    """Квасник: холщовая попона и тёмный подпал по низу."""
-    blanket(skin, look, LINEN)
-    part = PONY_REGIONS["blanket"]
-    for name in ("left", "right"):
-        skin.band(part[name], LEATHER_DARK, top=4, rows=1)
-    bridle(skin, LEATHER_DARK)
+    """Квасник: знак на боку, и больше ничего — кружку видно и так."""
 
 
 def pony_merchant(skin, look):
-    """Купец: цветная попона с золотой каймой и сумы с товаром."""
-    blanket(skin, look, look["cloth_lit"], GOLD)
-    part = PONY_REGIONS["blanket"]
-    for name in ("left", "right"):
-        skin.band(part[name], look["accent"], rows=1)
-    bag = PONY_REGIONS["saddlebag"]
-    skin.cube(bag, look["accent"])
-    for name in SIDES:
-        skin.band(bag[name], GOLD, rows=1)
-    bridle(skin, GOLD)
+    """Купец: цветные сумы с золотой каймой."""
+    saddlebags(skin, rgb(0x7A3AA8), GOLD)
 
 
 def pony_weaver(skin, look):
-    """Прядильщица: холст и цветные нити поперёк попоны."""
-    blanket(skin, look, LINEN)
-    part = PONY_REGIONS["blanket"]
-    for name in ("left", "right"):
-        for dy in range(0, 5, 2):
-            skin.band(part[name], look["accent"], top=dy, rows=1)
-    bridle(skin, look["accent"])
+    """Прядильщица: знак на боку — клубок."""
 
 
 PONY_CRAFTS = {
@@ -1170,7 +1174,7 @@ def build_pony(culture, woman, craft):
     look = CULTURES[culture]
     body = citizen_body.PONY
     skin = Skin(body.width, body.height, "%s/%s/%s" % (culture, woman, craft))
-    draw_pony(skin, look, woman)
+    draw_pony(skin, look, woman, craft)
     if craft in PONY_CRAFTS:
         PONY_CRAFTS[craft](skin, look)
     return skin

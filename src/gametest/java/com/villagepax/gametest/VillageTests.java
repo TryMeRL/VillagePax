@@ -54,6 +54,59 @@ public class VillageTests extends GameTestSupport {
      * другу на застройку.
      */
     /**
+     * Деревне можно помочь тем, чего ей не хватает, — и она это помнит.
+     * Ненужное остаётся в руке: ратуша не скупка.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "needs")
+    public void aVillageTakesWhatItNeedsAndRemembersWhoHelped(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+        try {
+            for (int x = -24; x <= 24; x++) {
+                for (int z = -24; z <= 24; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала");
+                return;
+            }
+            java.util.Map<net.minecraft.item.Item, Integer> missing =
+                    com.villagepax.screen.VillageNeeds.missing(world, village);
+            if (missing.isEmpty()) {
+                context.throwGameTestException("Стройке деревни ничего не нужно — проверять нечего");
+                return;
+            }
+            net.minecraft.item.Item wanted = missing.keySet().iterator().next();
+            net.minecraft.entity.player.PlayerEntity helper = context.createMockSurvivalPlayer();
+            net.minecraft.item.ItemStack offer = new net.minecraft.item.ItemStack(wanted,
+                    Math.min(wanted.getMaxCount(), missing.get(wanted)));
+            int before = village.reputationOf(helper.getUuid());
+            if (!com.villagepax.screen.VillageNeeds.donate(world, manager, village, helper, offer)) {
+                context.throwGameTestException("Деревня не приняла нужное: " + wanted);
+            }
+            if (manager.byId(village.id()).orElseThrow().reputationOf(helper.getUuid()) <= before) {
+                context.throwGameTestException("Помощь не прибавила доверия");
+            }
+            net.minecraft.item.ItemStack junk = new net.minecraft.item.ItemStack(
+                    net.minecraft.item.Items.ROTTEN_FLESH, 8);
+            if (com.villagepax.screen.VillageNeeds.donate(world, manager, village, helper, junk)
+                    || junk.getCount() != 8) {
+                context.throwGameTestException("Деревня взяла ненужное");
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+        context.complete();
+    }
+
+    /**
      * Северяне встают на снегу: снежный покров — не преграда, а их земля.
      */
     @GameTest(templateName = WIDE_STRUCTURE, batchId = "snow")

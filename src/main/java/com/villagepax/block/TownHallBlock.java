@@ -2,6 +2,7 @@ package com.villagepax.block;
 
 import com.villagepax.block.entity.TownHallBlockEntity;
 import com.villagepax.screen.TownHallConsole;
+import com.villagepax.screen.VillageNeeds;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import net.minecraft.block.BlockRenderType;
@@ -59,19 +60,27 @@ public class TownHallBlock extends BlockWithEntity {
             return ActionResult.PASS;
         }
 
-        if (!player.isSneaking() && world instanceof ServerWorld serverWorld) {
-            Settlement colony = hall.settlementId()
-                    .flatMap(id -> SettlementManager.get(serverWorld).byId(id))
-                    .orElse(null);
+        if (world instanceof ServerWorld serverWorld) {
+            SettlementManager manager = SettlementManager.get(serverWorld);
+            Settlement colony = hall.settlementId().flatMap(manager::byId).orElse(null);
             if (colony != null && TownHallConsole.yours(colony, player.getUuid())) {
-                player.openHandledScreen(new TownHallConsole(serverWorld, colony, pos));
+                if (!player.isSneaking()) {
+                    player.openHandledScreen(new TownHallConsole(serverWorld, colony, pos));
+                    return ActionResult.CONSUME;
+                }
+            } else if (colony != null && colony.owner().isAutonomous()) {
+                // Ратуша деревни народа — не сундук для прохожего. Прежде
+                // присевший игрок открывал её склад и выносил что хотел:
+                // «не моя деревня, но брать блоки могу оттуда». Теперь она
+                // говорит, что деревне нужно, и принимает помощь.
+                if (!VillageNeeds.donate(serverWorld, manager, colony, player,
+                        player.getStackInHand(hand))) {
+                    VillageNeeds.tell(serverWorld, colony, player);
+                }
                 return ActionResult.CONSUME;
-            }
-            if (colony != null) {
-                // Чужая ратуша. Пульт у неё не открывается: в нём нет ни одной
-                // работающей кнопки — сервер отбрасывает намерения по чужому
-                // поселению, и игрок остаётся с меню, которое молчит.
-                // Вместо меню — слова о том, что здесь можно на самом деле.
+            } else if (colony != null && !colony.owner().mayBuild(player.getUuid())) {
+                // Чужая колония: пульт не откроется, склад — тем более. Склад
+                // открыт хозяину и тем, кому он доверил свою землю.
                 player.sendMessage(Text.translatable("villagepax.town_hall.not_yours",
                         Text.literal(colony.name())), false);
                 return ActionResult.CONSUME;

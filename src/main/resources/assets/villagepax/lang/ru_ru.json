@@ -347,7 +347,7 @@
   "villagepax.building.norman.market_stall": "Ларёк",
   "villagepax.building.maya.market_stall": "Торговый навес",
   "villagepax.building.norman.market": "Рынок",
-  "villagepax.town_hall.not_yours": "%s — чужая деревня. Дела здесь ведут с людьми: просьбы у старейшины, товар у купца в ларьке. Своя колония начинается с чертежа ратуши.",
+  "villagepax.town_hall.not_yours": "%s — чужая колония. Пульт и склад открыты её хозяину и тем, кому он доверил свою землю.",
   "villagepax.screen.order.no_colony": "Сперва своя колония: поставь ратушу чертежом, и в ней появится пульт со стройкой.",
   "villagepax.screen.order.too_far": "Отсюда не достать: подойди ближе к месту стройки.",
   "villagepax.screen.console.not_yours": "Это не твой пульт: распоряжаться можно только своей колонией.",
@@ -773,5 +773,17 @@
   "villagepax.compass.south": "юг",
   "villagepax.compass.southwest": "юго-запад",
   "villagepax.compass.west": "запад",
-  "villagepax.compass.northwest": "северо-запад"
+  "villagepax.compass.northwest": "северо-запад",
+  "villagepax.needs.head": "%s — деревня, народ: %s",
+  "villagepax.needs.building": "Строят: %s. Не хватает: %s",
+  "villagepax.needs.building_ready": "Строят: %s — материалов хватает.",
+  "villagepax.needs.nothing_building": "Сейчас ничего не строят.",
+  "villagepax.needs.food": "Еды хватит на %s дн.",
+  "villagepax.needs.food_low": "Еды почти нет: примут хлеб, морковь и другую еду.",
+  "villagepax.needs.beds": "Свободных кроватей: %s.",
+  "villagepax.needs.hint": "Принеси нужное и щёлкни по ратуше с ним в руке — деревня примет и запомнит, кто помог.",
+  "villagepax.needs.thanks": "%s принимает %s × %s. Доверие +%s.",
+  "villagepax.needs.not_needed": "Этого деревне сейчас не нужно.",
+  "villagepax.needs.no_room": "Складу деревни некуда это положить.",
+  "villagepax.guide.help": "§lПомочь деревне§r\n\nЩёлкни по ратуше деревни — узнаешь, что ей нужно: что строят, чего не хватает, много ли еды.\n\nЩёлкни с нужным в руке — деревня примет и прибавит тебе доверия."
 }

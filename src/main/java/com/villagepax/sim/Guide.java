@@ -48,6 +48,7 @@ public final class Guide {
             "villagepax.guide.trust",
             "villagepax.guide.people",
             "villagepax.guide.guest",
+            "villagepax.guide.help",
             "villagepax.guide.caravan",
             "villagepax.guide.raid",
             "villagepax.guide.war",

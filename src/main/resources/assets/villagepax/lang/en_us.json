@@ -347,7 +347,7 @@
   "villagepax.building.norman.market_stall": "Market Stall",
   "villagepax.building.maya.market_stall": "Trading Canopy",
   "villagepax.building.norman.market": "Market",
-  "villagepax.town_hall.not_yours": "%s is someone else's village. Business here is done with people: requests from the elder, goods from the merchant at the stall. Your own colony starts with a town hall blueprint.",
+  "villagepax.town_hall.not_yours": "%s is someone else's colony. Its console and storage are open to its owner and those they trust.",
   "villagepax.screen.order.no_colony": "Found a colony first: place a town hall with the blueprint and its console will hold the build list.",
   "villagepax.screen.order.too_far": "Too far away: step closer to the building site.",
   "villagepax.screen.console.not_yours": "Not your console: you can only command your own colony.",
@@ -773,5 +773,17 @@
   "villagepax.compass.south": "south",
   "villagepax.compass.southwest": "southwest",
   "villagepax.compass.west": "west",
-  "villagepax.compass.northwest": "northwest"
+  "villagepax.compass.northwest": "northwest",
+  "villagepax.needs.head": "%s: a village of the %s",
+  "villagepax.needs.building": "Building: %s. Still short of: %s",
+  "villagepax.needs.building_ready": "Building: %s. Materials are all there.",
+  "villagepax.needs.nothing_building": "Nothing is being built right now.",
+  "villagepax.needs.food": "Food for %s days.",
+  "villagepax.needs.food_low": "Food is nearly gone: bread, carrots and other food are welcome.",
+  "villagepax.needs.beds": "Free beds: %s.",
+  "villagepax.needs.hint": "Bring what is needed and click the town hall with it in hand: the village will take it and remember who helped.",
+  "villagepax.needs.thanks": "%s takes %s × %s. Trust +%s.",
+  "villagepax.needs.not_needed": "The village does not need this right now.",
+  "villagepax.needs.no_room": "The village storehouse has no room for this.",
+  "villagepax.guide.help": "§lHelping a village§r\n\nClick a village town hall to learn what it needs: what is built, what is short, how much food is left.\n\nClick with the thing in hand: the village takes it and trusts you more."
 }

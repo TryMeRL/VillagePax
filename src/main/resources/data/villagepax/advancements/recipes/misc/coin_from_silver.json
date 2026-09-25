@@ -1,0 +1,35 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "villagepax:coin_from_silver"
+      }
+    },
+    "has_silver_coin": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "villagepax:silver_coin"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_silver_coin"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "villagepax:coin_from_silver"
+    ]
+  },
+  "sends_telemetry_event": false
+}

@@ -1,0 +1,35 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "villagepax:timber_frame_slab"
+      }
+    },
+    "has_timber_frame": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "villagepax:timber_frame"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_timber_frame"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "villagepax:timber_frame_slab"
+    ]
+  },
+  "sends_telemetry_event": false
+}

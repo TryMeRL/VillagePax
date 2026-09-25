@@ -1,0 +1,35 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "villagepax:carved_stone_slab"
+      }
+    },
+    "has_carved_stone": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "villagepax:carved_stone"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_carved_stone"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "villagepax:carved_stone_slab"
+    ]
+  },
+  "sends_telemetry_event": false
+}

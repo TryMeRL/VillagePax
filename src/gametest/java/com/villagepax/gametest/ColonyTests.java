@@ -89,6 +89,39 @@ public class ColonyTests extends GameTestSupport {
 
     // --- основа: датапак, реестры, сохранение, основание и тела жителей ---
 
+    /**
+     * Каждый рецепт мода открывается в книге рецептов.
+     * <p>
+     * Книга показывает только открытые рецепты, а открывает их рецептурное
+     * достижение. Без него рецепт крафтится, но в книге не появляется
+     * никогда — и скамью можно сделать, только заранее зная раскладку.
+     * Достижения пишет {@code tools/make-recipe-advancements.py}; здесь
+     * проверяется, что игра их прочла и что награда каждого — свой рецепт.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void everyRecipeOpensInTheRecipeBook(TestContext context) {
+        net.minecraft.server.MinecraftServer server = context.getWorld().getServer();
+        Set<Identifier> rewarded = new java.util.HashSet<>();
+        for (net.minecraft.advancement.Advancement advancement
+                : server.getAdvancementLoader().getAdvancements()) {
+            rewarded.addAll(List.of(advancement.getRewards().getRecipes()));
+        }
+
+        List<Identifier> ours = server.getRecipeManager().keys()
+                .filter(id -> id.getNamespace().equals("villagepax"))
+                .sorted()
+                .toList();
+        if (ours.size() < 30) {
+            context.throwGameTestException("Рецептов мода подозрительно мало: " + ours.size());
+        }
+        List<Identifier> locked = ours.stream().filter(id -> !rewarded.contains(id)).toList();
+        if (!locked.isEmpty()) {
+            context.throwGameTestException("Рецепты, которые книга не откроет никогда: " + locked);
+        }
+
+        context.complete();
+    }
+
     @GameTest(templateName = EMPTY_STRUCTURE)
     public void cultureIsLoadedFromDatapack(TestContext context) {
         Culture norman = CultureManager.get(NORMAN);

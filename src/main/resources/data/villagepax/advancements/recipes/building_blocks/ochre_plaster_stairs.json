@@ -1,0 +1,35 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "villagepax:ochre_plaster_stairs"
+      }
+    },
+    "has_ochre_plaster": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "villagepax:ochre_plaster"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_ochre_plaster"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "villagepax:ochre_plaster_stairs"
+    ]
+  },
+  "sends_telemetry_event": false
+}

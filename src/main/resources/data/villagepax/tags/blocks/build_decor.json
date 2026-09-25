@@ -43,6 +43,19 @@
     "villagepax:laundry",
     "villagepax:bench",
     "villagepax:table",
-    "villagepax:shelf"
+    "villagepax:shelf",
+    "villagepax:toro_lantern",
+    "villagepax:wind_chime",
+    "villagepax:bonsai",
+    "villagepax:rune_stone",
+    "villagepax:war_drum",
+    "villagepax:jaguar_idol",
+    "villagepax:rainbow_fountain",
+    "villagepax:crystal_lamp",
+    "villagepax:firefly_jar",
+    "villagepax:incense_burner",
+    "villagepax:weathervane",
+    "villagepax:maya_calendar",
+    "villagepax:scarecrow"
   ]
 }

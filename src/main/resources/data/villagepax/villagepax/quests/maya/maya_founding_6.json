@@ -17,6 +17,11 @@
     {
       "type": "settler",
       "profession": "villagepax:farmer"
+    },
+    {
+      "type": "item",
+      "item": "villagepax:jade_jaguar",
+      "count": 1
     }
   ],
   "dialogue": "villagepax.quest.maya_founding_6"

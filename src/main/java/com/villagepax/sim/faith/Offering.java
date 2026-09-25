@@ -141,10 +141,32 @@ public final class Offering {
      */
     public static Judgement accept(ServerWorld world, SettlementManager manager,
                                    Settlement settlement, ItemStack held, long today) {
-        Judgement verdict = judge(settlement, held, today);
-        if (!verdict.verdict().isTaken()) {
-            return verdict;
+        return accept(world, manager, settlement, held, today, null);
+    }
+
+    /** Насколько жертва весомее, когда у алтаря дымит кадильница. */
+    public static final double INCENSE_BONUS = 1.5;
+
+    /** Докуда от алтаря дотягивается дым кадильницы. */
+    public static final int INCENSE_REACH = 4;
+
+    /**
+     * То же, но у конкретного алтаря: если рядом дымит кадильница, боги
+     * слышат лучше, и жертва весит в полтора раза больше. Благовоние —
+     * старейший способ сказать «я пришёл с почтением».
+     */
+    public static Judgement accept(ServerWorld world, SettlementManager manager,
+                                   Settlement settlement, ItemStack held, long today,
+                                   net.minecraft.util.math.BlockPos altar) {
+        Judgement judged = judge(settlement, held, today);
+        if (!judged.verdict().isTaken()) {
+            return judged;
         }
+        Judgement verdict = altar != null
+                && com.villagepax.block.wonder.Wonders.incenseNear(world, altar, INCENSE_REACH)
+                ? new Judgement(judged.verdict(), judged.god(),
+                (int) Math.ceil(judged.favour() * INCENSE_BONUS))
+                : judged;
 
         Identifier god = verdict.god().orElseThrow();
         manager.update(settlement.id(), state -> {
@@ -186,7 +208,7 @@ public final class Offering {
             return;
         }
 
-        Judgement verdict = accept(world, manager, settlement, held, today);
+        Judgement verdict = accept(world, manager, settlement, held, today, altar);
         Settlement after = manager.byId(settlement.id()).orElse(settlement);
 
         switch (verdict.verdict()) {

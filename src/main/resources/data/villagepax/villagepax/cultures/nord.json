@@ -65,7 +65,9 @@
     "villagepax:bench",
     "villagepax:table",
     "villagepax:shelf",
-    "villagepax:paper_lantern"
+    "villagepax:paper_lantern",
+    "villagepax:rune_stone",
+    "villagepax:war_drum"
   ],
   "traits": [],
   "diplomacy_defaults": {

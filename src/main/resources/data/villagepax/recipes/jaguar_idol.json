@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "CEC",
+    "CCC"
+  ],
+  "key": {
+    "C": {
+      "item": "villagepax:carved_stone"
+    },
+    "E": {
+      "item": "minecraft:emerald"
+    }
+  },
+  "result": {
+    "item": "villagepax:jaguar_idol"
+  }
+}

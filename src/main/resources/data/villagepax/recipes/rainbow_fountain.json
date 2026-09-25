@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "RWB",
+    "QQQ"
+  ],
+  "key": {
+    "R": {
+      "item": "minecraft:red_dye"
+    },
+    "W": {
+      "item": "minecraft:water_bucket"
+    },
+    "B": {
+      "item": "minecraft:blue_dye"
+    },
+    "Q": {
+      "item": "minecraft:smooth_quartz"
+    }
+  },
+  "result": {
+    "item": "villagepax:rainbow_fountain"
+  }
+}

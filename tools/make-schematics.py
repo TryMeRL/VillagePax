@@ -396,6 +396,12 @@ LEGEND = {
                                       "waterlogged": "false"}),
     "ч": ("minecraft:pink_petals", {"facing": "north", "flower_amount": "4"}),
     "д": ("minecraft:gravel", {}),
+    # --- диковинки народов (tools/make-wonders.py) ---
+    "¤": ("villagepax:toro_lantern", {}),
+    "♪": ("villagepax:wind_chime", {"hanging": "true", "waterlogged": "false"}),
+    "ᚱ": ("villagepax:rune_stone", {"facing": "south"}),
+    "∆": ("villagepax:incense_burner", {}),
+    "☺": ("villagepax:scarecrow", {"facing": "north"}),
     "D": ("villagepax:marker_door", {}),
     "K": ("villagepax:marker_workstation", {}),
     "S": ("villagepax:marker_storage", {}),
@@ -3575,6 +3581,8 @@ def thing_yard(base):
     # быть свободной, как за любой дверью.
     bell = list(side)
     bell[middle] = "J"
+    # Рунные камни по сторонам колокола: на каждом — строка саги.
+    bell[1], bell[width - 2] = "ᚱ", "ᚱ"
     fires = list(side)
     fires[1], fires[width - 2] = "c", "c"
     layers[1][-3:] = ["".join(bell), "".join(fires), "".join(gate)]
@@ -4017,6 +4025,8 @@ YAMATO_HOUSE = minka(
      "....."],
     door=(4, 1), windows=((2, 1), (6, 1), (1, 3), (1, 5), (7, 3), (7, 5), (3, 7), (5, 7)),
     lanterns=((4, 4),))
+# Фурин под свесом над входом: звенит, когда ветер, и сквозь него проходят.
+YAMATO_HOUSE[3][0] = YAMATO_HOUSE[3][0][:4] + "♪" + YAMATO_HOUSE[3][0][5:]
 
 # --- минка, уровень 2: второй этаж под своей кровлей ---
 YAMATO_HOUSE_2 = upstairs(
@@ -4054,6 +4064,7 @@ YAMATO_TOWN_HALL = minka(
     door=(4, 1), windows=((2, 1), (6, 1), (1, 3), (1, 5), (7, 3), (7, 5), (3, 7), (5, 7)),
     posts="λ", extra_posts=((3, 0), (5, 0)),
     lanterns=((3, 3), (5, 3), (3, 5), (5, 5)))
+YAMATO_TOWN_HALL[3][0] = YAMATO_TOWN_HALL[3][0][:4] + "♪" + YAMATO_TOWN_HALL[3][0][5:]
 
 # --- усадьба, уровень 2: верхние покои ---
 YAMATO_TOWN_HALL_2 = upstairs(
@@ -4086,7 +4097,7 @@ YAMATO_TOWN_HALL_3 = extend_south(YAMATO_TOWN_HALL_2, {
         "ддддддддд",
         "ддддддддд"],
     1: ["ω.δ...δ.ω",
-        "ω.я...я.ω",
+        "ω¤я...я¤ω",
         "ωωωωωωωωω"],
     2: ["t.......t",
         ".........",
@@ -4346,7 +4357,7 @@ _SHRINE_HALL = minka(
      "=...=",
      ".....",
      ".....",
-     "O.$.O"],
+     "O∆$∆O"],
     [".....",
      ".....",
      ".....",
@@ -4360,9 +4371,9 @@ _TORII = {
     0: ["ддддддддд",
         "ддддддддд"],
     1: ["..λ...λ..",
-        "ω.......ω"],
+        "¤.......¤"],
     2: ["..λ...λ..",
-        "t.......t"],
+        "........."],
     3: ["..λ...λ..",
         "........."],
     4: ["..λμμμλ..",
@@ -4374,6 +4385,25 @@ _TORII = {
 }
 YAMATO_SHRINE = [_TORII.get(_y, ["........."] * 2) + list(_layer)
                  for _y, _layer in enumerate(_SHRINE_HALL)]
+
+
+def with_scarecrow(layers, x, z):
+    """Пугало на месте тюка: сноп с тыквой становится настоящим пугалом."""
+    layers = [list(layer) for layer in layers]
+    row = layers[2][z]
+    layers[2][z] = row[:x] + "☺" + row[x + 1:]
+    if len(layers) > 3:
+        top = layers[3][z]
+        if top[x] == "p":
+            layers[3][z] = top[:x] + "." + top[x + 1:]
+    return layers
+
+
+NORMAN_FARM = with_scarecrow(NORMAN_FARM, 1, 5)
+NORMAN_FARM_2 = with_scarecrow(NORMAN_FARM_2, *next(
+    (x, z) for z, row in enumerate(NORMAN_FARM_2[2]) for x, ch in enumerate(row) if ch == "A"))
+PONY_FARM = with_scarecrow(PONY_FARM, 4, 3)
+PONY_FARM_2 = with_scarecrow(PONY_FARM_2, 4, 3)
 
 
 RAW_SCHEMATICS = {

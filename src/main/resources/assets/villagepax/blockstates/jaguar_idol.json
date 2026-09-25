@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "villagepax:block/jaguar_idol"
+    },
+    "facing=east": {
+      "model": "villagepax:block/jaguar_idol",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "villagepax:block/jaguar_idol",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "villagepax:block/jaguar_idol",
+      "y": 270
+    }
+  }
+}

@@ -16,6 +16,11 @@
     },
     {
       "type": "settler"
+    },
+    {
+      "type": "item",
+      "item": "villagepax:thunder_rune",
+      "count": 1
     }
   ],
   "dialogue": "villagepax.quest.nord_founding_6"

@@ -1608,16 +1608,14 @@ public class BuildTests extends GameTestSupport {
                         + BIGGER_FIELD);
             }
 
-            // Пугало: тюк и тыква на нём. Стоит там же, где стояло
-            // на первом уровне, и это половина смысла проверки:
-            // улучшение надстраивает поле, а не переставляет на нём вещи.
+            // Пугало стоит там же, где стояло на первом уровне, и это
+            // половина смысла проверки: улучшение надстраивает поле,
+            // а не переставляет на нём вещи. Прежде пугалом был тюк
+            // с тыквой, теперь — настоящее, которое гоняет кроликов.
             BlockPos straw = BuildJob.worldPos(farm, bigger.size(), new BlockPos(1, 2, 5));
-            BlockPos head = BuildJob.worldPos(farm, bigger.size(), new BlockPos(1, 3, 5));
-            if (!world.getBlockState(straw).isOf(Blocks.HAY_BLOCK)
-                    || !world.getBlockState(head).isOf(Blocks.CARVED_PUMPKIN)) {
+            if (!world.getBlockState(straw).isOf(com.villagepax.block.ModBlocks.SCARECROW)) {
                 context.throwGameTestException("Пугала на поле нет: "
-                        + world.getBlockState(straw).getBlock() + " и "
-                        + world.getBlockState(head).getBlock());
+                        + world.getBlockState(straw).getBlock());
             }
 
             BlockPos gate = BuildJob.worldPos(farm, bigger.size(), new BlockPos(0, 2, 3));

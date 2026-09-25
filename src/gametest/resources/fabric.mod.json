@@ -21,7 +21,8 @@
       "com.villagepax.gametest.ComplaintTests",
       "com.villagepax.gametest.PassabilityTests",
       "com.villagepax.gametest.LoadTests",
-      "com.villagepax.gametest.GearTests"
+      "com.villagepax.gametest.GearTests",
+      "com.villagepax.gametest.WonderTests"
     ]
   },
   "depends": {

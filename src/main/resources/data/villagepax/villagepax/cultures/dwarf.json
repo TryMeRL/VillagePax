@@ -60,7 +60,9 @@
     "minecraft:grindstone",
     "villagepax:bench",
     "villagepax:table",
-    "villagepax:shelf"
+    "villagepax:shelf",
+    "villagepax:crystal_lamp",
+    "villagepax:war_drum"
   ],
   "traits": [
     "villagepax:builds_underground",

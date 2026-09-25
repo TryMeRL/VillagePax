@@ -83,6 +83,12 @@
       "count": 1,
       "price": 20,
       "min_reputation": 45
+    },
+    {
+      "item": "villagepax:thunder_rune",
+      "count": 1,
+      "price": 18,
+      "min_reputation": 50
     }
   ],
   "buys": [

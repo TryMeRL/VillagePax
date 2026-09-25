@@ -62,7 +62,10 @@
     "minecraft:barrel",
     "villagepax:bench",
     "villagepax:table",
-    "villagepax:shelf"
+    "villagepax:shelf",
+    "villagepax:jaguar_idol",
+    "villagepax:maya_calendar",
+    "villagepax:war_drum"
   ],
   "traits": [
     "villagepax:terrace_farming"

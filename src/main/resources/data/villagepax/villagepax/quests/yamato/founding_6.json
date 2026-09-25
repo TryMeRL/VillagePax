@@ -16,6 +16,11 @@
     },
     {
       "type": "settler"
+    },
+    {
+      "type": "item",
+      "item": "villagepax:kitsune_charm",
+      "count": 1
     }
   ],
   "dialogue": "villagepax.quest.yamato_founding_6"

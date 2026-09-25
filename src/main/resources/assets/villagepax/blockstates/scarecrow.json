@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "villagepax:block/scarecrow"
+    },
+    "facing=east": {
+      "model": "villagepax:block/scarecrow",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "villagepax:block/scarecrow",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "villagepax:block/scarecrow",
+      "y": 270
+    }
+  }
+}

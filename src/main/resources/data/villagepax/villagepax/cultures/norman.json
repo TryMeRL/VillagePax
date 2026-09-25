@@ -64,7 +64,9 @@
     "minecraft:hay_block",
     "villagepax:bench",
     "villagepax:table",
-    "villagepax:shelf"
+    "villagepax:shelf",
+    "villagepax:weathervane",
+    "villagepax:incense_burner"
   ],
   "traits": [
     "villagepax:stone_masonry"

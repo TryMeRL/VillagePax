@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "hanging=false": {
+      "model": "villagepax:block/wind_chime"
+    },
+    "hanging=true": {
+      "model": "villagepax:block/wind_chime_hanging"
+    }
+  }
+}

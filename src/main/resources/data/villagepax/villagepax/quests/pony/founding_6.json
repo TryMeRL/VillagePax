@@ -17,6 +17,11 @@
     {
       "type": "settler",
       "profession": "villagepax:farmer"
+    },
+    {
+      "type": "item",
+      "item": "villagepax:lucky_horseshoe",
+      "count": 1
     }
   ],
   "dialogue": "villagepax.quest.pony_founding_6"

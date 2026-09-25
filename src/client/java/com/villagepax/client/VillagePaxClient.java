@@ -103,6 +103,12 @@ public class VillagePaxClient implements ClientModInitializer {
         // прозрачным и в мире, иначе лунник стоит чёрным квадратом.
         BlockRenderLayerMap.INSTANCE.putBlocks(RenderLayer.getCutout(),
                 ModBlocks.PAPER_LANTERN, ModBlocks.MOONFLOWER, ModBlocks.FLOWER_BOX);
+        // Диковинки: листья бонсая, силуэт петушка и круг календаря — с прорезями,
+        // а стекло фурина и банки светлячков — полупрозрачное, иначе его не видно.
+        BlockRenderLayerMap.INSTANCE.putBlocks(RenderLayer.getCutout(),
+                ModBlocks.BONSAI, ModBlocks.WEATHERVANE, ModBlocks.MAYA_CALENDAR);
+        BlockRenderLayerMap.INSTANCE.putBlocks(RenderLayer.getTranslucent(),
+                ModBlocks.WIND_CHIME, ModBlocks.FIREFLY_JAR);
     }
 
     /**

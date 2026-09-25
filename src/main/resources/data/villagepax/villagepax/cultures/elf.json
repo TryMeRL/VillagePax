@@ -60,7 +60,8 @@
     "minecraft:lantern",
     "villagepax:bench",
     "villagepax:table",
-    "villagepax:shelf"
+    "villagepax:shelf",
+    "villagepax:firefly_jar"
   ],
   "traits": [
     "villagepax:builds_in_canopy"

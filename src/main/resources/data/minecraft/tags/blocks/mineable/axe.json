@@ -10,6 +10,9 @@
     "villagepax:table",
     "villagepax:shelf",
     "villagepax:flower_box",
-    "villagepax:signpost"
+    "villagepax:signpost",
+    "villagepax:bonsai",
+    "villagepax:war_drum",
+    "villagepax:scarecrow"
   ]
 }

@@ -62,7 +62,8 @@
     "minecraft:barrel",
     "villagepax:bench",
     "villagepax:table",
-    "villagepax:shelf"
+    "villagepax:shelf",
+    "villagepax:rainbow_fountain"
   ],
   "traits": [],
   "diplomacy_defaults": {

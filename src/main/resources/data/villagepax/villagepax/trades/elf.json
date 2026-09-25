@@ -80,6 +80,12 @@
       "count": 1,
       "price": 20,
       "min_reputation": 45
+    },
+    {
+      "item": "villagepax:moon_pendant",
+      "count": 1,
+      "price": 18,
+      "min_reputation": 50
     }
   ],
   "buys": [

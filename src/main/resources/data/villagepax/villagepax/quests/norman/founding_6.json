@@ -17,6 +17,11 @@
     {
       "type": "settler",
       "profession": "villagepax:weaver"
+    },
+    {
+      "type": "item",
+      "item": "villagepax:pilgrim_reliquary",
+      "count": 1
     }
   ],
   "dialogue": "villagepax.quest.founding_6"

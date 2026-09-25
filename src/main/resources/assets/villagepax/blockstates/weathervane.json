@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "villagepax:block/weathervane"
+    },
+    "facing=east": {
+      "model": "villagepax:block/weathervane",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "villagepax:block/weathervane",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "villagepax:block/weathervane",
+      "y": 270
+    }
+  }
+}

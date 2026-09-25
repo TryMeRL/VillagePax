@@ -63,7 +63,11 @@
     "minecraft:flower_pot",
     "villagepax:bench",
     "villagepax:table",
-    "villagepax:shelf"
+    "villagepax:shelf",
+    "villagepax:toro_lantern",
+    "villagepax:wind_chime",
+    "villagepax:bonsai",
+    "villagepax:incense_burner"
   ],
   "traits": [],
   "diplomacy_defaults": {

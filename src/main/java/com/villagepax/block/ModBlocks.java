@@ -1,5 +1,7 @@
 package com.villagepax.block;
 
+import com.villagepax.block.wonder.Wonders;
+
 import com.villagepax.VillagePax;
 import net.minecraft.block.AbstractBlock;
 import net.minecraft.block.Block;
@@ -252,6 +254,74 @@ public final class ModBlocks {
                     .sounds(BlockSoundGroup.WOOD)
                     .nonOpaque()));
 
+    // --- диковинки народов (tools/make-wonders.py) ------------------------------
+    //
+    // Заказчик: «создавай свои блоки, не стесняйся, всю фантазию». У каждой
+    // диковинки своё дело — см. Wonders.
+
+    /** Торо — каменный фонарь сада ямато. */
+    public static final Block TORO_LANTERN = register("toro_lantern", new Wonders.Toro(
+            Block.createCuboidShape(3, 0, 3, 13, 16, 13), stone(MapColor.STONE_GRAY)
+                    .luminance(state -> 15)));
+
+    /** Фурин — звенит на ветру; сквозь него проходят. */
+    public static final Block WIND_CHIME = register("wind_chime", new Wonders.WindChime(
+            AbstractBlock.Settings.create().mapColor(MapColor.WHITE).strength(0.3f)
+                    .sounds(BlockSoundGroup.GLASS).noCollision().nonOpaque()
+                    .pistonBehavior(PistonBehavior.DESTROY)));
+
+    public static final Block BONSAI = register("bonsai", new FurnitureBlock(
+            Block.createCuboidShape(3, 0, 3, 13, 15, 13), AbstractBlock.Settings.create()
+                    .mapColor(MapColor.PINK).strength(0.3f).sounds(BlockSoundGroup.CHERRY_WOOD)
+                    .nonOpaque().pistonBehavior(PistonBehavior.DESTROY)));
+
+    /** Рунный камень северян: каждый день новая строка саги. */
+    public static final Block RUNE_STONE = register("rune_stone", new Wonders.RuneStone(
+            Block.createCuboidShape(3, 0, 6, 13, 16, 10), stone(MapColor.STONE_GRAY)
+                    .luminance(state -> 4)));
+
+    public static final Block WAR_DRUM = register("war_drum", new Wonders.WarDrum(
+            Block.createCuboidShape(1.5, 0, 1.5, 14.5, 12.5, 14.5), AbstractBlock.Settings.create()
+                    .mapColor(MapColor.BROWN).instrument(Instrument.BASEDRUM).strength(1.5f)
+                    .sounds(BlockSoundGroup.WOOD).burnable().nonOpaque()));
+
+    public static final Block JAGUAR_IDOL = register("jaguar_idol", new Wonders.JaguarIdol(
+            Block.createCuboidShape(2, 0, 2, 14, 15, 13), stone(MapColor.PALE_YELLOW)
+                    .luminance(state -> 5)));
+
+    public static final Block RAINBOW_FOUNTAIN = register("rainbow_fountain",
+            new Wonders.RainbowFountain(Block.createCuboidShape(1, 0, 1, 15, 10.5, 15),
+                    stone(MapColor.WHITE)));
+
+    public static final Block CRYSTAL_LAMP = register("crystal_lamp", new Wonders.CrystalLamp(
+            Block.createCuboidShape(3, 0, 3, 13, 12, 13), AbstractBlock.Settings.create()
+                    .mapColor(MapColor.CYAN).strength(1.5f).sounds(BlockSoundGroup.AMETHYST_CLUSTER)
+                    .luminance(state -> 15).nonOpaque()));
+
+    public static final Block FIREFLY_JAR = register("firefly_jar", new Wonders.FireflyJar(
+            Block.createCuboidShape(4, 0, 4, 12, 12, 12), AbstractBlock.Settings.create()
+                    .mapColor(MapColor.LIME).strength(0.3f).sounds(BlockSoundGroup.GLASS)
+                    .luminance(state -> 10).nonOpaque().pistonBehavior(PistonBehavior.DESTROY)));
+
+    public static final Block INCENSE_BURNER = register("incense_burner",
+            new Wonders.IncenseBurner(Block.createCuboidShape(4, 0, 4, 12, 10, 12),
+                    AbstractBlock.Settings.create().mapColor(MapColor.TERRACOTTA_ORANGE)
+                            .strength(2.0f).sounds(BlockSoundGroup.COPPER)
+                            .luminance(state -> 3).nonOpaque()));
+
+    public static final Block WEATHERVANE = register("weathervane", new Wonders.Weathervane(
+            Block.createCuboidShape(2, 0, 2, 14, 16, 14), AbstractBlock.Settings.create()
+                    .mapColor(MapColor.GOLD).strength(2.0f).sounds(BlockSoundGroup.METAL)
+                    .nonOpaque()));
+
+    public static final Block MAYA_CALENDAR = register("maya_calendar", new Wonders.MayaCalendar(
+            Block.createCuboidShape(1, 0, 5, 15, 16, 11), stone(MapColor.PALE_YELLOW)));
+
+    public static final Block SCARECROW = register("scarecrow", new Wonders.Scarecrow(
+            Block.createCuboidShape(1, 0, 5, 15, 16, 11), AbstractBlock.Settings.create()
+                    .mapColor(MapColor.YELLOW).strength(0.8f).sounds(BlockSoundGroup.GRASS)
+                    .burnable().nonOpaque()));
+
     public static final Block MARKER_WORKSTATION = registerMarker("marker_workstation");
     public static final Block MARKER_BED = registerMarker("marker_bed");
     public static final Block MARKER_STORAGE = registerMarker("marker_storage");
@@ -283,6 +353,16 @@ public final class ModBlocks {
                 .strength(0.2f)
                 .sounds(BlockSoundGroup.WOOL)
                 .nonOpaque()));
+    }
+
+    /** Каменная диковинка: ломается киркой, звучит камнем, пропускает свет. */
+    private static AbstractBlock.Settings stone(MapColor colour) {
+        return AbstractBlock.Settings.create()
+                .mapColor(colour)
+                .instrument(Instrument.BASEDRUM)
+                .strength(1.5f, 6.0f)
+                .sounds(BlockSoundGroup.STONE)
+                .nonOpaque();
     }
 
     /** Ступени из того же материала: форма ванильная, чтобы её понимали все. */

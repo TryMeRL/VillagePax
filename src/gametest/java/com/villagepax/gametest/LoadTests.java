@@ -181,6 +181,56 @@ public class LoadTests extends GameTestSupport {
         });
     }
 
+    /**
+     * Деревне негде строить — и поиск места не стоит серверу тика.
+     * <p>
+     * Поиск идёт по сетке в клетку, и на земле, где не годится ничего,
+     * он перебирает всё кольцо поселения. Это случается каждое утро
+     * у каждой деревни на скале или в болоте, и обязано быть дёшево.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "load-place")
+    public void searchingForNoRoomIsCheap(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(16, 9, 16));
+        java.util.List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+        try {
+            // Пятачок под ратушу посреди воды: строить больше негде.
+            for (int x = -40; x <= 40; x++) {
+                for (int z = -40; z <= 40; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(16 + x, 8, 16 + z));
+                    boolean island = Math.abs(x) <= 6 && Math.abs(z) <= 6;
+                    world.setBlockState(at, island ? Blocks.GRASS_BLOCK.getDefaultState()
+                            : Blocks.WATER.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+            village = com.villagepax.sim.Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня на островке не встала");
+                return;
+            }
+            long started = System.nanoTime();
+            int tries = 5;
+            for (int i = 0; i < tries; i++) {
+                com.villagepax.sim.Raising.placeNear(world, manager, village, HOUSE_SCHEMATIC);
+            }
+            double ms = (System.nanoTime() - started) / 1_000_000.0 / tries;
+            VillagePax.LOGGER.info("Поиск места без места: {} мс на попытку", round(ms));
+            if (ms > PLACE_BUDGET_MS) {
+                context.throwGameTestException("Поиск места, которого нет, стоит " + round(ms)
+                        + " мс при бюджете " + PLACE_BUDGET_MS);
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+        context.complete();
+    }
+
+    /** Поиск места раз в игровые сутки: пусть это будет не дольше одного тика. */
+    static final double PLACE_BUDGET_MS = 60;
+
     /** Медиана длины тика за последние {@link #WINDOW} тиков, миллисекунд. */
     private static double medianMs(MinecraftServer server) {
         long[] lengths = server.lastTickLengths.clone();

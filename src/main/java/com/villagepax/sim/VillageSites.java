@@ -212,14 +212,57 @@ public final class VillageSites {
      */
     public static BlockPos plannedSite(ServerWorld world, Identifier cultureId, Culture culture,
                                        int cellX, int cellZ) {
+        // Ответ генератора зависит только от семени мира, клетки, народа
+        // и настроек — поэтому считается однажды. Прежде он считался заново
+        // каждые пять секунд для каждого игрока, каждого народа и девяти
+        // клеток вокруг, и каждый раз это были десятки выборок шума: сервер
+        // замирал на двести миллисекунд — замер показал две миллисекунды
+        // в среднем на каждом тике только на этом.
+        PlanKey key = new PlanKey(world.getRegistryKey().getValue(), world.getSeed(), cultureId,
+                culture.hashCode(), cellX, cellZ, spacing(culture),
+                Configs.get().structureDistanceChunks());
+        synchronized (PLANNED) {
+            if (PLANNED.containsKey(key)) {
+                return PLANNED.get(key);
+            }
+        }
+        BlockPos found = null;
         for (BlockPos column : tries(world, cultureId, culture, cellX, cellZ)) {
             BlockPos fits = fitsByGenerator(world, culture, column);
             if (fits != null) {
-                return fits;
+                found = fits;
+                break;
             }
         }
-        return null;
+        synchronized (PLANNED) {
+            PLANNED.put(key, found);
+        }
+        return found;
     }
+
+    /**
+     * Всё, от чего зависит ответ генератора о месте деревни. Народ входит
+     * в ключ целиком, своим отпечатком: перечитанный датапак с другим
+     * биомом дома даёт другой ключ, и старый ответ просто не находится.
+     */
+    private record PlanKey(Identifier dimension, long seed, Identifier culture, int people,
+                           int cellX, int cellZ, int spacing, int distance) {
+    }
+
+    /** Сколько ответов помнить: клеток вокруг всех игроков хватит с запасом. */
+    private static final int PLANNED_LIMIT = 4096;
+
+    /**
+     * Помнятся и пустые ответы — клетка, где деревне не встать, спрашивается
+     * так же часто, как та, где она встанет.
+     */
+    private static final Map<PlanKey, BlockPos> PLANNED = new java.util.LinkedHashMap<>(256, 0.75f,
+            true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<PlanKey, BlockPos> eldest) {
+            return size() > PLANNED_LIMIT;
+        }
+    };
 
     /**
      * Годится ли эта колонна: высота и биом — по генератору, без загрузки чанка.

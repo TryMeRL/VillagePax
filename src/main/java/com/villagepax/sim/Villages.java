@@ -485,10 +485,6 @@ public final class Villages {
         return BuildingTypes.starting(culture.buildings());
     }
 
-    private static boolean isTownHall(Identifier type) {
-        return Levels.isTownHallType(type);
-    }
-
     /**
      * Старейшина. Ставится <b>явно</b>, а не через приоритет найма: у деревни
      * он обязан быть с первого дня, потому что это единственный, с кем игрок

@@ -6,6 +6,7 @@ import com.mojang.serialization.JsonOps;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -157,5 +158,22 @@ class ConfigTest {
         // Ноль значит «шаг сетки берётся из культуры», а не «деревни вплотную».
         assertEquals(0, Config.DEFAULT.villageSpacingChunks());
         assertNotEquals(0.0, Config.DEFAULT.populationScale());
+    }
+
+    /**
+     * Файл старой версии, в котором нет новой настройки, распознаётся —
+     * и его допишут, а не оставят игроку искать её имя в описании мода.
+     */
+    @Test
+    void anOldFileIsNoticedToMissNewFields() {
+        assertTrue(Configs.missesFields(JsonParser.parseString("{\"hunger_warn_days\": 5}"),
+                Config.DEFAULT));
+    }
+
+    /** Полный файл дописывать нечем: переписывать его при каждом запуске незачем. */
+    @Test
+    void aCompleteFileIsLeftAlone() {
+        var full = Config.CODEC.encodeStart(JsonOps.INSTANCE, Config.DEFAULT).result().orElseThrow();
+        assertFalse(Configs.missesFields(full, Config.DEFAULT));
     }
 }

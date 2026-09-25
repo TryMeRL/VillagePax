@@ -97,48 +97,59 @@ public record Config(
             Map.entry("life_days", DAYS),
             Map.entry("mortality", Codec.BOOL));
 
+    /**
+     * Кодек настроек.
+     * <p>
+     * Поля — {@code fieldOf(...).orElse(...)}, а не {@code optionalFieldOf}:
+     * при чтении они так же подставляют умолчание вместо пропущенного
+     * или негодного, но при записи <b>пишут поле всегда</b>. С
+     * {@code optionalFieldOf} кодек опускал значения, равные умолчанию,
+     * и мод создавал игроку файл настроек из одних фигурных скобок — {@code {}}
+     * — при обещании «готового json со всеми полями». Узнать имя хоть
+     * одной настройки было негде.
+     */
     public static final Codec<Config> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-            Codec.BOOL.optionalFieldOf("autonomous_villages", DEFAULT.autonomousVillages)
+            Codec.BOOL.fieldOf("autonomous_villages").orElse(DEFAULT.autonomousVillages)
                     .forGetter(Config::autonomousVillages),
-            SPACING.optionalFieldOf("village_spacing_chunks", DEFAULT.villageSpacingChunks)
+            SPACING.fieldOf("village_spacing_chunks").orElse(DEFAULT.villageSpacingChunks)
                     .forGetter(Config::villageSpacingChunks),
-            SCALE.optionalFieldOf("population_scale", DEFAULT.populationScale)
+            SCALE.fieldOf("population_scale").orElse(DEFAULT.populationScale)
                     .forGetter(Config::populationScale),
-            DAYS.optionalFieldOf("hunger_warn_days", DEFAULT.hungerWarnDays)
+            DAYS.fieldOf("hunger_warn_days").orElse(DEFAULT.hungerWarnDays)
                     .forGetter(Config::hungerWarnDays),
-            DAYS.optionalFieldOf("hunger_leave_days", DEFAULT.hungerLeaveDays)
+            DAYS.fieldOf("hunger_leave_days").orElse(DEFAULT.hungerLeaveDays)
                     .forGetter(Config::hungerLeaveDays),
-            AMOUNT.optionalFieldOf("village_trade_per_day", DEFAULT.villageTradePerDay)
+            AMOUNT.fieldOf("village_trade_per_day").orElse(DEFAULT.villageTradePerDay)
                     .forGetter(Config::villageTradePerDay),
-            AMOUNT.optionalFieldOf("village_income_per_day", DEFAULT.villageIncomePerDay)
+            AMOUNT.fieldOf("village_income_per_day").orElse(DEFAULT.villageIncomePerDay)
                     .forGetter(Config::villageIncomePerDay),
-            AMOUNT.optionalFieldOf("road_reserve", DEFAULT.roadReserve)
+            AMOUNT.fieldOf("road_reserve").orElse(DEFAULT.roadReserve)
                     .forGetter(Config::roadReserve),
-            TEMPO.optionalFieldOf("ticks_per_decision", DEFAULT.ticksPerDecision)
+            TEMPO.fieldOf("ticks_per_decision").orElse(DEFAULT.ticksPerDecision)
                     .forGetter(Config::ticksPerDecision),
-            Codec.BOOL.optionalFieldOf("citizen_labels", DEFAULT.citizenLabels)
+            Codec.BOOL.fieldOf("citizen_labels").orElse(DEFAULT.citizenLabels)
                     .forGetter(Config::citizenLabels),
-            Codec.BOOL.optionalFieldOf("building_labels", DEFAULT.buildingLabels)
+            Codec.BOOL.fieldOf("building_labels").orElse(DEFAULT.buildingLabels)
                     .forGetter(Config::buildingLabels),
-            SLOTS.optionalFieldOf("carry_slots", DEFAULT.carrySlots)
+            SLOTS.fieldOf("carry_slots").orElse(DEFAULT.carrySlots)
                     .forGetter(Config::carrySlots),
-            Codec.BOOL.optionalFieldOf("greet_newcomers", DEFAULT.greetNewcomers)
+            Codec.BOOL.fieldOf("greet_newcomers").orElse(DEFAULT.greetNewcomers)
                     .forGetter(Config::greetNewcomers),
             // Восемь дней детства: примерно два с половиной часа игры
             // на глазах у игрока. Меньше — и ребёнка не успеешь заметить;
             // больше — и колония стоит, кормя того, кто не работает.
-            DAYS.optionalFieldOf("child_days", DEFAULT.childDays)
+            DAYS.fieldOf("child_days").orElse(DEFAULT.childDays)
                     .forGetter(Config::childDays),
             // Сто двадцать дней жизни. Старость начинается с восьмидесяти
             // (последняя треть), и это тот срок, за который житель успевает
             // вырастить двоих и запомниться игроку по имени.
-            DAYS.optionalFieldOf("life_days", DEFAULT.lifeDays)
+            DAYS.fieldOf("life_days").orElse(DEFAULT.lifeDays)
                     .forGetter(Config::lifeDays),
             // Выключатель смертности стоял в дизайн-документе с первого дня
             // и до сих пор отсутствовал — потому что выключать было нечего.
             // Теперь есть: кому смерть от старости мешает, тот её снимает,
             // и колония живёт вечно, только не растёт сама.
-            Codec.BOOL.optionalFieldOf("mortality", DEFAULT.mortality)
+            Codec.BOOL.fieldOf("mortality").orElse(DEFAULT.mortality)
                     .forGetter(Config::mortality)
     ).apply(instance, Config::new));
 

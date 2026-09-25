@@ -55,6 +55,12 @@ public final class Configs {
      * Файл создаётся намеренно: настройка, о которой негде узнать, всё равно
      * что отсутствует. Увидев готовый json со всеми полями, игрок правит его,
      * а не ищет список параметров в описании мода.
+     * <p>
+     * По той же причине файл <b>дописывается</b>, когда в новой версии мода
+     * появилась настройка, которой в нём нет: иначе она была бы видна только
+     * тем, кто создал файл после обновления. Заданные игроком значения при
+     * этом не трогаются — дописывается только недостающее, и только когда
+     * файл прочитан целиком.
      */
     public static Config load() {
         Path path = path();
@@ -75,6 +81,10 @@ public final class Configs {
             current = parsed.result().orElse(Config.DEFAULT);
             disagreements(json).forEach(complaint ->
                     VillagePax.LOGGER.warn("Настройка не принята: {}", complaint));
+            if (parsed.result().isPresent() && missesFields(json, current)) {
+                VillagePax.LOGGER.info("В файл настроек {} дописаны новые поля", path);
+                save(current);
+            }
         } catch (IOException | RuntimeException broken) {
             VillagePax.LOGGER.error("Файл настроек {} не читается, взяты значения "
                     + "по умолчанию: {}", path, broken.toString());
@@ -98,6 +108,24 @@ public final class Configs {
      * <b>опускает</b> поля, равные значению по умолчанию, и непринятое
      * значение выглядело бы как незнакомое поле.
      */
+    /**
+     * Нет ли в прочитанном файле полей, которые знает эта версия мода.
+     * <p>
+     * Сравнение — с тем, что записал бы кодек: он и есть полный список
+     * настроек, второго списка заводить незачем.
+     */
+    public static boolean missesFields(JsonElement written, Config config) {
+        if (written == null || !written.isJsonObject()) {
+            return false;
+        }
+        JsonObject theirs = written.getAsJsonObject();
+        return Config.CODEC.encodeStart(JsonOps.INSTANCE, config).result()
+                .filter(JsonElement::isJsonObject)
+                .map(full -> full.getAsJsonObject().keySet().stream()
+                        .anyMatch(key -> !theirs.has(key)))
+                .orElse(false);
+    }
+
     public static List<String> disagreements(JsonElement written) {
         if (written == null || !written.isJsonObject()) {
             return List.of();

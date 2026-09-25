@@ -1,7 +1,9 @@
 package com.villagepax.sim;
 
 import com.mojang.serialization.DataResult;
+import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
@@ -270,5 +272,33 @@ class SettlementPersistenceTest {
             hamlet.addCitizen(Citizen.newborn("Имя" + i, "", NORMAN, Gender.MALE));
         }
         assertFalse(hamlet.hasRoomForCitizen(), "хутор заполнен, дальше нужен апгрейд");
+    }
+
+    /**
+     * Запись, которую эта версия не понимает, переживает сохранение.
+     * <p>
+     * Иначе ошибка кодека в одной версии мода стоила бы колонии навсегда:
+     * загрузка её пропустила бы, а первое же автосохранение записало бы
+     * файл уже без неё.
+     */
+    @Test
+    void anUnreadableSettlementIsKeptAsItWas() {
+        NbtCompound strange = new NbtCompound();
+        strange.putString("id", "это не опознаватель");
+        strange.putString("name", "Колония из будущей версии");
+
+        NbtList list = new NbtList();
+        list.add(Settlement.CODEC.encodeStart(NbtOps.INSTANCE, sample()).result().orElseThrow());
+        list.add(strange);
+        NbtCompound file = new NbtCompound();
+        file.put("settlements", list);
+
+        SettlementManager loaded = SettlementManager.fromNbt(file);
+        assertEquals(1, loaded.count(), "читаемая запись загружена, нечитаемая не видна");
+
+        NbtList saved = loaded.writeNbt(new NbtCompound())
+                .getList("settlements", NbtElement.COMPOUND_TYPE);
+        assertEquals(2, saved.size(), "нечитаемая запись стёрта сохранением");
+        assertEquals(strange, saved.getCompound(1), "нечитаемая запись изменилась");
     }
 }

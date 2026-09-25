@@ -10,10 +10,12 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.PersistentState;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Optional;
@@ -50,6 +52,18 @@ public class SettlementManager extends PersistentState {
      */
     private final Set<Long> settledSites = new HashSet<>();
 
+    /**
+     * Записи, которые не прочитались, — нетронутыми.
+     * <p>
+     * Не прочитаться запись может не только от порчи: от ошибки в новой
+     * версии мода, от убранного из датапака народа, от поля, которое
+     * кодек перестал понимать. Выброси их менеджер — первое же автосохранение
+     * стёрло бы колонию навсегда, хотя исправленная версия прочитала бы
+     * её без потерь. Поэтому мод их не видит, но и не стирает: записи
+     * уходят в файл такими же, какими пришли.
+     */
+    private final List<NbtElement> unreadable = new ArrayList<>();
+
     public static SettlementManager get(ServerWorld world) {
         return world.getPersistentStateManager()
                 .getOrCreate(SettlementManager::fromNbt, SettlementManager::new, KEY);
@@ -59,7 +73,6 @@ public class SettlementManager extends PersistentState {
         SettlementManager manager = new SettlementManager();
         NbtList list = nbt.getList(LIST_TAG, NbtElement.COMPOUND_TYPE);
 
-        int broken = 0;
         for (NbtElement element : list) {
             Optional<Settlement> parsed = Settlement.CODEC
                     .parse(NbtOps.INSTANCE, element)
@@ -68,13 +81,14 @@ public class SettlementManager extends PersistentState {
             if (parsed.isPresent()) {
                 manager.settlements.put(parsed.get().id(), parsed.get());
             } else {
-                broken++;
+                manager.unreadable.add(element.copy());
             }
         }
 
-        if (broken > 0) {
-            VillagePax.LOGGER.error("Повреждённых записей поселений: {}. Остальные {} загружены.",
-                    broken, manager.settlements.size());
+        if (!manager.unreadable.isEmpty()) {
+            VillagePax.LOGGER.error("Не прочитано записей поселений: {}. Остальные {} загружены,"
+                            + " а эти сохранятся как были — до версии, которая их поймёт.",
+                    manager.unreadable.size(), manager.settlements.size());
         }
 
         for (long site : nbt.getLongArray(SITES_TAG)) {
@@ -108,6 +122,7 @@ public class SettlementManager extends PersistentState {
         if (failed > 0) {
             VillagePax.LOGGER.error("Не удалось сохранить поселений: {} из {}", failed, settlements.size());
         }
+        unreadable.forEach(kept -> list.add(kept.copy()));
 
         nbt.put(LIST_TAG, list);
         nbt.putLongArray(SITES_TAG,

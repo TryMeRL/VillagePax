@@ -327,6 +327,40 @@ public final class Roads {
     }
 
     /**
+     * Колонны улиц, которые уже лежат в мире: замощённые или вытоптанные.
+     * <p>
+     * Нужно разметке: мостовая для неё была травой, и новый дом ложился
+     * поперёк улицы соседа, а та обрывалась у его стены. Считаются только
+     * уже положенные тайлы — будущая улица сама обойдёт новый след, а
+     * настоящую ломать нельзя. Улица по-прежнему не хранится: её тайлы
+     * спрашиваются у мира, как и везде в этом классе.
+     *
+     * @return колонны в виде {@code BlockPos.asLong(x, 0, z)}
+     */
+    public static java.util.Set<Long> pavedColumns(ServerWorld world, Settlement colony) {
+        java.util.Set<Long> paved = new java.util.HashSet<>();
+        if (Footing.of(colony).keepsOneLevel()) {
+            // Галерею и мост разметка и так не накроет: их тайлы лежат
+            // на полу поселения, а новый зал вырубается рядом с ними.
+            return paved;
+        }
+        java.util.Set<Block> street = new java.util.HashSet<>();
+        street.add(Blocks.DIRT_PATH);
+        Culture culture = CultureManager.get(colony.culture());
+        if (culture != null) {
+            culture.road().forEach(id -> street.add(Registries.BLOCK.get(id)));
+        }
+        for (Building building : colony.buildings()) {
+            for (BlockPos tile : route(world, colony, building)) {
+                if (street.contains(world.getBlockState(tile).getBlock())) {
+                    paved.add(BlockPos.asLong(tile.getX(), 0, tile.getZ()));
+                }
+            }
+        }
+        return paved;
+    }
+
+    /**
      * Маршрут улицы: от порога здания к центру колонии, по земле.
      * <p>
      * Открыт наружу для приёмки: «улица идёт от двери и не рвётся» — это

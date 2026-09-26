@@ -1,14 +1,22 @@
 package com.villagepax.gametest;
 
 import com.villagepax.screen.BuildOrders;
+import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Ground;
 import com.villagepax.sim.Raising;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.Villages;
 import com.villagepax.sim.build.Access;
+import com.villagepax.sim.build.BuildJob;
+import com.villagepax.sim.build.BuildSite;
+import com.villagepax.sim.build.Roads;
 import com.villagepax.sim.build.Schematic;
+import com.villagepax.sim.build.SchematicLoader;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.test.GameTest;
 import net.minecraft.test.TestContext;
@@ -76,6 +84,129 @@ public class PlacementTests extends GameTestSupport {
             }
         } finally {
             manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Деревня не строит на своём колодце и фонарях.
+     * <p>
+     * Колодец встаёт в шести–одиннадцати блоках от ратуши — ровно в том
+     * кольце, где разметка ищет место первому же новому дому, — а следы
+     * разметка сравнивала только со следами. В первом прогоне этой
+     * проверки дом лёг прямо на булыжник сруба.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "wellside", tickLimit = 200)
+    public void aVillageNeverBuildsOverItsWell(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+
+        try {
+            for (int x = -30; x <= 30; x++) {
+                for (int z = -30; z <= 30; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала на ровном лугу");
+                return;
+            }
+
+            for (int more = 0; more < 5; more++) {
+                Raising.placeNear(world, manager, village, HOUSE_SCHEMATIC);
+            }
+
+            for (Building building : village.buildings()) {
+                Schematic plan = SchematicLoader.get(BuildJob.schematicId(building)).orElseThrow();
+                Vec3i size = BuildSite.rotatedSize(plan.size(), building.rotation());
+                BlockPos a = building.anchor();
+                for (BlockPos at : manager.decorOf(village.id())) {
+                    BlockState decor = world.getBlockState(at);
+                    if (decor.isReplaceable() || decor.isIn(BlockTags.FLOWERS)) {
+                        continue;
+                    }
+                    if (at.getX() >= a.getX() - 1 && at.getX() <= a.getX() + size.getX()
+                            && at.getZ() >= a.getZ() - 1 && at.getZ() <= a.getZ() + size.getZ()) {
+                        context.throwGameTestException(building.type() + " размечен на убранстве: "
+                                + decor.getBlock() + " на " + at.toShortString());
+                    }
+                }
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Новый дом не ложится поперёк мостовой соседа.
+     * <p>
+     * Луг здесь — узкая полоса вдоль улицы дальнего дома, и любой след
+     * на ней накрыл бы мостовую: либо разметка находит место в стороне,
+     * либо честно отказывает. Прежде мостовая была для неё травой, и дом
+     * перегораживал улицу — та обрывалась у его стены.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "streetside", tickLimit = 200)
+    public void aNewHouseNeverCutsAPavedStreet(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic house = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 9, 16));
+        List<BlockPos> strip = new ArrayList<>();
+        Settlement colony = null;
+
+        try {
+            for (int x = 1; x <= 31; x++) {
+                for (int z = 10; z <= 22; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    strip.add(at);
+                }
+            }
+            colony = colonyWithBuilder(world, manager, hall);
+            // Дальний дом дверью к ратуше: его улица идёт вдоль всей полосы.
+            Building far = plan(colony, context.getAbsolutePos(new BlockPos(23, 9, 13)),
+                    HOUSE_TYPE, BlockRotation.COUNTERCLOCKWISE_90);
+            List<BlockPos> street = Roads.route(world, colony, far);
+            if (street.size() < 12) {
+                context.throwGameTestException("Улица дальнего дома короче полосы: "
+                        + street.size() + " тайлов");
+                return;
+            }
+            for (BlockPos tile : street) {
+                world.setBlockState(tile, Blocks.GRAVEL.getDefaultState());
+            }
+
+            Building site = Raising.placeNear(world, manager, colony, HOUSE_SCHEMATIC,
+                    Raising.CLOSE_RINGS).orElse(null);
+            if (site != null) {
+                Vec3i size = BuildSite.rotatedSize(house.size(), site.rotation());
+                BlockPos a = site.anchor();
+                for (BlockPos tile : street) {
+                    if (tile.getX() >= a.getX() && tile.getX() < a.getX() + size.getX()
+                            && tile.getZ() >= a.getZ() && tile.getZ() < a.getZ() + size.getZ()) {
+                        context.throwGameTestException("Дом размечен поперёк мостовой: тайл "
+                                + tile.toShortString() + " под следом " + a.toShortString());
+                    }
+                }
+            }
+        } finally {
+            if (colony != null) {
+                manager.remove(colony.id());
+            }
+            for (BlockPos at : strip) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
 

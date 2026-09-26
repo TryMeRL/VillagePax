@@ -13,9 +13,12 @@ import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Footing;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
+import com.villagepax.sim.build.Roads;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.registry.Registries;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
@@ -25,6 +28,7 @@ import net.minecraft.util.math.Vec3i;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Где поселению поставить здание и как поднять его разом.
@@ -174,6 +178,7 @@ public final class Raising {
         Heights heights = new Heights(world);
         int allowed = Traits.maxSlope(settlement.culture());
         BlockPos centre = settlement.center();
+        Set<Long> taken = occupied(world, manager, settlement);
 
         Candidate best = null;
         int found = 0;
@@ -182,7 +187,8 @@ public final class Raising {
                 // Сперва дешёвое — границы и чужие следы: они от высоты
                 // не зависят, а отсекают больше всего мест.
                 if (!(BuildOrders.check(settlement, schematicId, column, rotation)
-                        instanceof BuildOrders.Result.Placed)) {
+                        instanceof BuildOrders.Result.Placed)
+                        || covers(taken, column, BuildSite.rotatedSize(schematic.size(), rotation))) {
                     continue;
                 }
                 Site site = footing.keepsOneLevel()
@@ -215,6 +221,54 @@ public final class Raising {
 
     /** Место и поворот, которые уже годятся, и во что они обходятся. */
     private record Candidate(BlockPos anchor, BlockRotation rotation, double score) {
+    }
+
+    /**
+     * Где строить нельзя, хотя следов там нет: убранство и улицы.
+     * <p>
+     * Колодец встаёт в шести–одиннадцати блоках от ратуши — ровно в том
+     * кольце, где разметка ищет место первому новому дому, — а сравнивала
+     * она только следы со следами. В проверке дом лёг прямо на сруб.
+     * Мостовая была для неё травой, и дом перегораживал улицу соседа.
+     * <p>
+     * Цветы не в счёт: клумба не повод отказать дому, при расчистке
+     * её сносят, как траву. Всё остальное — столб фонаря, сруб, коновязь,
+     * табличка — с запасом в клетку: стена вплотную к срубу — та же теснота.
+     *
+     * @return колонны в виде {@code BlockPos.asLong(x, 0, z)}
+     */
+    private static Set<Long> occupied(ServerWorld world, SettlementManager manager,
+                                      Settlement settlement) {
+        Set<Long> taken = Roads.pavedColumns(world, settlement);
+        for (BlockPos at : manager.decorOf(settlement.id())) {
+            if (world.isChunkLoaded(at)) {
+                BlockState state = world.getBlockState(at);
+                if (state.isReplaceable() || state.isIn(BlockTags.FLOWERS)) {
+                    continue;
+                }
+            }
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    taken.add(BlockPos.asLong(at.getX() + dx, 0, at.getZ() + dz));
+                }
+            }
+        }
+        return taken;
+    }
+
+    /** Накрывает ли след хоть одну занятую колонну. */
+    private static boolean covers(Set<Long> taken, BlockPos column, Vec3i size) {
+        if (taken.isEmpty()) {
+            return false;
+        }
+        for (int dx = 0; dx < size.getX(); dx++) {
+            for (int dz = 0; dz < size.getZ(); dz++) {
+                if (taken.contains(BlockPos.asLong(column.getX() + dx, 0, column.getZ() + dz))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

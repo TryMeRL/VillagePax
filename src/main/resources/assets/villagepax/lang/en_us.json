@@ -931,5 +931,7 @@
   "villagepax.rune_stone.saga.5": "\"A long night makes a long saga.\"",
   "villagepax.rune_stone.saga.6": "\"A guest at the hearth is a joy; a guest with a sword is business.\"",
   "villagepax.rune_stone.saga.7": "\"Stone lies less than people: it is hard to rewrite.\"",
-  "villagepax.guide.wonders": "§lWonders and charms§r\n\nThe peoples have their marvels: toro, furin, rune stone, war drum, jaguar idol, weathervane, scarecrow.\n\nWear a charm in the off hand. A people gives its charm to friends."
+  "villagepax.guide.wonders": "§lWonders and charms§r\n\nThe peoples have their marvels: toro, furin, rune stone, war drum, jaguar idol, weathervane, scarecrow.\n\nWear a charm in the off hand. A people gives its charm to friends.",
+  "villagepax.command.raise.done": "The village of %s rose at %s: %s buildings, %s of them grown on top.",
+  "villagepax.command.raise.failed": "A %s village did not rise at %s: the place is taken, another village is near, or the ground is wrong."
 }

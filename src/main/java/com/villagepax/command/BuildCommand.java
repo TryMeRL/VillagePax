@@ -97,6 +97,17 @@ public final class BuildCommand {
                                         .suggests((context, builder) -> CommandSource
                                                 .suggestIdentifiers(ProfessionManager.ids(), builder))
                                         .executes(BuildCommand::hire)))
+                        .then(literal("raise")
+                                .requires(source -> source.hasPermissionLevel(2))
+                                .then(argument("culture", IdentifierArgumentType.identifier())
+                                        .suggests((context, builder) -> CommandSource
+                                                .suggestIdentifiers(CultureManager.all().keySet(), builder))
+                                        .executes(context -> raise(context, 0))
+                                        .then(argument("buildings",
+                                                com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 12))
+                                                .executes(context -> raise(context,
+                                                        com.mojang.brigadier.arguments.IntegerArgumentType
+                                                                .getInteger(context, "buildings"))))))
                         .then(literal("locate").executes(BuildCommand::locate))
                         .then(literal("sites").executes(BuildCommand::sites))
                         .then(literal("status").executes(BuildCommand::status))
@@ -282,6 +293,48 @@ public final class BuildCommand {
      * Считается по сетке, а не по загруженным чанкам: ответ нужен и про
      * те места, до которых игрок ещё не доходил.
      */
+    /**
+     * Поставить деревню народа там, где стоит вызвавший, и дорастить её.
+     * <p>
+     * Места деревень выбирает семя мира, и посмотреть разметку на настоящем
+     * рельефе — на склоне, в лесу, у реки — можно было, только отыскав такую
+     * деревню и дождавшись её роста. Здесь то же самое сразу: основание по
+     * общим правилам и ещё сколько-то зданий готовыми, из тех, что деревня
+     * строит первыми. Инструмент оператора, как и прочая отладка.
+     */
+    private static int raise(CommandContext<ServerCommandSource> context, int more) {
+        ServerCommandSource source = context.getSource();
+        ServerWorld world = source.getWorld();
+        Identifier cultureId = IdentifierArgumentType.getIdentifier(context, "culture");
+        Culture culture = CultureManager.get(cultureId);
+        BlockPos at = BlockPos.ofFloored(source.getPosition());
+        BlockPos site = culture == null ? null : com.villagepax.sim.build.Footing
+                .centreUnder(world, culture, at.getX(), at.getZ()).orElse(null);
+        Settlement village = site == null ? null
+                : com.villagepax.sim.Villages.found(world, cultureId, site).orElse(null);
+        if (village == null) {
+            source.sendError(Text.translatable("villagepax.command.raise.failed",
+                    cultureId.toString(), at.toShortString()));
+            return 0;
+        }
+
+        SettlementManager manager = SettlementManager.get(world);
+        List<Identifier> first = BuildingTypes.starting(culture.buildings());
+        int raised = 0;
+        for (int i = 0; i < more && !first.isEmpty(); i++) {
+            if (com.villagepax.sim.Raising.raise(world, manager, village,
+                    first.get(i % first.size())).isPresent()) {
+                raised++;
+            }
+        }
+        com.villagepax.sim.Streetscape.dress(world, manager, village);
+        int total = raised;
+        source.sendFeedback(() -> Text.translatable("villagepax.command.raise.done",
+                village.name(), village.center().toShortString(),
+                String.valueOf(village.buildings().size()), String.valueOf(total)), true);
+        return 1;
+    }
+
     private static int locate(CommandContext<ServerCommandSource> context) {
         ServerCommandSource source = context.getSource();
         ServerWorld world = worldOf(source);

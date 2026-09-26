@@ -853,4 +853,60 @@ public class VillageTests extends GameTestSupport {
         }
         context.complete();
     }
+
+    /**
+     * Оператор ставит деревню народа там, где стоит, и растит её разом.
+     * <p>
+     * Места деревень выбирает семя мира, и проверить разметку на настоящем
+     * рельефе — на склоне, в лесу, у реки — можно было только, найдя такую
+     * деревню и дождавшись её роста. Команда даёт то же самое здесь и сразу.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "raise", tickLimit = 200)
+    public void anOperatorRaisesAVillageWhereHeStands(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+        try {
+            for (int x = -24; x <= 24; x++) {
+                for (int z = -24; z <= 24; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+            net.minecraft.server.command.ServerCommandSource source = world.getServer()
+                    .getCommandSource().withWorld(world)
+                    .withPosition(net.minecraft.util.math.Vec3d.ofBottomCenter(centre))
+                    .withSilent();
+            world.getServer().getCommandManager().executeWithPrefix(source,
+                    "villagepax raise villagepax:norman 2");
+
+            village = manager.all().stream()
+                    .filter(one -> one.center().getSquaredDistance(centre) <= 4)
+                    .findFirst().orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Командой деревня не встала");
+                return;
+            }
+            if (!village.owner().isAutonomous()) {
+                context.throwGameTestException("Командой встала не деревня народа, а колония");
+            }
+            long done = village.buildings().stream().filter(Building::isOperational).count();
+            // Ратуша, дом, поле и ларёк — и ещё два здания сверху.
+            if (done < 6) {
+                context.throwGameTestException("Готовых зданий " + done + ", а просили ещё два");
+            }
+        } finally {
+            if (village != null) {
+                for (Building building : village.buildings()) {
+                    com.villagepax.sim.build.SchematicLoader.get(BuildJob.schematicId(building))
+                            .ifPresent(plan -> clearSkirt(world, building, plan));
+                }
+            }
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+        context.complete();
+    }
 }

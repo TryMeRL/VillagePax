@@ -605,4 +605,79 @@ public class RoadTests extends GameTestSupport {
         context.complete();
     }
 
+    /**
+     * Улица обходит дом, стоящий у неё на пути, а не режет его насквозь.
+     * <p>
+     * Прежде улица была прямой от порога к ратуше: клетки под чужим следом
+     * просто пропускались, и дорожка обрывалась у одной стены дома, чтобы
+     * начаться у другой. Житель шёл по ней до стены и искал обход сам,
+     * а игрок видел мостовую, уходящую в дом. Теперь путь ищется.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "detour", tickLimit = 200)
+    public void aStreetGoesAroundAHouseNotThroughIt(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 9, 16));
+        List<BlockPos> lawn = new ArrayList<>();
+        Settlement colony = null;
+
+        try {
+            for (int x = 0; x < 32; x++) {
+                for (int z = 0; z < 32; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    lawn.add(at);
+                }
+            }
+            colony = colonyWithBuilder(world, manager, hall);
+            // Дальний дом дверью на запад, к ратуше; ближний — поперёк прямой.
+            Building far = plan(colony, context.getAbsolutePos(new BlockPos(22, 9, 13)),
+                    HOUSE_TYPE, BlockRotation.COUNTERCLOCKWISE_90);
+            Building across = plan(colony, context.getAbsolutePos(new BlockPos(9, 9, 13)),
+                    HOUSE_TYPE, BlockRotation.NONE);
+
+            List<BlockPos> route = Roads.route(world, colony, far);
+            if (route.size() < 2) {
+                context.throwGameTestException("Улицы нет вовсе: " + route);
+                return;
+            }
+            net.minecraft.util.math.Vec3i size = com.villagepax.sim.build.BuildSite.rotatedSize(
+                    housePlan.size(), across.rotation());
+            BlockPos a = across.anchor();
+            for (int i = 0; i < route.size(); i++) {
+                BlockPos tile = route.get(i);
+                if (tile.getX() >= a.getX() && tile.getX() < a.getX() + size.getX()
+                        && tile.getZ() >= a.getZ() && tile.getZ() < a.getZ() + size.getZ()) {
+                    context.throwGameTestException("Улица заходит под чужой дом: "
+                            + tile.toShortString());
+                }
+                if (i > 0) {
+                    BlockPos last = route.get(i - 1);
+                    int side = Math.abs(tile.getX() - last.getX()) + Math.abs(tile.getZ() - last.getZ());
+                    if (side != 1 || Math.abs(tile.getY() - last.getY()) > 1) {
+                        context.throwGameTestException("Улица рвётся между "
+                                + last.toShortString() + " и " + tile.toShortString());
+                    }
+                }
+            }
+            BlockPos end = route.get(route.size() - 1);
+            if (Math.max(Math.abs(end.getX() - hall.getX()), Math.abs(end.getZ() - hall.getZ())) > 1) {
+                context.throwGameTestException("Улица не дошла до ратуши: кончается на "
+                        + end.toShortString());
+            }
+        } finally {
+            if (colony != null) {
+                manager.remove(colony.id());
+            }
+            for (BlockPos at : lawn) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
 }

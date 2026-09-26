@@ -19,6 +19,7 @@ import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3i;
 
 import java.util.ArrayList;
@@ -397,7 +398,20 @@ public final class Roads {
         // следа и мостить её нельзя; улица от этого начиналась там, где
         // линия впервые выходила из-под здания, то есть сбоку от входа.
         // Игрок и сказал: пусть пути ведут от двери.
-        for (BlockPos column : line(doorstep(building, schematic, door), colony.center())) {
+        BlockPos doorstep = doorstep(building, schematic, door);
+
+        if (!Footing.of(colony).keepsOneLevel()) {
+            // Путь ищется, а прямая осталась запасной — на случай, когда
+            // обхода нет вовсе. Она хуже, но не хуже, чем было.
+            int threshold = height;
+            List<BlockPos> found = remembered(world, colony, building,
+                    () -> search(world, colony, doorstep, threshold, footprints));
+            if (!found.isEmpty()) {
+                return found;
+            }
+        }
+
+        for (BlockPos column : line(doorstep, colony.center())) {
             // Внутри зданий не мостят. Без этого улица прошла бы прямо
             // по грядкам фермы и по земле рощи лесоруба: там под ногами
             // тот же грунт, что и на лугу.
@@ -430,6 +444,229 @@ public final class Roads {
             tiles.add(ground);
         }
         return tiles;
+    }
+
+    /**
+     * На сколько клеток улица может уйти вбок от прямой, обходя дома.
+     * <p>
+     * Двенадцать — это ширина дома с зазорами по обе стороны: обойти
+     * соседа хватает, а петли через полдеревни поиск не заложит.
+     */
+    private static final int DETOUR = 12;
+
+    /** Сколько тайлов поиск осматривает, прежде чем сдаться и вернуть прямую. */
+    private static final int SEARCH_LIMIT = 4000;
+
+    /**
+     * Цена шага по уже положенной улице — меньше шага по траве.
+     * <p>
+     * От этого улицы <b>сходятся</b>: вторая дорожка к ратуше вливается
+     * в первую, как только та рядом, и деревня получает улицу, а не
+     * пучок параллельных тропинок. И маршрут не пляшет от решения
+     * к решению: замощённое дешевле, поэтому путь держится за него.
+     */
+    private static final double PAVED_STEP = 0.6;
+
+    /** Шаг вверх или вниз: блок перепада стоит как блок пути. */
+    private static final double CLIMB_COST = 1.0;
+
+    /** Ступень, которую придётся досыпать: земляная работа, а не просто шаг. */
+    private static final double FILL_COST = 1.5;
+
+    /** Поворот: без него путь выходит ломаной лесенкой, а улица — прямыми пролётами. */
+    private static final double TURN_COST = 0.4;
+
+    /** Сколько тиков маршрут помнится: улица не меняется от решения к решению. */
+    private static final int REMEMBER_TICKS = 200;
+
+    private static final Direction[] WAYS = {Direction.NORTH, Direction.EAST,
+            Direction.SOUTH, Direction.WEST};
+
+    /** Шаг поиска: тайл, откуда в него пришли, во что обошлось и куда смотрели. */
+    private record Node(BlockPos tile, Node parent, double cost, Direction heading) {
+    }
+
+    /** Очередь поиска: порядок постановки разводит ничьи одинаково каждый раз. */
+    private record Open(Node node, double estimate, long order) {
+    }
+
+    /** Запомненный маршрут: до какого тика и при скольких зданиях он верен. */
+    private record Remembered(long until, int buildings, List<BlockPos> tiles) {
+    }
+
+    /**
+     * Недавние маршруты. Их спрашивают билдер на каждом решении, разметка
+     * и откос, и все они хотят один и тот же ответ: улица не хранится,
+     * но и считать её заново каждые полсекунды незачем.
+     */
+    private static final java.util.Map<java.util.UUID, Remembered> ROUTES =
+            new java.util.LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<java.util.UUID, Remembered> eldest) {
+                    return size() > 512;
+                }
+            };
+
+    /**
+     * Маршрут из памяти, если он свежий, иначе — найденный заново.
+     * <p>
+     * Новое здание сбрасывает память сразу: оно могло встать поперёк
+     * старой улицы, и та обязана пойти в обход.
+     */
+    private static List<BlockPos> remembered(ServerWorld world, Settlement colony, Building building,
+                                             java.util.function.Supplier<List<BlockPos>> search) {
+        long now = world.getTime();
+        int buildings = colony.buildings().size();
+        Remembered known = ROUTES.get(building.id());
+        if (known != null && known.until() >= now && known.until() - REMEMBER_TICKS <= now
+                && known.buildings() == buildings) {
+            return known.tiles();
+        }
+        List<BlockPos> tiles = List.copyOf(search.get());
+        ROUTES.put(building.id(), new Remembered(now + REMEMBER_TICKS, buildings, tiles));
+        return tiles;
+    }
+
+    /**
+     * Путь улицы по земле: от порога к ратуше, в обход домов и убранства.
+     * <p>
+     * Прежде улица была прямой: клетки под чужим следом пропускались,
+     * и дорожка обрывалась у одной стены дома, чтобы продолжиться у другой.
+     * Житель шёл по ней до стены и искал обход сам. Теперь путь ищется
+     * поиском A* по тем же правилам шага, что были у прямой: тайл земли
+     * на блок выше или ниже, или ступень на блок ниже с досыпкой. Путь
+     * идёт сторонами клеток — по диагонали меж двух углов не проходит
+     * ни житель, ни тележка.
+     *
+     * @return тайлы от порога до площади, или пусто, если обхода не нашлось
+     */
+    private static List<BlockPos> search(ServerWorld world, Settlement colony, BlockPos from,
+                                         int height, List<Footprint> footprints) {
+        BlockPos centre = colony.center();
+        if (Math.max(Math.abs(from.getX() - centre.getX()),
+                Math.abs(from.getZ() - centre.getZ())) > MAX_LENGTH) {
+            return List.of();
+        }
+        BlockPos first = tileAt(world, from.getX(), from.getZ(), height);
+        if (first == null || inside(footprints, first)) {
+            return List.of();
+        }
+
+        Footprint goal = plaza(colony);
+        java.util.Set<Long> decor = decorColumns(world, colony);
+        int minX = Math.min(from.getX(), centre.getX()) - DETOUR;
+        int maxX = Math.max(from.getX(), centre.getX()) + DETOUR;
+        int minZ = Math.min(from.getZ(), centre.getZ()) - DETOUR;
+        int maxZ = Math.max(from.getZ(), centre.getZ()) + DETOUR;
+
+        java.util.PriorityQueue<Open> open = new java.util.PriorityQueue<>(
+                Comparator.comparingDouble(Open::estimate).thenComparingLong(Open::order));
+        java.util.Map<BlockPos, Double> best = new java.util.HashMap<>();
+        long order = 0;
+        open.add(new Open(new Node(first, null, 0, null), remaining(first, goal), order++));
+        best.put(first, 0.0);
+
+        int looked = 0;
+        while (!open.isEmpty() && looked++ < SEARCH_LIMIT) {
+            Node node = open.poll().node();
+            if (node.cost() > best.getOrDefault(node.tile(), Double.MAX_VALUE) + 1e-9) {
+                continue;
+            }
+            if (goal.contains(node.tile())) {
+                List<BlockPos> tiles = new ArrayList<>();
+                for (Node step = node; step != null; step = step.parent()) {
+                    tiles.add(step.tile());
+                }
+                java.util.Collections.reverse(tiles);
+                return tiles;
+            }
+            for (Direction way : WAYS) {
+                int x = node.tile().getX() + way.getOffsetX();
+                int z = node.tile().getZ() + way.getOffsetZ();
+                if (x < minX || x > maxX || z < minZ || z > maxZ
+                        || decor.contains(BlockPos.asLong(x, 0, z))) {
+                    continue;
+                }
+                BlockPos next = tileAt(world, x, z, node.tile().getY());
+                if (next == null || inside(footprints, next)) {
+                    continue;
+                }
+                double cost = node.cost() + stepCost(world, node, next, way);
+                if (cost < best.getOrDefault(next, Double.MAX_VALUE) - 1e-9) {
+                    best.put(next, cost);
+                    open.add(new Open(new Node(next, node, cost, way),
+                            cost + remaining(next, goal), order++));
+                }
+            }
+        }
+        return List.of();
+    }
+
+    /** Тайл улицы в колонне: земля на ходовой высоте или ступень ниже. */
+    private static BlockPos tileAt(ServerWorld world, int x, int z, int height) {
+        BlockPos ground = ground(world, x, z, height);
+        return ground != null ? ground : step(world, x, z, height);
+    }
+
+    /** Во что обходится шаг на соседний тайл. */
+    private static double stepCost(ServerWorld world, Node from, BlockPos next, Direction way) {
+        BlockState state = world.getBlockState(next);
+        double cost = state.isIn(ModTags.PREFERRED_PATH) ? PAVED_STEP : 1.0;
+        if (next.getY() != from.tile().getY()) {
+            cost += CLIMB_COST;
+        }
+        if (isFree(world, next)) {
+            cost += FILL_COST;
+        }
+        if (from.heading() != null && from.heading() != way) {
+            cost += TURN_COST;
+        }
+        return cost;
+    }
+
+    /** Сколько ещё идти до площади — не больше, чем на самом деле. */
+    private static double remaining(BlockPos tile, Footprint goal) {
+        int dx = Math.max(0, Math.max(goal.minX() - tile.getX(), tile.getX() - goal.maxX()));
+        int dz = Math.max(0, Math.max(goal.minZ() - tile.getZ(), tile.getZ() - goal.maxZ()));
+        return PAVED_STEP * (dx + dz);
+    }
+
+    /**
+     * Куда улица ведёт: к ратуше вплотную — под самые стены её следа,
+     * а если зала нет, к блоку ратуши в середине.
+     * <p>
+     * Прямая прежде упиралась ровно туда же: клетки под следом ратуши
+     * пропускались, и улица кончалась у её края.
+     */
+    private static Footprint plaza(Settlement colony) {
+        for (Building hall : colony.buildings()) {
+            if (!com.villagepax.core.building.BuildingTypes.isTownHall(hall.type())) {
+                continue;
+            }
+            Schematic schematic = SchematicLoader.get(BuildJob.schematicId(hall)).orElse(null);
+            if (schematic == null) {
+                continue;
+            }
+            Vec3i size = BuildSite.rotatedSize(schematic.size(), hall.rotation());
+            BlockPos a = hall.anchor();
+            return new Footprint(a.getX() - 1, a.getZ() - 1,
+                    a.getX() + size.getX(), a.getZ() + size.getZ());
+        }
+        BlockPos centre = colony.center();
+        return new Footprint(centre.getX() - 1, centre.getZ() - 1,
+                centre.getX() + 1, centre.getZ() + 1);
+    }
+
+    /** Колонны убранства, через которые улица не идёт: сруб колодца, столб, коновязь. */
+    private static java.util.Set<Long> decorColumns(ServerWorld world, Settlement colony) {
+        java.util.Set<Long> columns = new java.util.HashSet<>();
+        for (BlockPos at : com.villagepax.sim.SettlementManager.get(world).decorOf(colony.id())) {
+            BlockState state = world.getBlockState(at);
+            if (!state.isReplaceable() && !state.isIn(BlockTags.FLOWERS)) {
+                columns.add(BlockPos.asLong(at.getX(), 0, at.getZ()));
+            }
+        }
+        return columns;
     }
 
     /**

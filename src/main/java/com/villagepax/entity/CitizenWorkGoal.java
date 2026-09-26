@@ -95,6 +95,19 @@ public class CitizenWorkGoal extends Goal {
             return;
         }
 
+        if (standsAt(next)) {
+            // На месте: путь не нужен, а смотреть надо на дело или на того,
+            // кто подошёл. Прежде взгляд шёл туда же, куда шаг, — на клетку,
+            // где житель стоит, — и работник у грядки, у ствола, за
+            // прилавком смотрел себе под ноги.
+            if (!body.getNavigation().isIdle()) {
+                body.getNavigation().stop();
+            }
+            lookAtWorkOrVisitor(next);
+            target = next;
+            return;
+        }
+
         body.getLookControl().lookAt(next.getX() + 0.5, next.getY() + 0.5, next.getZ() + 0.5);
 
         boolean changed = !next.equals(target);
@@ -110,5 +123,45 @@ public class CitizenWorkGoal extends Goal {
                     next.getZ() + 0.5 + spreadZ, SPEED);
         }
         cooldown = REPATH_INTERVAL;
+    }
+
+    /**
+     * Ближе этого к цели житель уже на месте.
+     * <p>
+     * Шире смещения подхода ({@link #SPREAD}) с запасом: житель встаёт
+     * не в середину клетки, а со своей стороны, и там он тоже на месте.
+     */
+    private static final double AT_PLACE = SPREAD + 0.5;
+
+    /** Докуда житель на месте замечает подошедшего игрока. */
+    private static final double VISITOR = 8.0;
+
+    /** Докуда смотрят на дело: дальше — это уже не то, что в руках. */
+    private static final double WORK_IN_SIGHT = 5.0;
+
+    private boolean standsAt(BlockPos spot) {
+        double dx = body.getX() - (spot.getX() + 0.5);
+        double dz = body.getZ() - (spot.getZ() + 0.5);
+        return dx * dx + dz * dz <= AT_PLACE * AT_PLACE && Math.abs(body.getY() - spot.getY()) < 1.0;
+    }
+
+    /**
+     * Взгляд на месте: на дело, если оно не под ногами, иначе на игрока
+     * рядом, иначе — никуда в особенности: голова сама вернётся прямо.
+     * Купец смотрит на покупателя, фермер — на грядку, лесоруб — на ствол.
+     */
+    private void lookAtWorkOrVisitor(BlockPos spot) {
+        BlockPos work = body.workFocus();
+        if (work != null && !work.equals(spot)
+                && body.squaredDistanceTo(net.minecraft.util.math.Vec3d.ofCenter(work))
+                <= WORK_IN_SIGHT * WORK_IN_SIGHT) {
+            body.getLookControl().lookAt(work.getX() + 0.5, work.getY() + 0.5, work.getZ() + 0.5);
+            return;
+        }
+        net.minecraft.entity.player.PlayerEntity visitor =
+                body.getWorld().getClosestPlayer(body, VISITOR);
+        if (visitor != null && !visitor.isSpectator()) {
+            body.getLookControl().lookAt(visitor, 30.0f, 30.0f);
+        }
     }
 }

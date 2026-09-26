@@ -219,6 +219,9 @@ public final class WorkTicker {
             body.setDozing(false);
         }
         leash(context, part);
+        // Дело на это решение назовёт работа; сон, сбор и обед смотрят
+        // не на вчерашнюю грядку.
+        body.setWorkFocus(null);
 
         switch (part) {
             case SLEEP -> {
@@ -363,6 +366,7 @@ public final class WorkTicker {
         // житель топтался, и игрок видел, как он «тупит».
         context.body().setWorkTarget(destination[0] == null
                 ? null : Standing.besideOrAt(context.world(), destination[0]));
+        context.body().setWorkFocus(destination[0]);
 
         // Если житель решение за решением метит в одну и ту же точку и не
         // приближается — он от неё отступится, и следующее решение выберет

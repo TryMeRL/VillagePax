@@ -593,6 +593,22 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         this.workTarget = workTarget == null ? null : workTarget.toImmutable();
     }
 
+    /**
+     * На что житель смотрит, стоя у цели: грядка, ствол, прилавок.
+     * <p>
+     * Цель — это где встать, а дело лежит рядом с ней: фермера ставят у
+     * грядки, а не в грядку. Не сохраняется: это взгляд, а не состояние.
+     */
+    private BlockPos workFocus;
+
+    public BlockPos workFocus() {
+        return workFocus;
+    }
+
+    public void setWorkFocus(BlockPos workFocus) {
+        this.workFocus = workFocus;
+    }
+
     public void link(UUID settlementId, UUID citizenId) {
         this.settlementId = settlementId;
         this.citizenId = citizenId;

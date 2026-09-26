@@ -2455,6 +2455,108 @@ public class PassabilityTests extends GameTestSupport {
     }
 
     /**
+     * Дойдя до прилавка, купец за ним и остаётся.
+     * <p>
+     * Прежде он, придя, отпускал цель — чтобы не топтаться на месте, — и его
+     * тут же забирала прогулка. Следующее решение звало его обратно, и так
+     * весь день: купец ходил кругами около ларька, а в сохранении заказчика
+     * и вовсе стоял в тридцати блоках от него. Место за прилавком — это цель,
+     * а не пункт маршрута: её держат, пока идёт работа.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trade", tickLimit = 200)
+    public void aMerchantAtHisCounterKeepsHisPlace(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic stallPlan = schematic(context, STALL_SCHEMATIC);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 8, 0));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building stall = plan(colony, anchor, STALL_TYPE, BlockRotation.NONE);
+
+        try {
+            stockFor(world, colony, stallPlan);
+            if (BuildJob.advance(world, manager, colony.id(), stall.id(), 20_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Ларёк не встал");
+                return;
+            }
+            BlockPos counter = Workplaces.stations(stall).stream().findFirst().orElse(null);
+            if (counter == null) {
+                context.throwGameTestException("В ларьке нет рабочего места");
+                return;
+            }
+            Citizen merchant = hireWithBody(world, colony, Villages.MERCHANT, counter);
+            Workplaces.assign(world, colony);
+            CitizenEntity body = bodyOf(world, colony, merchant);
+
+            WorkTicker.decide(world, manager, colony, merchant, Schedule.MORNING_WORK);
+            if (body.workTarget() == null) {
+                context.throwGameTestException("Купец у прилавка отпустил цель — "
+                        + "его заберёт прогулка");
+            }
+        } finally {
+            demolish(world, stall, stallPlan);
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Житель на своём месте смотрит на дело или на гостя, а не себе под ноги.
+     * <p>
+     * Цель навигации держит и шаг, и взгляд, и смотрела она туда же, куда
+     * вела, — на клетку, где житель стоит. Пока купец, дойдя, отпускал
+     * цель, этого не было видно; стоило держать его за прилавком — и он
+     * уставился бы в пол. Так же всю работу смотрели в землю фермер
+     * у грядки и лесоруб у ствола: цель им ставилась рядом с делом.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "trade")
+    public void aCitizenAtHisPostDoesNotStareAtHisFeet(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos spot = context.getAbsolutePos(new BlockPos(3, 2, 3));
+        List<BlockPos> floor = new ArrayList<>();
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        try {
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
+                    BlockPos at = spot.add(dx, -1, dz);
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+            Citizen stander = hireWithBody(world, colony, Villages.MERCHANT, spot);
+            CitizenEntity body = bodyOf(world, colony, stander);
+            body.refreshPositionAndAngles(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, 0f, 0f);
+            body.setWorkTarget(spot);
+
+            com.villagepax.entity.CitizenWorkGoal goal = new com.villagepax.entity.CitizenWorkGoal(body);
+            goal.start();
+            goal.tick();
+            if (body.getLookControl().isLookingAtSpecificPosition()
+                    && body.getLookControl().getLookY() < body.getEyeY() - 1.0) {
+                context.throwGameTestException("Житель на месте смотрит себе под ноги: взгляд на "
+                        + body.getLookControl().getLookY() + ", глаза на " + body.getEyeY());
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            for (BlockPos at : floor) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
      * Ратуша растёт до четвёртого уровня, и колония становится столицей.
      * <p>
      * Ступень «столица» была в лестнице с первой недели и недостижима:

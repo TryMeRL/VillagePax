@@ -199,7 +199,9 @@ public final class Raising {
                 Site site = footing.keepsOneLevel()
                         ? onTheLevel(world, settlement, footing, column, schematic, rotation)
                         : onTheGround(heights, allowed, column, schematic, rotation);
-                if (site == null || !isWalkableFrom(centre, site.anchor())) {
+                if (site == null || !isWalkableFrom(centre, site.anchor())
+                        || (!footing.keepsOneLevel() && !slopesTo(settlement, site.anchor(),
+                        BuildSite.rotatedSize(schematic.size(), rotation)))) {
                     continue;
                 }
                 double score = score(centre, schematic, site.anchor(), rotation)
@@ -491,6 +493,39 @@ public final class Raising {
         int ground = heights.at(front.getX(), front.getZ());
         return ground == FloorChoice.NO_GROUND
                 ? FloorChoice.NO_GROUND : ground - door.pos().getY() + 1;
+    }
+
+    /**
+     * Уживается ли площадка с соседями по высоте.
+     * <p>
+     * Между площадками в {@code g} клетках друг от друга — не больше
+     * {@code g + 1} блоков: не круче блока на шаг, по которому ходят. Найдено
+     * на настоящем рельефе: ларёк встал в трёх клетках от дома и на пять
+     * блоков ниже, и никакой откос не мог сгладить такой перепад — где-то
+     * обязана была остаться стенка, и откос ларька, сделанный позже, срезал
+     * край откоса дома. Соседи за двумя откосами друг от друга не спорят
+     * вовсе: между ними лежит нетронутая земля.
+     */
+    public static boolean slopesTo(Settlement settlement, BlockPos anchor, Vec3i footprint) {
+        for (Building other : settlement.buildings()) {
+            Schematic plan = SchematicLoader.get(BuildJob.schematicId(other)).orElse(null);
+            if (plan == null) {
+                continue;
+            }
+            Vec3i size = BuildSite.rotatedSize(plan.size(), other.rotation());
+            int gapX = Math.max(other.anchor().getX() - (anchor.getX() + footprint.getX()),
+                    anchor.getX() - (other.anchor().getX() + size.getX()));
+            int gapZ = Math.max(other.anchor().getZ() - (anchor.getZ() + footprint.getZ()),
+                    anchor.getZ() - (other.anchor().getZ() + size.getZ()));
+            int gap = Math.max(0, Math.max(gapX, gapZ));
+            if (gap > 2 * Grading.MARGIN) {
+                continue;
+            }
+            if (Math.abs(other.anchor().getY() - anchor.getY()) > gap + 1) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

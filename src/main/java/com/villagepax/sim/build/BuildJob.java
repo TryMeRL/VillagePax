@@ -470,7 +470,13 @@ public final class BuildJob {
             // не проход, а погром: билдер просто обходит чужую стену,
             // а житель обойдёт её сам.
             if (!BuildSite.covers(building.anchor(), schematic.size(), building.rotation(), where)
-                    && standsInAnother(settlement, building, where)) {
+                    && (standsInAnother(settlement, building, where)
+                    || Grading.isEarth(world.getBlockState(where)))) {
+                // И землю подход не роет: его дело — дерево и хлам у двери,
+                // а грунт ровняет откос. Выкопай землю на уровне порога —
+                // и на склоне, поднимающемся от двери, выйдет ямка в три
+                // шага, а за ней уступ в два блока; это поймала проверка
+                // «деревня пони на холмах».
                 return StepResult.SKIPPED;
             }
 

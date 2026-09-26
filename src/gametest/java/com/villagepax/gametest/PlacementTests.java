@@ -549,9 +549,18 @@ public class PlacementTests extends GameTestSupport {
                                                     .orElseThrow().size(), b.rotation(),
                                             column.withY(b.anchor().getY())))
                                     .map(b -> b.type().getPath()).findFirst().orElse("-");
+                            String passage = all.stream().filter(b -> b != building)
+                                    .filter(b -> Access.doorway(b, SchematicLoader.get(
+                                                    BuildJob.schematicId(b)).orElseThrow(),
+                                            com.villagepax.sim.build.Grading.APPROACH, 0)
+                                            .contains(BlockPos.asLong(column.getX(), 0, column.getZ())))
+                                    .map(b -> b.type().getPath()).findFirst().orElse("-");
+                            boolean decor = manager.decorOf(village.id()).stream()
+                                    .anyMatch(d -> d.getX() == column.getX() && d.getZ() == column.getZ());
                             front.append(" | шаг").append(step).append(" земля ")
                                     .append(earthTop(world, column, door.getY())).append(" след ")
-                                    .append(owner);
+                                    .append(owner).append(" проход ").append(passage)
+                                    .append(decor ? " убранство" : "");
                         }
                         context.throwGameTestException("В " + building.type() + " на "
                                 + building.anchor().toShortString() + " не войти: " + trouble + front);
@@ -721,6 +730,53 @@ public class PlacementTests extends GameTestSupport {
                 world.setBlockState(stump.up(), Blocks.AIR.getDefaultState());
             }
             cleanUpVillage(world, manager, village, hall, ground);
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    /**
+     * Сосед не встаёт так низко или высоко, что между домами не проложить склона.
+     * <p>
+     * Найдено на настоящем рельефе: ларёк встал в трёх клетках от дома и на
+     * пять блоков ниже. Перепад в пять блоков на трёх клетках не сгладит
+     * никакой откос — где-то обязана остаться стенка, и откос ларька,
+     * сделанный позже, срезал край откоса дома. Правило простое: между
+     * площадками в {@code g} клетках друг от друга — не больше {@code g + 1}
+     * блоков, то есть не круче блока на шаг. Проверяется само правило, как
+     * у подъёма от ратуши: расстановку на нужном рельефе не поймать за руку.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "neighbours")
+    public void neighboursStayWithinAWalkableSlope(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic house = schematic(context, HOUSE_SCHEMATIC);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        try {
+            BlockPos a = context.getAbsolutePos(new BlockPos(0, 10, 0));
+            plan(colony, a, HOUSE_TYPE, BlockRotation.NONE);
+            Vec3i size = BuildSite.rotatedSize(house.size(), BlockRotation.NONE);
+            int south = size.getZ() + BuildOrders.GAP;
+
+            if (Raising.slopesTo(colony, a.add(0, -5, south), size)) {
+                context.throwGameTestException("В трёх клетках на пять ниже — годно: "
+                        + "между домами останется стенка");
+            }
+            if (!Raising.slopesTo(colony, a.add(0, -4, south), size)) {
+                context.throwGameTestException("В трёх клетках на четыре ниже — отказ, "
+                        + "а склон в блок на шаг там ложится");
+            }
+            if (!Raising.slopesTo(colony, a.add(0, -5, south + 2), size)) {
+                context.throwGameTestException("В пяти клетках на пять ниже — отказ, "
+                        + "а там склон шире");
+            }
+            if (!Raising.slopesTo(colony, a.add(0, -12, south + 10), size)) {
+                context.throwGameTestException("Дом за двумя откосами от соседа не спорит "
+                        + "с ним высотой, а ему отказано");
+            }
+        } finally {
+            manager.remove(colony.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
         context.complete();

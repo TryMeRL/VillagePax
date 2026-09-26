@@ -3,6 +3,9 @@ package com.villagepax.gametest;
 import com.villagepax.sim.BuildProgress;
 import net.minecraft.server.world.ServerWorld;
 import com.villagepax.entity.CitizenEntity;
+import com.villagepax.entity.CitizenSpawner;
+import com.villagepax.sim.Gender;
+import net.minecraft.util.math.Vec3d;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
@@ -743,6 +746,84 @@ public class CraftTests extends GameTestSupport {
         }
 
         context.complete();
+    }
+
+    /**
+     * Житель, дважды упёршийся в одну и ту же цель, переносится к ней.
+     * <p>
+     * Отказ от недостижимого — первая ступень, и она верна: пусть возьмётся
+     * за другое. Но у билдера дело одно — стройка, — и отказ кончался тем,
+     * что через полминуты он снова упирался в ту же стену, и так до конца
+     * мира; в сохранении заказчика ровно так висела стройка ларька майя.
+     * MineColonies в таком случае переносит жителя, «набравшегося решимости»,
+     * на место рядом с целью, — это и есть последняя ступень, после отказа,
+     * а не вместо него.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "stuck", tickLimit = 900)
+    public void aWorkerStuckTwiceIsBroughtToHisWork(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos cell = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        BlockPos work = context.getAbsolutePos(new BlockPos(8, 2, 2));
+        List<BlockPos> stone = new ArrayList<>();
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+
+        // Пол под целью и каменная клетка вокруг жителя: отсюда не выйти.
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                for (BlockPos at : List.of(work.add(dx, -1, dz), cell.add(dx, -1, dz),
+                        cell.add(dx, 2, dz))) {
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    stone.add(at);
+                }
+                if (dx != 0 || dz != 0) {
+                    for (int up = 0; up <= 1; up++) {
+                        BlockPos wall = cell.add(dx, up, dz);
+                        world.setBlockState(wall, Blocks.STONE.getDefaultState());
+                        stone.add(wall);
+                    }
+                }
+            }
+        }
+        // Без ремесла: стратегия мода не метит им в цели сама и не мешает проверке.
+        Citizen walledIn = evenNewborn("Узник", "", NORMAN, Gender.MALE);
+        walledIn.setLived(com.villagepax.sim.life.Ages.grownAt());
+        walledIn.setPosition(Vec3d.ofBottomCenter(cell));
+        colony.addCitizen(walledIn);
+        CitizenEntity body = CitizenSpawner.spawnBody(world, colony, walledIn);
+
+        for (int decision = 0; decision < 8; decision++) {
+            body.noteReachAttempt(work);
+        }
+        if (!body.isUnreachable(work)) {
+            context.throwGameTestException("Первый отказ не записан: житель не отступился");
+        }
+        if (body.getBlockPos().getSquaredDistance(cell) > 1) {
+            context.throwGameTestException("Житель перенесён с первого же отказа — "
+                    + "это не последняя ступень, а первая");
+        }
+
+        // Память об отказе живёт полминуты; потом он пробует снова — и снова упирается.
+        context.runAtTick(700, () -> {
+            try {
+                for (int decision = 0; decision < 8; decision++) {
+                    body.noteReachAttempt(work);
+                }
+                if (body.getBlockPos().getSquaredDistance(work) > 4) {
+                    context.throwGameTestException("Дважды упёршись в одну цель, житель так "
+                            + "и сидит в клетке на " + body.getBlockPos().toShortString());
+                }
+            } finally {
+                discardBodies(world, colony);
+                manager.remove(colony.id());
+                for (BlockPos at : stone) {
+                    world.setBlockState(at, Blocks.AIR.getDefaultState());
+                }
+                world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            }
+            context.complete();
+        });
     }
 
     /**

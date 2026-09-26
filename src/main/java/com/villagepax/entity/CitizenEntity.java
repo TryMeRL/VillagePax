@@ -257,6 +257,10 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     public void noteReachAttempt(BlockPos target) {
         if (target == null || squaredDistanceTo(Vec3d.ofCenter(target))
                 <= CLOSE_ENOUGH * CLOSE_ENOUGH) {
+            if (target != null) {
+                // Дошёл — прошлые отказы от этой точки не в счёт.
+                strikes.remove(target);
+            }
             stuckOn = null;
             stuckFor = 0;
             return;
@@ -271,12 +275,69 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
             return;
         }
 
+        BlockPos lost = stuckOn;
+        stuckOn = null;
+        stuckFor = 0;
+
+        // Второй отказ от той же точки — последняя ступень: перенос.
+        // Первый — честный отказ, пусть берётся за другое; но у билдера дело
+        // одно, и без переноса он через полминуты упирался бы в ту же стену
+        // снова, и так до конца мира.
+        int strike = strikes.merge(lost, 1, Integer::sum);
+        if (strike >= RELOCATE_ON_STRIKE && relocateNear(lost)) {
+            strikes.remove(lost);
+            unreachable.remove(lost);
+            return;
+        }
+        if (strikes.size() > REMEMBER_AT_MOST) {
+            strikes.clear();
+        }
+
         if (unreachable.size() >= REMEMBER_AT_MOST) {
             unreachable.clear();
         }
-        unreachable.put(stuckOn, getWorld().getTime() + FORGET_AFTER);
-        stuckOn = null;
-        stuckFor = 0;
+        unreachable.put(lost, getWorld().getTime() + FORGET_AFTER);
+    }
+
+    /**
+     * С какого отказа от одной и той же точки житель переносится к ней.
+     * <p>
+     * Лестница взята у MineColonies, где застрявший житель, «набравшись
+     * решимости», переносится к цели: сперва перепрокладка пути (её делает
+     * цель навигации сама), потом отказ и другое дело, и только потом —
+     * перенос. Со второго отказа, а не с первого: первый бывает и у того,
+     * кто просто выбрал неудачное дело.
+     */
+    private static final int RELOCATE_ON_STRIKE = 2;
+
+    /** Дальше этого не переносят: это уже не «застрял у стены», а «потерялся». */
+    private static final double RELOCATE_REACH = 64.0;
+
+    /** Сколько раз житель отступался от каждой точки — до переноса или прихода. */
+    private final Map<BlockPos, Integer> strikes = new HashMap<>();
+
+    /**
+     * Перенести тело на место рядом с точкой, где можно стоять.
+     * <p>
+     * С облачком на обоих концах: перенос виден и читается как «добрался»,
+     * а не как сбой. Места рядом нет или оно слишком далеко — переноса нет.
+     */
+    private boolean relocateNear(BlockPos target) {
+        if (!(getWorld() instanceof ServerWorld world)
+                || squaredDistanceTo(Vec3d.ofCenter(target)) > RELOCATE_REACH * RELOCATE_REACH) {
+            return false;
+        }
+        BlockPos spot = com.villagepax.sim.work.Standing.nextTo(world, target).orElse(null);
+        if (spot == null) {
+            return false;
+        }
+        world.spawnParticles(net.minecraft.particle.ParticleTypes.POOF, getX(), getY() + 0.5, getZ(),
+                8, 0.3, 0.4, 0.3, 0.02);
+        getNavigation().stop();
+        refreshPositionAndAngles(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, getYaw(), getPitch());
+        world.spawnParticles(net.minecraft.particle.ParticleTypes.POOF, getX(), getY() + 0.5, getZ(),
+                8, 0.3, 0.4, 0.3, 0.02);
+        return true;
     }
 
     /**

@@ -242,6 +242,8 @@ public class PlacementTests extends GameTestSupport {
         BlockPos chest = context.getAbsolutePos(new BlockPos(10, slopeTop(10) + 1, 15));
         BlockPos fence = context.getAbsolutePos(new BlockPos(12, slopeTop(12) + 1, 19));
         BlockPos water = context.getAbsolutePos(new BlockPos(19, slopeTop(19), 15));
+        // Дикий куст у стены — листва на траве там, где откосу надо досыпать.
+        BlockPos bush = context.getAbsolutePos(new BlockPos(19, slopeTop(19) + 1, 13));
         BlockPos trunk = context.getAbsolutePos(new BlockPos(11, slopeTop(11) + 1, 17));
         Settlement colony = null;
         Building house = null;
@@ -266,6 +268,8 @@ public class PlacementTests extends GameTestSupport {
             world.setBlockState(chest, Blocks.CHEST.getDefaultState());
             world.setBlockState(fence, Blocks.OAK_FENCE.getDefaultState());
             world.setBlockState(water, Blocks.WATER.getDefaultState());
+            world.setBlockState(bush, Blocks.OAK_LEAVES.getDefaultState()
+                    .with(net.minecraft.block.LeavesBlock.PERSISTENT, false));
             for (int up = 0; up < 3; up++) {
                 world.setBlockState(trunk.up(up), Blocks.OAK_LOG.getDefaultState());
             }
@@ -348,7 +352,7 @@ public class PlacementTests extends GameTestSupport {
                 demolish(world, house, housePlan);
                 clearSkirt(world, house, housePlan);
             }
-            for (BlockPos at : List.of(chest, fence, water)) {
+            for (BlockPos at : List.of(chest, fence, water, bush)) {
                 world.setBlockState(at, Blocks.AIR.getDefaultState());
             }
             for (int up = 0; up < 3; up++) {

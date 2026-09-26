@@ -282,8 +282,11 @@ public final class Grading {
         }
         for (int y = top + 1; y <= low; y++) {
             BlockState state = world.getBlockState(column.withY(y));
-            if (!state.isAir() && !isLitter(state)) {
-                // В воду, в листву и в чужое не сыплем.
+            if (!state.isAir() && !isLitter(state) && !isWildLeaves(state)) {
+                // В воду и в чужое не сыплем. Дикий куст у стены — сыплем:
+                // листва не земля и не чужая вещь, а без засыпки у стены
+                // оставалась яма под кустом. Посаженная рукой листва —
+                // чужая, её не трогают.
                 return false;
             }
         }
@@ -296,6 +299,12 @@ public final class Grading {
             budget[0]--;
         }
         return true;
+    }
+
+    /** Дикая листва: выросла сама, а не посажена рукой. */
+    private static boolean isWildLeaves(BlockState state) {
+        return state.isIn(BlockTags.LEAVES) && state.contains(net.minecraft.block.LeavesBlock.PERSISTENT)
+                && !state.get(net.minecraft.block.LeavesBlock.PERSISTENT);
     }
 
     /** Есть ли вода или лава рядом со срываемым столбом. */

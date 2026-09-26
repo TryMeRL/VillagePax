@@ -105,6 +105,36 @@ public final class Access {
     }
 
     /**
+     * Проход перед входами: клетки, по которым к зданию подходят.
+     * <p>
+     * Нужен разметке и откосу. Зазор между следами — три клетки, и он
+     * держал дома порознь, но не держал их <b>подальше от чужой двери</b>:
+     * в проверке «деревня на холмах» новый дом встал в трёх клетках прямо
+     * перед входом соседа, и тот упёрся в его стену. Проход длиннее зазора
+     * и шире двери, чтобы к ней можно было подойти и сбоку.
+     *
+     * @param length    сколько шагов от порога
+     * @param halfWidth сколько клеток в каждую сторону от линии двери
+     * @return колонны в виде {@code BlockPos.asLong(x, 0, z)}
+     */
+    public static java.util.Set<Long> doorway(Building building, Schematic schematic, int length,
+                                              int halfWidth) {
+        java.util.Set<Long> cells = new java.util.HashSet<>();
+        for (BlockPos door : entrances(building, schematic)) {
+            Direction out = awayFrom(building, schematic, door);
+            Direction side = out.rotateYClockwise();
+            for (int step = 1; step <= length; step++) {
+                BlockPos ahead = door.offset(out, step);
+                for (int lateral = -halfWidth; lateral <= halfWidth; lateral++) {
+                    BlockPos at = ahead.offset(side, lateral);
+                    cells.add(BlockPos.asLong(at.getX(), 0, at.getZ()));
+                }
+            }
+        }
+        return cells;
+    }
+
+    /**
      * Куда крыльцо <b>могло бы</b> лечь — одной геометрией, без мира.
      * <p>
      * Нужно уборке: ступени ложатся снаружи следа здания, а снос идёт

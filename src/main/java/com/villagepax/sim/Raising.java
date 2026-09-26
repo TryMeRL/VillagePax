@@ -13,6 +13,8 @@ import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Footing;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
+import com.villagepax.sim.build.Access;
+import com.villagepax.sim.build.Grading;
 import com.villagepax.sim.build.Roads;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
@@ -179,6 +181,7 @@ public final class Raising {
         int allowed = Traits.maxSlope(settlement.culture());
         BlockPos centre = settlement.center();
         Set<Long> taken = occupied(world, manager, settlement);
+        Set<Long> walls = footprintColumns(settlement);
 
         Candidate best = null;
         int found = 0;
@@ -187,8 +190,10 @@ public final class Raising {
                 // Сперва дешёвое — границы и чужие следы: они от высоты
                 // не зависят, а отсекают больше всего мест.
                 if (!(BuildOrders.check(settlement, schematicId, column, rotation)
-                        instanceof BuildOrders.Result.Placed)
-                        || covers(taken, column, BuildSite.rotatedSize(schematic.size(), rotation))) {
+                        instanceof BuildOrders.Result.Placed placed)
+                        || covers(taken, column, BuildSite.rotatedSize(schematic.size(), rotation))
+                        || meets(walls, Access.doorway(placed.site(), schematic,
+                        Grading.APPROACH, 1))) {
                     continue;
                 }
                 Site site = footing.keepsOneLevel()
@@ -240,6 +245,13 @@ public final class Raising {
     private static Set<Long> occupied(ServerWorld world, SettlementManager manager,
                                       Settlement settlement) {
         Set<Long> taken = Roads.pavedColumns(world, settlement);
+        // Проход перед чужой дверью: в проверке «деревня на холмах» новый
+        // дом встал в трёх клетках прямо перед входом соседа — зазор это
+        // позволял, — и тот упёрся в его стену.
+        for (Building building : settlement.buildings()) {
+            SchematicLoader.get(BuildJob.schematicId(building)).ifPresent(plan ->
+                    taken.addAll(Access.doorway(building, plan, Grading.APPROACH, 1)));
+        }
         for (BlockPos at : manager.decorOf(settlement.id())) {
             if (world.isChunkLoaded(at)) {
                 BlockState state = world.getBlockState(at);
@@ -254,6 +266,41 @@ public final class Raising {
             }
         }
         return taken;
+    }
+
+    /** Колонны всех следов поселения — куда нельзя упереться дверью. */
+    private static Set<Long> footprintColumns(Settlement settlement) {
+        Set<Long> walls = new java.util.HashSet<>();
+        for (Building building : settlement.buildings()) {
+            Schematic plan = SchematicLoader.get(BuildJob.schematicId(building)).orElse(null);
+            if (plan == null) {
+                continue;
+            }
+            Vec3i size = BuildSite.rotatedSize(plan.size(), building.rotation());
+            for (int dx = 0; dx < size.getX(); dx++) {
+                for (int dz = 0; dz < size.getZ(); dz++) {
+                    walls.add(BlockPos.asLong(building.anchor().getX() + dx, 0,
+                            building.anchor().getZ() + dz));
+                }
+            }
+        }
+        return walls;
+    }
+
+    /**
+     * Упирается ли проход новой двери в чужую стену.
+     * <p>
+     * Та же беда с другой стороны: зазор держит следы порознь, но дверь
+     * нового дома, повёрнутая к соседу, открылась бы в трёх клетках от его
+     * стены — и крыльцо легло бы в проулок, а не на улицу.
+     */
+    private static boolean meets(Set<Long> walls, Set<Long> doorway) {
+        for (long cell : doorway) {
+            if (walls.contains(cell)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Накрывает ли след хоть одну занятую колонну. */

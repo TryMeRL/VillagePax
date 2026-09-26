@@ -257,14 +257,22 @@ public final class Streetscape {
         if (kind == null) {
             return;
         }
+        // Место ищется в нескольких шагах, а не в одном: столб на ровно
+        // четвёртом блоке от сруба не находил места, стоило дому или проходу
+        // к его двери лечь рядом, — и деревня оставалась без скотины.
         BlockPos post = null;
-        for (Direction side : new Direction[]{away.getOpposite(), away.rotateYClockwise(),
-                away.rotateYCounterclockwise()}) {
-            for (int up = 1; up >= -1 && post == null; up--) {
-                BlockPos at = well.offset(side, 4).up(up);
-                if (freeFor(world, village, at, 3)
-                        && world.getBlockState(at.down()).isSolidBlock(world, at.down())) {
-                    post = at;
+        for (int reach : new int[]{4, 5, 3, 6}) {
+            for (Direction side : new Direction[]{away.getOpposite(), away.rotateYClockwise(),
+                    away.rotateYCounterclockwise()}) {
+                for (int up = 1; up >= -1 && post == null; up--) {
+                    BlockPos at = well.offset(side, reach).up(up);
+                    if (freeFor(world, village, at, 3)
+                            && world.getBlockState(at.down()).isSolidBlock(world, at.down())) {
+                        post = at;
+                    }
+                }
+                if (post != null) {
+                    break;
                 }
             }
             if (post != null) {

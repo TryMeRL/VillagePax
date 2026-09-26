@@ -1641,7 +1641,8 @@ abstract class GameTestSupport implements FabricGameTest {
         Vec3i size = BuildSite.rotatedSize(schematic.size(), site.rotation());
         BlockPos anchor = site.anchor();
         int pad = anchor.getY() - 1;
-        int reach = com.villagepax.sim.build.Grading.MARGIN;
+        int reach = Math.max(com.villagepax.sim.build.Grading.MARGIN,
+                com.villagepax.sim.build.Grading.APPROACH);
         for (int dx = -reach; dx < size.getX() + reach; dx++) {
             for (int dz = -reach; dz < size.getZ() + reach; dz++) {
                 if (dx >= 0 && dz >= 0 && dx < size.getX() && dz < size.getZ()) {

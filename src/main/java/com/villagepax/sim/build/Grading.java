@@ -31,13 +31,14 @@ import java.util.Set;
  * У Millénaire то же самое названо прямо — {@code around}: сколько блоков
  * вокруг здания ровняется перед стройкой. Здесь правило одно и простое:
  * клетка в {@code d} шагах от следа держится в полосе
- * {@code [пол − d, пол + d]}. Выше полосы грунт срывается, ниже —
- * досыпается тем, что лежит в этой колонне. Выходит уступ, по которому
+ * {@code [пол − d, пол + d]} и не дальше блока от соседа на шаг ближе
+ * к следу. Выше грунт срывается, ниже — досыпается тем, что лежит в этой
+ * колонне. Выходит уступ, по которому
  * ходят и житель, и игрок, а отвесных стенок и висячих ступеней не остаётся.
  * <p>
- * На линии выхода из двери полоса снизу у́же на шаг: порог стоит на блок
- * выше пола, и земля за дверью не имеет права быть ниже площадки —
- * иначе вход опять превращается в уступ, который не переступить.
+ * Перед дверью ровняется проход на {@link #APPROACH} шагов: сразу за порогом
+ * земля не ниже площадки — порог стоит на блок выше пола, и уступ ниже
+ * опять не переступить, — а дальше по шагу за клетку, до улицы.
  *
  * <h2>Что откос не трогает</h2>
  * Чужое — никогда: колонну, в которой сверху лежит не природный грунт,
@@ -77,7 +78,25 @@ public final class Grading {
     }
 
     /**
+     * На сколько шагов от двери ровняется проход — дальше откоса.
+     * <p>
+     * В дом входят не с последней клетки откоса, а с улицы: проверка входа
+     * меряет спуск на четыре шага, и холм, поднимающийся на пятом, делал
+     * вход стеной. Проход ровняется до улицы, по шагу за клетку.
+     */
+    public static final int APPROACH = 5;
+
+    /** Колонна не наша или земли в ней нет: откос её не тронул. */
+    private static final int UNTOUCHED = Integer.MIN_VALUE;
+
+    /**
      * Выровнять землю вокруг площадки здания.
+     * <p>
+     * Кольцами наружу, и каждая клетка держится <b>двух</b> мерок: полосы
+     * от пола и соседа внутрь — не дальше блока от него. Одной полосы мало:
+     * на волнистой земле клетка за стеной лежит на гребне, следующая
+     * во впадине, обе в своих полосах, а между ними снова стенка. Это
+     * поймала проверка «деревня на холмах», а ровный склон не ловил никогда.
      *
      * @return сколько блоков грунта срыто и досыпано
      */
@@ -92,24 +111,61 @@ public final class Grading {
         }
 
         int pad = anchor.getY() - 1;
-        Set<Long> doorLine = doorLine(building, schematic);
         Set<Long> keepOff = keepOff(world, SettlementManager.get(world), settlement, building);
+        java.util.Map<Long, Integer> tops = new java.util.HashMap<>();
+        int[] budget = {BUDGET};
 
-        int moved = 0;
-        for (int d = 1; d <= MARGIN && moved < BUDGET; d++) {
+        for (int d = 1; d <= MARGIN && budget[0] > 0; d++) {
             for (BlockPos column : ring(anchor, size, d)) {
                 long key = BlockPos.asLong(column.getX(), 0, column.getZ());
                 if (keepOff.contains(key) || !world.isChunkLoaded(column)) {
                     continue;
                 }
-                int low = doorLine.contains(key) ? pad - (d - 1) : pad - d;
-                moved += shape(world, column, low, pad + d, BUDGET - moved);
-                if (moved >= BUDGET) {
-                    break;
+                int low = pad - d;
+                int high = pad + d;
+                int inner = d == 1 ? pad
+                        : tops.getOrDefault(inward(anchor, size, column, d), UNTOUCHED);
+                if (inner != UNTOUCHED) {
+                    low = Math.max(low, inner - 1);
+                    high = Math.min(high, inner + 1);
+                }
+                int top = shape(world, column, low, high, budget);
+                if (top != UNTOUCHED) {
+                    tops.put(key, top);
                 }
             }
         }
-        return moved;
+
+        // Проход от двери: порог на ступень выше земли за ним, дальше —
+        // по шагу за клетку, до улицы. Упёрся в чужое — проход кончился,
+        // но не сломался: всё, что уже выровнено, проходимо.
+        for (BlockPos door : Access.entrances(building, schematic)) {
+            Direction out = Access.awayFrom(building, schematic, door);
+            int last = pad;
+            for (int step = 1; step <= APPROACH && budget[0] > 0; step++) {
+                BlockPos column = door.offset(out, step);
+                if (keepOff.contains(BlockPos.asLong(column.getX(), 0, column.getZ()))
+                        || !world.isChunkLoaded(column)) {
+                    break;
+                }
+                int top = shape(world, column, step == 1 ? pad : last - 1, last + 1, budget);
+                if (top == UNTOUCHED) {
+                    break;
+                }
+                last = top;
+            }
+        }
+        return BUDGET - budget[0];
+    }
+
+    /** Соседняя клетка на шаг ближе к следу — та, от которой меряется уступ. */
+    private static long inward(BlockPos anchor, Vec3i size, BlockPos column, int d) {
+        int reach = d - 1;
+        int x = Math.max(anchor.getX() - reach, Math.min(column.getX(),
+                anchor.getX() + size.getX() - 1 + reach));
+        int z = Math.max(anchor.getZ() - reach, Math.min(column.getZ(),
+                anchor.getZ() + size.getZ() - 1 + reach));
+        return BlockPos.asLong(x, 0, z);
     }
 
     /**
@@ -144,13 +200,14 @@ public final class Grading {
     /**
      * Поставить одну колонну в полосу.
      *
-     * @return сколько блоков тронуто; ноль — колонна чужая, обрыв или уже в полосе
+     * @return верх земли в колонне после работы, или {@link #UNTOUCHED}, если
+     *         колонна чужая, это обрыв или стена горы
      */
-    private static int shape(ServerWorld world, BlockPos column, int low, int high, int budget) {
+    private static int shape(ServerWorld world, BlockPos column, int low, int high, int[] budget) {
         int ceiling = high + MAX_CHANGE + 1;
         int floor = low - MAX_CHANGE - 1;
 
-        int top = Integer.MIN_VALUE;
+        int top = UNTOUCHED;
         BlockState surface = null;
         for (int y = ceiling; y >= floor; y--) {
             BlockState state = world.getBlockState(column.withY(y));
@@ -162,7 +219,7 @@ public final class Grading {
             if (!isEarth(state) || y == ceiling) {
                 // Чужое сверху — колонна не наша. Грунт у самого потолка
                 // окна — это стена горы, а не склон у дома.
-                return 0;
+                return UNTOUCHED;
             }
             top = y;
             surface = state;
@@ -170,26 +227,25 @@ public final class Grading {
         }
         if (surface == null) {
             // Земли в окне нет: обрыв или пустота. Мостов откос не строит.
-            return 0;
+            return UNTOUCHED;
         }
 
         if (top > high) {
-            return cut(world, column, top, high, surface, budget);
+            return cut(world, column, top, high, surface, budget) ? high : UNTOUCHED;
         }
         if (top < low) {
-            return fill(world, column, top, low, surface, budget);
+            return fill(world, column, top, low, surface, budget) ? low : UNTOUCHED;
         }
-        return 0;
+        return top;
     }
 
     /** Срыть грунт от верха до полосы; новая поверхность — тем же дёрном. */
-    private static int cut(ServerWorld world, BlockPos column, int top, int high,
-                           BlockState surface, int budget) {
-        if (touchesFluid(world, column, high + 1, top)) {
+    private static boolean cut(ServerWorld world, BlockPos column, int top, int high,
+                               BlockState surface, int[] budget) {
+        if (top - high > budget[0] || touchesFluid(world, column, high + 1, top)) {
             // Срой берег у воды — и откос станет прудом.
-            return 0;
+            return false;
         }
-        int changed = 0;
         // Мелочь над верхом падает вместе с ним.
         for (int y = top + 1; y <= top + 2; y++) {
             BlockPos at = column.withY(y);
@@ -197,41 +253,43 @@ public final class Grading {
                 world.setBlockState(at, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
             }
         }
-        for (int y = top; y > high && changed < budget; y--) {
+        for (int y = top; y > high; y--) {
             BlockPos at = column.withY(y);
             if (!isEarth(world.getBlockState(at))) {
-                break;
+                return false;
             }
             world.setBlockState(at, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
-            changed++;
+            budget[0]--;
         }
         BlockPos newTop = column.withY(high);
         if (surface.isOf(Blocks.GRASS_BLOCK) && world.getBlockState(newTop).isIn(BlockTags.DIRT)) {
             world.setBlockState(newTop, Blocks.GRASS_BLOCK.getDefaultState(), Block.NOTIFY_ALL);
         }
-        return changed;
+        return isEarth(world.getBlockState(newTop));
     }
 
     /** Досыпать от верха до полосы тем, что лежит в колонне; сверху — дёрн, если был дёрн. */
-    private static int fill(ServerWorld world, BlockPos column, int top, int low,
-                            BlockState surface, int budget) {
+    private static boolean fill(ServerWorld world, BlockPos column, int top, int low,
+                                BlockState surface, int[] budget) {
+        if (low - top > budget[0]) {
+            return false;
+        }
         for (int y = top + 1; y <= low; y++) {
             BlockState state = world.getBlockState(column.withY(y));
             if (!state.isAir() && !isLitter(state)) {
                 // В воду, в листву и в чужое не сыплем.
-                return 0;
+                return false;
             }
         }
         BlockState earth = surface.isOf(Blocks.GRASS_BLOCK) ? Blocks.DIRT.getDefaultState() : surface;
         if (surface.isOf(Blocks.GRASS_BLOCK)) {
             world.setBlockState(column.withY(top), earth, Block.NOTIFY_ALL);
         }
-        int changed = 0;
-        for (int y = top + 1; y <= low && changed < budget; y++) {
+        for (int y = top + 1; y <= low; y++) {
             world.setBlockState(column.withY(y), y == low ? surface : earth, Block.NOTIFY_ALL);
-            changed++;
+            budget[0]--;
         }
-        return changed;
+        return true;
     }
 
     /** Есть ли вода или лава рядом со срываемым столбом. */
@@ -246,24 +304,12 @@ public final class Grading {
         return false;
     }
 
-    /** Клетки прямо перед каждым входом — на всю ширину откоса. */
-    private static Set<Long> doorLine(Building building, Schematic schematic) {
-        Set<Long> line = new HashSet<>();
-        for (BlockPos door : Access.entrances(building, schematic)) {
-            Direction out = Access.awayFrom(building, schematic, door);
-            for (int step = 1; step <= MARGIN; step++) {
-                BlockPos at = door.offset(out, step);
-                line.add(BlockPos.asLong(at.getX(), 0, at.getZ()));
-            }
-        }
-        return line;
-    }
-
     /**
      * Куда откос не заходит: следы других зданий, убранство и улицы.
      * <p>
      * Улица ровняется сама, по своему правилу шага; убранство поставлено
-     * на свою землю; чужой след — чужая площадка со своим полом.
+     * на свою землю; чужой след — чужая площадка со своим полом, а проход
+     * к чужой двери — чужой вход.
      */
     private static Set<Long> keepOff(ServerWorld world, SettlementManager manager,
                                      Settlement settlement, Building building) {
@@ -279,6 +325,9 @@ public final class Grading {
             if (plan == null) {
                 continue;
             }
+            // И проход перед его дверью: откос соседа не вправе срыть
+            // или засыпать чужой вход.
+            off.addAll(Access.doorway(other, plan, APPROACH, 0));
             Vec3i size = BuildSite.rotatedSize(plan.size(), other.rotation());
             for (int dx = 0; dx < size.getX(); dx++) {
                 for (int dz = 0; dz < size.getZ(); dz++) {

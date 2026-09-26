@@ -442,4 +442,139 @@ public class PlacementTests extends GameTestSupport {
 
         context.complete();
     }
+
+    /** Холмы проверки «деревня на холмах»: сумма трёх волн, перепад около десяти блоков. */
+    private static int hill(int x, int z) {
+        return 9 + (int) Math.round(2.2 * Math.sin(x * 0.25) + 1.8 * Math.cos(z * 0.21)
+                + 1.2 * Math.sin((x + z) * 0.13));
+    }
+
+    /**
+     * Деревня на холмах: всё сразу и на земле, где ошибки живут.
+     * <p>
+     * Каждое правило постановки проверено по отдельности на своём склоне,
+     * а ломается обычно на стыке: откос второго дома подрезает вход
+     * первого, улица третьего упирается в сруб колодца. Здесь деревня
+     * встаёт на волнистой земле и дорастает ещё на четыре дома — и после
+     * этого у неё обязаны быть зазоры между всеми следами, ни одной
+     * ступени над воздухом, проходимый вход у каждого здания и улицы,
+     * которые идут сторонами клеток и не прыгают больше чем на блок.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "hills", tickLimit = 400)
+    public void aVillageOnRollingHillsStaysTidy(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        List<BlockPos> land = new ArrayList<>();
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, hill(0, 0) + 1, 0));
+        Settlement village = null;
+
+        try {
+            for (int x = -26; x <= 26; x++) {
+                for (int z = -26; z <= 26; z++) {
+                    int top = hill(x, z);
+                    for (int y = top - 2; y <= top; y++) {
+                        BlockPos at = context.getAbsolutePos(new BlockPos(x, y, z));
+                        world.setBlockState(at, y == top
+                                ? Blocks.GRASS_BLOCK.getDefaultState() : Blocks.DIRT.getDefaultState());
+                        land.add(at);
+                    }
+                }
+            }
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала на холмах: помеха "
+                        + whoBlocks(manager, centre));
+                return;
+            }
+            for (int more = 0; more < 4; more++) {
+                Raising.raise(world, manager, village, HOUSE_TYPE);
+            }
+
+            List<Building> standing = village.buildings().stream()
+                    .filter(b -> !com.villagepax.core.building.BuildingTypes.isTownHall(b.type()))
+                    .toList();
+            if (standing.size() < 4) {
+                context.throwGameTestException("На холмах встало только " + standing.size()
+                        + " зданий кроме ратуши");
+            }
+
+            List<Building> all = List.copyOf(village.buildings());
+            for (int i = 0; i < all.size(); i++) {
+                for (int j = i + 1; j < all.size(); j++) {
+                    Building a = all.get(i);
+                    Building b = all.get(j);
+                    Vec3i sa = BuildSite.rotatedSize(SchematicLoader.get(BuildJob.schematicId(a))
+                            .orElseThrow().size(), a.rotation());
+                    Vec3i sb = BuildSite.rotatedSize(SchematicLoader.get(BuildJob.schematicId(b))
+                            .orElseThrow().size(), b.rotation());
+                    int gapX = Math.max(b.anchor().getX() - (a.anchor().getX() + sa.getX()),
+                            a.anchor().getX() - (b.anchor().getX() + sb.getX()));
+                    int gapZ = Math.max(b.anchor().getZ() - (a.anchor().getZ() + sa.getZ()),
+                            a.anchor().getZ() - (b.anchor().getZ() + sb.getZ()));
+                    if (Math.max(gapX, gapZ) < BuildOrders.GAP) {
+                        context.throwGameTestException(a.type() + " и " + b.type()
+                                + " ближе зазора: " + a.anchor().toShortString() + " и "
+                                + b.anchor().toShortString());
+                    }
+                }
+            }
+
+            for (Building building : standing) {
+                Schematic plan = SchematicLoader.get(BuildJob.schematicId(building)).orElseThrow();
+                for (BlockPos door : Access.entrances(building, plan)) {
+                    String trouble = descentTrouble(world, building, plan, door);
+                    if (trouble != null) {
+                        StringBuilder front = new StringBuilder();
+                        net.minecraft.util.math.Direction out = Access.awayFrom(building, plan, door);
+                        for (int step = 1; step <= 4; step++) {
+                            BlockPos column = door.offset(out, step);
+                            String owner = all.stream().filter(b -> b != building && BuildSite.covers(
+                                            b.anchor(), SchematicLoader.get(BuildJob.schematicId(b))
+                                                    .orElseThrow().size(), b.rotation(),
+                                            column.withY(b.anchor().getY())))
+                                    .map(b -> b.type().getPath()).findFirst().orElse("-");
+                            front.append(" | шаг").append(step).append(" земля ")
+                                    .append(earthTop(world, column, door.getY())).append(" след ")
+                                    .append(owner);
+                        }
+                        context.throwGameTestException("В " + building.type() + " на "
+                                + building.anchor().toShortString() + " не войти: " + trouble + front);
+                    }
+                }
+                List<BlockPos> street = Roads.route(world, village, building);
+                for (int i = 1; i < street.size(); i++) {
+                    BlockPos last = street.get(i - 1);
+                    BlockPos tile = street.get(i);
+                    if (Math.abs(tile.getX() - last.getX()) + Math.abs(tile.getZ() - last.getZ()) != 1
+                            || Math.abs(tile.getY() - last.getY()) > 1) {
+                        context.throwGameTestException("Улица от " + building.type() + " рвётся между "
+                                + last.toShortString() + " и " + tile.toShortString());
+                    }
+                }
+            }
+
+            for (BlockPos at : BlockPos.iterate(centre.add(-26, -12, -26), centre.add(26, 14, 26))) {
+                if (!(world.getBlockState(at).getBlock() instanceof net.minecraft.block.StairsBlock)
+                        || !world.getBlockState(at.down()).isAir()) {
+                    continue;
+                }
+                boolean inside = all.stream().anyMatch(b -> BuildSite.covers(b.anchor(),
+                        SchematicLoader.get(BuildJob.schematicId(b)).orElseThrow().size(),
+                        b.rotation(), at));
+                if (!inside) {
+                    context.throwGameTestException("Ступень висит над воздухом: " + at.toShortString());
+                }
+            }
+        } finally {
+            if (village != null) {
+                for (Building building : village.buildings()) {
+                    SchematicLoader.get(BuildJob.schematicId(building))
+                            .ifPresent(plan -> clearSkirt(world, building, plan));
+                }
+            }
+            cleanUpVillage(world, manager, village, centre, land);
+        }
+
+        context.complete();
+    }
 }

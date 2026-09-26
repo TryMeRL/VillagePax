@@ -813,4 +813,44 @@ public class VillageTests extends GameTestSupport {
         context.complete();
     }
 
+    /**
+     * Каждый, кто основал деревню, при деле.
+     * <p>
+     * Найдено в сохранениях заказчика: во всех деревнях четвёртый житель
+     * стоял без ремесла — и навсегда. Ремесло в моде раздаётся пришлым
+     * и выросшим, а основатель не был ни тем, ни другим: его просто
+     * ставили в деревню. Без дела его забирала прогулка, и он бродил
+     * по склонам в двадцати блоках от дома, пока поле стояло без фермера.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "founders", tickLimit = 200)
+    public void everyFounderHasACraft(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+        try {
+            for (int x = -20; x <= 20; x++) {
+                for (int z = -20; z <= 20; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала на ровном лугу");
+                return;
+            }
+            for (Citizen citizen : village.citizens()) {
+                if (citizen.profession().isEmpty()) {
+                    context.throwGameTestException("Основатель " + citizen.fullName()
+                            + " без ремесла: ему нечем заняться, кроме прогулки");
+                }
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+        context.complete();
+    }
 }

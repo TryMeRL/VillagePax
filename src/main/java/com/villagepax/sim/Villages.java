@@ -202,7 +202,7 @@ public final class Villages {
         settle(world, village, Founding.firstBuilder(cultureId, culture, random));
         settle(world, village, elder(cultureId, culture, random));
         settle(world, village, tradesman(cultureId, culture, random));
-        settle(world, village, Founding.newCitizen(cultureId, culture, random));
+        settle(world, village, hand(village, cultureId, culture, random));
 
         // Чертог вскрывается уже при жителях, а не сразу за ратушей:
         // зал рубят гномы, и пустому месту стройка не по силам — движок
@@ -514,6 +514,24 @@ public final class Villages {
         Citizen merchant = Founding.newCitizen(cultureId, culture, random);
         merchant.setProfession(MERCHANT);
         return merchant;
+    }
+
+    /**
+     * Четвёртый основатель — работник: самое нужное ремесло, тем же
+     * правилом, каким его получает пришлый.
+     * <p>
+     * Прежде он вставал в деревню без ремесла, и навсегда: ремесло
+     * раздаётся пришедшим извне и выросшим детям, а основатель не был
+     * ни тем, ни другим. В сохранениях заказчика такой стоял в каждой
+     * деревне — без дела его забирала прогулка, и он бродил по склонам
+     * в двадцати блоках от дома.
+     */
+    private static Citizen hand(Settlement village, Identifier cultureId, Culture culture,
+                                Random random) {
+        Citizen hand = Founding.newCitizen(cultureId, culture, random);
+        com.villagepax.sim.work.Housing.neededProfession(village, hand)
+                .ifPresent(hand::setProfession);
+        return hand;
     }
 
     /**

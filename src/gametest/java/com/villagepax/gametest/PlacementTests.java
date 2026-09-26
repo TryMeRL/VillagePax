@@ -213,6 +213,170 @@ public class PlacementTests extends GameTestSupport {
         context.complete();
     }
 
+    /** Высота склона в проверке откоса: блок через две клетки, вверх на запад. */
+    private static int slopeTop(int x) {
+        return 6 + Math.floorDiv(24 - x, 2);
+    }
+
+    /**
+     * Готовое здание на склоне окружено откосом, а не отвесной стенкой.
+     * <p>
+     * Прежде площадка равнялась строго под следом: под домом досыпано,
+     * над ним срыто, а в шаге за стеной — прежний склон. Вышло то, что
+     * заказчик видел в своих деревнях: поле на земляной тумбе с отвесными
+     * боками, дом в яме, и крыльцо, спускающееся по воздуху. Ванильные
+     * деревни и Millénaire решают это одинаково — землю вокруг здания
+     * ровняют к площадке уступом, — и мод теперь тоже.
+     * <p>
+     * Чужое в кольце откоса стоит нарочно: сундук, забор игрока, вода
+     * и ствол дерева. Откос обязан обойти их, а не срыть.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "skirt", tickLimit = 300)
+    public void aBuildingOnASlopeGetsAGentleSkirt(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+
+        List<BlockPos> ground = new ArrayList<>();
+        BlockPos hall = context.getAbsolutePos(new BlockPos(20, slopeTop(20) + 1, 20));
+        BlockPos chest = context.getAbsolutePos(new BlockPos(10, slopeTop(10) + 1, 15));
+        BlockPos fence = context.getAbsolutePos(new BlockPos(12, slopeTop(12) + 1, 19));
+        BlockPos water = context.getAbsolutePos(new BlockPos(19, slopeTop(19), 15));
+        BlockPos trunk = context.getAbsolutePos(new BlockPos(11, slopeTop(11) + 1, 17));
+        Settlement colony = null;
+        Building house = null;
+
+        try {
+            for (int x = 0; x < 32; x++) {
+                for (int z = 0; z < 32; z++) {
+                    for (int y = slopeTop(x) - 2; y <= slopeTop(x); y++) {
+                        BlockPos at = context.getAbsolutePos(new BlockPos(x, y, z));
+                        world.setBlockState(at, y == slopeTop(x)
+                                ? Blocks.GRASS_BLOCK.getDefaultState() : Blocks.DIRT.getDefaultState());
+                        ground.add(at);
+                    }
+                }
+            }
+            colony = colonyWithBuilder(world, manager, hall);
+            // Пол посередине склона: запад срывается на два блока, восток
+            // досыпается на блок — ровно то, что выбрала бы разметка.
+            BlockPos anchor = context.getAbsolutePos(new BlockPos(12, 11, 12));
+            house = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+
+            world.setBlockState(chest, Blocks.CHEST.getDefaultState());
+            world.setBlockState(fence, Blocks.OAK_FENCE.getDefaultState());
+            world.setBlockState(water, Blocks.WATER.getDefaultState());
+            for (int up = 0; up < 3; up++) {
+                world.setBlockState(trunk.up(up), Blocks.OAK_LOG.getDefaultState());
+            }
+
+            stockFor(world, colony, housePlan);
+            stockFor(world, colony, housePlan);
+            BuildJob.Outcome built = BuildJob.advance(world, manager, colony.id(), house.id(), 20_000);
+            if (built != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Дом на склоне не достроился: " + built);
+                return;
+            }
+
+            if (!world.getBlockState(chest).isOf(Blocks.CHEST)
+                    || world.getBlockState(chest.down()).isAir()
+                    || !world.getBlockState(fence).isIn(BlockTags.FENCES)
+                    || world.getBlockState(fence.down()).isAir()
+                    || !world.getBlockState(water).isOf(Blocks.WATER)
+                    || !world.getBlockState(trunk).isIn(BlockTags.LOGS)
+                    || world.getBlockState(trunk.down()).isAir()) {
+                context.throwGameTestException("Откос тронул чужое: сундук "
+                        + world.getBlockState(chest).getBlock() + ", забор "
+                        + world.getBlockState(fence).getBlock() + ", вода "
+                        + world.getBlockState(water).getBlock() + ", ствол "
+                        + world.getBlockState(trunk).getBlock() + " на "
+                        + world.getBlockState(trunk.down()).getBlock());
+            }
+
+            Vec3i size = BuildSite.rotatedSize(housePlan.size(), BlockRotation.NONE);
+            int pad = anchor.getY() - 1;
+            List<BlockPos> doors = Access.entrances(house, housePlan);
+            List<BlockPos> foreign = List.of(chest, fence, water, trunk);
+            // Четыре стороны: край следа, клетка за стеной и ещё одна.
+            int[][] sides = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+            for (int[] side : sides) {
+                int along = side[0] == 0 ? size.getX() : size.getZ();
+                for (int i = 0; i < along; i++) {
+                    int edgeX = side[0] < 0 ? 0 : side[0] > 0 ? size.getX() - 1 : i;
+                    int edgeZ = side[1] < 0 ? 0 : side[1] > 0 ? size.getZ() - 1 : i;
+                    BlockPos edge = anchor.add(edgeX, 0, edgeZ);
+                    BlockPos first = edge.add(side[0], 0, side[1]);
+                    BlockPos second = first.add(side[0], 0, side[1]);
+                    boolean door = doors.stream().anyMatch(d -> d.getX() == edge.getX()
+                            && d.getZ() == edge.getZ());
+                    boolean skip = door || foreign.stream().anyMatch(f ->
+                            (f.getX() == first.getX() && f.getZ() == first.getZ())
+                                    || (f.getX() == second.getX() && f.getZ() == second.getZ()));
+                    if (skip) {
+                        continue;
+                    }
+                    int one = earthTop(world, first, pad);
+                    int two = earthTop(world, second, pad);
+                    if (Math.abs(one - pad) > 1 || Math.abs(two - one) > 1) {
+                        context.throwGameTestException("У стены " + first.toShortString()
+                                + " перепад: площадка " + pad + ", за стеной " + one
+                                + ", дальше " + two + " — отвесная стенка вместо откоса");
+                    }
+                }
+            }
+
+            for (BlockPos at : BlockPos.iterate(anchor.add(-4, -6, -4),
+                    anchor.add(size.getX() + 3, 6, size.getZ() + 3))) {
+                if (BuildSite.covers(anchor, housePlan.size(), BlockRotation.NONE, at)) {
+                    continue;
+                }
+                if (world.getBlockState(at).getBlock() instanceof net.minecraft.block.StairsBlock
+                        && world.getBlockState(at.down()).isAir()) {
+                    context.throwGameTestException("Ступень висит над воздухом: "
+                            + at.toShortString());
+                }
+            }
+
+            for (BlockPos door : doors) {
+                String trouble = descentTrouble(world, house, housePlan, door);
+                if (trouble != null) {
+                    context.throwGameTestException("Со склона в дом не войти: " + trouble);
+                }
+            }
+        } finally {
+            if (house != null) {
+                demolish(world, house, housePlan);
+                clearSkirt(world, house, housePlan);
+            }
+            for (BlockPos at : List.of(chest, fence, water)) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            for (int up = 0; up < 3; up++) {
+                world.setBlockState(trunk.up(up), Blocks.AIR.getDefaultState());
+            }
+            for (BlockPos at : ground) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            if (colony != null) {
+                manager.remove(colony.id());
+            }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /** Верх земли в колонне около площадки: первый сверху полный блок. */
+    private static int earthTop(ServerWorld world, BlockPos column, int pad) {
+        for (int y = pad + 6; y >= pad - 6; y--) {
+            BlockPos at = column.withY(y);
+            if (world.getBlockState(at).isSolidBlock(world, at)) {
+                return y;
+            }
+        }
+        return Integer.MIN_VALUE;
+    }
+
     /**
      * Дом на склоне открывается дверью к земле, а не над обрывом.
      * <p>

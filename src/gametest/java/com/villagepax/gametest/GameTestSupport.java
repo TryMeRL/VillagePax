@@ -1621,6 +1621,45 @@ abstract class GameTestSupport implements FabricGameTest {
     }
 
     /**
+     * Верх земли мира проверок: плоский мир, трава на этой высоте.
+     * <p>
+     * Всё, что проверки кладут сами, лежит выше; ниже — сам мир, и его
+     * уборка не трогает никогда.
+     */
+    static final int WORLD_FLOOR = -61;
+
+    /**
+     * Убрать откос за зданием: грунт, досыпанный и оставленный вокруг следа.
+     * <p>
+     * Откос кладёт землю <b>снаружи</b> следа, а снос идёт по следу — та же
+     * беда, что уже была с крыльцом. Убирается только природный грунт
+     * и только выше земли мира: своё проверки кладут выше неё. Свою землю
+     * проверка всё равно убирает сама, так что снять её здесь раньше
+     * времени — не потеря.
+     */
+    static void clearSkirt(ServerWorld world, Building site, Schematic schematic) {
+        Vec3i size = BuildSite.rotatedSize(schematic.size(), site.rotation());
+        BlockPos anchor = site.anchor();
+        int pad = anchor.getY() - 1;
+        int reach = com.villagepax.sim.build.Grading.MARGIN;
+        for (int dx = -reach; dx < size.getX() + reach; dx++) {
+            for (int dz = -reach; dz < size.getZ() + reach; dz++) {
+                if (dx >= 0 && dz >= 0 && dx < size.getX() && dz < size.getZ()) {
+                    continue;
+                }
+                for (int y = pad - reach - com.villagepax.sim.build.Grading.MAX_CHANGE;
+                     y <= pad + reach; y++) {
+                    BlockPos at = anchor.add(dx, 0, dz).withY(y);
+                    if (y > WORLD_FLOOR
+                            && com.villagepax.sim.build.Grading.isEarth(world.getBlockState(at))) {
+                        world.setBlockState(at, Blocks.AIR.getDefaultState());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Убрать и ступени у входов.
      * <p>
      * Крыльцо кладётся <b>снаружи</b> следа здания, а снос проходит только

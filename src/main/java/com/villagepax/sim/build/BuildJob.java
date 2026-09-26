@@ -258,6 +258,9 @@ public final class BuildJob {
         // из-под дома земляной столб. Дом в кронах висит нарочно.
         if (building.nextStep() == 0 && Footing.of(settlement).levelsTheGround()) {
             Terrace.level(world, building, schematic);
+            // И сразу за площадкой — откос вокруг неё: без него под домом
+            // ровно, а в шаге за стеной прежний склон, и вход висит над ним.
+            Grading.grade(world, settlement, building, schematic);
         }
         building.setProgress(BuildProgress.BUILDING);
 

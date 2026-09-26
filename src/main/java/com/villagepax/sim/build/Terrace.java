@@ -102,7 +102,7 @@ public final class Terrace {
      * земли где-нибудь</b>. На склоне касается — верхним углом; у дома
      * на весу не касается нигде, и тогда равнять нечего.
      */
-    private static boolean restsOnGround(ServerWorld world, BlockPos anchor, Vec3i size) {
+    static boolean restsOnGround(ServerWorld world, BlockPos anchor, Vec3i size) {
         for (int dx = 0; dx < size.getX(); dx++) {
             for (int dz = 0; dz < size.getZ(); dz++) {
                 BlockPos under = anchor.add(dx, -1, dz);

@@ -165,8 +165,17 @@ public final class CitizenSpawner {
      * в населении, но невидимой и недостижимой.
      */
     private static void tether(CitizenEntity body, Settlement settlement) {
-        int radiusBlocks = settlement.level().claimRadiusChunks() * 16;
-        body.setPositionTarget(settlement.center(), radiusBlocks);
+        body.setPositionTarget(settlement.center(), tetherRange(settlement));
+    }
+
+    /**
+     * Докуда житель вправе уйти от ратуши вообще — граница поселения в блоках.
+     * <p>
+     * Это «не дальше», а не «где гулять»: где гулять, решает стратегия
+     * по делу жителя, и её привязь короче (см. {@code WorkTicker}).
+     */
+    public static int tetherRange(Settlement settlement) {
+        return settlement.level().claimRadiusChunks() * 16;
     }
 
     /**

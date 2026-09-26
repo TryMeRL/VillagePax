@@ -3,7 +3,13 @@ package com.villagepax.sim.work;
 import com.villagepax.core.Safely;
 import com.villagepax.core.config.Configs;
 import com.villagepax.entity.CitizenEntity;
+import com.villagepax.entity.CitizenSpawner;
+import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
+import com.villagepax.sim.build.BuildJob;
+import com.villagepax.sim.build.BuildSite;
+import com.villagepax.sim.build.SchematicLoader;
+import net.minecraft.util.math.Vec3i;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.life.Life;
@@ -212,6 +218,7 @@ public final class WorkTicker {
         if (part != Schedule.SLEEP) {
             body.setDozing(false);
         }
+        leash(context, part);
 
         switch (part) {
             case SLEEP -> {
@@ -233,6 +240,56 @@ public final class WorkTicker {
             }
             case MORNING_WORK, DAY_WORK -> work(context);
         }
+    }
+
+    /** Досуг и безделье держат жителя у площади: круг вечернего сбора и немного сверх. */
+    private static final int PLAZA_RANGE = 12;
+
+    /** Работник без дела держится своей мастерской. */
+    private static final int WORKSHOP_RANGE = 10;
+
+    /**
+     * Где житель вправе гулять, когда делать нечего.
+     * <p>
+     * Тело привязывалось к ратуше при появлении на всю границу поселения —
+     * у хутора это тридцать два блока, у столицы девяносто шесть. Прогулка
+     * берёт точку в десяти блоках от того места, где житель стоит, и
+     * следующую от новой, и за утро он уходил на край границы: в сохранениях
+     * заказчика купец стоял в тридцати блоках от ларька, старейшина — на
+     * склоне высоко над площадью. Граница — это «не дальше», а не «где гулять».
+     * <p>
+     * Теперь безделье держит жителя у места, которое ему своё: у мастерской,
+     * если она есть, иначе у площади, а на досуге — у площади всех. Дело
+     * этой привязи не видит — путь к работе прокладывает навигация, — а
+     * бегство видит, и потому в осаде тело отпущено на всю границу: бежать
+     * от меча в двенадцати блоках от ратуши некуда.
+     */
+    private static void leash(WorkContext context, Schedule part) {
+        CitizenEntity body = context.body();
+        Settlement settlement = context.settlement();
+        if (body.isBesieged()) {
+            body.keepNear(settlement.center(), CitizenSpawner.tetherRange(settlement));
+            return;
+        }
+        if (part != Schedule.LEISURE) {
+            BlockPos workshop = Workplaces.of(settlement, context.citizen())
+                    .map(WorkTicker::middleOf).orElse(null);
+            if (workshop != null) {
+                body.keepNear(workshop, WORKSHOP_RANGE);
+                return;
+            }
+        }
+        body.keepNear(settlement.center(), PLAZA_RANGE);
+    }
+
+    /** Середина следа здания — туда тянет работника его мастерская. */
+    private static BlockPos middleOf(Building building) {
+        return SchematicLoader.get(BuildJob.schematicId(building))
+                .map(schematic -> {
+                    Vec3i size = BuildSite.rotatedSize(schematic.size(), building.rotation());
+                    return building.anchor().add(size.getX() / 2, 0, size.getZ() / 2);
+                })
+                .orElse(building.anchor());
     }
 
     /**

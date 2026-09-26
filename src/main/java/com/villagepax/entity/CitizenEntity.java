@@ -279,6 +279,19 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         stuckFor = 0;
     }
 
+    /**
+     * Держаться этого места, когда делать нечего.
+     * <p>
+     * Ванильная привязь: её уважают прогулка и бегство, а навигация к делу —
+     * нет, поэтому работе она не мешает. Ставится заново, только если
+     * сменилась: зовут её каждое решение.
+     */
+    public void keepNear(BlockPos home, int range) {
+        if (!home.equals(getPositionTarget()) || getPositionTargetRange() != range) {
+            setPositionTarget(home, range);
+        }
+    }
+
     /** Отступился ли житель от этой точки — и не пора ли забыть отказ. */
     public boolean isUnreachable(BlockPos pos) {
         Long until = unreachable.get(pos);

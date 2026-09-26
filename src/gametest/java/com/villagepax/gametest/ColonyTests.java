@@ -1862,4 +1862,61 @@ public class ColonyTests extends GameTestSupport {
         context.complete();
     }
 
+    /**
+     * Житель без дела гуляет у своего места, а не по всей границе деревни.
+     * <p>
+     * Найдено в сохранениях заказчика: купец в тридцати блоках от ларька,
+     * старейшина на склоне высоко над площадью, гном — на горе над чертогом.
+     * Привязь у тела была, но на всю границу поселения: у хутора это
+     * тридцать два блока, у столицы — девяносто шесть. Прогулка берёт точку
+     * в десяти блоках от того места, где житель стоит, и следующую от новой,
+     * и за утро он уходил на край. Граница — это «не дальше», а не «где
+     * гулять»: без дела житель держится площади, а работник — мастерской.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "leash")
+    public void idleCitizensKeepToThePlazaOrTheirWorkshop(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        try {
+            Citizen idler = evenNewborn("Гуляка", "", NORMAN, Gender.MALE);
+            idler.setLived(com.villagepax.sim.life.Ages.grownAt());
+            idler.setPosition(Vec3d.ofBottomCenter(hall.up()));
+            colony.addCitizen(idler);
+            CitizenEntity body = CitizenSpawner.spawnBody(world, colony, idler);
+
+            for (Schedule part : List.of(Schedule.MORNING_WORK, Schedule.LEISURE)) {
+                WorkTicker.decide(world, manager, colony, idler, part);
+                if (body.isInWalkTargetRange(hall.add(20, 0, 0))) {
+                    context.throwGameTestException("Без дела (" + part + ") житель вправе уйти "
+                            + "на двадцать блоков от площади");
+                }
+                if (!body.isInWalkTargetRange(hall.add(4, 0, 4))) {
+                    context.throwGameTestException("Своя площадь (" + part + ") вне прогулки");
+                }
+            }
+
+            // Мастерская в двадцати блоках: там работник и ждёт дела.
+            Building farm = new Building(UUID.randomUUID(), FARM_TYPE, 1, hall.add(20, 0, 0),
+                    BlockRotation.NONE, BuildProgress.DONE, List.of());
+            colony.addBuilding(farm);
+            Citizen farmer = hireWithBody(world, colony, FARMER, hall.up());
+            farmer.setWorkplace(farm.id());
+            CitizenEntity hand = bodyOf(world, colony, farmer);
+            WorkTicker.decide(world, manager, colony, farmer, Schedule.MORNING_WORK);
+            if (!hand.isInWalkTargetRange(hall.add(23, 0, 3))) {
+                context.throwGameTestException("Своя мастерская вне прогулки работника");
+            }
+            if (hand.isInWalkTargetRange(hall.add(-20, 0, 0))) {
+                context.throwGameTestException("Работник вправе уйти от мастерской "
+                        + "на другой край деревни");
+            }
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
 }

@@ -162,10 +162,18 @@ public final class Streetscape {
                 // Дикий лес над крышей и у стен вырубается: дерево, нависшее
                 // над домом, прячет его от улицы, а у двери — загораживает вход.
                 Vec3i footprint = BuildSite.rotatedSize(schematic.size(), building.rotation());
-                clearWild(world, village, building.anchor().add(-AROUND, 0, -AROUND),
+                int felled = clearWild(world, village, building.anchor().add(-AROUND, 0, -AROUND),
                         building.anchor().add(footprint.getX() + AROUND,
                                 schematic.size().getY() + CANOPY_HEIGHT,
                                 footprint.getZ() + AROUND));
+                if (felled > 0) {
+                    // Срубленный ствол мог стоять вместо земли — у калитки,
+                    // вровень с насыпью, — и на его месте осталась яма.
+                    // Откос его обошёл, крыльцо на нём стояло; после вырубки
+                    // и то и другое меряется заново, по настоящей земле.
+                    com.villagepax.sim.build.Grading.grade(world, village, building, schematic);
+                    com.villagepax.sim.build.Access.porch(world, building, schematic);
+                }
                 dressBuilding(world, manager, village, building, schematic, palette);
             });
             manager.markDressed(building.id());

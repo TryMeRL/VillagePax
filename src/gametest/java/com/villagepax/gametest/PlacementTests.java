@@ -462,6 +462,20 @@ public class PlacementTests extends GameTestSupport {
      */
     @GameTest(templateName = WIDE_STRUCTURE, batchId = "hills", tickLimit = 400)
     public void aVillageOnRollingHillsStaysTidy(TestContext context) {
+        villageOnHills(context, NORMAN);
+    }
+
+    /** То же у пони: у их поля калитка над насыпью, а дома под крутой кровлей. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "ponyhills", tickLimit = 400)
+    public void aPonyVillageOnRollingHillsStaysTidy(TestContext context) {
+        villageOnHills(context, PONY);
+    }
+
+    /**
+     * Деревня народа на волнистой земле, дорощенная полями и домами
+     * вперемешку — тем, что деревни строят первыми.
+     */
+    private static void villageOnHills(TestContext context, net.minecraft.util.Identifier culture) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
         List<BlockPos> land = new ArrayList<>();
@@ -480,14 +494,16 @@ public class PlacementTests extends GameTestSupport {
                     }
                 }
             }
-            village = Villages.found(world, NORMAN, centre).orElse(null);
+            village = Villages.found(world, culture, centre).orElse(null);
             if (village == null) {
                 context.throwGameTestException("Деревня не встала на холмах: помеха "
                         + whoBlocks(manager, centre));
                 return;
             }
+            List<net.minecraft.util.Identifier> first = com.villagepax.core.building.BuildingTypes
+                    .starting(com.villagepax.core.culture.CultureManager.get(culture).buildings());
             for (int more = 0; more < 4; more++) {
-                Raising.raise(world, manager, village, HOUSE_TYPE);
+                Raising.raise(world, manager, village, first.get(more % first.size()));
             }
 
             List<Building> standing = village.buildings().stream()
@@ -575,6 +591,138 @@ public class PlacementTests extends GameTestSupport {
             cleanUpVillage(world, manager, village, centre, land);
         }
 
+        context.complete();
+    }
+
+    /**
+     * На поле пони, повёрнутое калиткой на восток, входят с травы.
+     * <p>
+     * Найдено разбором мира после проверки на настоящем рельефе: у поля
+     * калитка стоит на третьем слое схемы — над насыпью и грядкой, — и за ней
+     * оставался уступ в два блока. Проход перед дверью ровнялся от пола,
+     * а не от порога, а у поля порог на блок выше, чем у дома.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "ponyfarm", tickLimit = 200)
+    public void aTurnedPonyFarmIsEnteredFromTheGrass(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic plan = schematic(context, new net.minecraft.util.Identifier("villagepax", "pony/farm_lvl1"));
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 3, 2));
+        BlockPos farmAt = context.getAbsolutePos(new BlockPos(10, 3, 10));
+        List<BlockPos> ground = new ArrayList<>();
+        Settlement colony = null;
+        Building farm = null;
+        try {
+            for (int x = 0; x < 32; x++) {
+                for (int z = 0; z < 32; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 2, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    ground.add(at);
+                    BlockPos below = at.down();
+                    world.setBlockState(below, Blocks.DIRT.getDefaultState());
+                    ground.add(below);
+                }
+            }
+            colony = colonyWithBuilder(world, manager, hall, PONY);
+            farm = plan(colony, farmAt, new net.minecraft.util.Identifier("villagepax", "pony/farm"),
+                    BlockRotation.CLOCKWISE_180);
+            stockFor(world, colony, plan);
+            if (BuildJob.advance(world, manager, colony.id(), farm.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Поле не встало");
+                return;
+            }
+            for (BlockPos door : Access.entrances(farm, plan)) {
+                String trouble = descentTrouble(world, farm, plan, door);
+                if (trouble != null) {
+                    context.throwGameTestException("С травы на поле не войти: " + trouble);
+                }
+            }
+        } finally {
+            if (farm != null) {
+                demolish(world, farm, plan);
+                clearSkirt(world, farm, plan);
+            }
+            for (BlockPos at : ground) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            if (colony != null) {
+                manager.remove(colony.id());
+            }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    /**
+     * Пень у калитки, вырубленный деревней, не оставляет у входа яму.
+     * <p>
+     * Найдено на настоящем рельефе: перед калиткой поля пони рос дикий
+     * куст, и его ствол стоял вровень с насыпью. Откос чужого не трогает,
+     * и правильно; крыльцо сочло клетку ровной и положило ступень шагом
+     * дальше. А потом деревня, убирая улицы, вырубила дикий лес вокруг
+     * поля — и на месте ствола у самой калитки осталась яма в два блока.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "stump", tickLimit = 200)
+    public void aFelledStumpAtTheGateLeavesNoPit(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        net.minecraft.util.Identifier farmType = new net.minecraft.util.Identifier("villagepax", "pony/farm");
+        Schematic plan = schematic(context, new net.minecraft.util.Identifier("villagepax", "pony/farm_lvl1"));
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 3, 2));
+        BlockPos farmAt = context.getAbsolutePos(new BlockPos(10, 3, 10));
+        List<BlockPos> ground = new ArrayList<>();
+        Settlement village = null;
+        Building farm = null;
+        BlockPos stump = null;
+        try {
+            for (int x = 0; x < 32; x++) {
+                for (int z = 0; z < 32; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 2, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    ground.add(at);
+                }
+            }
+            world.setBlockState(hall, com.villagepax.block.ModBlocks.TOWN_HALL.getDefaultState());
+            village = Settlement.found(PONY, com.villagepax.sim.Owner.AUTONOMOUS, "Пенёк", hall);
+            com.villagepax.sim.Citizen builder = someoneWith(com.villagepax.sim.life.Nature.EVEN,
+                    "Rollo", com.villagepax.sim.Gender.MALE);
+            builder.setLived(com.villagepax.sim.life.Ages.grownAt());
+            builder.setProfession(BuildJob.BUILDER);
+            village.addCitizen(builder);
+            manager.add(village);
+            farm = plan(village, farmAt, farmType, BlockRotation.CLOCKWISE_180);
+
+            // Пень в шаге от калитки: два бревна на траве, вровень с насыпью.
+            BlockPos gate = Access.entrances(farm, plan).get(0);
+            stump = gate.offset(Access.awayFrom(farm, plan, gate)).withY(farmAt.getY());
+            world.setBlockState(stump, Blocks.OAK_LOG.getDefaultState());
+            world.setBlockState(stump.up(), Blocks.OAK_LOG.getDefaultState());
+
+            stockFor(world, village, plan);
+            if (BuildJob.advance(world, manager, village.id(), farm.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Поле не встало");
+                return;
+            }
+            com.villagepax.sim.Streetscape.dress(world, manager, village);
+
+            String trouble = descentTrouble(world, farm, plan, gate);
+            if (trouble != null) {
+                context.throwGameTestException("После вырубки у калитки не войти: " + trouble);
+            }
+        } finally {
+            if (farm != null) {
+                demolish(world, farm, plan);
+                clearSkirt(world, farm, plan);
+            }
+            if (stump != null) {
+                world.setBlockState(stump, Blocks.AIR.getDefaultState());
+                world.setBlockState(stump.up(), Blocks.AIR.getDefaultState());
+            }
+            cleanUpVillage(world, manager, village, hall, ground);
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
         context.complete();
     }
 }

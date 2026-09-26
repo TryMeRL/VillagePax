@@ -136,19 +136,25 @@ public final class Grading {
             }
         }
 
-        // Проход от двери: порог на ступень выше земли за ним, дальше —
-        // по шагу за клетку, до улицы. Упёрся в чужое — проход кончился,
-        // но не сломался: всё, что уже выровнено, проходимо.
+        // Проход от двери: земля сразу за порогом — вровень с ним или на
+        // ступень ниже, дальше — по шагу за клетку, до улицы. Мерится
+        // от порога, а не от пола: у дома порог на блок выше пола, а у поля
+        // калитка стоит над насыпью и грядкой, на три блока выше, — и мерка
+        // от пола оставляла у калитки уступ в два блока. Упёрся в чужое —
+        // проход кончился, но не сломался: выровненное проходимо.
         for (BlockPos door : Access.entrances(building, schematic)) {
             Direction out = Access.awayFrom(building, schematic, door);
-            int last = pad;
+            int threshold = door.getY();
+            int last = threshold - 1;
             for (int step = 1; step <= APPROACH && budget[0] > 0; step++) {
                 BlockPos column = door.offset(out, step);
                 if (keepOff.contains(BlockPos.asLong(column.getX(), 0, column.getZ()))
                         || !world.isChunkLoaded(column)) {
                     break;
                 }
-                int top = shape(world, column, step == 1 ? pad : last - 1, last + 1, budget);
+                int top = step == 1
+                        ? shape(world, column, threshold - 2, threshold - 1, budget)
+                        : shape(world, column, last - 1, last + 1, budget);
                 if (top == UNTOUCHED) {
                     break;
                 }

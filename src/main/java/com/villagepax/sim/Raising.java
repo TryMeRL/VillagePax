@@ -2,9 +2,12 @@ package com.villagepax.sim;
 
 import com.villagepax.sim.build.BuildStep;
 import com.villagepax.VillagePax;
+import com.villagepax.core.culture.Traits;
 import com.villagepax.screen.BuildOrders;
 import com.villagepax.sim.build.BuildJob;
+import com.villagepax.sim.build.FloorChoice;
 import com.villagepax.sim.build.Galleries;
+import com.villagepax.sim.build.Heights;
 import com.villagepax.sim.build.Materials;
 import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Footing;
@@ -165,24 +168,34 @@ public final class Raising {
         }
 
         // Лучшее из первых годных мест, а не первое попавшееся: ближе
-        // к середине и дверью к ней. Дальше искать незачем — дальнее место
-        // хуже ближнего уже тем, что дальнее.
+        // к середине, дверью к ней и с наименьшей земляной работой. Дальше
+        // искать незачем — дальнее место хуже ближнего уже тем, что дальнее.
+        Footing footing = Footing.of(settlement);
+        Heights heights = new Heights(world);
+        int allowed = Traits.maxSlope(settlement.culture());
+        BlockPos centre = settlement.center();
+
         Candidate best = null;
         int found = 0;
-        for (BlockPos column : columns(settlement.center(), rings * PLACE_STEP)) {
-            BlockPos anchor = spot(world, settlement, column);
-            if (anchor == null || !isWalkableFrom(settlement.center(), anchor)) {
-                continue;
-            }
+        for (BlockPos column : columns(centre, rings * PLACE_STEP)) {
             for (BlockRotation rotation : BlockRotation.values()) {
-                if (!fits(world, settlement, anchor, schematic, rotation)
-                        || !(BuildOrders.check(settlement, schematicId, anchor, rotation)
+                // Сперва дешёвое — границы и чужие следы: они от высоты
+                // не зависят, а отсекают больше всего мест.
+                if (!(BuildOrders.check(settlement, schematicId, column, rotation)
                         instanceof BuildOrders.Result.Placed)) {
                     continue;
                 }
-                double score = score(settlement.center(), schematic, anchor, rotation);
+                Site site = footing.keepsOneLevel()
+                        ? onTheLevel(world, settlement, footing, column, schematic, rotation)
+                        : onTheGround(heights, allowed, column, schematic, rotation);
+                if (site == null || !isWalkableFrom(centre, site.anchor())) {
+                    continue;
+                }
+                double score = score(centre, schematic, site.anchor(), rotation)
+                        + site.earthwork()
+                        + CLIMB_WEIGHT * Math.abs(site.anchor().getY() - centre.getY());
                 if (best == null || score < best.score()) {
-                    best = new Candidate(anchor, rotation, score);
+                    best = new Candidate(site.anchor(), rotation, score);
                 }
                 found++;
             }
@@ -274,30 +287,109 @@ public final class Raising {
     }
 
     /**
-     * Куда в этой колонне встанет угол здания.
-     * <p>
-     * На поверхности это земля, в горе — <b>отметка пола чертога</b>,
-     * одна на всё поселение. Рельефа гномы не спрашивают вовсе: пол
-     * у них не следует за склоном, а вырубается по уровню, и в этом
-     * вся разница между деревней и чертогом.
+     * Место, которое годится, и во что обходится его земля.
+     *
+     * @param anchor    угол здания вместе с отметкой пола
+     * @param earthwork цена срывки, подсыпки и расхождения порога с землёй —
+     *                  в тех же блоках пути, что и расстояние от середины
      */
-    private static BlockPos spot(ServerWorld world, Settlement settlement, BlockPos column) {
-        return Footing.of(settlement).spot(world, settlement, column);
+    private record Site(BlockPos anchor, double earthwork) {
     }
 
     /**
-     * Годится ли место под здание такого размера.
+     * Во что обходится блок средней земляной работы на клетку следа —
+     * как три шага лишней дороги.
      * <p>
-     * На лугу спрашивается уклон, в горе — толща: «ровно ли» под землёй
-     * вопрос без смысла, пол и так один, а вот «не вскрыт ли свод сверху»
-     * — тот самый вопрос, который отличает чертог от ямы.
+     * Такой вес выбран затем, чтобы дом на ровном лугу в двадцати блоках
+     * побеждал дом на склоне в десяти: склон потом прячется под откосом,
+     * но выглядит деревня, построенная на ровном, всё равно спокойнее.
      */
-    private static boolean fits(ServerWorld world, Settlement settlement, BlockPos anchor,
-                                Schematic schematic, BlockRotation rotation) {
-        // Повёрнутый след: у дома восемь на шесть поворот меняет то, что
-        // лежит под ним, и ровность надо спрашивать про тот след, что встанет.
-        return Footing.of(settlement).fits(world, settlement, anchor,
-                BuildSite.rotatedSize(schematic.size(), rotation));
+    private static final double EARTHWORK_WEIGHT = 3.0;
+
+    /** Во что обходится каждый блок, на который порог разошёлся с землёй у двери. */
+    private static final double DOOR_STEP_WEIGHT = 1.5;
+
+    /**
+     * Во что обходится каждый блок высоты между полом и площадью.
+     * <p>
+     * Деревня, у которой все дома на одной отметке, читается улицей;
+     * у которой разброс в десять блоков — лестницей. Прежде высота
+     * спрашивалась только как запрет («не круче блока на три шага»),
+     * и дом на пределе запрета стоил столько же, сколько дом вровень
+     * с ратушей.
+     */
+    private static final double CLIMB_WEIGHT = 1.0;
+
+    /**
+     * Место в горе или в кронах: отметка одна на всё поселение.
+     * <p>
+     * Рельефа гномы и эльфы не спрашивают вовсе: пол у них не следует
+     * за склоном, а вырубается или настилается по уровню. Спрашивается
+     * толща — не вскрыт ли свод, есть ли под настилом лес.
+     */
+    private static Site onTheLevel(ServerWorld world, Settlement settlement, Footing footing,
+                                   BlockPos column, Schematic schematic, BlockRotation rotation) {
+        BlockPos anchor = footing.spot(world, settlement, column);
+        if (anchor == null || !footing.holds(world, anchor,
+                BuildSite.rotatedSize(schematic.size(), rotation))) {
+            return null;
+        }
+        return new Site(anchor, 0);
+    }
+
+    /**
+     * Место на земле: отметка пола по всей площадке и по входу.
+     * <p>
+     * Прежде угол здания вставал на высоту своей колонны, и пол
+     * наследовал её, какой бы она ни была; ровность проверялась
+     * по четырём углам. На склоне это задирало дом на верхнюю отметку
+     * и спускало крыльцо ступенями по воздуху. Теперь спрашивается каждая
+     * клетка следа и земля перед дверью, а пол выбирает {@link FloorChoice}.
+     *
+     * @return место или {@code null}, если площадка неровнее уклона народа
+     */
+    private static Site onTheGround(Heights heights, int allowed, BlockPos column,
+                                    Schematic schematic, BlockRotation rotation) {
+        Vec3i size = BuildSite.rotatedSize(schematic.size(), rotation);
+        int[] ground = new int[size.getX() * size.getZ()];
+        for (int dx = 0; dx < size.getX(); dx++) {
+            for (int dz = 0; dz < size.getZ(); dz++) {
+                int height = heights.at(column.getX() + dx, column.getZ() + dz);
+                if (height == FloorChoice.NO_GROUND) {
+                    return null;
+                }
+                ground[dx * size.getZ() + dz] = height;
+            }
+        }
+
+        FloorChoice.Floor floor = FloorChoice.choose(ground, allowed,
+                doorLevel(heights, column, schematic, rotation)).orElse(null);
+        if (floor == null) {
+            return null;
+        }
+        return new Site(column.withY(floor.y()),
+                EARTHWORK_WEIGHT * floor.meanDeviation() + DOOR_STEP_WEIGHT * floor.mismatch());
+    }
+
+    /**
+     * Пол, при котором порог главной двери встаёт на ступень над землёй
+     * перед ней, — или {@link FloorChoice#NO_GROUND}, если двери нет
+     * или перед ней не на чем стоять.
+     * <p>
+     * На ровном лугу это та же отметка, что и у земли: цоколь лежит
+     * на траве, дверь — на блок выше, и в дом входят одним шагом.
+     */
+    private static int doorLevel(Heights heights, BlockPos column, Schematic schematic,
+                                 BlockRotation rotation) {
+        if (schematic.entrances().isEmpty()) {
+            return FloorChoice.NO_GROUND;
+        }
+        Schematic.Entrance door = schematic.entrances().get(0);
+        BlockPos front = BuildSite.toWorld(column, schematic.size(), rotation,
+                door.pos().offset(door.wayOut()));
+        int ground = heights.at(front.getX(), front.getZ());
+        return ground == FloorChoice.NO_GROUND
+                ? FloorChoice.NO_GROUND : ground - door.pos().getY() + 1;
     }
 
     /**

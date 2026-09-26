@@ -126,17 +126,6 @@ public enum Footing {
     }
 
     /**
-     * Годится ли место под здание такого размера.
-     * <p>
-     * Вопрос один, ответы разные: на земле это уклон, в горе — свод
-     * над сводом, в кронах — лес под настилом.
-     */
-    public boolean fits(ServerWorld world, Settlement settlement, BlockPos anchor, Vec3i size) {
-        return this == GROUND ? isFlatEnough(world, settlement, anchor, size)
-                : holds(world, anchor, size);
-    }
-
-    /**
      * Держит ли это место здание такого размера — не спрашивая поселения.
      * <p>
      * Нужно там, где поселения ещё нет: при основании колонии игрок ставит
@@ -182,26 +171,4 @@ public enum Footing {
         };
     }
 
-    /**
-     * Насколько неровным может быть след здания у народа с земли.
-     * <p>
-     * Перенесено сюда из разметки целиком: вопрос «годится ли место»
-     * должен отвечаться в одном месте, иначе завтра он начнёт
-     * отвечаться по-разному в разметке и в пульте игрока.
-     */
-    private static boolean isFlatEnough(ServerWorld world, Settlement settlement,
-                                        BlockPos anchor, Vec3i size) {
-        int allowed = Traits.maxSlope(settlement.culture());
-
-        for (int dx = 0; dx < size.getX(); dx += Math.max(1, size.getX() - 1)) {
-            for (int dz = 0; dz < size.getZ(); dz += Math.max(1, size.getZ() - 1)) {
-                BlockPos corner = Ground.buildableAt(world, anchor.getX() + dx,
-                        anchor.getZ() + dz).orElse(null);
-                if (corner == null || Math.abs(corner.getY() - anchor.getY()) > allowed) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
 }

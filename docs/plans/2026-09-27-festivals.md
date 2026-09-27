@@ -78,7 +78,7 @@
 
 ## Часть A. Основа
 
-### Задача 1: календарь праздников
+### Task 1: календарь праздников
 
 **Файлы:**
 - Создать: `src/main/java/com/villagepax/sim/festival/FestivalCalendar.java`
@@ -184,7 +184,7 @@ public final class FestivalCalendar {
 - [ ] **Шаг 4.** Та же команда — зелёная.
 - [ ] **Шаг 5.** Коммит `feat: календарь праздников — фаза луны народа`.
 
-### Задача 2: праздник как данные народа
+### Task 2: праздник как данные народа
 
 **Файлы:**
 - Создать: `src/main/java/com/villagepax/core/festival/Festival.java` (запись и кодек),
@@ -358,7 +358,7 @@ public record Festival(Identifier culture, String name, int moonPhase, Fireworks
 
 ## Часть B. Ярмарка и затейник
 
-### Задача 3: маркеры загона и стрелковой черты
+### Task 3: маркеры загона и стрелковой черты
 
 **Файлы:**
 - Изменить: `src/main/java/com/villagepax/sim/build/MarkerKind.java` — роды `PEN("pen")`,
@@ -380,7 +380,7 @@ public record Festival(Identifier culture, String name, int moonPhase, Fireworks
 - [ ] **Шаг 4.** `./gradlew test` — зелёный (включая `BlockResourcesTest`, `LangTest`).
 - [ ] **Шаг 5.** Коммит `feat: маркеры загона и стрелковой черты`.
 
-### Задача 4: праздничные блоки и предметы
+### Task 4: праздничные блоки и предметы
 
 **Файлы:**
 - Создать: `tools/make-festival.py` — весь арт праздника; вписать в `GENERATORS`
@@ -467,7 +467,7 @@ public record Festival(Identifier culture, String name, int moonPhase, Fireworks
 - [ ] **Шаг 6.** `python tools/check-generated.py` — «совпадает» (после коммита).
 - [ ] **Шаг 7.** Коммит `feat: праздничные блоки, ленты, лук и шапки народов`.
 
-### Задача 5: ремесло «затейник»
+### Task 5: ремесло «затейник»
 
 **Файлы:**
 - Создать: `src/main/resources/data/villagepax/villagepax/professions/entertainer.json`
@@ -556,7 +556,7 @@ public class EntertainJob implements Job {
   зелёный.
 - [ ] **Шаг 5.** Коммит `feat: затейник — ремесло ярмарки`.
 
-### Задача 6: облик затейника
+### Task 6: облик затейника
 
 **Файлы:**
 - Изменить: `tools/make-citizen-textures.py`:
@@ -583,7 +583,7 @@ public class EntertainJob implements Job {
   Смотреть глазами: затейник отличим от купца и старейшины с другого конца деревни.
 - [ ] **Шаг 5.** Коммит `art: затейник у каждого народа в своём наряде`.
 
-### Задача 7: пляска, ликование и жонглирование
+### Task 7: пляска, ликование и жонглирование
 
 **Файлы:**
 - Изменить: `src/main/resources/assets/villagepax/animations/entity/citizen.animation.json`
@@ -615,7 +615,7 @@ public class EntertainJob implements Job {
 - [ ] **Шаг 5.** Позы глазами: `python tools/preview-citizens.py --poses dance@0,dance@0.5,cheer@0.4,juggle@0.2`.
 - [ ] **Шаг 6.** Коммит `feat: жители пляшут, ликуют и жонглируют`.
 
-### Задача 8: ярмарка — схема у семи народов и места праздника
+### Task 8: ярмарка — схема у семи народов и места праздника
 
 **Файлы:**
 - Изменить: `tools/make-schematics.py` — `fairground_lvl1` для семи народов.
@@ -747,7 +747,7 @@ static Building standUp(ServerWorld world, SettlementManager manager, Settlement
 - [ ] **Шаг 5.** `./gradlew runGametest` — новая и сквозные проверки зелёные.
 - [ ] **Шаг 6.** Коммит `feat: ярмарка у всех семи народов`.
 
-### Задача 9: праздники семи народов — данные и слова
+### Task 9: праздники семи народов — данные и слова
 
 **Файлы:**
 - Создать: `src/main/resources/data/villagepax/villagepax/festivals/<народ>.json` ×7 по таблице.
@@ -785,7 +785,7 @@ static Building standUp(ServerWorld world, SettlementManager manager, Settlement
   в лог: `grep "не загружен\|Праздник" build/...` в выводе прогона).
 - [ ] **Шаг 4.** Коммит `feat: праздники семи народов`.
 
-### Задача 10: деревня встаёт с ярмаркой и затейником
+### Task 10: деревня встаёт с ярмаркой и затейником
 
 **Файлы:**
 - Изменить: `src/main/java/com/villagepax/sim/Villages.java`:
@@ -813,7 +813,7 @@ static Building standUp(ServerWorld world, SettlementManager manager, Settlement
 
 ## Часть C. День праздника
 
-### Задача 11: идёт ли праздник — одно правило на весь мод
+### Task 11: идёт ли праздник — одно правило на весь мод
 
 **Файлы:**
 - Создать: `src/main/java/com/villagepax/sim/festival/FestivalDay.java`
@@ -864,7 +864,7 @@ public final class FestivalDay { ... }
 - [ ] **Шаг 3.** Обе красные → код → зелёные.
 - [ ] **Шаг 4.** Коммит `feat: одно правило «идёт ли праздник»`.
 
-### Задача 12: зов на рассвете и зазывала
+### Task 12: зов на рассвете и зазывала
 
 **Файлы:**
 - Создать:
@@ -899,7 +899,7 @@ public final class FestivalDay { ... }
 - [ ] **Шаг 3.** Красные → код → зелёные.
 - [ ] **Шаг 4.** Коммит `feat: зов праздника и зазывала на ярмарке`.
 
-### Задача 13: пироги на столе
+### Task 13: пироги на столе
 
 **Файлы:**
 - Создать: `sim/festival/Feast.java`
@@ -957,7 +957,7 @@ public void piesStandOnTheirDayAndLeaveTheNext(TestContext context) {
   проверка красная; вернуть.
 - [ ] **Шаг 4.** Коммит `feat: праздничные пироги на столе ярмарки`.
 
-### Задача 14: гулянье — хоровод вокруг сердца
+### Task 14: гулянье — хоровод вокруг сердца
 
 **Файлы:**
 - Создать: `sim/festival/Revels.java`
@@ -1002,7 +1002,7 @@ public void piesStandOnTheirDayAndLeaveTheNext(TestContext context) {
   что старые проверки не живут в такой день; если живут — их день задать явно).
 - [ ] **Шаг 5.** Коммит `feat: в праздник жители водят хоровод на ярмарке`.
 
-### Задача 15: фейерверк на закате
+### Task 15: фейерверк на закате
 
 **Файлы:**
 - Создать: `sim/festival/Fireworks.java`
@@ -1018,7 +1018,7 @@ public void piesStandOnTheirDayAndLeaveTheNext(TestContext context) {
   - `launch` ставит ракету в 4 блоках от сердца; в `finally` — `discard`.
 - [ ] Шаги: красная → код → зелёная → коммит `feat: фейерверк праздника в цветах народа`.
 
-### Задача 16: праздник веселит колонию; камень майя знает праздники
+### Task 16: праздник веселит колонию; камень майя знает праздники
 
 **Файлы:**
 - Изменить: `sim/work/Needs.java` — перегрузка `newDay(world, manager, settlement, today)`;
@@ -1049,7 +1049,7 @@ public void piesStandOnTheirDayAndLeaveTheNext(TestContext context) {
 
 ## Часть D. Состязания
 
-### Задача 17: движок состязаний, места и призы
+### Task 17: движок состязаний, места и призы
 
 **Файлы:**
 - Создать в `sim/festival/`:
@@ -1165,7 +1165,7 @@ public final class Awards {
     - доверие у знакомства (`Standing.KNOWN.from()`) не растёт выше.
 - [ ] Шаги: красные → код → зелёные → коммит `feat: движок состязаний, места и призы`.
 
-### Задача 18: поиск
+### Task 18: поиск
 
 **Файлы:**
 - Создать: `sim/festival/Hunt.java`, `sim/festival/HidingPlaces.java`
@@ -1204,7 +1204,7 @@ public final class Awards {
 - [ ] Шаги: красные → код → зелёные; уборку доказать поломкой (снять проверку «всё ещё наше» —
   сундук исчезает) → вернуть → коммит `feat: состязание «поиск»`.
 
-### Задача 19: ловля
+### Task 19: ловля
 
 **Файлы:**
 - Создать в `src/main/java/com/villagepax/entity/festival/`:
@@ -1251,7 +1251,7 @@ public final class Awards {
 - [ ] Шаги: красные → код → зелёные → доказать поломкой «не выходит из загона» (убрать
   возврат в загон) → вернуть → коммит `feat: состязание «ловля» — зверьки в загоне`.
 
-### Задача 20: стрельба
+### Task 20: стрельба
 
 **Файлы:**
 - Создать: `sim/festival/ArcheryScore.java` (чистая), `sim/festival/Archery.java`
@@ -1313,7 +1313,7 @@ public final class ArcheryScore {
     - `aBrokenTargetClosesTheRange`: мишень сломана → `start` = `NO_ROOM`.
 - [ ] Шаги: красные → код → зелёные → коммит `feat: состязание «стрельба» — мишени и праздничный лук`.
 
-### Задача 21: экран затейника
+### Task 21: экран затейника
 
 **Файлы:**
 - Создать: `src/main/java/com/villagepax/screen/FestivalView.java`,
@@ -1364,7 +1364,7 @@ public record FestivalView(UUID village, String villageName, String host, String
     - `start` из 20 блоков — отказ `too_far`.
 - [ ] Шаги: красные → код → зелёные → коммит `feat: экран затейника — состязания и лавка`.
 
-### Задача 22: лавка и шапки
+### Task 22: лавка и шапки
 
 **Файлы:**
 - Создать: `sim/festival/PrizeStall.java`
@@ -1389,7 +1389,7 @@ public record FestivalView(UUID village, String villageName, String host, String
 
 ## Часть E. Слова и проверка
 
-### Задача 23: книга, README, руководство для датапаков
+### Task 23: книга, README, руководство для датапаков
 
 **Файлы:**
 - Изменить: `sim/Guide.java` и словари — страница «Праздники»: когда (луна народа, камень
@@ -1402,7 +1402,7 @@ public record FestivalView(UUID village, String villageName, String host, String
   от замысла, если были (например, зайцы вместо козлят).
 - [ ] Шаги: правки → `./gradlew test` → коммит `docs: праздники в книге, README и руководстве`.
 
-### Задача 24: лакмус и полная проверка
+### Task 24: лакмус и полная проверка
 
 **Файлы:**
 - Изменить: `ColonyTests.noModBlockIsLeftUnused` — законные исключения с комментарием:

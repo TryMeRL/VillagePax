@@ -194,7 +194,8 @@ public final class CitizenSpawner {
         return new ChunkPos(BlockPos.ofFloored(spawnPosition(settlement, citizen))).equals(chunk);
     }
 
-    private static boolean hasLiveBody(ServerWorld world, Citizen citizen) {
+    /** Есть ли у жителя тело в мире прямо сейчас. */
+    public static boolean hasLiveBody(ServerWorld world, Citizen citizen) {
         UUID entityUuid = citizen.entityUuid().orElse(null);
         return entityUuid != null && world.getEntity(entityUuid) != null;
     }

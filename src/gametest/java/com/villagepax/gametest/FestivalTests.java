@@ -8,6 +8,7 @@ import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.Owner;
 import com.villagepax.sim.Villages;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.festival.Fair;
@@ -426,6 +427,184 @@ public class FestivalTests extends GameTestSupport {
             }
             discardBodies(world, colony);
             manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    /** Сколько жителей выпустить на праздник, и чьими ремёслами. */
+    private static List<Citizen> revellers(ServerWorld world, Settlement settlement, Fair fair,
+                                           int many) {
+        List<Citizen> out = new ArrayList<>();
+        BlockPos floor = new BlockPos(fair.heart().getX() - 3, fair.standingY(), fair.heart().getZ() - 3);
+        for (int i = 0; i < many; i++) {
+            out.add(hireWithBody(world, settlement, new Identifier("villagepax", "farmer"), floor));
+        }
+        return out;
+    }
+
+    /** Зритель — на круге в четырёх шагах от сердца: мерка по кругу, а не по квадрату. */
+    private static boolean watching(CitizenEntity body, Fair fair) {
+        BlockPos target = body.workTarget();
+        if (target == null) {
+            return false;
+        }
+        double away = Math.hypot(target.getX() - fair.heart().getX(),
+                target.getZ() - fair.heart().getZ());
+        return away >= 3.5 && away <= 4.5 && Math.abs(target.getY() - fair.standingY()) <= 1;
+    }
+
+    private static boolean inRing(CitizenEntity body, Fair fair, double from, double to) {
+        BlockPos target = body.workTarget();
+        if (target == null) {
+            return false;
+        }
+        double dx = target.getX() - fair.heart().getX();
+        double dz = target.getZ() - fair.heart().getZ();
+        double away = Math.max(Math.abs(dx), Math.abs(dz));
+        return away >= from && away <= to && Math.abs(target.getY() - fair.standingY()) <= 1;
+    }
+
+    /**
+     * В свой праздник деревня народа пляшет у сердца ярмарки — и днём,
+     * и в любой другой час гулянья, — а затейник стоит у прилавка.
+     * <p>
+     * У норманнов праздник в полнолуние: день 0 — праздник, день 1 — нет.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "revels")
+    public void villagersDanceAroundTheHeartOnTheirDay(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(4, 8, 4));
+        Settlement village = colonyWithBuilder(world, manager, hall);
+        village.setOwner(Owner.AUTONOMOUS);
+        Schematic plan = schematic(context, NORMAN_FAIR_PLAN);
+        Building building = null;
+        try {
+            building = standUp(context, world, manager, village, NORMAN_FAIR, anchor);
+            BlockPos counter = Workplaces.stations(building).get(0);
+            Citizen jester = hireWithBody(world, village, Villages.ENTERTAINER, counter);
+            Workplaces.assign(world, village);
+            Fair fair = Fairs.of(village).orElseThrow();
+            List<Citizen> people = revellers(world, village, fair, 3);
+
+            for (Citizen citizen : people) {
+                WorkTicker.decide(world, manager, village, citizen, Schedule.DAY_WORK, 0);
+                CitizenEntity body = bodyOf(world, village, citizen);
+                if (!inRing(body, fair, 1.5, 2.5) || !body.isDancing()) {
+                    context.throwGameTestException(citizen.fullName() + " не в хороводе: цель "
+                            + body.workTarget() + ", сердце " + fair.heart() + ", пляшет "
+                            + body.isDancing());
+                }
+            }
+            WorkTicker.decide(world, manager, village, jester, Schedule.DAY_WORK, 0);
+            CitizenEntity host = bodyOf(world, village, jester);
+            if (host.workTarget() == null || host.workTarget().getSquaredDistance(counter) > 2.25
+                    || host.isDancing()) {
+                context.throwGameTestException("Затейник в праздник не у прилавка: " + host.workTarget());
+            }
+            for (Citizen citizen : people) {
+                WorkTicker.decide(world, manager, village, citizen, Schedule.DAY_WORK, 1);
+                if (bodyOf(world, village, citizen).isDancing()) {
+                    context.throwGameTestException("На другой день " + citizen.fullName()
+                            + " всё ещё пляшет");
+                }
+            }
+        } finally {
+            if (building != null) {
+                demolish(world, building, plan);
+            }
+            discardBodies(world, village);
+            manager.remove(village.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    /** Колония в свой праздник работает до обеда и гуляет после. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "revels")
+    public void aColonyWorksTillLunchOnItsFestival(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(4, 8, 4));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Schematic plan = schematic(context, NORMAN_FAIR_PLAN);
+        Building building = null;
+        try {
+            building = standUp(context, world, manager, colony, NORMAN_FAIR, anchor);
+            hireWithBody(world, colony, Villages.ENTERTAINER, Workplaces.stations(building).get(0));
+            Workplaces.assign(world, colony);
+            Fair fair = Fairs.of(colony).orElseThrow();
+            Citizen farmer = revellers(world, colony, fair, 1).get(0);
+            CitizenEntity body = bodyOf(world, colony, farmer);
+
+            WorkTicker.decide(world, manager, colony, farmer, Schedule.MORNING_WORK, 0);
+            if (body.isDancing() || inRing(body, fair, 0, 2.5)) {
+                context.throwGameTestException("Колония пляшет с утра, а не работает");
+            }
+            WorkTicker.decide(world, manager, colony, farmer, Schedule.DAY_WORK, 0);
+            if (!body.isDancing() || !inRing(body, fair, 1.5, 2.5)) {
+                context.throwGameTestException("После обеда колония не гуляет: цель "
+                        + body.workTarget());
+            }
+        } finally {
+            if (building != null) {
+                demolish(world, building, plan);
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    /**
+     * В хороводе восемь мест: девятый и десятый стоят вокруг и смотрят,
+     * и все — на сердце праздника.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "revels")
+    public void nineDancersAndTheTenthWatches(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(4, 8, 4));
+        Settlement village = colonyWithBuilder(world, manager, hall);
+        village.setOwner(Owner.AUTONOMOUS);
+        Schematic plan = schematic(context, NORMAN_FAIR_PLAN);
+        Building building = null;
+        try {
+            building = standUp(context, world, manager, village, NORMAN_FAIR, anchor);
+            hireWithBody(world, village, Villages.ENTERTAINER, Workplaces.stations(building).get(0));
+            Workplaces.assign(world, village);
+            Fair fair = Fairs.of(village).orElseThrow();
+            List<Citizen> people = revellers(world, village, fair, 10);
+            int dancing = 0;
+            int watching = 0;
+            for (Citizen citizen : people) {
+                WorkTicker.decide(world, manager, village, citizen, Schedule.LEISURE, 0);
+                CitizenEntity body = bodyOf(world, village, citizen);
+                if (!fair.heart().equals(body.workFocus())) {
+                    context.throwGameTestException(citizen.fullName() + " смотрит не на сердце: "
+                            + body.workFocus());
+                }
+                if (body.isDancing() && inRing(body, fair, 1.5, 2.5)) {
+                    dancing++;
+                } else if (!body.isDancing() && watching(body, fair)) {
+                    watching++;
+                }
+            }
+            if (dancing != 8 || watching != 2) {
+                context.throwGameTestException("В хороводе " + dancing + ", смотрят " + watching
+                        + " — ждали восемь и двое");
+            }
+        } finally {
+            if (building != null) {
+                demolish(world, building, plan);
+            }
+            discardBodies(world, village);
+            manager.remove(village.id());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
         context.complete();

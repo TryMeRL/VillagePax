@@ -92,7 +92,7 @@ public final class WorkTicker {
                     continue;
                 }
                 if (isItsTurn(time, citizen)) {
-                    decideSafely(world, manager, settlement, citizen, part);
+                    decideSafely(world, manager, settlement, citizen, part, today);
                 }
             }
         }
@@ -106,9 +106,10 @@ public final class WorkTicker {
      * уходит одна трасса с тем, кто и где, — по ней и чинят. См. {@link Safely}.
      */
     private static void decideSafely(ServerWorld world, SettlementManager manager,
-                                     Settlement settlement, Citizen citizen, Schedule part) {
+                                     Settlement settlement, Citizen citizen, Schedule part,
+                                     long day) {
         Safely.run(citizen.fullName() + " из " + settlement.name(), "Решение жителя",
-                () -> decide(world, manager, settlement, citizen, part));
+                () -> decide(world, manager, settlement, citizen, part, day));
     }
 
     /**
@@ -200,6 +201,17 @@ public final class WorkTicker {
      */
     public static void decide(ServerWorld world, SettlementManager manager,
                               Settlement settlement, Citizen citizen, Schedule part) {
+        decide(world, manager, settlement, citizen, part, Schedule.dayOf(world.getTimeOfDay()));
+    }
+
+    /**
+     * То же, но в названный день.
+     * <p>
+     * День — довод, а не спрос у мира: праздник зависит от дня, а мир
+     * игровых проверок общий, и время суток в нём не подвинешь.
+     */
+    public static void decide(ServerWorld world, SettlementManager manager,
+                              Settlement settlement, Citizen citizen, Schedule part, long day) {
         CitizenEntity body = liveBody(world, citizen);
         if (body == null) {
             return;
@@ -222,6 +234,14 @@ public final class WorkTicker {
         // Дело на это решение назовёт работа; сон, сбор и обед смотрят
         // не на вчерашнюю грядку.
         body.setWorkFocus(null);
+
+        // Праздник подменяет цель, как распорядок: гулянье у сердца ярмарки
+        // вместо работы и сбора. Работу при этом не стирает — наутро
+        // стройка там, где её оставили.
+        if (com.villagepax.sim.festival.Revels.takesOver(context, part, day)) {
+            return;
+        }
+        body.setDancing(false);
 
         switch (part) {
             case SLEEP -> {

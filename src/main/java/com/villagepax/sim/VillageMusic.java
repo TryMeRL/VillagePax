@@ -140,9 +140,12 @@ public final class VillageMusic {
             GATHERED.clear();
             return;
         }
+        long today = Schedule.dayOf(world.getTimeOfDay());
         for (Settlement settlement : SettlementManager.get(world).all()) {
             Tune tune = TUNES.get(settlement.culture().getPath());
-            BlockPos centre = settlement.center();
+            // В праздник песня играет у сердца ярмарки: народ собрался там.
+            BlockPos centre = com.villagepax.sim.festival.Revels.stage(settlement, today)
+                    .orElse(settlement.center());
             if (tune == null || !world.isChunkLoaded(centre)
                     || !world.isPlayerInRange(centre.getX(), centre.getY(), centre.getZ(), LISTENER)) {
                 continue;

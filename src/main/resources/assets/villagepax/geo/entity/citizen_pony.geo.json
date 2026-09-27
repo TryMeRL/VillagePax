@@ -392,6 +392,18 @@
               "mirror": true
             }
           ]
+        },
+        {
+          "name": "ruff@entertainer",
+          "parent": "neck",
+          "pivot": [0, 10, -3.5],
+          "cubes": [
+            {
+              "origin": [-2.5, 12, -5.5],
+              "size": [5, 1.5, 5],
+              "uv": [44, 57]
+            }
+          ]
         }
       ]
     }

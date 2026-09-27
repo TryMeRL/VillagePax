@@ -959,6 +959,88 @@ def craft_weaver(skin, parts, look, woman, people):
         draw_skirt(skin, look, colour=LINEN, trim=look["accent"])
 
 
+def craft_entertainer(skin, parts, look, woman, people):
+    """Затейник: пёстрый наряд ромбами, зубчатый воротник и колпак с бубенцами.
+
+    У каждого народа свой: жонглёр норманнов и воладор майя — в пёстром,
+    скальд северян — в меху, рассказчик ямато — в праздничном хаппи
+    с маской лисы на виске. Пестрота — то, что отличает его от купца
+    через всю ярмарку: купец одет богато, затейник — весело.
+    """
+    jacket = parts["jacket"]
+    if people == "nord":
+        fur, fur_dark = rgb(0x8A6A48), rgb(0x5E4630)
+        for name in SIDES:
+            skin.weave(jacket[name], look["accent"], tone(look["accent"], 0.88),
+                       tone(look["accent"], 1.08), salt=31)
+        for name in SIDES:
+            skin.band(jacket[name], fur, rows=3)
+            skin.band(jacket[name], fur_dark, top=3, rows=1)
+            skin.band(parts["sleeve"][name], fur, rows=3)
+        cap = rgb(0xE6E0D2)
+        skin.fill(parts["hat"]["top"], fur)
+        for name in SIDES:
+            skin.band(parts["hat"][name], fur, rows=2)
+            skin.band(parts["hat"][name], cap, top=2, rows=1)
+        return
+    if people == "yamato":
+        indigo, white = rgb(0x2A3A7A), rgb(0xF4F1EA)
+        for name in SIDES:
+            skin.weave(jacket[name], indigo, tone(indigo, 0.85), tone(indigo, 1.12), salt=32)
+            skin.band(parts["sleeve"][name], indigo, rows=8)
+        x, y, width, height = jacket["front"]
+        skin.column(jacket["front"], white, left=2)
+        skin.column(jacket["front"], white, left=width - 3)
+        for dx in range(0, width, 3):
+            skin.px(jacket["back"], dx, 4, white)
+            skin.px(jacket["back"], dx + 1, 5, white)
+        for name in SIDES:
+            skin.band(parts["hat"][name], white, top=1, rows=1)
+        skin.px(parts["hat"]["front"], 4, 1, RED)
+        # Маска лисы на левом виске — вторым слоем головы: белая морда,
+        # прорези глаз и красные метки.
+        side = parts["hat"]["left"]
+        x, y, width, height = side
+        skin.fill((x + 1, y + 2, 6, 5), white)
+        skin.px(side, 1, 1, white)
+        skin.px(side, 6, 1, white)
+        skin.px(side, 2, 3, INK_MASK)
+        skin.px(side, 5, 3, INK_MASK)
+        skin.px(side, 3, 5, RED)
+        skin.px(side, 4, 5, RED)
+        skin.px(side, 1, 4, RED)
+        skin.px(side, 6, 4, RED)
+        return
+    one = look["accent"]
+    other = GOLD if people != "elf" else rgb(0xCFD6DA)
+    for name in SIDES:
+        x, y, width, height = jacket[name]
+        for dy in range(height):
+            for dx in range(width):
+                skin.px(jacket[name], dx, dy, one if (dx // 2 + dy // 2) % 2 else other)
+    skin.band(jacket["front"], rgb(0xF4F1EA), rows=1)
+    for dx in range(0, jacket["front"][2], 2):
+        skin.px(jacket["front"], dx, 1, rgb(0xF4F1EA))
+    skin.band(jacket["front"], look["belt"], top=9, rows=1)
+    # Рукава врозь: правый одного цвета, левый другого — как у шута.
+    skin.band(parts["sleeve"]["front"], one, rows=8)
+    skin.band(parts["sleeve"]["back"], other, rows=8)
+    skin.fill(parts["hat"]["top"], one)
+    for name in ("front", "left"):
+        skin.band(parts["hat"][name], one, rows=3)
+    for name in ("back", "right"):
+        skin.band(parts["hat"][name], other, rows=3)
+    skin.cube(REGIONS["jester_horn"], one)
+    for name in ("top", "front"):
+        skin.fill(REGIONS["jester_horn"][name], other)
+    skin.cube(REGIONS["jester_bell"], GOLD)
+    if woman:
+        draw_skirt(skin, look, colour=one, trim=other)
+
+
+INK_MASK = rgb(0x1E1E1E)
+
+
 CRAFTS = {
     "builder": craft_builder,
     "farmer": craft_farmer,
@@ -969,6 +1051,7 @@ CRAFTS = {
     "brewer": craft_brewer,
     "merchant": craft_merchant,
     "weaver": craft_weaver,
+    "entertainer": craft_entertainer,
 }
 
 
@@ -1041,6 +1124,7 @@ PONY_COATS = {
     (False, "brewer"): (0xF0D070, 0xB83A2E, 0xE0604A, 0x8A2A22),
     (False, "merchant"): (0xA8E8C8, 0x7A3AA8, 0xA868D0, 0x5A2A80),
     (False, "weaver"): (0xF8C8B0, 0x4A7AD8, 0x7AA4F0, 0x3A5AA8),
+    (False, "entertainer"): (0xF8D878, 0xE8408A, 0x70C8F0, 0x3A7AD0),
     (True, None): (0xF8B8D8, 0xD83A8A, 0xF070B0, 0x3A7AD0),
     (True, "builder"): (0xD0B8F0, 0x4A2E8A, 0x7050B8, 0x5A2E9A),
     (True, "farmer"): (0xF8E8A0, 0xF08AB0, 0xF8B0CC, 0x3AA0B8),
@@ -1051,6 +1135,7 @@ PONY_COATS = {
     (True, "brewer"): (0xF8C090, 0xC8302E, 0xE86050, 0x3A7A3A),
     (True, "merchant"): (0xE0C8F0, 0x2E9A9A, 0x5AC8C8, 0x2A6A8A),
     (True, "weaver"): (0xF8F4F0, 0x7A4AC8, 0xA07AE0, 0x3A60C8),
+    (True, "entertainer"): (0xF8B8E0, 0xE0409A, 0xF870B8, 0x3A8AD8),
 }
 
 # Радужная грива — одна на весь народ: у курьерши, самой быстрой.
@@ -1069,6 +1154,7 @@ CUTIE_MARKS = {
     "brewer": ["LL.", "YYW", "YY."],
     "merchant": [".Y.", "YOY", ".Y."],
     "weaver": [".P.", "PLP", ".P."],
+    "entertainer": ["R.B", "...", ".Y."],
 }
 CUTIE_INK = {
     "R": rgb(0xE0405A), "S": rgb(0xA8B0B8), "W": rgb(0x8A5A2E), "G": rgb(0x4AA04A),
@@ -1240,6 +1326,16 @@ def pony_weaver(skin, look):
     """Прядильщица: знак на боку — клубок."""
 
 
+def pony_entertainer(skin, look):
+    """Затейница: жабо вокруг шеи и знак — три мячика в воздухе."""
+    ruff = PONY_REGIONS["ruff"]
+    skin.cube(ruff, rgb(0xF8F4F0))
+    for name in ("left", "right", "front", "back"):
+        x, y, width, height = ruff[name]
+        for dx in range(0, width, 2):
+            skin.px(ruff[name], dx, 0, GOLD)
+
+
 PONY_CRAFTS = {
     "builder": pony_builder,
     "farmer": pony_farmer,
@@ -1250,6 +1346,7 @@ PONY_CRAFTS = {
     "brewer": pony_brewer,
     "merchant": pony_merchant,
     "weaver": pony_weaver,
+    "entertainer": pony_entertainer,
 }
 
 

@@ -399,6 +399,12 @@ public final class Roads {
         // линия впервые выходила из-под здания, то есть сбоку от входа.
         // Игрок и сказал: пусть пути ведут от двери.
         BlockPos doorstep = doorstep(building, schematic, door);
+        if (!world.isChunkLoaded(doorstep.getX() >> 4, doorstep.getZ() >> 4)) {
+            // Здание за краем видимого: его улицу спросят, когда туда придут.
+            // Считать её сейчас значило бы грузить чанки ради ответа,
+            // который никому не нужен.
+            return List.of();
+        }
 
         if (!Footing.of(colony).keepsOneLevel()) {
             // Путь ищется, а прямая осталась запасной — на случай, когда
@@ -584,7 +590,12 @@ public final class Roads {
                 int x = node.tile().getX() + way.getOffsetX();
                 int z = node.tile().getZ() + way.getOffsetZ();
                 if (x < minX || x > maxX || z < minZ || z > maxZ
-                        || decor.contains(BlockPos.asLong(x, 0, z))) {
+                        || decor.contains(BlockPos.asLong(x, 0, z))
+                        // Спросить блок в выгруженном чанке значит заставить
+                        // мир загрузить его здесь и сейчас, посреди тика. Прямая
+                        // шла от двери к ратуше и почти не выходила за видимое,
+                        // а поиск заглядывает на двенадцать клеток вбок.
+                        || !world.isChunkLoaded(x >> 4, z >> 4)) {
                     continue;
                 }
                 BlockPos next = tileAt(world, x, z, node.tile().getY());
@@ -661,6 +672,10 @@ public final class Roads {
     private static java.util.Set<Long> decorColumns(ServerWorld world, Settlement colony) {
         java.util.Set<Long> columns = new java.util.HashSet<>();
         for (BlockPos at : com.villagepax.sim.SettlementManager.get(world).decorOf(colony.id())) {
+            if (!world.isChunkLoaded(at.getX() >> 4, at.getZ() >> 4)) {
+                // В выгруженный чанк улица и так не пойдёт — поиск его обходит.
+                continue;
+            }
             BlockState state = world.getBlockState(at);
             if (!state.isReplaceable() && !state.isIn(BlockTags.FLOWERS)) {
                 columns.add(BlockPos.asLong(at.getX(), 0, at.getZ()));

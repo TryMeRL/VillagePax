@@ -22,6 +22,9 @@ class MarkerKindTest {
         assertEquals(Optional.of(MarkerKind.STORAGE), MarkerKind.byBlockPath("marker_storage"));
         assertEquals(Optional.of(MarkerKind.DOOR), MarkerKind.byBlockPath("marker_door"));
         assertEquals(Optional.of(MarkerKind.DECOR), MarkerKind.byBlockPath("marker_decor"));
+        // Места праздника на ярмарке: загон для ловли и стрелковая черта.
+        assertEquals(Optional.of(MarkerKind.PEN), MarkerKind.byBlockPath("marker_pen"));
+        assertEquals(Optional.of(MarkerKind.SHOOTING), MarkerKind.byBlockPath("marker_shooting"));
     }
 
     @Test
@@ -45,5 +48,6 @@ class MarkerKindTest {
     void doesNotMatchOnPrefixAlone() {
         assertTrue(MarkerKind.byBlockPath("marker_bedrock").isEmpty());
         assertTrue(MarkerKind.byBlockPath("marker_doorbell").isEmpty());
+        assertTrue(MarkerKind.byBlockPath("marker_penguin").isEmpty());
     }
 }

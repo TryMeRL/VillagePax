@@ -327,6 +327,8 @@ public final class ModBlocks {
     public static final Block MARKER_STORAGE = registerMarker("marker_storage");
     public static final Block MARKER_DOOR = registerMarker("marker_door");
     public static final Block MARKER_DECOR = registerMarker("marker_decor");
+    public static final Block MARKER_PEN = registerMarker("marker_pen");
+    public static final Block MARKER_SHOOTING = registerMarker("marker_shooting");
 
     private ModBlocks() {
     }

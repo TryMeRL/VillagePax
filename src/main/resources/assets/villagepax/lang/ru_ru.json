@@ -14,6 +14,8 @@
   "block.villagepax.marker_storage": "Маркер: сундук",
   "block.villagepax.marker_door": "Маркер: вход",
   "block.villagepax.marker_decor": "Маркер: декор",
+  "block.villagepax.marker_pen": "Маркер: загон",
+  "block.villagepax.marker_shooting": "Маркер: стрелковая черта",
   "item.villagepax.town_hall_blueprint": "Чертёж ратуши",
   "villagepax.culture.norman": "Норманны",
   "villagepax.tooltip.marker": "Служебный блок схемы",

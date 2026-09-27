@@ -14,6 +14,8 @@
   "block.villagepax.marker_storage": "Marker: Storage",
   "block.villagepax.marker_door": "Marker: Entrance",
   "block.villagepax.marker_decor": "Marker: Decor",
+  "block.villagepax.marker_pen": "Marker: Pen",
+  "block.villagepax.marker_shooting": "Marker: Shooting Line",
   "item.villagepax.town_hall_blueprint": "Town Hall Blueprint",
   "villagepax.culture.norman": "Normans",
   "villagepax.tooltip.marker": "Schematic marker block",

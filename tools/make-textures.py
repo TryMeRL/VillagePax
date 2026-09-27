@@ -138,6 +138,9 @@ MARK_DOOR = rgb(0x3FB0A6)
 MARK_STORE = rgb(0xE0A030)
 MARK_WORK = rgb(0xC8912E)
 MARK_DECOR = rgb(0x9B6BC4)
+# Места праздника: загон — зелень луга, черта — красная, как середина мишени.
+MARK_PEN = rgb(0x6BAE3C)
+MARK_SHOOT = rgb(0xD8453A)
 IRON = rgb(0x8A8F96)
 IRON_LIT = rgb(0xB4B9C0)
 
@@ -599,6 +602,25 @@ MARK_GLYPHS = {
         "..###..###..",
         "...######...",
         "....####....",
+    ],
+    # Загон: изгородь в две жерди — клетка, где бегают зверьки ловли.
+    "pen": [
+        "#..#..#..#..",
+        "############",
+        "#..#..#..#..",
+        "#..#..#..#..",
+        "############",
+        "#..#..#..#..",
+    ],
+    # Стрелковая черта: стрела над чертой.
+    "shooting": [
+        ".......#....",
+        ".......##...",
+        "###########.",
+        ".......##...",
+        ".......#....",
+        "............",
+        "############",
     ],
 }
 
@@ -1343,7 +1365,8 @@ def main():
 
     for name, colour in (("bed", MARK_BED), ("door", MARK_DOOR),
                          ("storage", MARK_STORE), ("workstation", MARK_WORK),
-                         ("decor", MARK_DECOR)):
+                         ("decor", MARK_DECOR), ("pen", MARK_PEN),
+                         ("shooting", MARK_SHOOT)):
         made.append(marker(colour, _glyph(MARK_GLYPHS[name]))
                     .save("block", "marker_" + name))
 

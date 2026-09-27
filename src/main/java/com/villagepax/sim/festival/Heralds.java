@@ -163,8 +163,13 @@ public final class Heralds {
 
     /** Как народ зовёт затейника: жонглёр, скальд, менестрель — или общим именем. */
     public static Text title(Settlement settlement, Citizen citizen) {
+        return Text.translatable(titleKey(settlement));
+    }
+
+    /** Ключ имени затейника у народа поселения. */
+    public static String titleKey(Settlement settlement) {
         Culture culture = CultureManager.get(settlement.culture());
         String key = culture == null ? null : culture.titleOf(Villages.ENTERTAINER).orElse(null);
-        return Text.translatable(key != null ? key : "villagepax.profession.entertainer");
+        return key != null ? key : "villagepax.profession.entertainer";
     }
 }

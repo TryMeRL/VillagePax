@@ -97,6 +97,7 @@ public class VillagePaxClient implements ClientModInitializer {
         registerViewUpdates();
         registerColonyMap();
         registerQuestScreen();
+        registerFestivalScreen();
         registerHologram();
         registerTooltips();
     }
@@ -175,6 +176,16 @@ public class VillagePaxClient implements ClientModInitializer {
      * можно только стоя рядом с выдающим, и эту проверку делает сервер
      * по расстоянию, а не по открытому экрану.
      */
+    /** Экран затейника: снимок с сервера — и свежий после каждой покупки. */
+    private static void registerFestivalScreen() {
+        ClientPlayNetworking.registerGlobalReceiver(com.villagepax.screen.FestivalNet.OPEN,
+                (client, handler, buf, sender) -> {
+                    var view = com.villagepax.screen.FestivalNet.read(buf);
+                    client.execute(() -> view.ifPresent(fresh ->
+                            com.villagepax.client.screen.FestivalScreen.open(client, fresh)));
+                });
+    }
+
     private static void registerQuestScreen() {
         ClientPlayNetworking.registerGlobalReceiver(QuestNet.OPEN,
                 (client, handler, buf, sender) -> {

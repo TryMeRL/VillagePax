@@ -44,6 +44,20 @@ class PanelMetricsTest {
                 "в экране настроек список короче пяти строк");
     }
 
+    /**
+     * Экран затейника: заголовок, строка «когда праздник» и тело с двумя
+     * карточками — состязаниями и лавкой.
+     */
+    @Test
+    void festivalPanelAddsUp() {
+        assertTrue(PanelMetrics.addsUp(PanelMetrics.FESTIVAL_HEIGHT,
+                        PanelMetrics.HEADER, PanelMetrics.STATUS),
+                "экран затейника не сходится по высоте");
+        assertTrue(PanelMetrics.bodyHeight(PanelMetrics.FESTIVAL_HEIGHT,
+                        PanelMetrics.HEADER, PanelMetrics.STATUS) >= 140,
+                "в экране затейника тело не вмещает и трёх состязаний");
+    }
+
     /** Тело обязано быть больше строки: иначе прокрутка бессмысленна. */
     @Test
     void bodyIsWorthScrolling() {

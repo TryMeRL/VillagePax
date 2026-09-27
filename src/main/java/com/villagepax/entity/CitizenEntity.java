@@ -4,6 +4,7 @@ import com.villagepax.VillagePax;
 import com.villagepax.core.config.Configs;
 import com.villagepax.core.profession.ProfessionManager;
 import com.villagepax.core.quest.QuestManager;
+import com.villagepax.screen.FestivalNet;
 import com.villagepax.screen.QuestNet;
 import com.villagepax.sim.quest.Quests;
 import com.villagepax.sim.trade.Trading;
@@ -1012,6 +1013,14 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         // тело и экран разошлись бы во мнениях, и игрок щёлкал бы
         // по человеку, который открывает пустоту.
         Identifier profession = citizen.profession().get();
+        // Затейник отвечает всегда — и в своей колонии, и в чужой деревне:
+        // праздник для всех, и лавка его — праздничный товар, а не торг
+        // с самим собой.
+        if (profession.equals(Villages.ENTERTAINER)) {
+            greet();
+            FestivalNet.open(server, world, village, citizen);
+            return ActionResult.SUCCESS;
+        }
         boolean gives = QuestManager.all().values().stream()
                 .anyMatch(quest -> quest.giver().equals(profession));
         //

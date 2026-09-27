@@ -44,6 +44,19 @@ public final class PanelMetrics {
     public static final int SETTINGS_WIDTH = 320;
     public static final int SETTINGS_HEIGHT = 236;
 
+    /**
+     * Экран затейника: праздник, состязания и лавка.
+     * <p>
+     * Под заголовком — строка «когда праздник» ({@link #STATUS}), под ней
+     * тело с двумя карточками. Вкладок нет: состязаний три, товаров три,
+     * и всё видно одним листом.
+     */
+    public static final int FESTIVAL_WIDTH = 320;
+    public static final int FESTIVAL_HEIGHT = 230;
+
+    /** Строка «сегодня праздник» или «через N дн.» под заголовком. */
+    public static final int STATUS = 12;
+
     /** Ряд кнопок под телом экрана настроек. */
     public static final int FOOTER = 16;
 

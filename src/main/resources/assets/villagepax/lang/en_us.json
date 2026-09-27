@@ -1075,5 +1075,15 @@
   "villagepax.festival.reason.besieged": "A raid is on — no time for a festival",
   "villagepax.festival.today": "%s: today is the %s! Contests at the entertainer's stall on the fairground.",
   "villagepax.festival.tomorrow": "Tomorrow in %s: the %s.",
+  "villagepax.festival.screen.open": "Festival today — %s %s calls you to play!",
+  "villagepax.festival.screen.in": "Days to the festival: %s",
+  "villagepax.festival.screen.contests": "Contests",
+  "villagepax.festival.screen.stall": "Entertainer's stall",
+  "villagepax.festival.screen.start": "Start",
+  "villagepax.festival.screen.take": "Take",
+  "villagepax.festival.screen.awarded": "prize taken",
+  "villagepax.festival.screen.running": "Running: %s",
+  "villagepax.festival.screen.none": "This festival has no contests.",
+  "villagepax.festival.screen.stall_closed": "The stall opens only on the festival. Ribbons are won in the contests.",
   "villagepax.entertainer.says": "%s %s: \"%s\""
 }

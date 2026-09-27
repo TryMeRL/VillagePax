@@ -1075,5 +1075,15 @@
   "villagepax.festival.reason.besieged": "Набег — не до праздника",
   "villagepax.festival.today": "«%s»: сегодня %s! Состязания — у затейника на ярмарке.",
   "villagepax.festival.tomorrow": "Завтра в «%s» — %s.",
+  "villagepax.festival.screen.open": "Сегодня праздник — %s %s зовёт играть!",
+  "villagepax.festival.screen.in": "До праздника: %s дн.",
+  "villagepax.festival.screen.contests": "Состязания",
+  "villagepax.festival.screen.stall": "Лавка затейника",
+  "villagepax.festival.screen.start": "Начать",
+  "villagepax.festival.screen.take": "Взять",
+  "villagepax.festival.screen.awarded": "приз взят",
+  "villagepax.festival.screen.running": "Идёт: «%s»",
+  "villagepax.festival.screen.none": "У этого праздника нет состязаний.",
+  "villagepax.festival.screen.stall_closed": "Лавка открыта только в праздник. Ленты дают за места в состязаниях.",
   "villagepax.entertainer.says": "%s %s: «%s»"
 }

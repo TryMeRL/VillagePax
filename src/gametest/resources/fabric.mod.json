@@ -27,7 +27,8 @@
       "com.villagepax.gametest.FestivalTests",
       "com.villagepax.gametest.HuntTests",
       "com.villagepax.gametest.ChaseTests",
-      "com.villagepax.gametest.ArcheryTests"
+      "com.villagepax.gametest.ArcheryTests",
+      "com.villagepax.gametest.FestivalScreenTests"
     ]
   },
   "depends": {

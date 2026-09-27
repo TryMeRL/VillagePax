@@ -1024,5 +1024,11 @@
   "villagepax.entertainer.today.0": "Today is the %s! Step up, let's start a contest!",
   "villagepax.entertainer.today.1": "It's a holiday! Who's first? Click me and pick a game.",
   "villagepax.entertainer.today.2": "Ribbons are waiting for the winners — today is the %s!",
-  "villagepax.entertainer.today.3": "Hey, don't stand aside — it's a festival today!"
+  "villagepax.entertainer.today.3": "Hey, don't stand aside — it's a festival today!",
+  "villagepax.festival.reason.on": "Festival today!",
+  "villagepax.festival.reason.no_festival": "This people keeps no festival",
+  "villagepax.festival.reason.not_today": "No festival today",
+  "villagepax.festival.reason.no_fair": "No fairground — nowhere to celebrate",
+  "villagepax.festival.reason.no_host": "No entertainer to host the festival",
+  "villagepax.festival.reason.besieged": "A raid is on — no time for a festival"
 }

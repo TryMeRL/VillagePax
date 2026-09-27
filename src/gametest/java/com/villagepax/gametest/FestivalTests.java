@@ -12,6 +12,8 @@ import com.villagepax.sim.Villages;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.festival.Fair;
 import com.villagepax.sim.festival.Fairs;
+import com.villagepax.sim.festival.FestivalDay;
+import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.work.WorkTicker;
 import com.villagepax.sim.work.Workplaces;
@@ -221,5 +223,64 @@ public class FestivalTests extends GameTestSupport {
             cleanUpVillage(world, manager, village, centre, meadow);
         }
         context.complete();
+    }
+
+    /**
+     * Праздник идёт, если сегодня фаза народа, ярмарка готова, у неё есть
+     * затейник и поселение не в осаде, — и отказ называет первую причину.
+     * <p>
+     * У норманнов праздник в полнолуние: день 8 — праздник, день 9 — нет.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "festival")
+    public void theFestivalNeedsAFairAHostAndPeace(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(4, 8, 4));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Schematic plan = schematic(context, NORMAN_FAIR_PLAN);
+        Building fair = null;
+        try {
+            fair = standUp(context, world, manager, colony, NORMAN_FAIR, anchor);
+            Citizen jester = hireWithBody(world, colony, Villages.ENTERTAINER,
+                    Workplaces.stations(fair).get(0));
+            Workplaces.assign(world, colony);
+            List<String> wrong = new ArrayList<>();
+            verdict(wrong, "полнолуние", FestivalDay.Verdict.ON, FestivalDay.today(colony, 8));
+            verdict(wrong, "день после", FestivalDay.Verdict.NOT_TODAY, FestivalDay.today(colony, 9));
+
+            jester.setWorkplace(null);
+            verdict(wrong, "затейник без ярмарки", FestivalDay.Verdict.NO_HOST,
+                    FestivalDay.today(colony, 8));
+            jester.setWorkplace(fair.id());
+
+            fair.setProgress(BuildProgress.DAMAGED);
+            verdict(wrong, "разорённая ярмарка", FestivalDay.Verdict.NO_FAIR,
+                    FestivalDay.today(colony, 8));
+            fair.setProgress(BuildProgress.DONE);
+
+            rememberRaid(manager, colony, java.util.UUID.randomUUID(), hall, 2);
+            verdict(wrong, "набег", FestivalDay.Verdict.BESIEGED, FestivalDay.today(colony, 8));
+            verdict(wrong, "набег, но не праздник", FestivalDay.Verdict.NOT_TODAY,
+                    FestivalDay.today(colony, 9));
+            if (!wrong.isEmpty()) {
+                context.throwGameTestException("Правило праздника:\n  " + String.join("\n  ", wrong));
+            }
+        } finally {
+            if (fair != null) {
+                demolish(world, fair, plan);
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    private static void verdict(List<String> wrong, String when, FestivalDay.Verdict expected,
+                                FestivalDay.Verdict got) {
+        if (expected != got) {
+            wrong.add(when + ": ждали " + expected + ", а " + got);
+        }
     }
 }

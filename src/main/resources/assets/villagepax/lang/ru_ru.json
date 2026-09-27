@@ -1024,5 +1024,11 @@
   "villagepax.entertainer.today.0": "Сегодня «%s»! Подходи, начнём состязание!",
   "villagepax.entertainer.today.1": "Праздник! Кто первый? Щёлкни по мне — выберем игру.",
   "villagepax.entertainer.today.2": "Ленты ждут победителей — сегодня «%s»!",
-  "villagepax.entertainer.today.3": "Эй, не стой в стороне — сегодня праздник!"
+  "villagepax.entertainer.today.3": "Эй, не стой в стороне — сегодня праздник!",
+  "villagepax.festival.reason.on": "Сегодня праздник!",
+  "villagepax.festival.reason.no_festival": "У этого народа нет праздника",
+  "villagepax.festival.reason.not_today": "Сегодня не праздник",
+  "villagepax.festival.reason.no_fair": "Нет ярмарки — праздновать негде",
+  "villagepax.festival.reason.no_host": "Нет затейника — праздник некому вести",
+  "villagepax.festival.reason.besieged": "Набег — не до праздника"
 }

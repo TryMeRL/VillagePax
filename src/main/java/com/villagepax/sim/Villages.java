@@ -213,6 +213,12 @@ public final class Villages {
         settle(world, village, elder(cultureId, culture, random));
         settle(world, village, tradesman(cultureId, culture, random));
         settle(world, village, hand(village, cultureId, culture, random));
+        // Пятый — затейник, если народу есть где праздновать. Явно, как купец:
+        // праздника без затейника не бывает, а пришлые приходят раз в день,
+        // и ремесло с малым приоритетом досталось бы ему последним.
+        if (BuildingTypes.workplaceOf(culture.buildings(), ENTERTAINER).isPresent()) {
+            settle(world, village, entertainer(cultureId, culture, random));
+        }
 
         // Чертог вскрывается уже при жителях, а не сразу за ратушей:
         // зал рубят гномы, и пустому месту стройка не по силам — движок
@@ -224,6 +230,7 @@ public final class Villages {
             Raising.raise(world, manager, village, type);
         }
         raiseStall(world, manager, village, culture);
+        raiseFair(world, manager, village, culture);
         // Залы чертога соединяются штольнями с порогом ратуши: без них
         // изба и поле стояли бы замурованными в толще горы.
         Galleries.cutAll(world, village);
@@ -559,6 +566,28 @@ public final class Villages {
                                    Settlement village, Culture culture) {
         BuildingTypes.workplaceOf(culture.buildings(), MERCHANT)
                 .ifPresent(stall -> Raising.raise(world, manager, village, stall));
+    }
+
+    /**
+     * Ярмарка — тоже сразу готовой, по той же причине, что ларёк.
+     * <p>
+     * Не через {@code starting}: по этому списку колония игрока получает
+     * первый надел, а ярмарку колония строит сама, когда решит, что ей
+     * пора праздновать. Деревне же она нужна с первого мига — игрок,
+     * пришедший в день её праздника, должен застать праздник, а не
+     * стройку ярмарки. Не нашлось места — построит позже сама.
+     */
+    private static void raiseFair(ServerWorld world, SettlementManager manager,
+                                  Settlement village, Culture culture) {
+        BuildingTypes.workplaceOf(culture.buildings(), ENTERTAINER)
+                .ifPresent(fair -> Raising.raise(world, manager, village, fair));
+    }
+
+    /** Затейник: ставится явно, как купец, — см. {@link #found}. */
+    private static Citizen entertainer(Identifier cultureId, Culture culture, Random random) {
+        Citizen entertainer = Founding.newCitizen(cultureId, culture, random);
+        entertainer.setProfession(ENTERTAINER);
+        return entertainer;
     }
 
     private static void settle(ServerWorld world, Settlement village, Citizen citizen) {

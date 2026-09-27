@@ -170,4 +170,56 @@ public class FestivalTests extends GameTestSupport {
             wrong.add(who + ": ждали " + track + ", а " + got);
         }
     }
+
+    /**
+     * Новая деревня встаёт сразу с ярмаркой и затейником при ней.
+     * <p>
+     * Деревня старше игрока, как с ларьком и купцом: игрок, пришедший
+     * к деревне в день её праздника, должен застать праздник, а не
+     * «приходите через неделю, мы строим ярмарку». Затейник ставится явно,
+     * пятым основателем: пришлые приходят раз в день, и ремесло с малым
+     * приоритетом досталось бы затейнику последним.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "fairfound", tickLimit = 200)
+    public void aNewVillageHasItsFairAndItsEntertainer(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+        try {
+            for (int x = -20; x <= 20; x++) {
+                for (int z = -20; z <= 20; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала на ровном лугу");
+                return;
+            }
+            Fair fair = Fairs.of(village).orElse(null);
+            if (fair == null) {
+                context.throwGameTestException("Деревня встала без ярмарки");
+                return;
+            }
+            Optional<Citizen> jester = village.citizens().stream()
+                    .filter(citizen -> citizen.profession().filter(Villages.ENTERTAINER::equals)
+                            .isPresent())
+                    .findFirst();
+            if (jester.isEmpty()) {
+                context.throwGameTestException("В деревне нет затейника");
+                return;
+            }
+            if (!jester.get().workplace().equals(Optional.of(fair.building().id()))) {
+                context.throwGameTestException("Затейник не при ярмарке: мастерская "
+                        + jester.get().workplace());
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+        context.complete();
+    }
 }

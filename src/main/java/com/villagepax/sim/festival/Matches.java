@@ -14,6 +14,8 @@ import com.villagepax.sim.life.Ages;
 import com.villagepax.sim.work.WorkContext;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -161,13 +163,14 @@ public final class Matches {
         return Verdict.YES;
     }
 
-    /** Состязание нужного вида. Ловля и стрельба приходят с задачами 19–20. */
+    /** Состязание нужного вида. Стрельба приходит с задачей 20. */
     private static Match create(ServerWorld world, Settlement settlement, Fair fair,
                                 Festival festival, int index, long day) {
         UUID id = UUID.randomUUID();
         return switch (festival.contests().get(index).kind()) {
             case HUNT -> new Hunt(world, id, settlement, fair, festival, index, day);
-            case CHASE, ARCHERY -> null;
+            case CHASE -> new Chase(world, id, settlement, fair, festival, index, day);
+            case ARCHERY -> null;
         };
     }
 
@@ -232,6 +235,21 @@ public final class Matches {
         }
         match.steerRival(context.world(), context.body(), context.citizen());
         return true;
+    }
+
+    /**
+     * Щелчок по зверьку ловли.
+     *
+     * @return истина — зверёк чьей-то ловли: пойман или ждёт; ложь — остаток
+     */
+    public static boolean grab(ServerWorld world, Entity critter, PlayerEntity player) {
+        for (Match match : RUNNING.values()) {
+            if (!match.isOver() && match instanceof Chase chase && chase.owns(critter)) {
+                chase.grab(world, (MobEntity) critter, player);
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Ход всех состязаний этого мира; кончившиеся уходят из реестра. */

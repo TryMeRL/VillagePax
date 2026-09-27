@@ -54,6 +54,7 @@ public class VillagePax implements ModInitializer {
         com.villagepax.item.festival.ModFestivalItems.register();
         ModItems.init();
         ModEntities.init();
+        com.villagepax.entity.festival.FestivalCritters.init();
         CitizenSpawner.register();
         SchematicLoader.register();
         WorkTicker.register();

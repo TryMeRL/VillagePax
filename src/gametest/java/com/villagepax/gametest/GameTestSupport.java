@@ -1,6 +1,15 @@
 package com.villagepax.gametest;
 
 import com.villagepax.block.ModBlocks;
+import com.villagepax.core.festival.ContestKind;
+import com.villagepax.core.festival.Festival;
+import com.villagepax.core.festival.Festivals;
+import com.villagepax.sim.festival.Fair;
+import com.villagepax.sim.festival.Fairs;
+import com.villagepax.sim.festival.Feast;
+import com.villagepax.sim.festival.Match;
+import com.villagepax.sim.festival.Matches;
+import net.minecraft.entity.player.PlayerEntity;
 import com.villagepax.core.culture.Culture;
 import com.villagepax.core.culture.CultureManager;
 import com.villagepax.sim.BuildProgress;
@@ -1111,7 +1120,9 @@ abstract class GameTestSupport implements FabricGameTest {
                                       CitizenEntity walker, BlockPos target) {
         StringBuilder story = new StringBuilder(what + ": " + why
                 + ". Цель " + target.toShortString() + ", житель "
-                + walker.getBlockPos().toShortString());
+                + walker.getBlockPos().toShortString()
+                + ", час " + Math.floorMod(world.getTimeOfDay(), Schedule.DAY_LENGTH)
+                + " (" + Schedule.at(world.getTimeOfDay()) + ")");
         for (BlockPos door : Access.entrances(building, schematic)) {
             story.append(" | порог ").append(door.toShortString())
                     .append(" сам=").append(world.getBlockState(door).getBlock())
@@ -1707,4 +1718,97 @@ abstract class GameTestSupport implements FabricGameTest {
         }
     }
 
+
+    // --- ярмарка на лугу: место состязаний ---
+
+    static final Identifier NORMAN_FAIRGROUND = new Identifier("villagepax", "norman/fairground");
+    static final Identifier NORMAN_FAIRGROUND_PLAN = new Identifier("villagepax", "norman/fairground_lvl1");
+
+    /** День норманнского праздника в проверках состязаний: полнолуние. */
+    static final long FAIR_DAY = 8;
+
+    /** Утро: состязания открыты. */
+    static final long FAIR_MORNING = 1_000;
+
+    /** Деревня с ярмаркой и затейником на своём лугу. */
+    record FairGround(Settlement village, Building fair, Fair place, BlockPos hall,
+                      List<BlockPos> meadow) {
+    }
+
+    /**
+     * Деревня народа с ярмаркой и затейником на своём лугу.
+     * <p>
+     * Луг — свой слой травы поверх земли мира: вещицы прячутся на земле,
+     * зверьки бегают по ней, а землю мира уборка не трогает. Ярмарка — в углу
+     * площадки, ратуша — в дальнем углу.
+     */
+    static FairGround fairGround(TestContext context, ServerWorld world, SettlementManager manager) {
+        List<BlockPos> meadow = new ArrayList<>();
+        for (int x = 0; x < 32; x++) {
+            for (int z = 0; z < 32; z++) {
+                BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                meadow.add(at);
+            }
+        }
+        BlockPos hall = context.getAbsolutePos(new BlockPos(30, 2, 30));
+        Settlement village = colonyWithBuilder(world, manager, hall);
+        village.setOwner(Owner.AUTONOMOUS);
+        Building fair = standUp(context, world, manager, village, NORMAN_FAIRGROUND,
+                context.getAbsolutePos(new BlockPos(2, 1, 2)));
+        hireWithBody(world, village, Villages.ENTERTAINER, Workplaces.stations(fair).get(0));
+        Workplaces.assign(world, village);
+        return new FairGround(village, fair, Fairs.of(village).orElseThrow(), hall, meadow);
+    }
+
+    /** Убрать за ярмаркой на лугу: состязание, стол праздника, ярмарку, деревню, луг. */
+    static void clearFairGround(TestContext context, ServerWorld world, SettlementManager manager,
+                                FairGround ground) {
+        Matches.at(ground.village().id()).ifPresent(match ->
+                match.cancel(world, "villagepax.contest.cancel.over"));
+        // Состязание накрывает стол праздника — пироги стоят над столами, вне схемы.
+        manager.festiveOf(ground.village().id()).ifPresent(memory ->
+                Feast.clearUp(world, manager, ground.village(), memory));
+        demolish(world, ground.fair(), schematic(context, NORMAN_FAIRGROUND_PLAN));
+        discardBodies(world, ground.village());
+        manager.remove(ground.village().id());
+        world.setBlockState(ground.hall(), Blocks.AIR.getDefaultState());
+        ground.meadow().forEach(at -> world.setBlockState(at, Blocks.AIR.getDefaultState()));
+    }
+
+    /** Подставной игрок на этом месте: в круге старта и не выбывает. */
+    static PlayerEntity playerAt(TestContext context, BlockPos at) {
+        PlayerEntity player = context.createMockSurvivalPlayer();
+        player.setPosition(Vec3d.ofBottomCenter(at));
+        return player;
+    }
+
+    /** Номер состязания этого вида у народа деревни. */
+    static int contestIndex(Settlement village, ContestKind kind) {
+        Festival festival = Festivals.of(village.culture()).orElseThrow();
+        for (int i = 0; i < festival.contests().size(); i++) {
+            if (festival.contests().get(i).kind() == kind) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("у народа нет состязания " + kind);
+    }
+
+    /** Начать состязание вида в день праздника, утром; не началось — провал. */
+    static Match startContest(TestContext context, ServerWorld world, FairGround ground,
+                              PlayerEntity player, ContestKind kind) {
+        Matches.Verdict verdict = Matches.start(world, player, ground.village(),
+                contestIndex(ground.village(), kind), FAIR_DAY, FAIR_MORNING);
+        if (verdict != Matches.Verdict.YES) {
+            context.throwGameTestException(kind + " не началось: " + verdict);
+        }
+        return Matches.at(ground.village().id()).orElseThrow();
+    }
+
+    /** Отсчёт позади: очки засчитываются только в игре. */
+    static void pastTheCountdown(ServerWorld world) {
+        for (int tick = 0; tick <= Match.COUNTDOWN; tick++) {
+            Matches.tick(world);
+        }
+    }
 }

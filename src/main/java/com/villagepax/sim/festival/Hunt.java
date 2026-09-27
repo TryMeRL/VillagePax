@@ -8,6 +8,7 @@ import com.villagepax.entity.CitizenEntity;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.work.WorkContext;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.player.PlayerEntity;
@@ -45,8 +46,15 @@ public final class Hunt extends Match {
     /** Соперник видит вещицу в этих блоках. */
     public static final double SIGHT = 6;
 
-    /** Дошёл до вещицы на столько — она его. */
-    public static final double REACH = 1.5;
+    /**
+     * Дошёл до вещицы на столько — она его.
+     * <p>
+     * Столько же, сколько у всякой работы жителя ({@link WorkContext#ARRIVAL_REACH}):
+     * шаг жителя кончается не вплотную к цели, а со своей стороны от неё,
+     * и с меньшим числом он стоял бы у вещицы, не беря её. Поймано вживую:
+     * ребёнок замирал в двух с небольшим блоках от яйца.
+     */
+    public static final double REACH = WorkContext.ARRIVAL_REACH;
 
     /** Как далеко от сердца бродит соперник, не видя вещиц. */
     private static final int STROLL = 16;
@@ -118,7 +126,7 @@ public final class Hunt extends Match {
         BlockPos seen = null;
         double nearest = SIGHT * SIGHT;
         for (BlockPos token : tokens) {
-            double distance = body.getPos().squaredDistanceTo(Vec3d.ofBottomCenter(token));
+            double distance = body.getPos().squaredDistanceTo(Vec3d.ofCenter(token));
             if (distance <= nearest) {
                 nearest = distance;
                 seen = token;

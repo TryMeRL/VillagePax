@@ -35,6 +35,7 @@ import net.minecraft.resource.ResourceType;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.minecraft.client.render.block.entity.BlockEntityRendererFactories;
 import com.villagepax.block.entity.ModBlockEntities;
+import com.villagepax.entity.festival.FestivalCritters;
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap;
 import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.gui.screen.ingame.HandledScreens;
@@ -44,6 +45,11 @@ import net.minecraft.item.Item;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
+import net.minecraft.client.render.entity.ChickenEntityRenderer;
+import net.minecraft.client.render.entity.FoxEntityRenderer;
+import net.minecraft.client.render.entity.PigEntityRenderer;
+import net.minecraft.client.render.entity.RabbitEntityRenderer;
+import net.minecraft.client.render.entity.SheepEntityRenderer;
 
 import java.util.List;
 import java.util.Optional;
@@ -57,6 +63,12 @@ public class VillagePaxClient implements ClientModInitializer {
         // шага — до того, как GeckoLib прочтёт первый файл движений.
         CitizenGeoModel.registerVariables();
         EntityRendererRegistry.register(ModEntities.CITIZEN, CitizenEntityRenderer::new);
+        // Зверьки ловли — ванильные на вид: праздничное в них поведение, а не шкура.
+        EntityRendererRegistry.register(FestivalCritters.PIG, PigEntityRenderer::new);
+        EntityRendererRegistry.register(FestivalCritters.CHICKEN, ChickenEntityRenderer::new);
+        EntityRendererRegistry.register(FestivalCritters.FOX, FoxEntityRenderer::new);
+        EntityRendererRegistry.register(FestivalCritters.RABBIT, RabbitEntityRenderer::new);
+        EntityRendererRegistry.register(FestivalCritters.SHEEP, SheepEntityRenderer::new);
         // Облик и тело народа спрашиваются у хранилища ресурсов один раз
         // и помнятся: ходить в файловую систему каждый кадр за каждым
         // жителем нельзя. Значит, забывать надо вручную — ровно тогда,

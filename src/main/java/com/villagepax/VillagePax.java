@@ -82,6 +82,8 @@ public class VillagePax implements ModInitializer {
                 .registerReloadListener(new TradeTables());
         ResourceManagerHelper.get(ResourceType.SERVER_DATA)
                 .registerReloadListener(new Gods());
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA)
+                .registerReloadListener(new com.villagepax.core.festival.Festivals());
 
         // Разложенные по выходу рецепты забываются на перезагрузке датапака:
         // иначе колония крафтила бы по рецепту, которого там уже нет.

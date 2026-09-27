@@ -473,7 +473,7 @@ public class HaulingTests extends GameTestSupport {
      * Склад намеренно дальше, чем вытянутая рука билдера: иначе он брал бы
      * из сундука не сходя с места, и проверять было бы нечего.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "slots")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "slots")
     public void loneBuilderFetchesMaterialsHimself(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -544,7 +544,7 @@ public class HaulingTests extends GameTestSupport {
      * география снова стала бы декорацией. Носить билдер берётся только
      * когда носить больше <b>некому</b>.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "slots")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "slots")
     public void builderLeavesHaulingToTheCourier(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -602,7 +602,7 @@ public class HaulingTests extends GameTestSupport {
      * никак. Это самый чистый способ изобразить «не справляется», не
      * подпирая тест сном и заблудившимся путём.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "slots")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "slots")
     public void builderStepsInWhenTheCourierCannotCope(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);
@@ -652,7 +652,7 @@ public class HaulingTests extends GameTestSupport {
      * шестнадцати походов через полдеревни — работа ради работы, которую
      * игрок и видел.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "slots")
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "slots")
     public void oneTripCarriesSeveralKinds(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);

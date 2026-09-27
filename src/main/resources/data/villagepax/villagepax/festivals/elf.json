@@ -1,0 +1,45 @@
+{
+  "culture": "villagepax:elf",
+  "name": "villagepax.festival.elf",
+  "moon_phase": 3,
+  "fireworks": {
+    "colors": [
+      13624319,
+      8112495
+    ],
+    "shape": "small_ball"
+  },
+  "contests": [
+    {
+      "kind": "archery",
+      "name": "villagepax.contest.elf.archery"
+    },
+    {
+      "kind": "hunt",
+      "name": "villagepax.contest.elf.hunt",
+      "token": "firefly"
+    },
+    {
+      "kind": "chase",
+      "name": "villagepax.contest.elf.chase",
+      "critter": "rabbit"
+    }
+  ],
+  "prizes": [
+    {
+      "item": "villagepax:elf_firefly_wreath",
+      "count": 1,
+      "price": 8
+    },
+    {
+      "item": "villagepax:elf_bunting",
+      "count": 4,
+      "price": 2
+    },
+    {
+      "item": "minecraft:firework_rocket",
+      "count": 3,
+      "price": 1
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "culture": "villagepax:dwarf",
+  "name": "villagepax.festival.dwarf",
+  "moon_phase": 5,
+  "fireworks": {
+    "colors": [
+      12086074,
+      14198842
+    ],
+    "shape": "burst"
+  },
+  "contests": [
+    {
+      "kind": "chase",
+      "name": "villagepax.contest.dwarf.chase",
+      "critter": "pig"
+    },
+    {
+      "kind": "hunt",
+      "name": "villagepax.contest.dwarf.hunt",
+      "token": "gem"
+    },
+    {
+      "kind": "archery",
+      "name": "villagepax.contest.dwarf.archery"
+    }
+  ],
+  "prizes": [
+    {
+      "item": "villagepax:dwarf_candle_cap",
+      "count": 1,
+      "price": 8
+    },
+    {
+      "item": "villagepax:dwarf_bunting",
+      "count": 4,
+      "price": 2
+    },
+    {
+      "item": "minecraft:firework_rocket",
+      "count": 3,
+      "price": 1
+    }
+  ]
+}

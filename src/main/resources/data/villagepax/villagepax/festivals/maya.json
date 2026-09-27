@@ -1,0 +1,45 @@
+{
+  "culture": "villagepax:maya",
+  "name": "villagepax.festival.maya",
+  "moon_phase": 2,
+  "fireworks": {
+    "colors": [
+      2864040,
+      15251504
+    ],
+    "shape": "burst"
+  },
+  "contests": [
+    {
+      "kind": "archery",
+      "name": "villagepax.contest.maya.archery"
+    },
+    {
+      "kind": "chase",
+      "name": "villagepax.contest.maya.chase",
+      "critter": "chicken"
+    },
+    {
+      "kind": "hunt",
+      "name": "villagepax.contest.maya.hunt",
+      "token": "jade"
+    }
+  ],
+  "prizes": [
+    {
+      "item": "villagepax:maya_feather_crown",
+      "count": 1,
+      "price": 8
+    },
+    {
+      "item": "villagepax:maya_bunting",
+      "count": 4,
+      "price": 2
+    },
+    {
+      "item": "minecraft:firework_rocket",
+      "count": 3,
+      "price": 1
+    }
+  ]
+}

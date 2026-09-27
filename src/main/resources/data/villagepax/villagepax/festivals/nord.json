@@ -1,0 +1,45 @@
+{
+  "culture": "villagepax:nord",
+  "name": "villagepax.festival.nord",
+  "moon_phase": 6,
+  "fireworks": {
+    "colors": [
+      10474480,
+      2969482
+    ],
+    "shape": "star"
+  },
+  "contests": [
+    {
+      "kind": "archery",
+      "name": "villagepax.contest.nord.archery"
+    },
+    {
+      "kind": "hunt",
+      "name": "villagepax.contest.nord.hunt",
+      "token": "rune"
+    },
+    {
+      "kind": "chase",
+      "name": "villagepax.contest.nord.chase",
+      "critter": "rabbit"
+    }
+  ],
+  "prizes": [
+    {
+      "item": "villagepax:nord_straw_crown",
+      "count": 1,
+      "price": 8
+    },
+    {
+      "item": "villagepax:nord_bunting",
+      "count": 4,
+      "price": 2
+    },
+    {
+      "item": "minecraft:firework_rocket",
+      "count": 3,
+      "price": 1
+    }
+  ]
+}

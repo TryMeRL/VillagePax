@@ -1,0 +1,45 @@
+{
+  "culture": "villagepax:norman",
+  "name": "villagepax.festival.norman",
+  "moon_phase": 0,
+  "fireworks": {
+    "colors": [
+      12597547,
+      14725184
+    ],
+    "shape": "star"
+  },
+  "contests": [
+    {
+      "kind": "chase",
+      "name": "villagepax.contest.norman.chase",
+      "critter": "pig"
+    },
+    {
+      "kind": "archery",
+      "name": "villagepax.contest.norman.archery"
+    },
+    {
+      "kind": "hunt",
+      "name": "villagepax.contest.norman.hunt",
+      "token": "egg"
+    }
+  ],
+  "prizes": [
+    {
+      "item": "villagepax:norman_wreath",
+      "count": 1,
+      "price": 8
+    },
+    {
+      "item": "villagepax:norman_bunting",
+      "count": 4,
+      "price": 2
+    },
+    {
+      "item": "minecraft:firework_rocket",
+      "count": 3,
+      "price": 1
+    }
+  ]
+}

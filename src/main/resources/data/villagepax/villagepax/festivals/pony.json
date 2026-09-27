@@ -1,0 +1,49 @@
+{
+  "culture": "villagepax:pony",
+  "name": "villagepax.festival.pony",
+  "moon_phase": 1,
+  "fireworks": {
+    "colors": [
+      15223391,
+      16229697,
+      16115299,
+      8112495,
+      5219296,
+      10185683
+    ],
+    "shape": "large_ball"
+  },
+  "contests": [
+    {
+      "kind": "hunt",
+      "name": "villagepax.contest.pony.hunt",
+      "token": "horseshoe"
+    },
+    {
+      "kind": "chase",
+      "name": "villagepax.contest.pony.chase",
+      "critter": "sheep"
+    },
+    {
+      "kind": "archery",
+      "name": "villagepax.contest.pony.archery"
+    }
+  ],
+  "prizes": [
+    {
+      "item": "villagepax:pony_party_hat",
+      "count": 1,
+      "price": 8
+    },
+    {
+      "item": "villagepax:pony_bunting",
+      "count": 4,
+      "price": 2
+    },
+    {
+      "item": "minecraft:firework_rocket",
+      "count": 3,
+      "price": 1
+    }
+  ]
+}

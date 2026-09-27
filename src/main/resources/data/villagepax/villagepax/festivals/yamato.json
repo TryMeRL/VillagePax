@@ -1,0 +1,45 @@
+{
+  "culture": "villagepax:yamato",
+  "name": "villagepax.festival.yamato",
+  "moon_phase": 4,
+  "fireworks": {
+    "colors": [
+      13111342,
+      16052714
+    ],
+    "shape": "large_ball"
+  },
+  "contests": [
+    {
+      "kind": "hunt",
+      "name": "villagepax.contest.yamato.hunt",
+      "token": "omamori"
+    },
+    {
+      "kind": "archery",
+      "name": "villagepax.contest.yamato.archery"
+    },
+    {
+      "kind": "chase",
+      "name": "villagepax.contest.yamato.chase",
+      "critter": "fox"
+    }
+  ],
+  "prizes": [
+    {
+      "item": "villagepax:kitsune_mask",
+      "count": 1,
+      "price": 8
+    },
+    {
+      "item": "villagepax:yamato_bunting",
+      "count": 4,
+      "price": 2
+    },
+    {
+      "item": "minecraft:firework_rocket",
+      "count": 3,
+      "price": 1
+    }
+  ]
+}

@@ -1536,6 +1536,59 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         triggerAnim(ARMS, "greet");
     }
 
+    /** Как близко должен подойти игрок в шапке, чтобы ему помахали. */
+    private static final double HAT_SEEN = 6;
+
+    /** Машут не чаще раза в полминуты: иначе деревня махала бы без передышки. */
+    private static final long WAVE_EVERY = 600;
+
+    /** Когда житель махал игроку в шапке своего народа. Не сохраняется: это жест, а не память. */
+    private long lastWave = -WAVE_EVERY;
+
+    /**
+     * Помахать игроку в шапке народа этого жителя — не чаще раза в полминуты.
+     * <p>
+     * Народ — по поселению, а не по облику: колонисты-норманны машут венку
+     * так же, как деревня норманнов. Шапка чужого народа — просто шапка.
+     *
+     * @return помахал ли
+     */
+    public boolean wave(PlayerEntity player) {
+        if (!(getWorld() instanceof ServerWorld world) || settlementId == null || player.isSpectator()) {
+            return false;
+        }
+        long now = world.getTime();
+        if (now - lastWave < WAVE_EVERY || squaredDistanceTo(player) > HAT_SEEN * HAT_SEEN) {
+            return false;
+        }
+        Identifier culture = SettlementManager.get(world).byId(settlementId).map(Settlement::culture)
+                .orElse(null);
+        Item hat = culture == null ? null
+                : com.villagepax.item.festival.ModFestivalItems.hatOf(culture).orElse(null);
+        if (hat == null || !player.getEquippedStack(EquipmentSlot.HEAD).isOf(hat)) {
+            return false;
+        }
+        lastWave = now;
+        getLookControl().lookAt(player, 30.0f, 30.0f);
+        greet();
+        return true;
+    }
+
+    public long lastWave() {
+        return lastWave;
+    }
+
+    /** Кто рядом в шапке народа: ближнему игроку — взмах. */
+    private void noticeHats() {
+        if (getWorld() instanceof ServerWorld world) {
+            PlayerEntity near = world.getClosestPlayer(getX(), getY(), getZ(), HAT_SEEN,
+                    player -> !player.isSpectator());
+            if (near != null) {
+                wave(near);
+            }
+        }
+    }
+
     /**
      * Ликовать: кончилось состязание, кто-то победил.
      * <p>
@@ -1582,6 +1635,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         if (!getWorld().isClient() && age % ROLE_EVERY == 0) {
             refreshRole();
             dropIfForgotten();
+            noticeHats();
         }
     }
 

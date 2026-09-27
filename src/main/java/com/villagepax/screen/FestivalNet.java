@@ -14,6 +14,7 @@ import com.villagepax.sim.festival.FestivalCalendar;
 import com.villagepax.sim.festival.FestivalDay;
 import com.villagepax.sim.festival.Heralds;
 import com.villagepax.sim.festival.Matches;
+import com.villagepax.sim.festival.PrizeStall;
 import com.villagepax.sim.work.Schedule;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
@@ -23,6 +24,8 @@ import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.sound.SoundCategory;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
@@ -58,6 +61,11 @@ public final class FestivalNet {
             UUID village = buf.readUuid();
             int index = buf.readVarInt();
             server.execute(() -> start(player, village, index));
+        });
+        ServerPlayNetworking.registerGlobalReceiver(BUY, (server, player, handler, buf, sender) -> {
+            UUID village = buf.readUuid();
+            int index = buf.readVarInt();
+            server.execute(() -> buy(player, village, index));
         });
     }
 
@@ -143,6 +151,29 @@ public final class FestivalNet {
         if (verdict != Matches.Verdict.YES) {
             refuse(player, verdict);
         }
+    }
+
+    /** «Взять»: у живого затейника, за ленты; свежий снимок — в любом случае. */
+    private static void buy(ServerPlayerEntity player, UUID village, int index) {
+        ServerWorld world = player.getServerWorld();
+        Settlement settlement = SettlementManager.get(world).byId(village).orElse(null);
+        if (settlement == null) {
+            return;
+        }
+        Citizen host = nearbyHost(player, settlement);
+        if (host == null) {
+            refuse(player, Matches.Verdict.TOO_FAR);
+            return;
+        }
+        PrizeStall.Verdict verdict = PrizeStall.buy(world, player, settlement, index,
+                Schedule.dayOf(world.getTimeOfDay()));
+        if (verdict == PrizeStall.Verdict.YES) {
+            world.playSound(null, player.getBlockPos(), SoundEvents.ENTITY_EXPERIENCE_ORB_PICKUP,
+                    SoundCategory.PLAYERS, 0.6f, 1.2f);
+        } else {
+            player.sendMessage(Text.translatable(verdict.reasonKey()).formatted(Formatting.RED), true);
+        }
+        open(player, world, settlement, host);
     }
 
     private static void refuse(ServerPlayerEntity player, Matches.Verdict verdict) {

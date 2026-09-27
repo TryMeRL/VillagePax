@@ -1085,5 +1085,9 @@
   "villagepax.festival.screen.running": "Идёт: «%s»",
   "villagepax.festival.screen.none": "У этого праздника нет состязаний.",
   "villagepax.festival.screen.stall_closed": "Лавка открыта только в праздник. Ленты дают за места в состязаниях.",
+  "villagepax.stall.reason.yes": "Держите!",
+  "villagepax.stall.reason.closed": "Лавка открыта только в праздник",
+  "villagepax.stall.reason.no_such": "Такого товара в лавке нет",
+  "villagepax.stall.reason.poor": "Не хватает лент — их дают за места в состязаниях",
   "villagepax.entertainer.says": "%s %s: «%s»"
 }

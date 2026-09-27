@@ -4454,7 +4454,11 @@ PONY_FARM_2 = with_scarecrow(PONY_FARM_2, 4, 3)
 
 FAIR = 13
 FAIR_HEART = (8, 9)
-FAIR_TARGETS = (1, 4, 7)
+# Мишени стрелища — (x, z): дальняя, средняя, ближняя. Вразбежку по ширине
+# дорожки: в один ряд ближняя заслоняла бы от черты (1, 11) обе дальние,
+# и дальняя с тройными очками была бы недостижима. x = 0 не берётся — у гномов
+# и эльфов там стена.
+FAIR_TARGETS = ((2, 1), (1, 4), (2, 7))
 
 FAIR_STYLES = {
     "norman": dict(floor="d", ring="C", lane="д", post="B", rim_x="H", rim_z="Z", fence="q",
@@ -4513,9 +4517,9 @@ def fairground(people):
                 put(x, 0, z, style["floor"])
 
     # Стрелище: мишени на столбах, черта на юге, забор с востока.
-    for z in FAIR_TARGETS:
-        put(1, 1, z, style["post"])
-        put(1, 2, z, "◎")
+    for x, z in FAIR_TARGETS:
+        put(x, 1, z, style["post"])
+        put(x, 2, z, "◎")
     put(1, 1, 11, "Ч")
     for z in range(0, 11):
         put(3, 1, z, style["fence"])

@@ -17,6 +17,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.projectile.ProjectileEntity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -163,14 +164,14 @@ public final class Matches {
         return Verdict.YES;
     }
 
-    /** Состязание нужного вида. Стрельба приходит с задачей 20. */
+    /** Состязание нужного вида. */
     private static Match create(ServerWorld world, Settlement settlement, Fair fair,
                                 Festival festival, int index, long day) {
         UUID id = UUID.randomUUID();
         return switch (festival.contests().get(index).kind()) {
             case HUNT -> new Hunt(world, id, settlement, fair, festival, index, day);
             case CHASE -> new Chase(world, id, settlement, fair, festival, index, day);
-            case ARCHERY -> null;
+            case ARCHERY -> new Archery(world, id, settlement, fair, festival, index, day);
         };
     }
 
@@ -250,6 +251,27 @@ public final class Matches {
             }
         }
         return false;
+    }
+
+    /**
+     * Стрела попала в мишень.
+     *
+     * @param rings очки за место на грани, без дальности
+     * @return истина — мишень чьей-то стрельбы
+     */
+    public static boolean hit(ServerWorld world, BlockPos target, ProjectileEntity arrow, int rings) {
+        for (Match match : RUNNING.values()) {
+            if (!match.isOver() && match instanceof Archery archery && archery.aims(target)) {
+                archery.hit(world, target, arrow, rings);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Идёт ли ещё это состязание: лук состязания живёт, пока оно идёт. */
+    public static Optional<Match> byId(UUID match) {
+        return RUNNING.values().stream().filter(one -> !one.isOver() && one.id().equals(match)).findFirst();
     }
 
     /** Ход всех состязаний этого мира; кончившиеся уходят из реестра. */

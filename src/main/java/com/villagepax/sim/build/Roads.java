@@ -327,6 +327,17 @@ public final class Roads {
         return paving != Blocks.DIRT_PATH || ground.isIn(BlockTags.DIRT);
     }
 
+    /** Из чего у поселения улица: тропа и мостовая его народа. */
+    public static java.util.Set<Block> streetBlocks(Settlement colony) {
+        java.util.Set<Block> street = new java.util.HashSet<>();
+        street.add(Blocks.DIRT_PATH);
+        Culture culture = CultureManager.get(colony.culture());
+        if (culture != null) {
+            culture.road().forEach(id -> street.add(Registries.BLOCK.get(id)));
+        }
+        return street;
+    }
+
     /**
      * Колонны улиц, которые уже лежат в мире: замощённые или вытоптанные.
      * <p>
@@ -345,12 +356,7 @@ public final class Roads {
             // на полу поселения, а новый зал вырубается рядом с ними.
             return paved;
         }
-        java.util.Set<Block> street = new java.util.HashSet<>();
-        street.add(Blocks.DIRT_PATH);
-        Culture culture = CultureManager.get(colony.culture());
-        if (culture != null) {
-            culture.road().forEach(id -> street.add(Registries.BLOCK.get(id)));
-        }
+        java.util.Set<Block> street = streetBlocks(colony);
         for (Building building : colony.buildings()) {
             for (BlockPos tile : route(world, colony, building)) {
                 if (street.contains(world.getBlockState(tile).getBlock())) {

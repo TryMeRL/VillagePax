@@ -1045,6 +1045,8 @@
   "villagepax.contest.prize.first": "Первое место! Лент: %s — и кубок с надписью.",
   "villagepax.contest.prize.place": "%s-е место. Лент: %s.",
   "villagepax.contest.prize.taken": "Приз за «%s» вы сегодня уже взяли — эта игра для удовольствия.",
+  "villagepax.contest.hunt.not_yours": "Эта вещица — для тех, кто в игре: поиск начался без вас.",
+  "villagepax.contest.hunt.wait": "Ещё рано — дождитесь «Начали!»",
   "villagepax.entertainer.call.0": "«%s» уже через %s дн. — приходите, не пожалеете!",
   "villagepax.entertainer.call.1": "Кто на «%1$s» будет первым? Узнаем через %2$s дн.!",
   "villagepax.entertainer.call.2": "Мячики сами не летают — готовлюсь к «%s». Осталось %s дн.",

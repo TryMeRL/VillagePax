@@ -18,6 +18,7 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayList;
@@ -160,12 +161,30 @@ public final class Matches {
         return Verdict.YES;
     }
 
-    /** Состязание нужного вида. Виды приходят с задачами 18–20. */
+    /** Состязание нужного вида. Ловля и стрельба приходят с задачами 19–20. */
     private static Match create(ServerWorld world, Settlement settlement, Fair fair,
                                 Festival festival, int index, long day) {
+        UUID id = UUID.randomUUID();
         return switch (festival.contests().get(index).kind()) {
-            case HUNT, CHASE, ARCHERY -> null;
+            case HUNT -> new Hunt(world, id, settlement, fair, festival, index, day);
+            case CHASE, ARCHERY -> null;
         };
+    }
+
+    /**
+     * Щелчок по вещице поиска.
+     *
+     * @return истина — вещица чьего-то поиска: засчитана или ждёт; ложь — остаток,
+     *         поиска нет, и вещицу можно просто убрать
+     */
+    public static boolean collect(ServerWorld world, BlockPos token, PlayerEntity player) {
+        for (Match match : RUNNING.values()) {
+            if (!match.isOver() && match instanceof Hunt hunt && hunt.hides(token)) {
+                hunt.collect(world, token, player);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

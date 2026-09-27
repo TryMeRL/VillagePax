@@ -296,7 +296,7 @@ public abstract class Match {
     }
 
     /** Места → строки итогов → призы → ликование → уборка. */
-    final void finish(ServerWorld world) {
+    public final void finish(ServerWorld world) {
         if (over) {
             return;
         }
@@ -316,7 +316,7 @@ public abstract class Match {
     }
 
     /** Без призов: набег, праздник кончился, игроки ушли, сервер встаёт. */
-    final void cancel(ServerWorld world, String reasonKey) {
+    public final void cancel(ServerWorld world, String reasonKey) {
         if (over) {
             return;
         }

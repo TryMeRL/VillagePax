@@ -1,6 +1,7 @@
 package com.villagepax.block.festival;
 
 import com.villagepax.core.festival.TokenKind;
+import com.villagepax.sim.festival.Matches;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ShapeContext;
@@ -79,7 +80,7 @@ public class FestivalTokenBlock extends Block {
     @Override
     public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player,
                               Hand hand, BlockHitResult hit) {
-        if (world instanceof ServerWorld server) {
+        if (world instanceof ServerWorld server && !Matches.collect(server, pos, player)) {
             pickUp(server, pos);
         }
         return ActionResult.success(world.isClient());

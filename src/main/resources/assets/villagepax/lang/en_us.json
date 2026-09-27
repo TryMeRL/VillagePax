@@ -1045,6 +1045,8 @@
   "villagepax.contest.prize.first": "First place! Ribbons: %s — and an engraved trophy.",
   "villagepax.contest.prize.place": "Place %s. Ribbons: %s.",
   "villagepax.contest.prize.taken": "You already took the prize for %s today — this one is for fun.",
+  "villagepax.contest.hunt.not_yours": "This one is for the players: the hunt started without you.",
+  "villagepax.contest.hunt.wait": "Not yet — wait for “Go!”",
   "villagepax.entertainer.call.0": "%s is only %s days away — come along, you won't regret it!",
   "villagepax.entertainer.call.1": "Who'll come first at the %1$s? We'll know in %2$s days!",
   "villagepax.entertainer.call.2": "Balls don't fly by themselves — practising for the %s. %s days to go.",

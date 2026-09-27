@@ -50,7 +50,13 @@ public final class FestivalTicker {
                     HERALDED.put(settlement.id(), day);
                     Heralds.dawn(world, settlement, day);
                 }
-                Feast.tend(world, manager, settlement, day);
+                // Пока идёт игра, стол ждёт: уборка вчерашнего не должна
+                // снять вещицы идущего поиска. Сутки сменяются на рассвете,
+                // а игры начинаются не позже заката, так что ждать столу —
+                // не дольше минуты игры.
+                if (Matches.at(settlement.id()).isEmpty()) {
+                    Feast.tend(world, manager, settlement, day);
+                }
                 Fireworks.tend(world, settlement, day, world.getTimeOfDay());
             });
         }

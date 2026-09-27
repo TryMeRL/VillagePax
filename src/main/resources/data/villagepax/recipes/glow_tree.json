@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "SLS"
+  ],
+  "key": {
+    "S": {
+      "item": "minecraft:stick"
+    },
+    "L": {
+      "item": "minecraft:birch_log"
+    }
+  },
+  "result": {
+    "item": "villagepax:glow_tree",
+    "count": 1
+  }
+}

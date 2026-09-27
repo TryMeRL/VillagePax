@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "axis=x": {
+      "model": "villagepax:block/yamato_bunting"
+    },
+    "axis=z": {
+      "model": "villagepax:block/yamato_bunting",
+      "y": 90
+    }
+  }
+}

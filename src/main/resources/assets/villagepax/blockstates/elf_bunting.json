@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "axis=x": {
+      "model": "villagepax:block/elf_bunting"
+    },
+    "axis=z": {
+      "model": "villagepax:block/elf_bunting",
+      "y": 90
+    }
+  }
+}

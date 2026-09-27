@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "axis=x": {
+      "model": "villagepax:block/pony_bunting"
+    },
+    "axis=z": {
+      "model": "villagepax:block/pony_bunting",
+      "y": 90
+    }
+  }
+}

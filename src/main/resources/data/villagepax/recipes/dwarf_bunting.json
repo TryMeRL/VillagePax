@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "SPS"
+  ],
+  "key": {
+    "S": {
+      "item": "minecraft:stick"
+    },
+    "P": {
+      "item": "minecraft:cobblestone"
+    }
+  },
+  "result": {
+    "item": "villagepax:dwarf_bunting",
+    "count": 3
+  }
+}

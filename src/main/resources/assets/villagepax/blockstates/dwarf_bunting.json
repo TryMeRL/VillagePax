@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "axis=x": {
+      "model": "villagepax:block/dwarf_bunting"
+    },
+    "axis=z": {
+      "model": "villagepax:block/dwarf_bunting",
+      "y": 90
+    }
+  }
+}

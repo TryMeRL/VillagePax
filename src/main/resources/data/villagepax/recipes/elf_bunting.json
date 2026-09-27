@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "SPS"
+  ],
+  "key": {
+    "S": {
+      "item": "minecraft:stick"
+    },
+    "P": {
+      "item": "minecraft:birch_planks"
+    }
+  },
+  "result": {
+    "item": "villagepax:elf_bunting",
+    "count": 3
+  }
+}

@@ -322,6 +322,70 @@ public final class ModBlocks {
                     .mapColor(MapColor.YELLOW).strength(0.8f).sounds(BlockSoundGroup.GRASS)
                     .burnable().nonOpaque()));
 
+    // --- праздник на ярмарке (tools/make-festival.py) ---------------------------
+    //
+    // Сердце праздника у каждого народа своё; вокруг него водят хоровод
+    // и от него бьёт фейерверк. Ярмарка узнаёт сердце по тегу festival_hearts.
+
+    public static final Block MAYPOLE = register("maypole",
+            new com.villagepax.block.festival.FestivalPoleBlock(festive(MapColor.WHITE)));
+
+    public static final Block VOLADOR_POLE = register("volador_pole",
+            new com.villagepax.block.festival.FestivalPoleBlock(festive(MapColor.RED)));
+
+    public static final Block RAINBOW_POLE = register("rainbow_pole",
+            new com.villagepax.block.festival.FestivalPoleBlock(festive(MapColor.PINK)
+                    .luminance(state -> state.get(
+                            com.villagepax.block.festival.FestivalPoleBlock.TOP) ? 6 : 0)));
+
+    public static final Block TAIKO_DRUM = register("taiko_drum",
+            new com.villagepax.block.festival.FestivalHearts.Taiko(
+                    Block.createCuboidShape(1, 0, 2, 15, 14, 14), festive(MapColor.RED)
+                    .instrument(Instrument.BASEDRUM)));
+
+    public static final Block YULE_FIRE = register("yule_fire",
+            new com.villagepax.block.festival.FestivalHearts.YuleFire(festive(MapColor.SPRUCE_BROWN)
+                    .luminance(state -> 15)));
+
+    public static final Block FESTIVAL_FORGE = register("festival_forge",
+            new com.villagepax.block.festival.FestivalHearts.Forge(stone(MapColor.DEEPSLATE_GRAY)
+                    .luminance(state -> 13)));
+
+    public static final Block GLOW_TREE = register("glow_tree",
+            new com.villagepax.block.festival.FestivalHearts.GlowTree(festive(MapColor.PALE_GREEN)
+                    .luminance(state -> 12)));
+
+    /** Мишень стрельбища: солома в кольцах на деревянной раме. */
+    public static final Block ARCHERY_TARGET = register("archery_target",
+            new com.villagepax.block.festival.ArcheryTargetBlock(AbstractBlock.Settings.create()
+                    .mapColor(MapColor.PALE_YELLOW).strength(0.8f).sounds(BlockSoundGroup.GRASS)
+                    .burnable()));
+
+    public static final Block NORMAN_BUNTING = register("norman_bunting", bunting());
+    public static final Block MAYA_BUNTING = register("maya_bunting", bunting());
+    public static final Block PONY_BUNTING = register("pony_bunting", bunting());
+    public static final Block NORD_BUNTING = register("nord_bunting", bunting());
+    public static final Block YAMATO_BUNTING = register("yamato_bunting", bunting());
+    public static final Block DWARF_BUNTING = register("dwarf_bunting", bunting());
+    public static final Block ELF_BUNTING = register("elf_bunting", bunting());
+
+    /** Праздничный пирог: ставит праздник на стол ярмарки, наутро убирает. */
+    public static final Block FEAST_PIE = register("feast_pie",
+            new com.villagepax.block.festival.FeastPieBlock(AbstractBlock.Settings.copy(Blocks.CAKE)));
+
+    /** Кубок первого места: только из рук праздника. */
+    public static final Block TROPHY = register("trophy",
+            new com.villagepax.block.festival.TrophyBlock(AbstractBlock.Settings.create()
+                    .mapColor(MapColor.GOLD).strength(1.0f, 6.0f).sounds(BlockSoundGroup.METAL)
+                    .luminance(state -> 4).nonOpaque()));
+
+    /** Вещица поиска: живёт минуту, щелчок — находка. */
+    public static final Block FESTIVAL_TOKEN = register("festival_token",
+            new com.villagepax.block.festival.FestivalTokenBlock(AbstractBlock.Settings.create()
+                    .mapColor(MapColor.YELLOW).breakInstantly().noCollision().nonOpaque()
+                    .sounds(BlockSoundGroup.WOOD).pistonBehavior(PistonBehavior.DESTROY)
+                    .luminance(com.villagepax.block.festival.FestivalTokenBlock::glow)));
+
     public static final Block MARKER_WORKSTATION = registerMarker("marker_workstation");
     public static final Block MARKER_BED = registerMarker("marker_bed");
     public static final Block MARKER_STORAGE = registerMarker("marker_storage");
@@ -365,6 +429,32 @@ public final class ModBlocks {
                 .strength(1.5f, 6.0f)
                 .sounds(BlockSoundGroup.STONE)
                 .nonOpaque();
+    }
+
+    /** Праздничное из дерева: крашеные столбы и сердца ярмарки. */
+    private static AbstractBlock.Settings festive(MapColor colour) {
+        return AbstractBlock.Settings.create()
+                .mapColor(colour)
+                .instrument(Instrument.BASS)
+                .strength(1.5f, 3.0f)
+                .sounds(BlockSoundGroup.WOOD)
+                .burnable()
+                .nonOpaque();
+    }
+
+    /**
+     * Гирлянда флажков: сквозь неё проходят, и ломается она с одного удара,
+     * как ванильная паутина — только без паутины.
+     */
+    private static Block bunting() {
+        return new com.villagepax.block.festival.BuntingBlock(AbstractBlock.Settings.create()
+                .mapColor(MapColor.RED)
+                .strength(0.2f)
+                .sounds(BlockSoundGroup.WOOD)
+                .noCollision()
+                .nonOpaque()
+                .burnable()
+                .pistonBehavior(PistonBehavior.DESTROY));
     }
 
     /** Ступени из того же материала: форма ванильная, чтобы её понимали все. */

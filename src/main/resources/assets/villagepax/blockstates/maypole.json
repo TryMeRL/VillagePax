@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "top=false": {
+      "model": "villagepax:block/maypole"
+    },
+    "top=true": {
+      "model": "villagepax:block/maypole_top"
+    }
+  }
+}

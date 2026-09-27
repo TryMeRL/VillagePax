@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "top=false": {
+      "model": "villagepax:block/volador_pole"
+    },
+    "top=true": {
+      "model": "villagepax:block/volador_pole_top"
+    }
+  }
+}

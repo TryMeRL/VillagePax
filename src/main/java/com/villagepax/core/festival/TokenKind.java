@@ -1,8 +1,8 @@
 package com.villagepax.core.festival;
 
-import com.mojang.serialization.Codec;
 import com.villagepax.core.EnumCodecs;
 import com.villagepax.core.Named;
+import net.minecraft.util.StringIdentifiable;
 
 /**
  * Какие вещицы прячут на поиске — закрытый список обликов одного блока.
@@ -12,7 +12,7 @@ import com.villagepax.core.Named;
  * предметами были бы семью лишними строками во вкладке. Народ выбирает
  * облик своих вещиц словом в данных.
  */
-public enum TokenKind implements Named {
+public enum TokenKind implements Named, StringIdentifiable {
 
     /** Крашеное яйцо — норманны. */
     EGG("egg"),
@@ -35,7 +35,10 @@ public enum TokenKind implements Named {
     /** Светлячок — эльфы. */
     FIREFLY("firefly");
 
-    public static final Codec<TokenKind> CODEC = EnumCodecs.of(values(), "вещица поиска");
+    // Имя полностью: StringIdentifiable приносит свой вложенный Codec,
+    // и короткое имя указывало бы на него.
+    public static final com.mojang.serialization.Codec<TokenKind> CODEC =
+            EnumCodecs.of(values(), "вещица поиска");
 
     private final String id;
 
@@ -45,6 +48,12 @@ public enum TokenKind implements Named {
 
     @Override
     public String id() {
+        return id;
+    }
+
+    /** Имя свойства блока вещицы — то же слово, что в данных народа. */
+    @Override
+    public String asString() {
         return id;
     }
 }

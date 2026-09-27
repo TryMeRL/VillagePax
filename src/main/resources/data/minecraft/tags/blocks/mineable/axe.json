@@ -13,6 +13,21 @@
     "villagepax:signpost",
     "villagepax:bonsai",
     "villagepax:war_drum",
-    "villagepax:scarecrow"
+    "villagepax:scarecrow",
+    "villagepax:maypole",
+    "villagepax:volador_pole",
+    "villagepax:rainbow_pole",
+    "villagepax:taiko_drum",
+    "villagepax:yule_fire",
+    "villagepax:glow_tree",
+    "villagepax:archery_target",
+    "villagepax:festival_token",
+    "villagepax:norman_bunting",
+    "villagepax:maya_bunting",
+    "villagepax:pony_bunting",
+    "villagepax:nord_bunting",
+    "villagepax:yamato_bunting",
+    "villagepax:dwarf_bunting",
+    "villagepax:elf_bunting"
   ]
 }

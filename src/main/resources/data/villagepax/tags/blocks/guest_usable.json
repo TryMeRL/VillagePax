@@ -7,6 +7,10 @@
     "#minecraft:buttons",
     "minecraft:lever",
     "minecraft:bell",
-    "villagepax:town_hall"
+    "villagepax:town_hall",
+    "villagepax:festival_token",
+    "villagepax:feast_pie",
+    "villagepax:trophy",
+    "villagepax:taiko_drum"
   ]
 }

@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "axis=x": {
+      "model": "villagepax:block/maya_bunting"
+    },
+    "axis=z": {
+      "model": "villagepax:block/maya_bunting",
+      "y": 90
+    }
+  }
+}

@@ -148,7 +148,10 @@ public class BuildTests extends GameTestSupport {
         Schematic schematic = loadedTownHall(context);
         BuildPlan plan = schematic.plan();
 
-        for (MarkerKind kind : MarkerKind.values()) {
+        // Роды, которые бывают у ратуши. Места праздника — загон и стрелковая
+        // черта — есть только у ярмарки, и их сверяет проверка ярмарок народов.
+        for (MarkerKind kind : java.util.EnumSet.of(MarkerKind.WORKSTATION, MarkerKind.BED,
+                MarkerKind.STORAGE, MarkerKind.DOOR, MarkerKind.DECOR)) {
             if (plan.positionsOf(kind).isEmpty()) {
                 context.throwGameTestException("В схеме ратуши не найден маркер: " + kind.id());
             }

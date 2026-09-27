@@ -56,6 +56,21 @@
     "villagepax:incense_burner",
     "villagepax:weathervane",
     "villagepax:maya_calendar",
-    "villagepax:scarecrow"
+    "villagepax:scarecrow",
+    "villagepax:maypole",
+    "villagepax:volador_pole",
+    "villagepax:rainbow_pole",
+    "villagepax:taiko_drum",
+    "villagepax:yule_fire",
+    "villagepax:festival_forge",
+    "villagepax:glow_tree",
+    "villagepax:norman_bunting",
+    "villagepax:maya_bunting",
+    "villagepax:pony_bunting",
+    "villagepax:nord_bunting",
+    "villagepax:yamato_bunting",
+    "villagepax:dwarf_bunting",
+    "villagepax:elf_bunting",
+    "villagepax:archery_target"
   ]
 }

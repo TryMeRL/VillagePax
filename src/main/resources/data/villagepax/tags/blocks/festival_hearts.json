@@ -1,0 +1,12 @@
+{
+  "replace": false,
+  "values": [
+    "villagepax:maypole",
+    "villagepax:volador_pole",
+    "villagepax:rainbow_pole",
+    "villagepax:taiko_drum",
+    "villagepax:yule_fire",
+    "villagepax:festival_forge",
+    "villagepax:glow_tree"
+  ]
+}

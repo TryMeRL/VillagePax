@@ -1,0 +1,25 @@
+{
+  "variants": {
+    "kind=egg": {
+      "model": "villagepax:block/token_egg"
+    },
+    "kind=jade": {
+      "model": "villagepax:block/token_jade"
+    },
+    "kind=omamori": {
+      "model": "villagepax:block/token_omamori"
+    },
+    "kind=rune": {
+      "model": "villagepax:block/token_rune"
+    },
+    "kind=horseshoe": {
+      "model": "villagepax:block/token_horseshoe"
+    },
+    "kind=gem": {
+      "model": "villagepax:block/token_gem"
+    },
+    "kind=firefly": {
+      "model": "villagepax:block/token_firefly"
+    }
+  }
+}

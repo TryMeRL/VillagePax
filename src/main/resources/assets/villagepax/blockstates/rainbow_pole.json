@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "top=false": {
+      "model": "villagepax:block/rainbow_pole"
+    },
+    "top=true": {
+      "model": "villagepax:block/rainbow_pole_top"
+    }
+  }
+}

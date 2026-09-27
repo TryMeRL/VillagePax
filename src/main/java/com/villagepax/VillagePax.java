@@ -51,6 +51,7 @@ public class VillagePax implements ModInitializer {
         ModItems.registerBlockItems();
         com.villagepax.item.gear.ModGear.register();
         com.villagepax.item.charm.Charms.register();
+        com.villagepax.item.festival.ModFestivalItems.register();
         ModItems.init();
         ModEntities.init();
         CitizenSpawner.register();

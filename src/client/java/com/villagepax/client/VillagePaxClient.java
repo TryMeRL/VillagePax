@@ -109,6 +109,14 @@ public class VillagePaxClient implements ClientModInitializer {
                 ModBlocks.BONSAI, ModBlocks.WEATHERVANE, ModBlocks.MAYA_CALENDAR);
         BlockRenderLayerMap.INSTANCE.putBlocks(RenderLayer.getTranslucent(),
                 ModBlocks.WIND_CHIME, ModBlocks.FIREFLY_JAR);
+        // Праздник: ленты столбов, пламя костра, крона деревца, флажки
+        // и вещицы поиска — всё с прорезями.
+        BlockRenderLayerMap.INSTANCE.putBlocks(RenderLayer.getCutout(),
+                ModBlocks.MAYPOLE, ModBlocks.VOLADOR_POLE, ModBlocks.RAINBOW_POLE,
+                ModBlocks.YULE_FIRE, ModBlocks.GLOW_TREE, ModBlocks.FESTIVAL_TOKEN,
+                ModBlocks.NORMAN_BUNTING, ModBlocks.MAYA_BUNTING, ModBlocks.PONY_BUNTING,
+                ModBlocks.NORD_BUNTING, ModBlocks.YAMATO_BUNTING, ModBlocks.DWARF_BUNTING,
+                ModBlocks.ELF_BUNTING);
     }
 
     /**
@@ -129,6 +137,16 @@ public class VillagePaxClient implements ClientModInitializer {
      * об этом не знает.
      */
     private static void registerItemLooks() {
+        // Праздничный лук натягивается, как ванильный: те же два признака,
+        // по которым модель предмета выбирает кадр натяжения.
+        FabricModelPredicateProviderRegistry.register(
+                com.villagepax.item.festival.ModFestivalItems.FESTIVAL_BOW, new Identifier("pull"),
+                (stack, world, holder, seed) -> holder == null || holder.getActiveItem() != stack
+                        ? 0.0f : (stack.getMaxUseTime() - holder.getItemUseTimeLeft()) / 20.0f);
+        FabricModelPredicateProviderRegistry.register(
+                com.villagepax.item.festival.ModFestivalItems.FESTIVAL_BOW, new Identifier("pulling"),
+                (stack, world, holder, seed) -> holder != null && holder.isUsingItem()
+                        && holder.getActiveItem() == stack ? 1.0f : 0.0f);
         for (Item coin : List.of(ModItems.COIN, ModItems.SILVER_COIN, ModItems.GOLD_COIN)) {
             FabricModelPredicateProviderRegistry.register(coin,
                     new Identifier(VillagePax.MOD_ID, "heap"),

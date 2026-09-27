@@ -19,6 +19,13 @@ public final class ModBlockEntities {
             new Identifier(VillagePax.MOD_ID, "rope"),
             BlockEntityType.Builder.create(RopeBlockEntity::new, ModBlocks.LAUNDRY).build(null));
 
+    /** Надпись на кубке: что, где, когда и кем выиграно. */
+    public static final BlockEntityType<com.villagepax.block.festival.TrophyBlockEntity> TROPHY =
+            Registry.register(Registries.BLOCK_ENTITY_TYPE,
+                    new Identifier(VillagePax.MOD_ID, "trophy"),
+                    BlockEntityType.Builder.create(com.villagepax.block.festival.TrophyBlockEntity::new,
+                            ModBlocks.TROPHY).build(null));
+
     private ModBlockEntities() {
     }
 

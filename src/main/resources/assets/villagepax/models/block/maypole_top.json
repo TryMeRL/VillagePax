@@ -1,0 +1,380 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "pole": "villagepax:block/maypole",
+    "wreath": "villagepax:block/maypole_wreath",
+    "ribbons": "villagepax:block/maypole_ribbons",
+    "particle": "villagepax:block/maypole"
+  },
+  "ambientocclusion": false,
+  "elements": [
+    {
+      "from": [
+        6,
+        0,
+        6
+      ],
+      "to": [
+        10,
+        13,
+        10
+      ],
+      "faces": {
+        "north": {
+          "texture": "#pole"
+        },
+        "south": {
+          "texture": "#pole"
+        },
+        "east": {
+          "texture": "#pole"
+        },
+        "west": {
+          "texture": "#pole"
+        },
+        "up": {
+          "texture": "#pole"
+        }
+      }
+    },
+    {
+      "from": [
+        3,
+        11,
+        3
+      ],
+      "to": [
+        13,
+        13,
+        4.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#wreath"
+        },
+        "south": {
+          "texture": "#wreath"
+        },
+        "east": {
+          "texture": "#wreath"
+        },
+        "west": {
+          "texture": "#wreath"
+        },
+        "up": {
+          "texture": "#wreath"
+        },
+        "down": {
+          "texture": "#wreath"
+        }
+      }
+    },
+    {
+      "from": [
+        3,
+        11,
+        11.5
+      ],
+      "to": [
+        13,
+        13,
+        13
+      ],
+      "faces": {
+        "north": {
+          "texture": "#wreath"
+        },
+        "south": {
+          "texture": "#wreath"
+        },
+        "east": {
+          "texture": "#wreath"
+        },
+        "west": {
+          "texture": "#wreath"
+        },
+        "up": {
+          "texture": "#wreath"
+        },
+        "down": {
+          "texture": "#wreath"
+        }
+      }
+    },
+    {
+      "from": [
+        3,
+        11,
+        4.5
+      ],
+      "to": [
+        4.5,
+        13,
+        11.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#wreath"
+        },
+        "south": {
+          "texture": "#wreath"
+        },
+        "east": {
+          "texture": "#wreath"
+        },
+        "west": {
+          "texture": "#wreath"
+        },
+        "up": {
+          "texture": "#wreath"
+        },
+        "down": {
+          "texture": "#wreath"
+        }
+      }
+    },
+    {
+      "from": [
+        11.5,
+        11,
+        4.5
+      ],
+      "to": [
+        13,
+        13,
+        11.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#wreath"
+        },
+        "south": {
+          "texture": "#wreath"
+        },
+        "east": {
+          "texture": "#wreath"
+        },
+        "west": {
+          "texture": "#wreath"
+        },
+        "up": {
+          "texture": "#wreath"
+        },
+        "down": {
+          "texture": "#wreath"
+        }
+      }
+    },
+    {
+      "from": [
+        6.5,
+        13,
+        6.5
+      ],
+      "to": [
+        9.5,
+        15,
+        9.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#wreath"
+        },
+        "south": {
+          "texture": "#wreath"
+        },
+        "east": {
+          "texture": "#wreath"
+        },
+        "west": {
+          "texture": "#wreath"
+        },
+        "up": {
+          "texture": "#wreath"
+        },
+        "down": {
+          "texture": "#wreath"
+        }
+      }
+    },
+    {
+      "from": [
+        7.5,
+        15,
+        7.5
+      ],
+      "to": [
+        8.5,
+        16,
+        8.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#wreath"
+        },
+        "south": {
+          "texture": "#wreath"
+        },
+        "east": {
+          "texture": "#wreath"
+        },
+        "west": {
+          "texture": "#wreath"
+        },
+        "up": {
+          "texture": "#wreath"
+        },
+        "down": {
+          "texture": "#wreath"
+        }
+      }
+    },
+    {
+      "from": [
+        2,
+        0,
+        8
+      ],
+      "to": [
+        14,
+        11,
+        8
+      ],
+      "faces": {
+        "north": {
+          "texture": "#ribbons"
+        },
+        "south": {
+          "texture": "#ribbons"
+        }
+      },
+      "rotation": {
+        "origin": [
+          8,
+          8,
+          8
+        ],
+        "axis": "y",
+        "angle": 45,
+        "rescale": true
+      }
+    },
+    {
+      "from": [
+        2,
+        0,
+        8
+      ],
+      "to": [
+        14,
+        11,
+        8
+      ],
+      "faces": {
+        "north": {
+          "texture": "#ribbons"
+        },
+        "south": {
+          "texture": "#ribbons"
+        }
+      },
+      "rotation": {
+        "origin": [
+          8,
+          8,
+          8
+        ],
+        "axis": "y",
+        "angle": -45,
+        "rescale": true
+      }
+    }
+  ],
+  "display": {
+    "gui": {
+      "rotation": [
+        30,
+        225,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.625,
+        0.625,
+        0.625
+      ]
+    },
+    "ground": {
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "translation": [
+        0,
+        3,
+        0
+      ],
+      "scale": [
+        0.25,
+        0.25,
+        0.25
+      ]
+    },
+    "fixed": {
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "thirdperson_righthand": {
+      "rotation": [
+        75,
+        45,
+        0
+      ],
+      "translation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": [
+        0.375,
+        0.375,
+        0.375
+      ]
+    },
+    "firstperson_righthand": {
+      "rotation": [
+        0,
+        45,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.4,
+        0.4,
+        0.4
+      ]
+    }
+  }
+}

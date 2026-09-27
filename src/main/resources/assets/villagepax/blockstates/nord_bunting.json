@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "axis=x": {
+      "model": "villagepax:block/nord_bunting"
+    },
+    "axis=z": {
+      "model": "villagepax:block/nord_bunting",
+      "y": 90
+    }
+  }
+}

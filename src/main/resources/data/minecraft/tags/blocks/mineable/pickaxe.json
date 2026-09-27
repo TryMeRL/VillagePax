@@ -22,6 +22,8 @@
     "villagepax:firefly_jar",
     "villagepax:incense_burner",
     "villagepax:weathervane",
-    "villagepax:maya_calendar"
+    "villagepax:maya_calendar",
+    "villagepax:festival_forge",
+    "villagepax:trophy"
   ]
 }

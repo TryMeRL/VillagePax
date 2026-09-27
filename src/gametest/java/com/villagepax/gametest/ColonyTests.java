@@ -1616,6 +1616,15 @@ public class ColonyTests extends GameTestSupport {
             }
         }
 
+        // И четвёртый законный способ — праздник. Пирог он ставит на стол
+        // ярмарки и наутро убирает, вещицу прячет на минуту поиска, кубок
+        // вручает победителю. Ни в схеме, ни в рецепте их быть не должно:
+        // купленный пирог отменил бы праздничный стол, а скрафченный кубок —
+        // саму победу.
+        used.add(ModBlocks.FEAST_PIE);
+        used.add(ModBlocks.FESTIVAL_TOKEN);
+        used.add(ModBlocks.TROPHY);
+
         List<Identifier> idle = new ArrayList<>();
         ModBlocks.registered().forEach((id, block) -> {
             if (!used.contains(block)) {

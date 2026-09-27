@@ -47,7 +47,8 @@
     "villagepax:maya/warehouse",
     "villagepax:maya/builder_hut",
     "villagepax:maya/brewery",
-    "villagepax:maya/weavery"
+    "villagepax:maya/weavery",
+    "villagepax:maya/fairground"
   ],
   "road": [
     "minecraft:stone_bricks",

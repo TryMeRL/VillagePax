@@ -410,6 +410,32 @@ LEGEND = {
 }
 
 
+# --- праздник на ярмарке (tools/make-festival.py) ---
+#
+# Символы места праздника пишутся прямо в легенду, а блоки праздника
+# получают символы по месту: ярмарку собирает функция fairground(), а не
+# текст руками, и помнить семь десятков символов ей незачем.
+LEGEND.update({
+    "П": ("villagepax:marker_pen", {}),
+    "Ч": ("villagepax:marker_shooting", {}),
+    "◎": ("villagepax:archery_target", {}),
+})
+
+_FESTIVE = {}
+
+
+def festive(block_id, properties=None):
+    """Символ легенды для блока праздника: заводится при первом спросе."""
+    properties = dict(properties or {})
+    key = (block_id, tuple(sorted(properties.items())))
+    if key not in _FESTIVE:
+        symbol = chr(0x2460 + len(_FESTIVE))
+        assert symbol not in LEGEND, "символ " + symbol + " уже занят"
+        LEGEND[symbol] = (block_id, properties)
+        _FESTIVE[key] = symbol
+    return _FESTIVE[key]
+
+
 def hip_roof(size, levels, ridge=None):
     """Шатровая крыша: кольцо ступеней с настилом внутри, каждый слой уже на блок.
 
@@ -4406,6 +4432,196 @@ PONY_FARM = with_scarecrow(PONY_FARM, 4, 3)
 PONY_FARM_2 = with_scarecrow(PONY_FARM_2, 4, 3)
 
 
+# --- ярмарка, 13x13 ---
+#
+# Праздник раз в лунный месяц идёт здесь: хоровод вокруг сердца праздника,
+# состязания и стол с пирогами. Раскладка одна на все народы — северянин
+# и пони гуляют одинаково, отличаются кладкой и сердцем, — поэтому её
+# собирает функция, а не текст руками. Координаты x — с запада на восток,
+# z — с севера на юг:
+#
+#   * запад, x 0…2 — стрелище: черта на юге (z 11), мишени на 4, 7 и 10
+#     шагов, от площадки отгорожено забором по x 3;
+#   * северо-восток, x 6…12, z 0…6 — загон 7x7, борт в один блок: человек
+#     перешагивает, а зверёк удирает только по клеткам «П» внутри;
+#   * сердце праздника — (8, 9), вокруг свободное кольцо радиусом 2 под хоровод;
+#   * восток, x 11 — стол на три места: на него праздник ставит пироги;
+#   * северо-запад — прилавок затейника (K) у стойки;
+#   * юг — вход (D) между столбами с флажками.
+#
+# У гномов то же самое — зал под сводом, у эльфов — помост под пологом:
+# край раскладки у них стена, и борт загона там — сама стена.
+
+FAIR = 13
+FAIR_HEART = (8, 9)
+FAIR_TARGETS = (1, 4, 7)
+
+FAIR_STYLES = {
+    "norman": dict(floor="d", ring="C", lane="д", post="B", rim_x="H", rim_z="Z", fence="q",
+                   counter="P", heart=("villagepax:maypole", 4),
+                   bunting="villagepax:norman_bunting"),
+    "maya": dict(floor="d", ring="V", lane="д", post="j", rim_x="i", rim_z="u", fence="Q",
+                 counter="a", heart=("villagepax:volador_pole", 4),
+                 bunting="villagepax:maya_bunting"),
+    "pony": dict(floor="d", ring="C", lane="д", post="o", rim_x="m", rim_z="N", fence="&",
+                 counter="I", heart=("villagepax:rainbow_pole", 3),
+                 bunting="villagepax:pony_bunting"),
+    "nord": dict(floor="d", ring="C", lane="д", post="л", rim_x="ж", rim_z="з", fence="ф",
+                 counter="е", heart=("villagepax:yule_fire", 1),
+                 bunting="villagepax:nord_bunting"),
+    "yamato": dict(floor="д", ring="C", lane="д", post="λ", rim_x="μ",
+                   rim_z=("minecraft:stripped_mangrove_log", {"axis": "z"}), fence="σ",
+                   counter="π", heart=("villagepax:taiko_drum", 1),
+                   bunting="villagepax:yamato_bunting", stage="π"),
+    "dwarf": dict(floor="?", ring="|", lane="-", post="/", rim_x="-", rim_z="-", fence="ъ",
+                  counter="?", heart=("villagepax:festival_forge", 1),
+                  bunting="villagepax:dwarf_bunting", walled="hold"),
+    "elf": dict(floor="{", ring="{", lane="{", post="{", rim_x="{", rim_z="{",
+                fence=("minecraft:birch_fence", {"north": "false", "east": "false",
+                                                 "south": "false", "west": "false",
+                                                 "waterlogged": "false"}),
+                counter="{", heart=("villagepax:glow_tree", 1),
+                bunting="villagepax:elf_bunting", walled="grove"),
+}
+
+FAIR_POLES = ("villagepax:maypole", "villagepax:volador_pole", "villagepax:rainbow_pole")
+
+
+def _symbol(value):
+    """Символ легенды: готовый символ или блок, которому символ заводится."""
+    return value if isinstance(value, str) else festive(*value)
+
+
+def fairground(people):
+    style = FAIR_STYLES[people]
+    walled = style.get("walled")
+    height = 5
+    grid = [[["." for _ in range(FAIR)] for _ in range(FAIR)] for _ in range(height)]
+
+    def put(x, y, z, value):
+        grid[y][z][x] = _symbol(value)
+
+    hx, hz = FAIR_HEART
+    # Пол: земля, мощёное кольцо под хоровод, насыпное стрелище.
+    for z in range(FAIR):
+        for x in range(FAIR):
+            if max(abs(x - hx), abs(z - hz)) <= 2:
+                put(x, 0, z, style["ring"])
+            elif x <= 2:
+                put(x, 0, z, style["lane"])
+            else:
+                put(x, 0, z, style["floor"])
+
+    # Стрелище: мишени на столбах, черта на юге, забор с востока.
+    for z in FAIR_TARGETS:
+        put(1, 1, z, style["post"])
+        put(1, 2, z, "◎")
+    put(1, 1, 11, "Ч")
+    for z in range(0, 11):
+        put(3, 1, z, style["fence"])
+
+    # Загон: борт по краю, внутри — клетки, по которым бегают зверьки.
+    for z in range(0, 7):
+        for x in range(6, 13):
+            edge_x = z in (0, 6)
+            edge_z = x in (6, 12)
+            if edge_x or edge_z:
+                put(x, 1, z, style["rim_x"] if edge_x else style["rim_z"])
+            else:
+                put(x, 1, z, "П")
+
+    # Прилавок затейника: стойка и его место за ней.
+    put(4, 1, 1, "K")
+    put(5, 1, 1, style["counter"])
+
+    # Стол: три места под пироги.
+    for z in (8, 9, 10):
+        put(11, 1, z, ("villagepax:table", {"facing": "west"}))
+
+    # Сердце праздника.
+    heart, tall = style["heart"]
+    if heart in FAIR_POLES:
+        for level in range(tall):
+            put(hx, 1 + level, hz, (heart, {"top": "true" if level == tall - 1 else "false"}))
+    elif heart == "villagepax:taiko_drum":
+        # Помост ягуры три на три — внутри кольца: хоровод идёт вокруг него.
+        for dz in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                put(hx + dx, 1, hz + dz, style["stage"])
+        put(hx, 2, hz, (heart, {"facing": "south"}))
+    else:
+        put(hx, 1, hz, (heart, {}))
+
+    # Флажки на бечеве вдоль забора стрелища: от угла до столба.
+    for level in (1, 2, 3):
+        put(3, level, 10, style["post"])
+    for z in range(1, 10):
+        put(3, 3, z, (style["bunting"], {"axis": "z"}))
+
+    if walled:
+        return _walled_fair(style, grid, walled)
+
+    # Под открытым небом: столбы у входа с флажками поверху и свет на столбах.
+    for level in (1, 2, 3):
+        put(3, level, 0, style["post"])
+        put(5, level, 12, style["post"])
+        put(11, level, 12, style["post"])
+    for x in range(6, 11):
+        put(x, 3, 12, (style["bunting"], {"axis": "x"}))
+    for x, z in ((3, 0), (3, 10), (5, 12), (11, 12)):
+        put(x, 4, z, "!")
+    for x, z in ((6, 0), (12, 0), (6, 6), (12, 6)):
+        put(x, 2, z, "!")
+    put(5, 2, 1, "!")
+    # Лавки у стола, лицом к нему.
+    for z in (8, 9, 10):
+        put(12, 1, z, ("villagepax:bench", {"facing": "west"}))
+    put(8, 1, 12, "D")
+    return [["".join(row) for row in layer] for layer in grid]
+
+
+def _walled_fair(style, grid, walled):
+    """Ярмарка в зале гномов или на помосте эльфов: край — стена, вход — дверь на юге."""
+    furnished = []
+    for z in range(FAIR):
+        row = []
+        for x in range(FAIR):
+            edge = x in (0, FAIR - 1) or z in (0, FAIR - 1)
+            corner = x in (0, FAIR - 1) and z in (0, FAIR - 1)
+            if (x, z) == (8, FAIR - 1):
+                row.append("D")
+            elif edge:
+                row.append(("/" if corner else "-") if walled == "hold" else "{")
+            else:
+                row.append(grid[1][z][x])
+        furnished.append("".join(row))
+    if walled == "hold":
+        layers = chamber(furnished, height=5, door=(8, FAIR - 1))
+        lamps = ((5, 4), (5, 10), (9, 3), (10, 11))
+    else:
+        layers = bower(furnished, height=5, door=(8, FAIR - 1),
+                       panes=((0, 6), (12, 3), (4, 0)))
+        lamps = ()
+    # Пол — свой, а не сплошной: кольцо и стрелище видны и под сводом.
+    layers[0] = ["".join(grid[0][z][x] if 0 < x < FAIR - 1 and 0 < z < FAIR - 1
+                         else layers[0][z][x] for x in range(FAIR)) for z in range(FAIR)]
+    # Верхние ряды раскладки — мишени, столбы, флажки — поверх колец стен.
+    for y in (2, 3):
+        rows = [list(row) for row in layers[y]]
+        for z in range(1, FAIR - 1):
+            for x in range(1, FAIR - 1):
+                if grid[y][z][x] != ".":
+                    rows[z][x] = grid[y][z][x]
+        layers[y] = ["".join(row) for row in rows]
+    # Свет у гномов — подвесные фонари под сводом; у эльфов светит деревце
+    # и факел, который повесит light_up.
+    rows = [list(row) for row in layers[3]]
+    for x, z in lamps:
+        rows[z][x] = "'"
+    layers[3] = ["".join(row) for row in rows]
+    return layers
+
+
 RAW_SCHEMATICS = {
     "norman/town_hall_lvl1": NORMAN_TOWN_HALL,
     "norman/town_hall_lvl2": NORMAN_TOWN_HALL_2,
@@ -4520,6 +4736,13 @@ RAW_SCHEMATICS = {
     "elf/market_lvl1": ELF_MARKET,
     "elf/watchtower_lvl1": ELF_WATCHPOST,
     "elf/shrine_lvl1": ELF_SHRINE,
+    "norman/fairground_lvl1": fairground("norman"),
+    "maya/fairground_lvl1": fairground("maya"),
+    "pony/fairground_lvl1": fairground("pony"),
+    "nord/fairground_lvl1": fairground("nord"),
+    "yamato/fairground_lvl1": fairground("yamato"),
+    "dwarf/fairground_lvl1": fairground("dwarf"),
+    "elf/fairground_lvl1": fairground("elf"),
 }
 
 

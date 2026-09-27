@@ -45,7 +45,8 @@
     "villagepax:elf/farm",
     "villagepax:elf/warehouse",
     "villagepax:elf/builder_hut",
-    "villagepax:elf/weavery"
+    "villagepax:elf/weavery",
+    "villagepax:elf/fairground"
   ],
   "road": [
     "minecraft:birch_planks",

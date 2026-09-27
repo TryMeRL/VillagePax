@@ -968,5 +968,12 @@
   "villagepax.trophy.blank": "Кубок без надписи",
   "villagepax.trophy.place": "Первое место — %s",
   "villagepax.trophy.where": "%s в «%s», день %s",
-  "villagepax.trophy.winner": "Победитель: %s"
+  "villagepax.trophy.winner": "Победитель: %s",
+  "villagepax.building.norman.fairground": "Ярмарка",
+  "villagepax.building.maya.fairground": "Ярмарка",
+  "villagepax.building.pony.fairground": "Ярмарка",
+  "villagepax.building.nord.fairground": "Ярмарка",
+  "villagepax.building.yamato.fairground": "Ярмарка",
+  "villagepax.building.dwarf.fairground": "Ярмарка",
+  "villagepax.building.elf.fairground": "Ярмарка"
 }

@@ -47,7 +47,8 @@
     "villagepax:pony/warehouse",
     "villagepax:pony/builder_hut",
     "villagepax:pony/brewery",
-    "villagepax:pony/weavery"
+    "villagepax:pony/weavery",
+    "villagepax:pony/fairground"
   ],
   "road": [
     "minecraft:dirt_path",

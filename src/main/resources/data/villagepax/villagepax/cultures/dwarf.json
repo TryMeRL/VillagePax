@@ -45,7 +45,8 @@
     "villagepax:dwarf/farm",
     "villagepax:dwarf/warehouse",
     "villagepax:dwarf/builder_hut",
-    "villagepax:dwarf/brewery"
+    "villagepax:dwarf/brewery",
+    "villagepax:dwarf/fairground"
   ],
   "road": [
     "minecraft:polished_deepslate",

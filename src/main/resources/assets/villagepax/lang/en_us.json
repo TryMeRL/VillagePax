@@ -968,5 +968,12 @@
   "villagepax.trophy.blank": "No engraving",
   "villagepax.trophy.place": "First place — %s",
   "villagepax.trophy.where": "%s in %s, day %s",
-  "villagepax.trophy.winner": "Winner: %s"
+  "villagepax.trophy.winner": "Winner: %s",
+  "villagepax.building.norman.fairground": "Fairground",
+  "villagepax.building.maya.fairground": "Fairground",
+  "villagepax.building.pony.fairground": "Fairground",
+  "villagepax.building.nord.fairground": "Fairground",
+  "villagepax.building.yamato.fairground": "Fairground",
+  "villagepax.building.dwarf.fairground": "Fairground",
+  "villagepax.building.elf.fairground": "Fairground"
 }

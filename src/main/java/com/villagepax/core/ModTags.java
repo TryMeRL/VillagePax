@@ -23,6 +23,16 @@ public final class ModTags {
             RegistryKeys.BLOCK, new Identifier(VillagePax.MOD_ID, "build_decor"));
 
     /**
+     * Сердца праздника: вокруг них водят хоровод и от них бьёт фейерверк.
+     * <p>
+     * Тегом, а не списком в коде: у каждого народа сердце своё, и народ,
+     * добавленный датапаком, приносит своё сердце — ярмарка узнает его
+     * по тегу так же, как узнаёт майское дерево.
+     */
+    public static final TagKey<Block> FESTIVAL_HEARTS = TagKey.of(
+            RegistryKeys.BLOCK, new Identifier(VillagePax.MOD_ID, "festival_hearts"));
+
+    /**
      * Что житель считает едой.
      * <p>
      * Тег, а не {@code Item.isFood()}: последний вернёт истину и для гнилой

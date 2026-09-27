@@ -48,7 +48,8 @@
     "villagepax:yamato/warehouse",
     "villagepax:yamato/builder_hut",
     "villagepax:yamato/brewery",
-    "villagepax:yamato/weavery"
+    "villagepax:yamato/weavery",
+    "villagepax:yamato/fairground"
   ],
   "road": [
     "minecraft:gravel",

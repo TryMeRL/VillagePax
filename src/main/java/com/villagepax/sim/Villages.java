@@ -142,6 +142,16 @@ public final class Villages {
      */
     public static final Identifier GUARD = new Identifier(VillagePax.MOD_ID, "guard");
 
+    /**
+     * Профессия, которая ведёт праздник.
+     * <p>
+     * Названа в коде по той же причине, что купец: по ней тело решает,
+     * открывать ли на щелчок экран праздника, а правило «идёт ли праздник»
+     * спрашивает, есть ли у ярмарки затейник. Праздника без затейника
+     * не бывает, как без купца не бывает торга.
+     */
+    public static final Identifier ENTERTAINER = new Identifier(VillagePax.MOD_ID, "entertainer");
+
     private Villages() {
     }
 

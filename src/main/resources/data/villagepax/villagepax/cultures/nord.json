@@ -50,7 +50,8 @@
     "villagepax:nord/warehouse",
     "villagepax:nord/builder_hut",
     "villagepax:nord/brewery",
-    "villagepax:nord/weavery"
+    "villagepax:nord/weavery",
+    "villagepax:nord/fairground"
   ],
   "road": [
     "minecraft:gravel",

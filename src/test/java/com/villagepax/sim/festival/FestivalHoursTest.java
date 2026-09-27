@@ -34,6 +34,17 @@ class FestivalHoursTest {
         assertFalse(FestivalDay.revels(false, Schedule.SLEEP));
     }
 
+    /** Фейерверк — с заката до сна, и так каждый вечер праздника, а не только первый. */
+    @Test
+    void fireworksBurnFromDuskTillSleep() {
+        assertFalse(Fireworks.isEvening(11_999));
+        assertTrue(Fireworks.isEvening(12_000));
+        assertTrue(Fireworks.isEvening(12_999));
+        assertFalse(Fireworks.isEvening(13_000));
+        assertFalse(Fireworks.isEvening(0));
+        assertTrue(Fireworks.isEvening(8 * 24_000 + 12_500));
+    }
+
     @Test
     void contestsRunTillDusk() {
         assertTrue(FestivalDay.contestsOpen(true, 0));

@@ -2,6 +2,8 @@ package com.villagepax.gametest;
 
 import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.culture.CultureManager;
+import com.villagepax.core.festival.Festival;
+import com.villagepax.core.festival.Festivals;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.item.festival.ModFestivalItems;
 import com.villagepax.sim.Building;
@@ -16,22 +18,29 @@ import com.villagepax.sim.festival.Fairs;
 import com.villagepax.sim.festival.FestivalDay;
 import com.villagepax.sim.festival.Heralds;
 import com.villagepax.sim.festival.Feast;
+import com.villagepax.sim.festival.Fireworks;
 import com.villagepax.block.ModBlocks;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.work.WorkTicker;
 import com.villagepax.sim.work.Workplaces;
 import net.minecraft.block.Blocks;
+import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtElement;
+import net.minecraft.nbt.NbtList;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.test.GameTest;
 import net.minecraft.test.TestContext;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.Heightmap;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -608,5 +617,118 @@ public class FestivalTests extends GameTestSupport {
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
         context.complete();
+    }
+
+    /**
+     * Ракета праздника — в цветах народа: у норманнов красный с золотом
+     * и звезда.
+     * <p>
+     * Взлетает она над сердцем праздника, на два блока выше всего, что
+     * стоит над ним, и под открытым небом. Ракета, задевшая по пути жителя
+     * или свод, рвётся тут же и ранит всех в пяти блоках, — поэтому под
+     * навесом она встаёт над навесом, а под высоким сводом, где неба
+     * не видно, не взлетает вовсе.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "fireworks")
+    public void aRocketCarriesItsPeoplesColours(TestContext context) {
+        Festival festival = Festivals.of(NORMAN).orElseThrow();
+        NbtCompound fireworks = Fireworks.rocket(festival, 1).getSubNbt("Fireworks");
+        if (fireworks == null || fireworks.getByte("Flight") != 1) {
+            context.throwGameTestException("У ракеты нет полёта в один: " + fireworks);
+            return;
+        }
+        NbtList explosions = fireworks.getList("Explosions", NbtElement.COMPOUND_TYPE);
+        if (explosions.size() != 1) {
+            context.throwGameTestException("Вспышек у ракеты " + explosions.size() + " — ждали одну");
+            return;
+        }
+        NbtCompound burst = explosions.getCompound(0);
+        if (!Arrays.equals(burst.getIntArray("Colors"), new int[]{0xC0392B, 0xE0B040})
+                || burst.getByte("Type") != 2) {
+            context.throwGameTestException("Не норманнская ракета: " + burst);
+        }
+
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(4, 8, 4));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Schematic plan = schematic(context, NORMAN_FAIR_PLAN);
+        Building building = null;
+        List<FireworkRocketEntity> launched = new ArrayList<>();
+        BlockPos canopy = null;
+        try {
+            building = standUp(context, world, manager, colony, NORMAN_FAIR, anchor);
+            Fair fair = Fairs.of(colony).orElseThrow();
+            BlockPos heart = fair.heart();
+
+            FireworkRocketEntity open = Fireworks.launch(world, fair, festival, world.getRandom())
+                    .orElse(null);
+            if (open == null) {
+                context.throwGameTestException("Над открытой ярмаркой ракета не взлетела");
+                return;
+            }
+            launched.add(open);
+            checkPad(context, world, fair, open, "над открытой ярмаркой");
+            if (!Arrays.equals(open.getStack().getSubNbt("Fireworks").getList("Explosions",
+                    NbtElement.COMPOUND_TYPE).getCompound(0).getIntArray("Colors"),
+                    new int[]{0xC0392B, 0xE0B040})) {
+                context.throwGameTestException("Взлетела не норманнская ракета");
+            }
+
+            canopy = heart.up(7);
+            world.setBlockState(canopy, Blocks.STONE.getDefaultState());
+            FireworkRocketEntity roofed = Fireworks.launch(world, fair, festival, world.getRandom())
+                    .orElse(null);
+            if (roofed == null) {
+                context.throwGameTestException("Под невысоким навесом ракета не взлетела");
+                return;
+            }
+            launched.add(roofed);
+            checkPad(context, world, fair, roofed, "под навесом");
+            if (roofed.getY() < canopy.getY() + 1) {
+                context.throwGameTestException("Ракета под навесом, а не над ним: " + roofed.getPos());
+            }
+
+            world.setBlockState(canopy, Blocks.AIR.getDefaultState());
+            canopy = heart.up(13);
+            world.setBlockState(canopy, Blocks.STONE.getDefaultState());
+            Fireworks.launch(world, fair, festival, world.getRandom()).ifPresent(vaulted -> {
+                launched.add(vaulted);
+                context.throwGameTestException("Под сводом в дюжину блоков ракета взлетела: "
+                        + vaulted.getPos());
+            });
+        } finally {
+            launched.forEach(FireworkRocketEntity::discard);
+            if (canopy != null) {
+                world.setBlockState(canopy, Blocks.AIR.getDefaultState());
+            }
+            if (building != null) {
+                demolish(world, building, plan);
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    /** Ракета в мире, над сердцем, на два блока выше верха столба и под небом. */
+    private static void checkPad(TestContext context, ServerWorld world, Fair fair,
+                                 FireworkRocketEntity rocket, String where) {
+        BlockPos heart = fair.heart();
+        int top = world.getTopY(Heightmap.Type.MOTION_BLOCKING, heart.getX(), heart.getZ());
+        if (world.getEntity(rocket.getUuid()) == null) {
+            context.throwGameTestException("Ракета " + where + " не в мире");
+        }
+        if (Math.abs(rocket.getX() - heart.getX() - 0.5) > 0.5
+                || Math.abs(rocket.getZ() - heart.getZ() - 0.5) > 0.5) {
+            context.throwGameTestException("Ракета " + where + " не над сердцем: " + rocket.getPos()
+                    + ", сердце " + heart);
+        }
+        if (rocket.getY() < top + 2) {
+            context.throwGameTestException("Ракета " + where + " ниже двух блоков над верхом: "
+                    + rocket.getY() + ", верх " + top);
+        }
     }
 }

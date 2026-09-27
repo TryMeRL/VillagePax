@@ -1,12 +1,16 @@
 package com.villagepax.core.festival;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.villagepax.core.StrictCodecs;
+import net.minecraft.item.FireworkRocketItem;
 import net.minecraft.util.Identifier;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Праздник народа — данные, как боги и торг.
@@ -87,6 +91,10 @@ public record Festival(Identifier culture, String name, int moonPhase, Fireworks
 
     /**
      * Вечерний фейерверк народа.
+     * <p>
+     * Форма — одна из ванильных, цветов — хоть один. Иное — ошибка чтения,
+     * а не умолчание: незнакомая форма молча стала бы шаром, а ракета без
+     * цветов роняет клиент — искре нечем гореть.
      *
      * @param colors цвета вспышек, как их пишет ванильная ракета
      * @param shape  форма: {@code small_ball}, {@code large_ball}, {@code star},
@@ -97,10 +105,34 @@ public record Festival(Identifier culture, String name, int moonPhase, Fireworks
         /** Народ, не назвавший своих цветов, всё равно встречает ночь огнями — белыми. */
         public static final Fireworks PLAIN = new Fireworks(List.of(0xFFFFFF), "large_ball");
 
+        private static final String SHAPES = Arrays.stream(FireworkRocketItem.Type.values())
+                .map(FireworkRocketItem.Type::getName).collect(Collectors.joining(", "));
+
+        private static final Codec<String> SHAPE = Codec.STRING.comapFlatMap(
+                name -> kindOf(name).isPresent() ? DataResult.success(name)
+                        : DataResult.error(() -> "Неизвестная форма фейерверка: " + name
+                        + ". Допустимые: " + SHAPES),
+                name -> name);
+
+        private static final Codec<List<Integer>> COLORS = Codec.INT.listOf().comapFlatMap(
+                colors -> colors.isEmpty() ? DataResult.error(() -> "у фейерверка нет цветов")
+                        : DataResult.success(colors),
+                colors -> colors);
+
         public static final Codec<Fireworks> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-                Codec.INT.listOf().fieldOf("colors").forGetter(Fireworks::colors),
-                StrictCodecs.optional("shape", Codec.STRING, "large_ball").forGetter(Fireworks::shape)
+                COLORS.fieldOf("colors").forGetter(Fireworks::colors),
+                StrictCodecs.optional("shape", SHAPE, "large_ball").forGetter(Fireworks::shape)
         ).apply(instance, Fireworks::new));
+
+        /** Форма как у ванильной ракеты; незнакомая у собранного в коде — шар. */
+        public FireworkRocketItem.Type type() {
+            return kindOf(shape).orElse(FireworkRocketItem.Type.LARGE_BALL);
+        }
+
+        private static Optional<FireworkRocketItem.Type> kindOf(String name) {
+            return Arrays.stream(FireworkRocketItem.Type.values())
+                    .filter(type -> type.getName().equals(name)).findFirst();
+        }
     }
 
     public static final Codec<Festival> CODEC = RecordCodecBuilder.create(instance -> instance.group(

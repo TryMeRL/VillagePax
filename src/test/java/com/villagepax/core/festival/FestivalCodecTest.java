@@ -2,6 +2,7 @@ package com.villagepax.core.festival;
 
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
+import net.minecraft.item.FireworkRocketItem;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -41,6 +42,7 @@ class FestivalCodecTest {
         assertEquals(Critter.PIG, festival.contests().get(0).critter().orElseThrow());
         assertEquals(TokenKind.EGG, festival.contests().get(2).token().orElseThrow());
         assertEquals("star", festival.fireworks().shape());
+        assertEquals(FireworkRocketItem.Type.STAR, festival.fireworks().type());
         assertEquals(2, festival.fireworks().colors().size());
         assertEquals(3, festival.prizes().get(0).count());
         assertEquals(1, festival.prizes().get(0).price());
@@ -79,6 +81,21 @@ class FestivalCodecTest {
     @Test
     void aBrokenFireworkIsAnErrorNotAPlainOne() {
         assertNull(parse(NORMAN.replace("[16711680, 16766720]", "[\"red\"]")));
+    }
+
+    /**
+     * Незнакомая форма — ошибка, как и битый цвет: «sparkle» молча стал бы
+     * шаром, и автор искал бы, почему у его народа не те огни.
+     */
+    @Test
+    void anUnknownShapeIsAnError() {
+        assertNull(parse(NORMAN.replace("\"star\"", "\"sparkle\"")));
+    }
+
+    /** Фейерверк без цветов — ошибка: искре ракеты нечем гореть, и клиент падает. */
+    @Test
+    void aFireworkWithoutColoursIsAnError() {
+        assertNull(parse(NORMAN.replace("[16711680, 16766720]", "[]")));
     }
 
     /** Без фейерверка в данных праздник всё равно кончается фейерверком — белым. */

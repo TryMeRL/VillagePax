@@ -311,7 +311,9 @@ assets/<мод>/animations/entity/citizen_<народ>.animation.json
   `gem`, `firefly`. Своих видов, зверьков и вещиц датапак не приносит:
   это поведение, а поведение — код.
 - `count` — сколько вещиц, зверьков или выстрелов; без него 10, 3 и 8.
-- `fireworks.shape` — `small_ball`, `large_ball`, `star`, `creeper`, `burst`.
+- `fireworks.shape` — `small_ball`, `large_ball`, `star`, `creeper`, `burst`;
+  `fireworks.colors` — хоть один цвет. Незнакомая форма или пустые цвета —
+  ошибка: праздник не загрузится, и лог скажет почему.
 - `prizes` — лавка затейника, цены в праздничных лентах; ракеты
   `minecraft:firework_rocket` лавка выдаёт в цветах народа.
 

@@ -1572,6 +1572,15 @@ abstract class GameTestSupport implements FabricGameTest {
         citizen.setPosition(Vec3d.ofBottomCenter(at));
         colony.addCitizen(citizen);
         CitizenSpawner.spawnBody(world, colony, citizen);
+        // Тело, которое мир принял, но не находит, — не ошибка проверки,
+        // а чанк, где сущности ещё не живут. Говорим об этом прямо: иначе
+        // это NullPointerException тремя строками ниже и загадка.
+        if (citizen.entityUuid().map(world::getEntity).isEmpty()) {
+            throw new IllegalStateException("тело «" + citizen.fullName() + "» не в мире: чанк "
+                    + new net.minecraft.util.math.ChunkPos(at) + ", сущности тикают "
+                    + world.shouldTickEntity(at) + ", чанк загружен " + world.isChunkLoaded(at)
+                    + ", мировое время " + world.getTime());
+        }
         return citizen;
     }
 

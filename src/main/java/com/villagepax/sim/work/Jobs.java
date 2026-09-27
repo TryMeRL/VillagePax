@@ -13,7 +13,7 @@ import java.util.Set;
  * Логики работы, зарегистрированные кодом.
  * <p>
  * Профессия — данные, логика — код: датапак <b>выбирает</b> логику по имени,
- * а не приносит свою. Логик семь на весь мод, и они всегда были кодом; иначе
+ * а не приносит свою. Логик восемь на весь мод, и они всегда были кодом; иначе
  * пришлось бы пускать в мод чужой исполняемый код.
  */
 public final class Jobs {
@@ -21,7 +21,7 @@ public final class Jobs {
     private static final Map<Identifier, Job> BY_LOGIC =
             register(new BuilderJob(), new HaulJob(), new GatherJob(), new FarmJob(),
                     new CraftJob(),
-                    new GuardJob(), new TradeJob());
+                    new GuardJob(), new TradeJob(), new EntertainJob());
 
     private Jobs() {
     }

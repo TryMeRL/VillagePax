@@ -71,6 +71,9 @@
     "villagepax:incense_burner"
   ],
   "traits": [],
+  "titles": {
+    "villagepax:entertainer": "villagepax.profession.entertainer.yamato"
+  },
   "diplomacy_defaults": {
     "villagepax:elf": 10,
     "villagepax:nord": -5

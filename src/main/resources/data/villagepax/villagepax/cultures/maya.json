@@ -71,6 +71,9 @@
   "traits": [
     "villagepax:terrace_farming"
   ],
+  "titles": {
+    "villagepax:entertainer": "villagepax.profession.entertainer.maya"
+  },
   "diplomacy_defaults": {
     "villagepax:norman": -10
   }

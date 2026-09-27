@@ -68,6 +68,9 @@
     "villagepax:builds_in_canopy"
   ],
   "stature": 1.06,
+  "titles": {
+    "villagepax:entertainer": "villagepax.profession.entertainer.elf"
+  },
   "diplomacy_defaults": {
     "villagepax:pony": 5,
     "villagepax:maya": 5,

@@ -1092,10 +1092,14 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
             return;
         }
 
+        // Имя ремесла — народное, если народ его назвал: у норманнов
+        // затейник — жонглёр, у северян — скальд.
+        Culture people = CultureManager.get(citizen.culture());
         Text name = citizen.profession()
-                .flatMap(ProfessionManager::get)
-                .map(profession -> (Text) Text.translatable("villagepax.citizen.label",
-                        citizen.fullName(), Text.translatable(profession.displayName())))
+                .flatMap(id -> ProfessionManager.get(id).map(profession -> (Text) Text.translatable(
+                        "villagepax.citizen.label", citizen.fullName(), Text.translatable(
+                                people == null ? profession.displayName()
+                                        : people.titleOf(id).orElse(profession.displayName())))))
                 .orElse(Text.literal(citizen.fullName()));
 
         setCustomName(atWork(citizen).orElse(name));

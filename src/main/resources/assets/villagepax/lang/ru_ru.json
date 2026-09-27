@@ -975,5 +975,13 @@
   "villagepax.building.nord.fairground": "Ярмарка",
   "villagepax.building.yamato.fairground": "Ярмарка",
   "villagepax.building.dwarf.fairground": "Ярмарка",
-  "villagepax.building.elf.fairground": "Ярмарка"
+  "villagepax.building.elf.fairground": "Ярмарка",
+  "villagepax.profession.entertainer": "Затейник",
+  "villagepax.profession.entertainer.norman": "Жонглёр",
+  "villagepax.profession.entertainer.maya": "Воладор",
+  "villagepax.profession.entertainer.yamato": "Рассказчик",
+  "villagepax.profession.entertainer.nord": "Скальд",
+  "villagepax.profession.entertainer.pony": "Затейник",
+  "villagepax.profession.entertainer.dwarf": "Запевала",
+  "villagepax.profession.entertainer.elf": "Менестрель"
 }

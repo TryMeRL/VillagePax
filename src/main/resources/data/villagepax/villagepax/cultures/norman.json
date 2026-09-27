@@ -72,6 +72,9 @@
   "traits": [
     "villagepax:stone_masonry"
   ],
+  "titles": {
+    "villagepax:entertainer": "villagepax.profession.entertainer.norman"
+  },
   "diplomacy_defaults": {
     "villagepax:maya": -10
   }

@@ -1611,6 +1611,29 @@ abstract class GameTestSupport implements FabricGameTest {
         });
     }
 
+    /**
+     * Поставить здание готовым на месте: запас — в саму стройку, план — за раз.
+     * <p>
+     * Тем же путём деревня получает подарок ({@code Raising.raise}), только
+     * без поиска места: проверке нужно своё. Склад ратуши на большие здания
+     * не рассчитан — двенадцать десятков блоков ярмарки в двадцать семь
+     * ячеек сундука не лезут, и лишнее высыпалось бы под ноги.
+     */
+    static Building standUp(TestContext context, ServerWorld world, SettlementManager manager,
+                            Settlement settlement, Identifier type, BlockPos anchor) {
+        Schematic plan = schematic(context,
+                new Identifier(type.getNamespace(), type.getPath() + "_lvl1"));
+        Building site = plan(settlement, anchor, type, BlockRotation.NONE);
+        Materials.required(plan).forEach((item, count) ->
+                site.stock().add(Registries.ITEM.getId(item), count));
+        BuildJob.Outcome outcome = BuildJob.advance(world, manager, settlement.id(), site.id(),
+                Integer.MAX_VALUE);
+        if (outcome != BuildJob.Outcome.FINISHED) {
+            context.throwGameTestException(type + " не встала: " + outcome);
+        }
+        return site;
+    }
+
     /** Убрать за собой: игровые тесты делят один мир. */
     static void demolish(ServerWorld world, Building site, Schematic schematic) {
         for (BuildStep step : schematic.plan().steps()) {

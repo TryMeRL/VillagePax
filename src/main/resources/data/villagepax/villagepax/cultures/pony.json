@@ -67,6 +67,9 @@
     "villagepax:rainbow_fountain"
   ],
   "traits": [],
+  "titles": {
+    "villagepax:entertainer": "villagepax.profession.entertainer.pony"
+  },
   "diplomacy_defaults": {
     "villagepax:norman": 5,
     "villagepax:maya": 0

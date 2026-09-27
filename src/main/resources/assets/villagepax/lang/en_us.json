@@ -975,5 +975,13 @@
   "villagepax.building.nord.fairground": "Fairground",
   "villagepax.building.yamato.fairground": "Fairground",
   "villagepax.building.dwarf.fairground": "Fairground",
-  "villagepax.building.elf.fairground": "Fairground"
+  "villagepax.building.elf.fairground": "Fairground",
+  "villagepax.profession.entertainer": "Entertainer",
+  "villagepax.profession.entertainer.norman": "Jongleur",
+  "villagepax.profession.entertainer.maya": "Volador",
+  "villagepax.profession.entertainer.yamato": "Storyteller",
+  "villagepax.profession.entertainer.nord": "Skald",
+  "villagepax.profession.entertainer.pony": "Party Pony",
+  "villagepax.profession.entertainer.dwarf": "Song-Leader",
+  "villagepax.profession.entertainer.elf": "Minstrel"
 }

@@ -71,6 +71,9 @@
     "villagepax:war_drum"
   ],
   "traits": [],
+  "titles": {
+    "villagepax:entertainer": "villagepax.profession.entertainer.nord"
+  },
   "diplomacy_defaults": {
     "villagepax:norman": -5,
     "villagepax:dwarf": 10

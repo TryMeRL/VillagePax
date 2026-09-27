@@ -23,6 +23,8 @@ import java.util.Optional;
  * @param traits             модификаторы поведения: подземная застройка, террасные фермы и прочее
  * @param stature            рост народа: 1.0 — человеческий, меньше — приземистый
  * @param diplomacyDefaults  стартовое отношение к другим народам
+ * @param titles             как этот народ зовёт ремёсла: ремесло → ключ имени
+ *                           (затейник у норманнов — жонглёр, у северян — скальд)
  */
 public record Culture(
         String displayName,
@@ -34,7 +36,8 @@ public record Culture(
         List<Identifier> decor,
         List<Identifier> traits,
         float stature,
-        Map<Identifier, Integer> diplomacyDefaults
+        Map<Identifier, Integer> diplomacyDefaults,
+        Map<Identifier, String> titles
 ) {
 
     /**
@@ -53,7 +56,7 @@ public record Culture(
                    List<Identifier> buildings, List<Identifier> traits,
                    Map<Identifier, Integer> diplomacyDefaults) {
         this(displayName, kind, spawn, namePools, buildings, List.of(), List.of(), traits,
-                PLAIN_STATURE, diplomacyDefaults);
+                PLAIN_STATURE, diplomacyDefaults, Map.of());
     }
 
     public static final Codec<Culture> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -68,7 +71,12 @@ public record Culture(
             Identifier.CODEC.listOf().optionalFieldOf("traits", List.of()).forGetter(Culture::traits),
             Codec.FLOAT.optionalFieldOf("stature", PLAIN_STATURE).forGetter(Culture::stature),
             Codec.unboundedMap(Identifier.CODEC, Codec.INT).optionalFieldOf("diplomacy_defaults", Map.of())
-                    .forGetter(Culture::diplomacyDefaults)
+                    .forGetter(Culture::diplomacyDefaults),
+            // Строго: описка в имени ремесла тихо вернула бы общее имя,
+            // и автор датапака искал бы, куда делся его скальд.
+            com.villagepax.core.StrictCodecs.optional("titles",
+                    Codec.unboundedMap(Identifier.CODEC, Codec.STRING), Map.<Identifier, String>of())
+                    .forGetter(Culture::titles)
     ).apply(instance, Culture::new));
 
     /**
@@ -80,6 +88,17 @@ public record Culture(
      */
     public Optional<Identifier> townHallBuilding() {
         return buildings.stream().filter(BuildingTypes::isTownHall).findFirst();
+    }
+
+    /**
+     * Как этот народ зовёт ремесло: жонглёр, скальд, менестрель.
+     * <p>
+     * Пусто — народ не назвал, и ремесло зовётся общим именем. Ремесло
+     * одно на все народы, а имя у него своё у каждого: так затейник
+     * норманнов и затейник северян — один и тот же код, но разные люди.
+     */
+    public Optional<String> titleOf(Identifier profession) {
+        return Optional.ofNullable(titles.get(profession));
     }
 
     /**

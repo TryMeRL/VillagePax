@@ -14,6 +14,8 @@ import com.villagepax.sim.festival.Fair;
 import com.villagepax.sim.festival.Fairs;
 import com.villagepax.sim.festival.FestivalDay;
 import com.villagepax.sim.festival.Heralds;
+import com.villagepax.sim.festival.Feast;
+import com.villagepax.block.ModBlocks;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.work.WorkTicker;
@@ -333,5 +335,99 @@ public class FestivalTests extends GameTestSupport {
         if (!expected.equals(got)) {
             wrong.add(when + ": ждали " + expected + ", а " + got);
         }
+    }
+
+    /**
+     * Пироги стоят на столе ярмарки в день праздника и уходят наутро —
+     * кроме того, что на их месте уже чужое.
+     * <p>
+     * Игрок съел пирог и поставил на его место горшок с маком: уборка
+     * на другой день горшок не трогает. Убирается только то, что там всё
+     * ещё наше. Горшок, а не мак: живой цветок на столе не держится
+     * и осыпается сам — проверка поймала бы игру, а не уборку.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "feast")
+    public void piesStandOnTheirDayAndLeaveTheNext(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(4, 8, 4));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Schematic plan = schematic(context, NORMAN_FAIR_PLAN);
+        Building fair = null;
+        try {
+            fair = standUp(context, world, manager, colony, NORMAN_FAIR, anchor);
+            hireWithBody(world, colony, Villages.ENTERTAINER, Workplaces.stations(fair).get(0));
+            Workplaces.assign(world, colony);
+            List<BlockPos> spots = Fairs.of(colony).orElseThrow().tables().stream()
+                    .map(BlockPos::up).toList();
+
+            Feast.tend(world, manager, colony, 8);
+            for (BlockPos spot : spots) {
+                if (!world.getBlockState(spot).isOf(ModBlocks.FEAST_PIE)) {
+                    context.throwGameTestException("В праздник на столе нет пирога: " + spot);
+                }
+            }
+            BlockPos flower = spots.get(0);
+            world.setBlockState(flower, Blocks.POTTED_POPPY.getDefaultState());
+
+            Feast.tend(world, manager, colony, 9);
+            for (BlockPos spot : spots.subList(1, spots.size())) {
+                if (!world.getBlockState(spot).isAir()) {
+                    context.throwGameTestException("Наутро пирог остался на столе: " + spot);
+                }
+            }
+            if (!world.getBlockState(flower).isOf(Blocks.POTTED_POPPY)) {
+                context.throwGameTestException("Уборка сняла чужой горшок с места пирога");
+            }
+            if (manager.festiveOf(colony.id()).map(memory -> !memory.placed().isEmpty())
+                    .orElse(false)) {
+                context.throwGameTestException("Праздник помнит блоки, которых уже нет");
+            }
+        } finally {
+            if (fair != null) {
+                demolish(world, fair, plan);
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    /** Стол накрывают раз в праздник: съеденный пирог в тот же день не появляется снова. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "feast")
+    public void aFeastIsLaidOnceADay(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(4, 8, 4));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Schematic plan = schematic(context, NORMAN_FAIR_PLAN);
+        Building fair = null;
+        try {
+            fair = standUp(context, world, manager, colony, NORMAN_FAIR, anchor);
+            hireWithBody(world, colony, Villages.ENTERTAINER, Workplaces.stations(fair).get(0));
+            Workplaces.assign(world, colony);
+            BlockPos spot = Fairs.of(colony).orElseThrow().tables().get(0).up();
+
+            Feast.tend(world, manager, colony, 16);
+            if (!world.getBlockState(spot).isOf(ModBlocks.FEAST_PIE)) {
+                context.throwGameTestException("Стол праздника не накрыт");
+            }
+            world.setBlockState(spot, Blocks.AIR.getDefaultState());
+            Feast.tend(world, manager, colony, 16);
+            if (!world.getBlockState(spot).isAir()) {
+                context.throwGameTestException("Съеденный пирог появился снова в тот же день");
+            }
+        } finally {
+            if (fair != null) {
+                demolish(world, fair, plan);
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
     }
 }

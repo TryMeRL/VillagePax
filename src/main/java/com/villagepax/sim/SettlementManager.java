@@ -6,6 +6,7 @@ import net.minecraft.nbt.NbtElement;
 import net.minecraft.nbt.NbtList;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.PersistentState;
@@ -38,6 +39,7 @@ public class SettlementManager extends PersistentState {
     private static final String SITES_TAG = "settled_sites";
     private static final String DECOR_TAG = "decor";
     private static final String DRESSED_TAG = "dressed";
+    private static final String FESTIVE_TAG = "festive";
 
     private final Map<UUID, Settlement> settlements = new LinkedHashMap<>();
 
@@ -77,6 +79,27 @@ public class SettlementManager extends PersistentState {
 
     /** Что уже убрано: здания и сами деревни (их колодец). Убирается однажды. */
     private final Set<UUID> dressed = new HashSet<>();
+
+    /**
+     * Что поставил праздник этому поселению и в какой день.
+     * <p>
+     * Помнится поблочно и с именем блока, как убранство улиц, но по другой
+     * причине: убранство стоит, пока стоит деревня, а праздничное живёт день.
+     * Имя нужно уборке: убирается только то, что там <b>всё ещё наше</b> —
+     * цветок, посаженный игроком на место съеденного пирога, остаётся цветком.
+     */
+    private final Map<UUID, Festive> festive = new LinkedHashMap<>();
+
+    /** Поставленный праздником блок: где и какой. */
+    public record Placed(long at, Identifier block) {
+        public BlockPos pos() {
+            return BlockPos.fromLong(at);
+        }
+    }
+
+    /** Память праздника поселения: в какой день ставили и что. */
+    public record Festive(long day, List<Placed> placed) {
+    }
 
     public static SettlementManager get(ServerWorld world) {
         return world.getPersistentStateManager()
@@ -118,6 +141,19 @@ public class SettlementManager extends PersistentState {
         }
         for (NbtElement element : nbt.getList(DRESSED_TAG, NbtElement.INT_ARRAY_TYPE)) {
             manager.dressed.add(net.minecraft.nbt.NbtHelper.toUuid(element));
+        }
+        for (NbtElement element : nbt.getList(FESTIVE_TAG, NbtElement.COMPOUND_TYPE)) {
+            NbtCompound entry = (NbtCompound) element;
+            long[] at = entry.getLongArray("at");
+            NbtList blocks = entry.getList("blocks", NbtElement.STRING_TYPE);
+            List<Placed> placed = new ArrayList<>();
+            for (int i = 0; i < at.length && i < blocks.size(); i++) {
+                Identifier block = Identifier.tryParse(blocks.getString(i));
+                if (block != null) {
+                    placed.add(new Placed(at[i], block));
+                }
+            }
+            manager.festive.put(entry.getUuid("village"), new Festive(entry.getLong("day"), placed));
         }
         return manager;
     }
@@ -163,6 +199,19 @@ public class SettlementManager extends PersistentState {
         NbtList done = new NbtList();
         dressed.forEach(id -> done.add(net.minecraft.nbt.NbtHelper.fromUuid(id)));
         nbt.put(DRESSED_TAG, done);
+        NbtList festivities = new NbtList();
+        festive.forEach((village, memory) -> {
+            NbtCompound entry = new NbtCompound();
+            entry.putUuid("village", village);
+            entry.putLong("day", memory.day());
+            entry.putLongArray("at", memory.placed().stream().mapToLong(Placed::at).toArray());
+            NbtList blocks = new NbtList();
+            memory.placed().forEach(one -> blocks.add(
+                    net.minecraft.nbt.NbtString.of(one.block().toString())));
+            entry.put("blocks", blocks);
+            festivities.add(entry);
+        });
+        nbt.put(FESTIVE_TAG, festivities);
         return nbt;
     }
 
@@ -224,10 +273,55 @@ public class SettlementManager extends PersistentState {
         // до remove, если хочет убрать и его.
         decor.remove(id);
         dressed.remove(id);
+        festive.remove(id);
         if (removed) {
             markDirty();
         }
         return removed;
+    }
+
+    /** Память праздника поселения, если праздник что-то ставил. */
+    public Optional<Festive> festiveOf(UUID village) {
+        return Optional.ofNullable(festive.get(village));
+    }
+
+    /**
+     * Запомнить, что праздник в этот день уже ставил, — даже если ставить
+     * было некуда: иначе каждую секунду праздник пробовал бы снова.
+     * Прежние записи остаются: их уберут, когда до них дойдёт уборка.
+     */
+    public void startFestive(UUID village, long day) {
+        Festive old = festive.get(village);
+        festive.put(village, new Festive(day, old == null ? List.of() : old.placed()));
+        markDirty();
+    }
+
+    /** Запомнить блок, поставленный праздником. */
+    public void recordFestive(UUID village, long day, BlockPos at, Identifier block) {
+        Festive old = festive.get(village);
+        List<Placed> placed = new ArrayList<>(old == null ? List.of() : old.placed());
+        placed.add(new Placed(at.asLong(), block));
+        festive.put(village, new Festive(day, List.copyOf(placed)));
+        markDirty();
+    }
+
+    /** Забыть блок праздника: убран, съеден или его место занял чужой. */
+    public void forgetFestive(UUID village, BlockPos at) {
+        Festive old = festive.get(village);
+        if (old == null) {
+            return;
+        }
+        long key = at.asLong();
+        festive.put(village, new Festive(old.day(),
+                old.placed().stream().filter(placed -> placed.at() != key).toList()));
+        markDirty();
+    }
+
+    /** Забыть праздник поселения целиком. */
+    public void clearFestive(UUID village) {
+        if (festive.remove(village) != null) {
+            markDirty();
+        }
     }
 
     /** Единственный безопасный способ поменять поселение: сам пометит состояние грязным. */

@@ -301,4 +301,33 @@ class SettlementPersistenceTest {
         assertEquals(2, saved.size(), "нечитаемая запись стёрта сохранением");
         assertEquals(strange, saved.getCompound(1), "нечитаемая запись изменилась");
     }
+
+    /**
+     * Память праздника переживает перезаход.
+     * <p>
+     * Без неё пироги прошлого праздника, поставленные до выхода из мира,
+     * стояли бы на столе ярмарки вечно: уборка знает, что убирать, только
+     * по этой памяти — и по имени блока, чтобы не тронуть чужое.
+     */
+    @Test
+    void theFestivalMemorySurvivesRoundTrip() {
+        UUID village = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        Identifier pie = new Identifier("villagepax", "feast_pie");
+        Identifier token = new Identifier("villagepax", "festival_token");
+        SettlementManager manager = new SettlementManager();
+        manager.recordFestive(village, 16, new BlockPos(1, 64, 2), pie);
+        manager.recordFestive(village, 16, new BlockPos(3, 64, 2), token);
+
+        SettlementManager loaded = SettlementManager.fromNbt(manager.writeNbt(new NbtCompound()));
+        SettlementManager.Festive festive = loaded.festiveOf(village).orElseThrow();
+        assertEquals(16, festive.day());
+        assertEquals(List.of(new SettlementManager.Placed(new BlockPos(1, 64, 2).asLong(), pie),
+                new SettlementManager.Placed(new BlockPos(3, 64, 2).asLong(), token)),
+                festive.placed());
+
+        loaded.forgetFestive(village, new BlockPos(1, 64, 2));
+        assertEquals(1, loaded.festiveOf(village).orElseThrow().placed().size());
+        loaded.remove(village);
+        assertTrue(loaded.festiveOf(village).isEmpty(), "снесённая деревня помнит свой праздник");
+    }
 }

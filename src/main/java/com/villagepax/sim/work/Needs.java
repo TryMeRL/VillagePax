@@ -13,6 +13,7 @@ import com.villagepax.sim.trade.Wages;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.Warehouse;
+import com.villagepax.sim.festival.FestivalDay;
 import net.minecraft.item.Item;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -136,6 +137,17 @@ public final class Needs {
      * бы наказанием без предупреждения.
      */
     public static void newDay(ServerWorld world, SettlementManager manager, Settlement settlement) {
+        newDay(world, manager, settlement, Schedule.dayOf(world.getTimeOfDay()));
+    }
+
+    /**
+     * То же в названный день: {@code today} — день, который начался.
+     * <p>
+     * День — довод, а не спрос у мира: праздник вчерашнего дня веселит
+     * сегодня, а мир игровых проверок общий, и время в нём не подвинешь.
+     */
+    public static void newDay(ServerWorld world, SettlementManager manager, Settlement settlement,
+                              long today) {
         List<Citizen> leaving = new ArrayList<>();
 
         for (Citizen citizen : settlement.citizens()) {
@@ -161,10 +173,14 @@ public final class Needs {
                 // не бухгалтерия: игрок задаёт ставку и обязан увидеть,
                 // во что она обошлась, — а увидеть можно только там, где
                 // числа складываются в одно.
+                //
+                // Праздник — за вчерашний день: подсчёт идёт на рассвете,
+                // а гуляли вчера.
                 citizen.setHappiness(citizen.happiness() + HAPPINESS_FED
                         + Comfort.of(world, settlement, citizen)
                         + Faith.solace(world, settlement)
                         + Bonds.moodOf(settlement, citizen)
+                        + FestivalDay.cheer(settlement, today - 1)
                         - Wages.discontentOf(settlement));
                 citizen.contented();
             }

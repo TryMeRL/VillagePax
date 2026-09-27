@@ -20,8 +20,10 @@ import com.villagepax.sim.festival.Heralds;
 import com.villagepax.sim.festival.Feast;
 import com.villagepax.sim.festival.Fireworks;
 import com.villagepax.block.ModBlocks;
+import com.villagepax.block.wonder.Wonders;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.work.Schedule;
+import com.villagepax.sim.work.Needs;
 import com.villagepax.sim.work.WorkTicker;
 import com.villagepax.sim.work.Workplaces;
 import net.minecraft.block.Blocks;
@@ -34,6 +36,8 @@ import net.minecraft.nbt.NbtList;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.test.GameTest;
 import net.minecraft.test.TestContext;
+import net.minecraft.text.Text;
+import net.minecraft.text.TranslatableTextContent;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
@@ -730,5 +734,111 @@ public class FestivalTests extends GameTestSupport {
             context.throwGameTestException("Ракета " + where + " ниже двух блоков над верхом: "
                     + rocket.getY() + ", верх " + top);
         }
+    }
+
+    /**
+     * Праздник веселит колонию: наутро после праздника довольство сытого
+     * жителя выросло на шесть больше, чем у соседей без праздника. Без
+     * затейника или без ярмарки праздника нет — нет и прибавки.
+     * <p>
+     * У норманнов праздник в день 0, так что утро после него — день 1.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "cheer")
+    public void aFestivalCheersTheColony(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        List<BlockPos> halls = List.of(context.getAbsolutePos(new BlockPos(1, 1, 1)),
+                context.getAbsolutePos(new BlockPos(1, 1, 30)),
+                context.getAbsolutePos(new BlockPos(30, 1, 30)));
+        Schematic plan = schematic(context, NORMAN_FAIR_PLAN);
+        List<Settlement> colonies = new ArrayList<>();
+        List<Citizen> builders = new ArrayList<>();
+        List<Building> fairs = new ArrayList<>();
+        try {
+            for (BlockPos hall : halls) {
+                Settlement colony = colonyWithBuilder(world, manager, hall);
+                colonies.add(colony);
+                builders.add(colony.citizens().get(0));
+            }
+            Building festive = standUp(context, world, manager, colonies.get(0), NORMAN_FAIR,
+                    context.getAbsolutePos(new BlockPos(4, 8, 4)));
+            fairs.add(festive);
+            fairs.add(standUp(context, world, manager, colonies.get(1), NORMAN_FAIR,
+                    context.getAbsolutePos(new BlockPos(4, 8, 18))));
+            hireWithBody(world, colonies.get(0), Villages.ENTERTAINER,
+                    Workplaces.stations(festive).get(0));
+            colonies.forEach(colony -> Workplaces.assign(world, colony));
+
+            int[] gains = new int[3];
+            for (int i = 0; i < 3; i++) {
+                Citizen builder = builders.get(i);
+                builder.setSaturation(30);
+                builder.setHappiness(50);
+                Needs.newDay(world, manager, colonies.get(i), 1);
+                gains[i] = builder.happiness() - 50;
+            }
+            if (gains[0] - gains[2] != 6) {
+                context.throwGameTestException("Праздник прибавил " + (gains[0] - gains[2])
+                        + " к довольству — ждали 6 (прибавки " + Arrays.toString(gains) + ")");
+            }
+            if (gains[1] != gains[2]) {
+                context.throwGameTestException("Без затейника праздник всё равно веселит: прибавки "
+                        + Arrays.toString(gains));
+            }
+        } finally {
+            for (Building fair : fairs) {
+                demolish(world, fair, plan);
+            }
+            for (int i = 0; i < colonies.size(); i++) {
+                discardBodies(world, colonies.get(i));
+                manager.remove(colonies.get(i).id());
+                world.setBlockState(halls.get(i), Blocks.AIR.getDefaultState());
+            }
+        }
+        context.complete();
+    }
+
+    /**
+     * Камень майя знает ближайший праздник округи — у поселения с ярмаркой
+     * и затейником. Без затейника праздника нет, и камень о нём молчит.
+     * <p>
+     * Строка ищется по ключу перевода, а не по тексту: текст — дело языка.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "calendar")
+    public void theCalendarStoneKnowsTheNearestFestival(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(4, 8, 4));
+        BlockPos stone = context.getAbsolutePos(new BlockPos(24, 1, 24));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Schematic plan = schematic(context, NORMAN_FAIR_PLAN);
+        Building building = null;
+        try {
+            building = standUp(context, world, manager, colony, NORMAN_FAIR, anchor);
+            Workplaces.assign(world, colony);
+            if (tellsOfAFestival(Wonders.MayaCalendar.reading(world, stone))) {
+                context.throwGameTestException("Камень знает праздник ярмарки без затейника");
+            }
+            hireWithBody(world, colony, Villages.ENTERTAINER, Workplaces.stations(building).get(0));
+            Workplaces.assign(world, colony);
+            if (!tellsOfAFestival(Wonders.MayaCalendar.reading(world, stone))) {
+                context.throwGameTestException("Камень молчит о празднике колонии в двух шагах: "
+                        + Wonders.MayaCalendar.reading(world, stone));
+            }
+        } finally {
+            if (building != null) {
+                demolish(world, building, plan);
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    private static boolean tellsOfAFestival(List<Text> lines) {
+        return lines.stream().anyMatch(line -> line.getContent() instanceof TranslatableTextContent content
+                && content.getKey().equals("villagepax.maya_calendar.festival"));
     }
 }

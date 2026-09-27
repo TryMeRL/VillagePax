@@ -7,7 +7,9 @@ import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.Villages;
 import com.villagepax.sim.work.Schedule;
+import net.minecraft.util.math.BlockPos;
 
+import java.util.Collection;
 import java.util.Optional;
 
 /**
@@ -34,6 +36,14 @@ public final class FestivalDay {
 
     /** С какого часа гуляет колония: с послеобеденной работы. */
     private static final long COLONY_FROM = 7_000L;
+
+    /**
+     * Прибавка к довольству за день праздника.
+     * <p>
+     * Больше сытости (+5): это лучший день месяца, и за него колония платит
+     * жителем на ярмарке и половиной рабочего дня.
+     */
+    public static final int CHEER = 6;
 
     /** Почему праздника нет — или что он идёт. */
     public enum Verdict implements Named {
@@ -88,6 +98,48 @@ public final class FestivalDay {
 
     public static boolean isOn(Settlement settlement, long day) {
         return today(settlement, day) == Verdict.ON;
+    }
+
+    /** Прибавка к довольству за этот день: {@link #CHEER}, если праздник в тот день шёл, иначе ноль. */
+    public static int cheer(Settlement settlement, long day) {
+        return isOn(settlement, day) ? CHEER : 0;
+    }
+
+    /**
+     * Праздник, который ждёт округа.
+     *
+     * @param days через сколько дней: 0 — сегодня
+     */
+    public record Upcoming(Settlement settlement, Festival festival, int days) {
+    }
+
+    /**
+     * Ближайший праздник округи: у поселений с ярмаркой и затейником
+     * в этом радиусе — тот, до которого меньше дней, а из равных — ближний.
+     * <p>
+     * Осаду здесь не спрашивают: она кончится, а день праздника — нет.
+     */
+    public static Optional<Upcoming> upcoming(Collection<Settlement> settlements, BlockPos pos,
+                                              int radius, long day) {
+        Upcoming best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (Settlement settlement : settlements) {
+            double distance = settlement.center().getSquaredDistance(pos);
+            if (distance > (double) radius * radius) {
+                continue;
+            }
+            Festival festival = Festivals.of(settlement.culture()).orElse(null);
+            Fair fair = Fairs.of(settlement).orElse(null);
+            if (festival == null || fair == null || host(settlement, fair).isEmpty()) {
+                continue;
+            }
+            int days = FestivalCalendar.daysUntil(day, festival.moonPhase());
+            if (best == null || days < best.days() || days == best.days() && distance < bestDistance) {
+                best = new Upcoming(settlement, festival, days);
+                bestDistance = distance;
+            }
+        }
+        return Optional.ofNullable(best);
     }
 
     /** Затейник этой ярмарки: ремесло затейника и мастерская — она. */

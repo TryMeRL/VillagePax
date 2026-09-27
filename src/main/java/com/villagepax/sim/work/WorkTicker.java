@@ -167,7 +167,7 @@ public final class WorkTicker {
                     // чтобы игрок видел разницу одним числом, а не гадал,
                     // что из двух случилось раньше.
                     Wages.newDay(world, manager, state);
-                    Needs.newDay(world, manager, state);
+                    Needs.newDay(world, manager, state, today);
                     // Дань, если колония под ярмом. Здесь, а не в суточном
                     // решении деревни: платит колония, и платит со своего
                     // склада — то есть из сундуков, а сундуки бывают только

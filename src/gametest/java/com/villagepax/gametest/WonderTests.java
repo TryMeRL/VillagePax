@@ -161,10 +161,10 @@ public class WonderTests extends GameTestSupport {
     @GameTest(templateName = EMPTY_STRUCTURE, batchId = "wonders")
     public void theCalendarAndTheRuneStoneSpeak(TestContext context) {
         ServerWorld world = context.getWorld();
-        if (Wonders.MayaCalendar.reading(world).size() < 4) {
+        BlockPos stone = context.getAbsolutePos(new BlockPos(1, 2, 1));
+        if (Wonders.MayaCalendar.reading(world, stone).size() < 4) {
             context.throwGameTestException("Календарный камень молчит о дне, луне и рассвете");
         }
-        BlockPos stone = context.getAbsolutePos(new BlockPos(1, 2, 1));
         int today = Wonders.RuneStone.verse(stone, 10);
         int tomorrow = Wonders.RuneStone.verse(stone, 11);
         if (today == tomorrow || today < 0 || today >= 8) {

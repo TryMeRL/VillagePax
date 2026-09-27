@@ -2,6 +2,8 @@ package com.villagepax.block.wonder;
 
 import com.villagepax.effect.ModEffects;
 import com.villagepax.entity.CitizenEntity;
+import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.festival.FestivalDay;
 import com.villagepax.sim.work.Schedule;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.LanternBlock;
@@ -41,6 +43,7 @@ import net.minecraft.world.WorldView;
 import net.minecraft.world.level.ServerWorldProperties;
 import org.joml.Vector3f;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -443,8 +446,15 @@ public final class Wonders {
         }
     }
 
-    /** Календарный камень майя: день, луна и сколько до полнолуния. */
+    /**
+     * Календарный камень майя: день, луна, сколько до полнолуния и рассвета —
+     * и ближайший праздник округи.
+     */
     public static class MayaCalendar extends com.villagepax.block.FurnitureBlock {
+
+        /** Как далеко камень знает праздники: округа, до которой дойти пешком. */
+        public static final int FESTIVAL_RADIUS = 256;
+
         public MayaCalendar(VoxelShape shape, Settings settings) {
             super(shape, settings);
         }
@@ -453,7 +463,7 @@ public final class Wonders {
         public ActionResult onUse(BlockState state, World world, BlockPos pos, PlayerEntity player,
                                   Hand hand, BlockHitResult hit) {
             if (world instanceof ServerWorld server) {
-                for (Text line : reading(server)) {
+                for (Text line : reading(server, pos)) {
                     player.sendMessage(line, false);
                 }
                 world.playSound(null, pos, SoundEvents.BLOCK_STONE_HIT, SoundCategory.BLOCKS, 0.8f,
@@ -462,22 +472,40 @@ public final class Wonders {
             return ActionResult.success(world.isClient);
         }
 
-        /** Что говорит камень: день, фаза луны, дни до полной луны и до рассвета. */
-        public static List<Text> reading(ServerWorld world) {
+        /**
+         * Что говорит камень: день, фаза луны, дни до полной луны и до рассвета,
+         * а если в округе есть ярмарка с затейником — ближайший праздник.
+         * Нет такой ярмарки — нет и строки: камень не выдумывает праздников.
+         */
+        public static List<Text> reading(ServerWorld world, BlockPos pos) {
             long time = world.getTimeOfDay();
             long day = time / 24_000L + 1;
             int phase = world.getMoonPhase();
             int toFull = Math.floorMod(8 - phase, 8);
             long ofDay = Math.floorMod(time, 24_000L);
             long toDawn = Math.floorMod(24_000L - ofDay, 24_000L);
-            return List.of(
+            List<Text> lines = new ArrayList<>(List.of(
                     Text.translatable("villagepax.maya_calendar.day", day).formatted(Formatting.GOLD),
                     Text.translatable("villagepax.maya_calendar.moon",
                             Text.translatable("villagepax.maya_calendar.moon." + phase)),
                     toFull == 0 ? Text.translatable("villagepax.maya_calendar.full_now")
                             : Text.translatable("villagepax.maya_calendar.to_full", toFull),
                     Text.translatable("villagepax.maya_calendar.to_dawn",
-                            Math.max(1, Math.round(toDawn / 1200.0f))));
+                            Math.max(1, Math.round(toDawn / 1200.0f)))));
+            FestivalDay.upcoming(SettlementManager.get(world).all(), pos, FESTIVAL_RADIUS,
+                            Schedule.dayOf(time))
+                    .ifPresent(next -> lines.add(Text.translatable("villagepax.maya_calendar.festival",
+                            Text.translatable(next.festival().name()), next.settlement().name(),
+                            when(next.days())).formatted(Formatting.YELLOW)));
+            return lines;
+        }
+
+        private static Text when(int days) {
+            return switch (days) {
+                case 0 -> Text.translatable("villagepax.maya_calendar.festival.today");
+                case 1 -> Text.translatable("villagepax.maya_calendar.festival.tomorrow");
+                default -> Text.translatable("villagepax.maya_calendar.festival.in", days);
+            };
         }
     }
 

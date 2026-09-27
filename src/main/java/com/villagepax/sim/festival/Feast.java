@@ -12,6 +12,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Праздничный стол: пироги на рассвете праздника, уборка наутро.
@@ -64,19 +65,32 @@ public final class Feast {
     public static void clearUp(ServerWorld world, SettlementManager manager, Settlement settlement,
                                SettlementManager.Festive memory) {
         for (SettlementManager.Placed placed : memory.placed()) {
-            BlockPos at = placed.pos();
-            if (!world.isChunkLoaded(at)) {
-                continue;
-            }
-            BlockState there = world.getBlockState(at);
-            if (Registries.BLOCK.getId(there.getBlock()).equals(placed.block())) {
-                world.removeBlock(at, false);
-            }
-            manager.forgetFestive(settlement.id(), at);
+            takeBack(world, manager, settlement.id(), placed);
         }
         if (manager.festiveOf(settlement.id()).map(festive -> festive.placed().isEmpty())
                 .orElse(false)) {
             manager.clearFestive(settlement.id());
         }
+    }
+
+    /**
+     * Убрать один блок праздника, если там всё ещё он, и забыть запись.
+     * Чанк не загружен — ничего: запись дождётся, когда до неё дойдут.
+     *
+     * @return убран ли блок
+     */
+    public static boolean takeBack(ServerWorld world, SettlementManager manager, UUID village,
+                                   SettlementManager.Placed placed) {
+        BlockPos at = placed.pos();
+        if (!world.isChunkLoaded(at)) {
+            return false;
+        }
+        BlockState there = world.getBlockState(at);
+        boolean ours = Registries.BLOCK.getId(there.getBlock()).equals(placed.block());
+        if (ours) {
+            world.removeBlock(at, false);
+        }
+        manager.forgetFestive(village, at);
+        return ours;
     }
 }

@@ -28,6 +28,7 @@ import java.util.Set;
  * <p>
  * Не гуляют трое: затейник (ведёт праздник), купец (ярмарка — это торг)
  * и стража (кто-то должен стеречь). Голодный в обед сперва ест.
+ * Соперника идущего состязания ведёт состязание.
  */
 public final class Revels {
 
@@ -61,6 +62,11 @@ public final class Revels {
      * @return истина, если житель сейчас гуляет и решать за него больше нечего
      */
     public static boolean takesOver(WorkContext context, Schedule part, long day) {
+        // Соперника идущего состязания ведёт игра — в любой час: минута
+        // игры, начатая до заката, может кончиться после отбоя.
+        if (Matches.steers(context)) {
+            return true;
+        }
         Settlement settlement = context.settlement();
         Citizen citizen = context.citizen();
         if (!FestivalDay.revels(settlement.owner().isAutonomous(), part) || works(citizen)) {

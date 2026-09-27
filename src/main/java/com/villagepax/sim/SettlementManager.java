@@ -40,6 +40,7 @@ public class SettlementManager extends PersistentState {
     private static final String DECOR_TAG = "decor";
     private static final String DRESSED_TAG = "dressed";
     private static final String FESTIVE_TAG = "festive";
+    private static final String AWARDED_TAG = "awarded";
 
     private final Map<UUID, Settlement> settlements = new LinkedHashMap<>();
 
@@ -101,6 +102,20 @@ public class SettlementManager extends PersistentState {
     public record Festive(long day, List<Placed> placed) {
     }
 
+    /**
+     * Кому праздник уже дал приз: приз — раз за праздник на игрока
+     * и состязание.
+     * <p>
+     * Хранится, а не держится в памяти сервера: перезапуск посреди праздника
+     * иначе раздавал бы призы заново. Помнится только последний праздник —
+     * вчерашний приз сегодняшнему не мешает, и память не растёт.
+     */
+    private final Map<UUID, Awarded> awarded = new LinkedHashMap<>();
+
+    /** Призы праздника поселения: день и ключи «игрок/номер состязания». */
+    private record Awarded(long day, List<String> keys) {
+    }
+
     public static SettlementManager get(ServerWorld world) {
         return world.getPersistentStateManager()
                 .getOrCreate(SettlementManager::fromNbt, SettlementManager::new, KEY);
@@ -154,6 +169,16 @@ public class SettlementManager extends PersistentState {
                 }
             }
             manager.festive.put(entry.getUuid("village"), new Festive(entry.getLong("day"), placed));
+        }
+        for (NbtElement element : nbt.getList(AWARDED_TAG, NbtElement.COMPOUND_TYPE)) {
+            NbtCompound entry = (NbtCompound) element;
+            List<String> keys = new ArrayList<>();
+            NbtList written = entry.getList("keys", NbtElement.STRING_TYPE);
+            for (int i = 0; i < written.size(); i++) {
+                keys.add(written.getString(i));
+            }
+            manager.awarded.put(entry.getUuid("village"),
+                    new Awarded(entry.getLong("day"), List.copyOf(keys)));
         }
         return manager;
     }
@@ -212,6 +237,17 @@ public class SettlementManager extends PersistentState {
             festivities.add(entry);
         });
         nbt.put(FESTIVE_TAG, festivities);
+        NbtList prizes = new NbtList();
+        awarded.forEach((village, memory) -> {
+            NbtCompound entry = new NbtCompound();
+            entry.putUuid("village", village);
+            entry.putLong("day", memory.day());
+            NbtList keys = new NbtList();
+            memory.keys().forEach(key -> keys.add(net.minecraft.nbt.NbtString.of(key)));
+            entry.put("keys", keys);
+            prizes.add(entry);
+        });
+        nbt.put(AWARDED_TAG, prizes);
         return nbt;
     }
 
@@ -274,6 +310,7 @@ public class SettlementManager extends PersistentState {
         decor.remove(id);
         dressed.remove(id);
         festive.remove(id);
+        awarded.remove(id);
         if (removed) {
             markDirty();
         }
@@ -315,6 +352,28 @@ public class SettlementManager extends PersistentState {
         festive.put(village, new Festive(old.day(),
                 old.placed().stream().filter(placed -> placed.at() != key).toList()));
         markDirty();
+    }
+
+    /** Брал ли игрок приз за это состязание в этот праздник. */
+    public boolean awarded(UUID village, long day, UUID player, int contest) {
+        Awarded memory = awarded.get(village);
+        return memory != null && memory.day() == day && memory.keys().contains(prizeKey(player, contest));
+    }
+
+    /** Запомнить приз; память прошлого праздника при этом забывается. */
+    public void markAwarded(UUID village, long day, UUID player, int contest) {
+        Awarded old = awarded.get(village);
+        List<String> keys = new ArrayList<>(old == null || old.day() != day ? List.of() : old.keys());
+        String key = prizeKey(player, contest);
+        if (!keys.contains(key)) {
+            keys.add(key);
+        }
+        awarded.put(village, new Awarded(day, List.copyOf(keys)));
+        markDirty();
+    }
+
+    private static String prizeKey(UUID player, int contest) {
+        return player + "/" + contest;
     }
 
     /** Забыть праздник поселения целиком. */

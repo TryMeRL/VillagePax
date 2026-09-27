@@ -330,4 +330,27 @@ class SettlementPersistenceTest {
         loaded.remove(village);
         assertTrue(loaded.festiveOf(village).isEmpty(), "снесённая деревня помнит свой праздник");
     }
+
+    /**
+     * Память о призах переживает перезапуск — иначе перезапуск сервера
+     * посреди праздника раздавал бы призы заново, — но помнит только
+     * последний праздник: вчерашний приз не мешает сегодняшнему.
+     */
+    @Test
+    void thePrizeMemorySurvivesRoundTripAndLastsADay() {
+        UUID village = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        UUID player = UUID.fromString("11111111-2222-3333-4444-555555555555");
+        SettlementManager manager = new SettlementManager();
+        manager.markAwarded(village, 16, player, 2);
+
+        SettlementManager loaded = SettlementManager.fromNbt(manager.writeNbt(new NbtCompound()));
+        assertTrue(loaded.awarded(village, 16, player, 2));
+        assertFalse(loaded.awarded(village, 16, player, 1), "приз за одно состязание закрыл другое");
+        assertFalse(loaded.awarded(village, 24, player, 2), "прошлый праздник закрыл нынешний");
+
+        loaded.markAwarded(village, 24, player, 0);
+        assertFalse(loaded.awarded(village, 16, player, 2), "память держит больше одного праздника");
+        loaded.remove(village);
+        assertFalse(loaded.awarded(village, 24, player, 0), "снесённая деревня помнит свои призы");
+    }
 }

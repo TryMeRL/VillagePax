@@ -10,16 +10,21 @@ import com.villagepax.sim.Building;
 import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import com.villagepax.sim.Standing;
 import com.villagepax.sim.Owner;
 import com.villagepax.sim.Villages;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.festival.Fair;
+import com.villagepax.sim.festival.Awards;
+import com.villagepax.sim.festival.Contestant;
 import com.villagepax.sim.festival.Fairs;
 import com.villagepax.sim.festival.FestivalDay;
 import com.villagepax.sim.festival.Heralds;
+import com.villagepax.sim.festival.Standings;
 import com.villagepax.sim.festival.Feast;
 import com.villagepax.sim.festival.Fireworks;
 import com.villagepax.block.ModBlocks;
+import com.villagepax.block.festival.TrophyBlockEntity;
 import com.villagepax.block.wonder.Wonders;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.work.Schedule;
@@ -28,7 +33,9 @@ import com.villagepax.sim.work.WorkTicker;
 import com.villagepax.sim.work.Workplaces;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.projectile.FireworkRocketEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.BlockItem;
 import net.minecraft.item.Items;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
@@ -45,8 +52,11 @@ import net.minecraft.world.Heightmap;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Праздник на ярмарке: места праздника, затейник, день праздника,
@@ -840,5 +850,101 @@ public class FestivalTests extends GameTestSupport {
     private static boolean tellsOfAFestival(List<Text> lines) {
         return lines.stream().anyMatch(line -> line.getContent() instanceof TranslatableTextContent content
                 && content.getKey().equals("villagepax.maya_calendar.festival"));
+    }
+
+    /**
+     * Победитель получает три ленты и кубок с надписью, а чужая деревня
+     * начинает ему доверять — раз за праздник на каждое состязание.
+     * <p>
+     * Приз один на игрока, а не на состязание: второй игрок, выигравший
+     * повтор того же состязания, свой приз получает. Доверие растёт только
+     * до знакомства — дружба делом, а не гулянкой.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "festival")
+    public void theWinnerGetsRibbonsAndATrophyOnce(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement village = colonyWithBuilder(world, manager, hall);
+        village.setOwner(Owner.AUTONOMOUS);
+        Festival festival = Festivals.of(NORMAN).orElseThrow();
+        long day = 8;
+        try {
+            PlayerEntity winner = context.createMockSurvivalPlayer();
+            Contestant rival = new Contestant(UUID.randomUUID(), false, "Жан");
+            Awards.grant(world, manager, village, festival, 0, day,
+                    Standings.rank(scores(winner, 5, rival, 3)), only(winner));
+            if (ribbons(winner) != 3) {
+                context.throwGameTestException("Первому — три ленты, а у него " + ribbons(winner));
+            }
+            NbtCompound engraving = engravingOf(winner);
+            if (engraving == null
+                    || !festival.contests().get(0).name().equals(engraving.getString("contest"))
+                    || !village.name().equals(engraving.getString("village"))
+                    || engraving.getLong("day") != day) {
+                context.throwGameTestException("Нет кубка с надписью: " + engraving);
+            }
+            if (village.reputationOf(winner.getUuid()) != 5) {
+                context.throwGameTestException("Доверие за победу " + village.reputationOf(winner.getUuid())
+                        + " — ждали 2 + 3");
+            }
+
+            Awards.grant(world, manager, village, festival, 0, day,
+                    Standings.rank(scores(winner, 7, rival, 3)), only(winner));
+            if (ribbons(winner) != 3 || village.reputationOf(winner.getUuid()) != 5) {
+                context.throwGameTestException("Приз за то же состязание выдан дважды: ленты "
+                        + ribbons(winner) + ", доверие " + village.reputationOf(winner.getUuid()));
+            }
+
+            PlayerEntity second = context.createMockSurvivalPlayer();
+            Awards.grant(world, manager, village, festival, 0, day,
+                    Standings.rank(scores(second, 4, rival, 3)), only(second));
+            if (ribbons(second) != 3 || engravingOf(second) == null) {
+                context.throwGameTestException("Второй игрок, выигравший повтор, остался без приза");
+            }
+
+            PlayerEntity known = context.createMockSurvivalPlayer();
+            village.addReputation(known.getUuid(), Standing.KNOWN.from());
+            Awards.grant(world, manager, village, festival, 1, day,
+                    Standings.rank(scores(known, 4, rival, 3)), only(known));
+            if (village.reputationOf(known.getUuid()) != Standing.KNOWN.from()) {
+                context.throwGameTestException("Доверие знакомого выросло от гулянки: "
+                        + village.reputationOf(known.getUuid()));
+            }
+            if (ribbons(known) != 3) {
+                context.throwGameTestException("Знакомый остался без лент");
+            }
+        } finally {
+            manager.remove(village.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    private static Map<Contestant, Integer> scores(PlayerEntity player, int mine, Contestant rival,
+                                                   int theirs) {
+        Map<Contestant, Integer> scores = new LinkedHashMap<>();
+        scores.put(new Contestant(player.getUuid(), true, player.getName().getString()), mine);
+        scores.put(rival, theirs);
+        return scores;
+    }
+
+    private static java.util.function.Function<UUID, PlayerEntity> only(PlayerEntity player) {
+        return id -> id.equals(player.getUuid()) ? player : null;
+    }
+
+    private static int ribbons(PlayerEntity player) {
+        return player.getInventory().count(ModFestivalItems.FESTIVAL_RIBBON);
+    }
+
+    private static NbtCompound engravingOf(PlayerEntity player) {
+        for (int slot = 0; slot < player.getInventory().size(); slot++) {
+            ItemStack stack = player.getInventory().getStack(slot);
+            if (stack.isOf(ModBlocks.TROPHY.asItem())) {
+                NbtCompound entity = BlockItem.getBlockEntityNbt(stack);
+                return entity == null ? null : entity.getCompound(TrophyBlockEntity.ENGRAVING);
+            }
+        }
+        return null;
     }
 }

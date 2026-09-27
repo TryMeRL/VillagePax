@@ -737,6 +737,8 @@
   "villagepax.effect.ore_sense.near": "Ore sense: %s, %s blocks away",
   "villagepax.effect.ore_sense.none": "Ore sense: no ore nearby",
   "villagepax.guide.treats": "§lTreats§r\n\nEach people has its own treat.\n\nPony cupcake: a rainbow and speed.\nDwarven stout: sense the ore.\nElven nectar: fall like a leaf.\n\nA popper: a party, and citizens wave back.",
+  "villagepax.guide.festival": "§lFestivals§r\n\nEvery eight days, on its people's moon, a village celebrates: a dance at the fair, pies on the table, fireworks at dusk.\n\nThe Maya stone and the entertainer tell when.",
+  "villagepax.guide.contests": "§lContests§r\n\nClick the entertainer: hunt, chase, archery. Places win ribbons, first place a trophy.\n\nThe stall takes ribbons: the people's hat, bunting, rockets.\n\nA colony with a fair celebrates by itself, after lunch.",
   "villagepax.advice.thin_food": "Food for a day or two. Sow a field or bring bread to the town hall chest before your people go hungry.",
   "villagepax.culture.nord": "Nords",
   "villagepax.building.nord.town_hall": "Longhouse",

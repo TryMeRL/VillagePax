@@ -1030,5 +1030,8 @@
   "villagepax.festival.reason.not_today": "Сегодня не праздник",
   "villagepax.festival.reason.no_fair": "Нет ярмарки — праздновать негде",
   "villagepax.festival.reason.no_host": "Нет затейника — праздник некому вести",
-  "villagepax.festival.reason.besieged": "Набег — не до праздника"
+  "villagepax.festival.reason.besieged": "Набег — не до праздника",
+  "villagepax.festival.today": "«%s»: сегодня %s! Состязания — у затейника на ярмарке.",
+  "villagepax.festival.tomorrow": "Завтра в «%s» — %s.",
+  "villagepax.entertainer.says": "%s %s: «%s»"
 }

@@ -13,6 +13,7 @@ import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.festival.Fair;
 import com.villagepax.sim.festival.Fairs;
 import com.villagepax.sim.festival.FestivalDay;
+import com.villagepax.sim.festival.Heralds;
 import com.villagepax.sim.BuildProgress;
 import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.work.WorkTicker;
@@ -280,6 +281,56 @@ public class FestivalTests extends GameTestSupport {
     private static void verdict(List<String> wrong, String when, FestivalDay.Verdict expected,
                                 FestivalDay.Verdict got) {
         if (expected != got) {
+            wrong.add(when + ": ждали " + expected + ", а " + got);
+        }
+    }
+
+    /**
+     * Деревня зовёт на праздник в его день и накануне — и молчит, когда
+     * праздника не будет.
+     * <p>
+     * Зов без затейника был бы враньём: игрок пришёл бы на ярмарку, где
+     * некому начать состязание.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "festival")
+    public void theVillageCallsOnItsDayAndTheDayBefore(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(4, 8, 4));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Schematic plan = schematic(context, NORMAN_FAIR_PLAN);
+        Building fair = null;
+        try {
+            fair = standUp(context, world, manager, colony, NORMAN_FAIR, anchor);
+            Citizen jester = hireWithBody(world, colony, Villages.ENTERTAINER,
+                    Workplaces.stations(fair).get(0));
+            Workplaces.assign(world, colony);
+            List<String> wrong = new ArrayList<>();
+            call(wrong, "полнолуние", Optional.of("villagepax.festival.today"),
+                    Heralds.lineFor(colony, 8));
+            call(wrong, "накануне", Optional.of("villagepax.festival.tomorrow"),
+                    Heralds.lineFor(colony, 7));
+            call(wrong, "будни", Optional.empty(), Heralds.lineFor(colony, 3));
+            jester.setWorkplace(null);
+            call(wrong, "без затейника", Optional.empty(), Heralds.lineFor(colony, 8));
+            if (!wrong.isEmpty()) {
+                context.throwGameTestException("Зов праздника:\n  " + String.join("\n  ", wrong));
+            }
+        } finally {
+            if (fair != null) {
+                demolish(world, fair, plan);
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    private static void call(List<String> wrong, String when, Optional<String> expected,
+                             Optional<String> got) {
+        if (!expected.equals(got)) {
             wrong.add(when + ": ждали " + expected + ", а " + got);
         }
     }

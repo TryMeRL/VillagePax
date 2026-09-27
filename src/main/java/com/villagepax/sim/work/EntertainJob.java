@@ -15,8 +15,9 @@ import java.util.Optional;
  * <p>
  * Ремесло без выработки, как купец, и по той же причине: он производит
  * не вещь, а место встречи. В будни к нему подходят узнать, когда праздник,
- * в праздник — играть. Мячики в руке — вывеска ремесла, как монета у купца:
- * по ним игрок узнаёт затейника с другого конца деревни.
+ * и он сам зазывает прохожих; в праздник — играть. Мячики в руке — вывеска
+ * ремесла, как монета у купца: по ним игрок узнаёт затейника с другого конца
+ * деревни.
  * <p>
  * Нет ярмарки — бродит, как всякий без дела. Праздника без затейника
  * не бывает, и это правило живёт не здесь, а в правиле дня праздника.
@@ -43,6 +44,12 @@ public class EntertainJob implements Job {
             return Optional.empty();
         }
         List<BlockPos> counter = Workplaces.stations(fair);
-        return counter.isEmpty() ? Optional.empty() : Optional.of(counter.get(0));
+        if (counter.isEmpty()) {
+            return Optional.empty();
+        }
+        // Зазывает прохожих: раз в минуту, того, кто ближе всех.
+        com.villagepax.sim.festival.Heralds.barker(context.world(), context.settlement(),
+                context.citizen(), context.body());
+        return Optional.of(counter.get(0));
     }
 }

@@ -1030,5 +1030,8 @@
   "villagepax.festival.reason.not_today": "No festival today",
   "villagepax.festival.reason.no_fair": "No fairground — nowhere to celebrate",
   "villagepax.festival.reason.no_host": "No entertainer to host the festival",
-  "villagepax.festival.reason.besieged": "A raid is on — no time for a festival"
+  "villagepax.festival.reason.besieged": "A raid is on — no time for a festival",
+  "villagepax.festival.today": "%s: today is the %s! Contests at the entertainer's stall on the fairground.",
+  "villagepax.festival.tomorrow": "Tomorrow in %s: the %s.",
+  "villagepax.entertainer.says": "%s %s: \"%s\""
 }

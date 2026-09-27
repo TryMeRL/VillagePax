@@ -252,6 +252,14 @@ public final class Grading {
             // Срой берег у воды — и откос станет прудом.
             return false;
         }
+        // Весь столб проверяется до первого снятого блока: срезка, упёршаяся
+        // в руду под дёрном, бросала колонну с открытой рудой и ямой на месте
+        // дёрна. Чужое внутри — колонна не наша целиком.
+        for (int y = top; y > high; y--) {
+            if (!isEarth(world.getBlockState(column.withY(y)))) {
+                return false;
+            }
+        }
         // Мелочь над верхом падает вместе с ним.
         for (int y = top + 1; y <= top + 2; y++) {
             BlockPos at = column.withY(y);

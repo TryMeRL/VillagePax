@@ -785,4 +785,67 @@ public class PlacementTests extends GameTestSupport {
         }
         context.complete();
     }
+
+    /**
+     * Столб с чужим блоком внутри откос не надкапывает: или весь, или никак.
+     * <p>
+     * Срезка проверяла грунт по ходу: сняла дёрн, упёрлась в руду под ним —
+     * и бросила колонну с открытой рудой и ямой на месте дёрна. Решать
+     * «моя ли это колонна» надо до первого снятого блока.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "orecolumn", tickLimit = 200)
+    public void aColumnWithOreIsLeftWhole(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic housePlan = schematic(context, HOUSE_SCHEMATIC);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(16, 5, 12));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(8, 5, 8));
+        List<BlockPos> ground = new ArrayList<>();
+        Settlement colony = null;
+        Building house = null;
+        // Бугор у западной стены: дёрн на три блока выше площадки, под ним руда.
+        BlockPos mound = anchor.add(-1, 2, 3);
+        try {
+            for (int x = 0; x < 32; x++) {
+                for (int z = 0; z < 32; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 4, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    ground.add(at);
+                }
+            }
+            world.setBlockState(mound.down(2), Blocks.DIRT.getDefaultState());
+            world.setBlockState(mound.down(), Blocks.COAL_ORE.getDefaultState());
+            world.setBlockState(mound, Blocks.GRASS_BLOCK.getDefaultState());
+            colony = colonyWithBuilder(world, manager, hall);
+            house = plan(colony, anchor, HOUSE_TYPE, BlockRotation.NONE);
+            stockFor(world, colony, housePlan);
+            if (BuildJob.advance(world, manager, colony.id(), house.id(), 10_000)
+                    != BuildJob.Outcome.FINISHED) {
+                context.throwGameTestException("Дом не встал");
+                return;
+            }
+            if (!world.getBlockState(mound).isOf(Blocks.GRASS_BLOCK)
+                    || !world.getBlockState(mound.down()).isOf(Blocks.COAL_ORE)) {
+                context.throwGameTestException("Колонну с рудой надкопали: наверху "
+                        + world.getBlockState(mound).getBlock() + ", под ним "
+                        + world.getBlockState(mound.down()).getBlock());
+            }
+        } finally {
+            if (house != null) {
+                demolish(world, house, housePlan);
+                clearSkirt(world, house, housePlan);
+            }
+            for (int up = 0; up <= 2; up++) {
+                world.setBlockState(mound.down(up), Blocks.AIR.getDefaultState());
+            }
+            for (BlockPos at : ground) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            if (colony != null) {
+                manager.remove(colony.id());
+            }
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
 }

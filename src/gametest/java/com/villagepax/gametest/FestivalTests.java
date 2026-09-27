@@ -2,6 +2,7 @@ package com.villagepax.gametest;
 
 import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.core.culture.CultureManager;
+import com.villagepax.core.festival.ContestKind;
 import com.villagepax.core.festival.Festival;
 import com.villagepax.core.festival.Festivals;
 import com.villagepax.entity.CitizenEntity;
@@ -20,6 +21,8 @@ import com.villagepax.sim.festival.Contestant;
 import com.villagepax.sim.festival.Fairs;
 import com.villagepax.sim.festival.FestivalDay;
 import com.villagepax.sim.festival.Heralds;
+import com.villagepax.sim.festival.Hunt;
+import com.villagepax.sim.festival.Matches;
 import com.villagepax.sim.festival.Standings;
 import com.villagepax.sim.festival.Feast;
 import com.villagepax.sim.festival.Fireworks;
@@ -946,5 +949,96 @@ public class FestivalTests extends GameTestSupport {
             }
         }
         return null;
+    }
+
+    /**
+     * Лакмус: лунный месяц деревни.
+     * <p>
+     * Восемь дней подряд, как их проживает деревня: утром зов, весь день стол.
+     * Праздник ровно один. В его день на столах пироги и зов «сегодня»,
+     * накануне — «завтра», а в остальные дни ни пирогов, ни зова. В праздник
+     * игрок начинает поиск и бросает его на середине, как бросают вечером.
+     * Наутро после праздника в следе ярмарки нет ни одного блока праздника,
+     * и на местах вещиц — тоже.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "litmus_festival", tickLimit = 200)
+    public void aLunarMonthOfAVillage(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        FairGround ground = fairGround(context, world, manager);
+        try {
+            Settlement village = ground.village();
+            Fair fair = ground.place();
+            List<String> wrong = new ArrayList<>();
+            List<Long> festive = new ArrayList<>();
+            List<BlockPos> tokens = new ArrayList<>();
+            for (long day = FAIR_DAY - 5; day <= FAIR_DAY + 2; day++) {
+                Optional<String> call = Heralds.lineFor(village, day);
+                Feast.tend(world, manager, village, day);
+                if (FestivalDay.isOn(village, day)) {
+                    festive.add(day);
+                }
+                String expected = day == FAIR_DAY ? "villagepax.festival.today"
+                        : day == FAIR_DAY - 1 ? "villagepax.festival.tomorrow" : null;
+                if (!call.equals(Optional.ofNullable(expected))) {
+                    wrong.add("день " + day + ": зов " + call + " — ждали " + expected);
+                }
+                boolean everyTable = fair.tables().stream()
+                        .allMatch(table -> world.getBlockState(table.up()).isOf(ModBlocks.FEAST_PIE));
+                boolean anyTable = fair.tables().stream()
+                        .anyMatch(table -> world.getBlockState(table.up()).isOf(ModBlocks.FEAST_PIE));
+                if (day == FAIR_DAY && !everyTable) {
+                    wrong.add("в праздник на столах нет пирогов");
+                }
+                if (day != FAIR_DAY && anyTable) {
+                    wrong.add("день " + day + ": пироги не в праздник");
+                }
+                if (day == FAIR_DAY) {
+                    PlayerEntity player = playerAt(context, fair.counter());
+                    if (Matches.start(world, player, village, contestIndex(village, ContestKind.HUNT), day,
+                            FAIR_MORNING) != Matches.Verdict.YES) {
+                        wrong.add("в праздник поиск не начался");
+                    } else {
+                        Hunt hunt = (Hunt) Matches.at(village.id()).orElseThrow();
+                        tokens.addAll(hunt.tokens());
+                        pastTheCountdown(world);
+                        Matches.collect(world, tokens.get(0), player);
+                        hunt.cancel(world, "villagepax.contest.cancel.empty");
+                    }
+                }
+                if (day == FAIR_DAY + 1) {
+                    List<BlockPos> left = festiveBlocksIn(world, fair);
+                    tokens.stream().filter(at -> !world.getBlockState(at).isAir()
+                            && world.getBlockState(at).isOf(ModBlocks.FESTIVAL_TOKEN)).forEach(left::add);
+                    if (!left.isEmpty()) {
+                        wrong.add("наутро после праздника остались блоки праздника: " + left);
+                    }
+                }
+            }
+            if (!festive.equals(List.of(FAIR_DAY))) {
+                wrong.add("праздничные дни " + festive + " — ждали один, " + FAIR_DAY);
+            }
+            if (!wrong.isEmpty()) {
+                context.throwGameTestException("Лунный месяц деревни:\n  " + String.join("\n  ", wrong));
+            }
+        } finally {
+            clearFairGround(context, world, manager, ground);
+        }
+        context.complete();
+    }
+
+    /** Блоки праздника в следе ярмарки: пироги, вещицы, кубки. */
+    private static List<BlockPos> festiveBlocksIn(ServerWorld world, Fair fair) {
+        List<BlockPos> found = new ArrayList<>();
+        net.minecraft.util.math.Box area = fair.area();
+        for (BlockPos at : BlockPos.iterate(BlockPos.ofFloored(area.minX, area.minY, area.minZ),
+                BlockPos.ofFloored(area.maxX, area.maxY + 2, area.maxZ))) {
+            net.minecraft.block.BlockState state = world.getBlockState(at);
+            if (state.isOf(ModBlocks.FEAST_PIE) || state.isOf(ModBlocks.FESTIVAL_TOKEN)
+                    || state.isOf(ModBlocks.TROPHY)) {
+                found.add(at.toImmutable());
+            }
+        }
+        return found;
     }
 }

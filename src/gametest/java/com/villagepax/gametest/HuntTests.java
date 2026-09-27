@@ -187,12 +187,17 @@ public class HuntTests extends GameTestSupport {
             BlockPos found = null;
             BlockPos near = null;
             for (BlockPos candidate : hunt.tokens()) {
-                if (!onTheMeadow(context, candidate)) {
+                if (!onTheMeadow(context, candidate) || !world.shouldTickEntity(candidate)) {
                     continue;
                 }
                 for (int[] step : new int[][]{{5, 0}, {-5, 0}, {0, 5}, {0, -5}}) {
                     BlockPos at = candidate.add(step[0], 0, step[1]);
-                    if (near == null && onTheMeadow(context, at) && HidingPlaces.standable(world, at)) {
+                    // Туда, где сущности живут: шагнув телом в чанк, где они
+                    // не живут, житель теряет связь с записью (снятие с учёта
+                    // возвращает тело в запись), и игры больше не видит.
+                    if (near == null && onTheMeadow(context, at) && HidingPlaces.standable(world, at)
+                            && !ground.place().area().contains(at.toCenterPos())
+                            && world.shouldTickEntity(at)) {
                         found = candidate;
                         near = at;
                     }
@@ -222,7 +227,13 @@ public class HuntTests extends GameTestSupport {
                             + ", вещица в списке " + hunt.tokens().contains(token)
                             + ", на месте " + world.getBlockState(token).getBlock()
                             + ", вещиц осталось " + hunt.tokens().size()
-                            + ", счёт игрока " + hunt.scoreOf(player.getUuid()));
+                            + ", счёт игрока " + hunt.scoreOf(player.getUuid())
+                            + "; тело снято " + body.isRemoved()
+                            + ", нынешнее тело " + child.entityUuid().map(world::getEntity)
+                            .map(one -> one.getBlockPos() + " цель " + ((CitizenEntity) one).workTarget())
+                            .orElse("нет")
+                            + ", соперник " + hunt.isRival(child.id())
+                            + ", состязание в реестре " + Matches.at(ground.village().id()).isPresent());
                 }
             } finally {
                 clearFairGround(context, world, manager, ground);

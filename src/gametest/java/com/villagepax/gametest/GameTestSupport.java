@@ -230,8 +230,8 @@ abstract class GameTestSupport implements FabricGameTest {
 
         try {
             stockFor(world, colony, schematic);
-            Citizen builder = hireWithBody(world, colony, BuildJob.BUILDER,
-                    context.getAbsolutePos(new BlockPos(-1, 9, -1)));
+            // У угла стройки, наискосок: так мерили всегда.
+            Citizen builder = hireWithBody(world, colony, BuildJob.BUILDER, anchor.add(-1, 0, -1));
             CitizenEntity body = (CitizenEntity) world
                     .getEntity(builder.entityUuid().orElseThrow());
 

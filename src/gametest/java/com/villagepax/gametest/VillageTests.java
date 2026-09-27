@@ -559,13 +559,16 @@ public class VillageTests extends GameTestSupport {
         // Ратуша вплотную к стройке намеренно: дальше двенадцати блоков
         // билдер не берёт со склада сам, и оба прогона встали бы
         // по нехватке материалов, а сравниваем мы темп.
-        BlockPos storage = context.getAbsolutePos(new BlockPos(8, 9, 8));
-        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        // Сдвинуто на два блока внутрь делянки: чанки за её краем игровая
+        // проверка не держит, и тело билдера, вставшее у угла стройки
+        // снаружи делянки, мир принимал, но не находил.
+        BlockPos storage = context.getAbsolutePos(new BlockPos(10, 9, 10));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(2, 9, 2));
         List<BlockPos> ground = new ArrayList<>();
 
         try {
-            for (int x = -2; x <= 12; x++) {
-                for (int z = -2; z <= 12; z++) {
+            for (int x = 0; x <= 14; x++) {
+                for (int z = 0; z <= 14; z++) {
                     BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
                     world.setBlockState(at, Blocks.STONE.getDefaultState());
                     ground.add(at);

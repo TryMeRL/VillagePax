@@ -1857,7 +1857,7 @@ public class PassabilityTests extends GameTestSupport {
      * Поэтому земля тут нарочно с уступом, а судит по-прежнему ванильный
      * поиск пути: дойдёт житель внутрь — крыльцо своё дело сделало.
      */
-    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "walkin", tickLimit = 600)
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "walkin", tickLimit = 600)
     public void aFlatCellBeforeTheDropDoesNotFoolThePorch(TestContext context) {
         ServerWorld world = context.getWorld();
         SettlementManager manager = SettlementManager.get(world);

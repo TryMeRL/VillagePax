@@ -16,6 +16,8 @@ import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.work.WorkTicker;
 import com.villagepax.sim.work.Workplaces;
 import net.minecraft.block.Blocks;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.test.GameTest;
 import net.minecraft.test.TestContext;
@@ -126,5 +128,46 @@ public class FestivalTests extends GameTestSupport {
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }
         context.complete();
+    }
+
+    /**
+     * Руки и туловище показывают, чем житель занят: пляшущий пляшет, даже
+     * держа топор, спящий спит, даже если праздник, а мячики подбрасывают
+     * стоя — на ходу затейник их просто несёт.
+     * <p>
+     * Выбор дорожки спрашивается у тех же функций, по которым рисует
+     * клиент ({@link CitizenEntity#armsTrack}, {@link CitizenEntity#bodyTrack}):
+     * глазом на клиенте этого не проверить.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "festival")
+    public void theArmsShowWhatTheCitizenDoes(TestContext context) {
+        ItemStack balls = new ItemStack(ModFestivalItems.JUGGLING_BALLS);
+        ItemStack axe = new ItemStack(Items.IRON_AXE);
+        List<String> wrong = new ArrayList<>();
+        expect(wrong, "пляшущий с топором", "dance",
+                CitizenEntity.armsTrack(false, true, true, false, axe, false));
+        expect(wrong, "спящий в праздник", "sleep",
+                CitizenEntity.armsTrack(true, true, false, false, ItemStack.EMPTY, false));
+        expect(wrong, "затейник у прилавка", "juggle",
+                CitizenEntity.armsTrack(false, false, false, false, balls, false));
+        expect(wrong, "затейник на ходу", "stride",
+                CitizenEntity.armsTrack(false, false, false, false, balls, true));
+        expect(wrong, "лесоруб за работой", "chop",
+                CitizenEntity.armsTrack(false, false, true, false, axe, false));
+        expect(wrong, "курьер с бревном", "carry",
+                CitizenEntity.armsTrack(false, false, false, false, new ItemStack(Items.OAK_LOG), false));
+        expect(wrong, "пляшущий туловищем", "sway", CitizenEntity.bodyTrack(false, true, true));
+        expect(wrong, "спящий туловищем", "doze", CitizenEntity.bodyTrack(true, true, false));
+        expect(wrong, "бегущий", "lean", CitizenEntity.bodyTrack(false, false, true));
+        if (!wrong.isEmpty()) {
+            context.throwGameTestException("Не та дорожка:\n  " + String.join("\n  ", wrong));
+        }
+        context.complete();
+    }
+
+    private static void expect(List<String> wrong, String who, String track, String got) {
+        if (!track.equals(got)) {
+            wrong.add(who + ": ждали " + track + ", а " + got);
+        }
     }
 }

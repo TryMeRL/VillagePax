@@ -543,6 +543,16 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
             DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
     /**
+     * Пляшет в хороводе на празднике.
+     * <p>
+     * Отслеживаемым полем по той же причине, что дремота: решает сервер —
+     * он знает, что сегодня праздник и что житель в кругу, — а рисует
+     * клиент, которому праздника не видно.
+     */
+    private static final TrackedData<Boolean> DANCING =
+            DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+
+    /**
      * Рост народа, каким его объявил датапак.
      * <p>
      * Отслеживаемым полем по той же причине, что облик и детство: культура
@@ -593,6 +603,14 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     private static final RawAnimation LEAN = RawAnimation.begin().thenLoop("lean");
     /** Машет рукой тому, кто заговорил. Запускается сервером. */
     private static final RawAnimation GREET = RawAnimation.begin().thenPlay("greet");
+    /** Пляшет в хороводе на празднике: руки вверх и в стороны, по очереди. */
+    private static final RawAnimation DANCE = RawAnimation.begin().thenLoop("dance");
+    /** Туловище в такт пляске — вместо спокойного дыхания. */
+    private static final RawAnimation SWAY = RawAnimation.begin().thenLoop("sway");
+    /** Подбрасывает мячики: затейник у своего прилавка. */
+    private static final RawAnimation JUGGLE = RawAnimation.begin().thenLoop("juggle");
+    /** Ликует: кончилось состязание. Запускается сервером, как взмах руки. */
+    private static final RawAnimation CHEER = RawAnimation.begin().thenPlay("cheer");
 
     /** Дорожка рук — её же зовёт сервер, чтобы помахать. */
     private static final String ARMS = "руки";
@@ -1412,51 +1430,90 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         dancers.add(new AnimationController<>(this, "ноги", 4, state ->
                 state.setAndContinue(WALK)));
         dancers.add(new AnimationController<>(this, ARMS, 3, state ->
-                state.setAndContinue(armsFor(state.isMoving())))
-                .triggerableAnim("greet", GREET));
+                state.setAndContinue(ARM_TRACKS.get(armsTrack(isSleeping() || isDozing(),
+                        isDancing(), handSwinging, isAttacking(), getMainHandStack(),
+                        state.isMoving()))))
+                .triggerableAnim("greet", GREET)
+                .triggerableAnim("cheer", CHEER));
         dancers.add(new AnimationController<>(this, "дыхание", 8, state ->
-                state.setAndContinue(isSleeping() || isDozing() ? DOZE
-                        : limbAnimator.getSpeed() > RUNNING ? LEAN : BREATHE)));
+                state.setAndContinue(BODY_TRACKS.get(bodyTrack(isSleeping() || isDozing(),
+                        isDancing(), limbAnimator.getSpeed() > RUNNING)))));
     }
+
+    private static final Map<String, RawAnimation> ARM_TRACKS = Map.ofEntries(
+            Map.entry("sleep", SLEEP), Map.entry("dance", DANCE), Map.entry("chop", CHOP),
+            Map.entry("dig", DIG), Map.entry("strike", STRIKE), Map.entry("place", PLACE),
+            Map.entry("work", WORK), Map.entry("guard", GUARD), Map.entry("juggle", JUGGLE),
+            Map.entry("carry", CARRY), Map.entry("stride", STRIDE), Map.entry("rest", REST));
+
+    private static final Map<String, RawAnimation> BODY_TRACKS = Map.of(
+            "doze", DOZE, "sway", SWAY, "lean", LEAN, "breathe", BREATHE);
 
     /**
      * Чем заняты руки — по тому, что видно глазом.
      * <p>
-     * Порядок — от сильного к слабому: спящий не машет, взмах важнее
-     * стойки, стойка важнее ноши. Какое движение у взмаха, решает
-     * <b>орудие в руке</b>, а не ремесло: клиент ремесла не знает,
-     * а лесоруб с мотыгой и должен рыхлить, а не рубить.
+     * Порядок — от сильного к слабому: спящий не машет, пляшущий пляшет,
+     * даже держа топор, взмах важнее стойки, стойка важнее ноши. Какое
+     * движение у взмаха, решает <b>орудие в руке</b>, а не ремесло: клиент
+     * ремесла не знает, а лесоруб с мотыгой и должен рыхлить, а не рубить.
+     * Мячики подбрасывают стоя — на ходу затейник их просто несёт.
+     * <p>
+     * Чистая и открытая: рисует по ней клиент, а сверяет проверка, —
+     * глазом на клиенте порядок не проверить.
+     *
+     * @return имя дорожки рук
      */
-    private RawAnimation armsFor(boolean moving) {
-        if (isSleeping() || isDozing()) {
-            return SLEEP;
+    public static String armsTrack(boolean resting, boolean dancing, boolean swinging,
+                                   boolean guarding, ItemStack held, boolean moving) {
+        if (resting) {
+            return "sleep";
         }
-        ItemStack held = getMainHandStack();
-        if (handSwinging) {
+        if (dancing) {
+            return "dance";
+        }
+        if (swinging) {
             Item tool = held.getItem();
             if (tool instanceof AxeItem || tool instanceof PickaxeItem) {
-                return CHOP;
+                return "chop";
             }
             if (tool instanceof HoeItem || tool instanceof ShovelItem) {
-                return DIG;
+                return "dig";
             }
             if (tool instanceof SwordItem) {
-                return STRIKE;
+                return "strike";
             }
             if (tool instanceof BlockItem) {
-                return PLACE;
+                return "place";
             }
-            return WORK;
+            return "work";
         }
-        if (isAttacking()) {
-            return GUARD;
+        if (guarding) {
+            return "guard";
+        }
+        if (held.isOf(com.villagepax.item.festival.ModFestivalItems.JUGGLING_BALLS)) {
+            return moving ? "stride" : "juggle";
         }
         // Ноша — всё, что не орудие: у орудия есть прочность, у мешка нет.
         // То же деление, по которому конь несёт вещь на спине, а не в зубах.
         if (!held.isEmpty() && !held.isDamageable()) {
-            return CARRY;
+            return "carry";
         }
-        return moving ? STRIDE : REST;
+        return moving ? "stride" : "rest";
+    }
+
+    /**
+     * Чем занято туловище: дремлет, пляшет, подаётся вперёд на бегу или дышит.
+     *
+     * @return имя дорожки дыхания
+     */
+    public static String bodyTrack(boolean resting, boolean dancing, boolean running) {
+        if (resting) {
+            return "doze";
+        }
+        if (dancing) {
+            return "sway";
+        }
+        return running ? "lean" : "breathe";
     }
 
     /**
@@ -1470,6 +1527,27 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         triggerAnim(ARMS, "greet");
     }
 
+    /**
+     * Ликовать: кончилось состязание, кто-то победил.
+     * <p>
+     * Сервер шлёт это сам, как взмах руки: только он знает, что состязание
+     * кончилось. Зрители, стоящие молча после победы, выглядели бы так,
+     * будто победы не было.
+     */
+    public void cheer() {
+        triggerAnim(ARMS, "cheer");
+    }
+
+    public boolean isDancing() {
+        return dataTracker.get(DANCING);
+    }
+
+    public void setDancing(boolean dancing) {
+        if (dataTracker.get(DANCING) != dancing) {
+            dataTracker.set(DANCING, dancing);
+        }
+    }
+
     @Override
     public AnimatableInstanceCache getAnimatableInstanceCache() {
         return animations;
@@ -1481,6 +1559,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         dataTracker.startTracking(LOOK, Looks.UNKNOWN.toString());
         dataTracker.startTracking(CHILD, false);
         dataTracker.startTracking(DOZING, false);
+        dataTracker.startTracking(DANCING, false);
         dataTracker.startTracking(STATURE, Culture.PLAIN_STATURE);
     }
 

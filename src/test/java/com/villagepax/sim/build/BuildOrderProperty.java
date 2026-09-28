@@ -94,7 +94,7 @@ class BuildOrderProperty {
     void blockCountMatchesStepsThatPlaceSomething(@ForAll("stepLists") List<BuildStep> steps) {
         BuildPlan plan = new BuildPlan(SIZE, steps, List.of());
 
-        long placing = steps.stream().filter(step -> step.paletteIndex() != BuildStep.NO_BLOCK).count();
+        long placing = steps.stream().filter(step -> step.category() != BuildCategory.CLEAR).count();
         assertEquals(placing, plan.blockCount());
     }
 
@@ -130,9 +130,11 @@ class BuildOrderProperty {
                         positions(),
                         Arbitraries.of(BuildCategory.values()),
                         Arbitraries.integers().between(0, 30))
-                .as((pos, category, palette) -> category == BuildCategory.CLEAR
-                        ? BuildStep.clearing(pos)
-                        : BuildStep.placing(pos, category, palette));
+                .as((pos, category, palette) -> category != BuildCategory.CLEAR
+                        ? BuildStep.placing(pos, category, palette)
+                        // Расчистка бывает и под посев: она помнит блок, но не ставит его.
+                        : palette % 2 == 0 ? BuildStep.clearing(pos)
+                        : BuildStep.clearingFor(pos, palette));
     }
 
     /** Тесная коробка нарочно: так столкновения по столбцам и слоям случаются часто. */

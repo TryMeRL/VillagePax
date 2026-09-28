@@ -144,6 +144,11 @@ LEGEND = {
     "J": ("minecraft:bell", {"attachment": "floor", "facing": "north", "powered": "false"}),
     "P": ("minecraft:dark_oak_planks", {}),
     "G": pane(),
+    # Цельное стекло там, где за окном висит лестница: у стекла-панели
+    # нет сплошной грани, и лестница, толкнутая соседом, падает с неё
+    # на пол. Цельное стекло держит лестницу и пропускает тот же свет.
+    "▣": ("minecraft:glass", {}),
+    "□": ("minecraft:white_stained_glass", {}),
     "n": stairs("north"),
     "s": stairs("south"),
     "e": stairs("east"),
@@ -1091,13 +1096,15 @@ NORMAN_HOUSE_2 = with_flue(NORMAN_HOUSE_2, 3, 5, 3, 7)
 NORMAN_FARM = [
     # y=0 — земляное основание, чтобы вода не ушла вниз
     ["ddddddd"] * 7,
-    # y=1 — грядки и колодец в середине: он поливает всё поле
+    # y=1 — грядки и колодец в середине: он поливает всё поле. Под
+    # пугалом земля, а не пашня: пашня под сплошным блоком сама
+    # становится землёй, и план с миром расходились бы.
     ["ddddddd",
      "dFFFFFd",
      "dFFFFFd",
      "dFF~FFd",
      "dFFFFFd",
-     "dFFFFFd",
+     "ddFFFFd",
      "ddddddd"],
     # y=2 — ограда с калиткой, морковные грядки и тюк пугала
     #
@@ -1144,13 +1151,13 @@ NORMAN_FARM = [
 NORMAN_FARM_2 = [
     # y=0 — земляное основание под всем полем
     ["ddddddddd"] * 9,
-    # y=1 — грядки и два колодца
+    # y=1 — грядки и два колодца; под пугалом земля
     ["ddddddddd",
      "dFFFFFFFd",
      "dFFFFFFFd",
      "dFF~FFFFd",
      "dFFFFFFFd",
-     "dFFFFFFFd",
+     "ddFFFFFFd",
      "dFFFF~FFd",
      "dFFFFFFFd",
      "ddddddddd"],
@@ -2182,10 +2189,12 @@ NORMAN_WATCHTOWER = [
      "PPPkP",
      "PPPPP",
      "BPPPB"],
-    # y=7 — площадка стражи: место дозора, фонари и выход с лестницы
+    # y=7 — площадка стражи: место дозора, фонари и выход с лестницы.
+    # Верхняя ступень держится за столб: над настилом стены уже нет,
+    # и без него она висела на воздухе.
     ["B...B",
      ".t...",
-     "..Kk.",
+     "..KkB",
      "...t.",
      "B...B"],
     # y=8 — зубцы с проёмами на север и юг
@@ -2241,10 +2250,10 @@ MAYA_WATCHTOWER = [
      "axaaa",
      "aaaaa",
      "VaaaV"],
-    # y=7 — площадка дозора
+    # y=7 — площадка дозора; верхняя ступень держится за столб
     ["V...V",
      "...t.",
-     ".xK..",
+     "VxK..",
      ".t...",
      "V...V"],
     # y=8 — гребень с проёмами
@@ -2642,7 +2651,7 @@ PONY_HOUSE_2 = storey(
      "NIIIIIN",
      "NIIIIIN",
      "NIIIIIN",
-     "NkIIIIN",
+     "NxIIIIN",
      "NIIIIIN",
      "mmmmmmm"],
     [
@@ -2664,7 +2673,9 @@ PONY_HOUSE_2 = storey(
          "oIGIGIo"],
     ],
     0,
-    extra=((1, 1, 4, "k"), (2, 1, 4, "k")),
+    # Лаз висит на западной стене — «x» смотрит на восток, спиной к ней.
+    # Повёрнутый на запад, он висел на воздухе посреди избы.
+    extra=((1, 1, 4, "x"), (2, 1, 4, "x")),
     roof=steep_gable(7, 7, "]", "[", "I", "_", beam="o", window="G"))
 
 # --- ратуша пони, уровень 2 ---
@@ -2740,11 +2751,11 @@ PONY_TOWN_HALL_4 = gallery(PONY_TOWN_HALL_3, "C", "o", "m", "I")
 # Народ, который держит лошадей, косит и сеет на одном и том же клине.
 PONY_FARM = [
     ["ddddddd"] * 7,
-    # y=1 — грядки и колодец посередине
+    # y=1 — грядки и колодец посередине; под снопами земля, а не пашня
     ["ddddddd",
      "dFFFFFd",
      "dFF~FFd",
-     "dFFFFFd",
+     "dFdFdFd",
      "dFFFFFd",
      "dFFFFFd",
      "ddddddd"],
@@ -2771,16 +2782,21 @@ PONY_FARM = [
 #
 # Растёт на восток и на юг, якорь тот же. Старая изгородь, оказавшаяся
 # посреди загона, превращается в грядки — переделка законная, ровно та
-# же, что у соседей.
+# же, что у соседей. И земля под ней становится пашней: морковь на голой
+# земле осыпается при первом толчке, и одиннадцать грядок бывшей изгороди
+# так и сыпались, пока не вскопали и их.
+#
+# Второй колодец — как у норманнов: ванильная влажность добирает четыре
+# блока, и без него южный ряд сох бы.
 PONY_FARM_2 = [
     ["ddddddddd"] * 9,
     ["ddddddddd",
-     "dFFFFFdFd",
-     "dFF~FFdFd",
-     "dFFFFFdFd",
-     "dFFFFFdFd",
-     "dFFFFFdFd",
-     "dddddddFd",
+     "dFFFFFFFd",
+     "dFF~FFFFd",
+     "dFdFdFFFd",
+     "dFFFFFFFd",
+     "dFFFFFFFd",
+     "dFFFF~FFd",
      "dFFFFFFFd",
      "ddddddddd"],
     ["&&&&&&&&&",
@@ -2789,7 +2805,7 @@ PONY_FARM_2 = [
      "&*A*A***&",
      "&**K****&",
      "&*******&",
-     "&*******&",
+     "&****.**&",
      "&*******&",
      "&&&&&&&&&"],
     ["!.......!",
@@ -3004,10 +3020,10 @@ PONY_WATCHTOWER = [
      "IxIII",
      "IIIII",
      "oIIIo"],
-    # y=7 — площадка дозора
+    # y=7 — площадка дозора; верхняя ступень держится за столб
     ["o...o",
      ".....",
-     ".xK..",
+     "oxK..",
      ".....",
      "o...o"],
     # y=8 — гребень с проёмами
@@ -3626,10 +3642,11 @@ NORD_TOWN_HALL_4 = thing_yard(NORD_TOWN_HALL_3)
 # фонари.
 NORD_FARM = [
     ["ddddddd"] * 7,
+    # Под жердями стогов земля: пашня под столбом становится землёй сама.
     ["ddddddd",
      "dFFFFFd",
      "dFF~FFd",
-     "dFFFFFd",
+     "dFdFdFd",
      "dFFFFFd",
      "dFFFFFd",
      "ddddddd"],
@@ -3649,15 +3666,17 @@ NORD_FARM = [
      "t.....t"],
 ]
 
+# Поле северян растёт так же, как загон пони: бывшая ограда вскопана
+# под пашню, а на юге второй колодец.
 NORD_FARM_2 = [
     ["ddddddddd"] * 9,
     ["ddddddddd",
-     "dFFFFFdFd",
-     "dFF~FFdFd",
-     "dFFFFFdFd",
-     "dFFFFFdFd",
-     "dFFFFFdFd",
-     "dddddddFd",
+     "dFFFFFFFd",
+     "dFF~FFFFd",
+     "dFdFdFFFd",
+     "dFFFFFFFd",
+     "dFFFFFFFd",
+     "dFFFF~FFd",
      "dFFFFFFFd",
      "ddddddddd"],
     ["ъъъъъъъъъ",
@@ -3666,7 +3685,7 @@ NORD_FARM_2 = [
      "ъ*ф*ф***ъ",
      "ъ**K****ъ",
      "ъ*******ъ",
-     "ъ*******ъ",
+     "ъ****.**ъ",
      "ъ*******ъ",
      "ъъъъъъъъъ"],
     ["t.......t",
@@ -3796,7 +3815,7 @@ NORD_WATCHTOWER = [
     ["лжGжл", "з...з", "зx..з", "з...з", "лжGжл"],
     ["лжжжл", "з...з", "зx..з", "з...з", "лжжжл"],
     ["лееел", "еееее", "еxеее", "еееее", "лееел"],
-    ["л...л", ".....", ".xK..", "...c.", "л...л"],
+    ["л...л", ".....", "лxK..", "...c.", "л...л"],
     ["лж.жл", "з...з", "л...л", "з...з", "лж.жл"],
     ["ф...ф", ".....", ".....", ".....", "ф...ф"],
 ]
@@ -4750,11 +4769,54 @@ RAW_SCHEMATICS = {
 }
 
 
+# За что держится лестница: со стороны спины, по её взгляду. Смотрящая
+# на юг висит на блоке к северу, на восток — на блоке к западу.
+LADDER_BACKS = {"l": (0, -1), "k": (1, 0), "x": (-1, 0)}
+
+# Окно за лестницей становится цельным стеклом того же цвета.
+PANE_TO_GLASS = {"G": "▣", "θ": "□"}
+
+# Блоки без сплошной грани: лестница на них не держится.
+NOT_A_WALL = ("minecraft:air", "villagepax:marker_", "_pane", "_bars", "fence", "_wall",
+              "_door", "trapdoor", "ladder", "lantern", "torch", "carpet", "_bed",
+              "campfire", "_slab", "_stairs", "sign", "banner", "bell", "chain")
+
+
+def brace_ladders(name, layers):
+    """Лестница висит на стене, а не на окне и не на воздухе.
+
+    Вставленная вторым уровнем, лестница легла спиной к окну первого,
+    и стекло-панель, толкнув её, роняло лестницу на пол: держится она
+    только за сплошную грань. Такое окно становится цельным стеклом.
+    Лестница, за которой пусто или то, что гранью не держит, — ошибка
+    схемы: генератор отказывается писать её на диск.
+    """
+    layers = [[list(row) for row in layer] for layer in layers]
+    for y, layer in enumerate(layers):
+        for z, row in enumerate(layer):
+            for x, symbol in enumerate(row):
+                back = LADDER_BACKS.get(symbol)
+                if back is None:
+                    continue
+                bx, bz = x + back[0], z + back[1]
+                inside = 0 <= bz < len(layer) and 0 <= bx < len(layer[bz])
+                held = layer[bz][bx] if inside else None
+                if held in PANE_TO_GLASS:
+                    layer[bz][bx] = PANE_TO_GLASS[held]
+                    continue
+                block = LEGEND[held][0] if held in LEGEND else None
+                if block is None or any(part in block for part in NOT_A_WALL):
+                    raise ValueError(f"{name}: лестнице в {(x, y, z)} не на чем висеть — "
+                                     f"за ней {block or 'пустота'}")
+    return [["".join(row) for row in layer] for layer in layers]
+
+
 # Свет добавляется одним местом на весь мод, а не тридцатью правками
 # в тексте схем: новое здание получает фонарь само, и забыть про него
 # нельзя. Проверка целости и запись на диск идут уже по этому словарю,
 # поэтому фонарь виден и второму уровню.
-SCHEMATICS = {name: light_up(name, layers) for name, layers in RAW_SCHEMATICS.items()}
+SCHEMATICS = {name: brace_ladders(name, light_up(name, layers))
+              for name, layers in RAW_SCHEMATICS.items()}
 
 
 # --- обратное чтение, чтобы не выкладывать в репозиторий битый файл ---
@@ -4839,6 +4901,40 @@ def containment_check(name, low, high):
     return kept, changed
 
 
+# Посевы: грядка обязана стоять на пашне, пашня — видеть воду.
+CROPS = {"minecraft:carrots", "minecraft:wheat", "minecraft:potatoes", "minecraft:beetroots"}
+
+# Сколько ванильная пашня тянет влагу: вода не дальше четырёх блоков вбок,
+# на её высоте или на блок выше.
+WATER_REACH = 4
+
+
+def field_check(name, palette, blocks):
+    """Поле обязано расти, а не осыпаться и не сохнуть.
+
+    Морковь, посаженная на голую землю, осыпается при первом толчке
+    соседа, и так сыпались одиннадцать грядок второго уровня пони
+    и северян: изгородь первого уровня стала грядками, а земля под ней
+    пашней не стала. Пашня без воды в четырёх блоках сохнет и, оставшись
+    без посева между сбором и севом, сама становится землёй.
+    """
+    at = {tuple(pos): palette[index][0] for pos, index in blocks}
+    water = [pos for pos, block in at.items() if block == "minecraft:water"]
+    for (x, y, z), block in at.items():
+        if block in CROPS and at.get((x, y - 1, z)) != "minecraft:farmland":
+            raise ValueError(f"{name}: {block} в {(x, y, z)} стоит на "
+                             f"{at.get((x, y - 1, z), 'пустоте')}, а не на пашне")
+        above = at.get((x, y + 1, z), "minecraft:air")
+        if block == "minecraft:farmland" and not (above in CROPS or above == "minecraft:air"
+                                                  or above.startswith("villagepax:marker_")):
+            raise ValueError(f"{name}: пашня в {(x, y, z)} под {above} — "
+                             f"под сплошным блоком она сама станет землёй")
+        if block == "minecraft:farmland" and not any(
+                abs(x - wx) <= WATER_REACH and abs(z - wz) <= WATER_REACH and 0 <= wy - y <= 1
+                for wx, wy, wz in water):
+            raise ValueError(f"{name}: пашня в {(x, y, z)} не видит воды — высохнет")
+
+
 def main():
     # Пары берутся из готового словаря, а не из исходных списков: фонарь
     # висит в готовой схеме, и проверять надо то, что ляжет на диск.
@@ -4874,6 +4970,7 @@ def main():
 
     for name, layers in SCHEMATICS.items():
         size, palette, blocks = compile_layers(layers)
+        field_check(name, palette, blocks)
         path = OUT / (name + ".nbt")
         write_schematic(path, size, palette, blocks)
 

@@ -13,7 +13,8 @@ import java.util.Comparator;
  *
  * @param pos          позиция относительно якоря схемы
  * @param category     фаза стройки, к которой относится шаг
- * @param paletteIndex индекс блока в палитре схемы, или {@link #NO_BLOCK}
+ * @param paletteIndex индекс блока в палитре схемы, или {@link #NO_BLOCK}; у расчистки
+ *                     под посев — то, что в эту клетку посеют потом
  */
 public record BuildStep(BlockPos pos, BuildCategory category, int paletteIndex) {
 
@@ -39,9 +40,9 @@ public record BuildStep(BlockPos pos, BuildCategory category, int paletteIndex) 
         // получить меняющуюся позицию — обход схемы курсором ровно это и даёт.
         pos = pos.toImmutable();
 
-        if (category == BuildCategory.CLEAR && paletteIndex != NO_BLOCK) {
+        if (category == BuildCategory.CLEAR && paletteIndex < NO_BLOCK) {
             throw new IllegalArgumentException(
-                    "расчистка не ставит блок, а индекс палитры задан: " + paletteIndex);
+                    "расчистке под посев нужен блок посева, а индекс палитры " + paletteIndex);
         }
         if (category != BuildCategory.CLEAR && paletteIndex < 0) {
             throw new IllegalArgumentException(
@@ -53,12 +54,30 @@ public record BuildStep(BlockPos pos, BuildCategory category, int paletteIndex) 
         return new BuildStep(pos, BuildCategory.CLEAR, NO_BLOCK);
     }
 
+    /**
+     * Расчистка под посев: клетка пустеет вместе со всем объёмом, а сеют
+     * в неё последним шагом.
+     * <p>
+     * Грядку нельзя оставить породой до самого посева: пашня, легшая под
+     * камень, через тик сама становится землёй, и морковь потом осыпается
+     * с неё. Какой посев сюда придёт, шаг помнит затем, чтобы ремонт
+     * не перепахивал засеянное: уже стоящая морковь расчистке не мешает.
+     *
+     * @param sown индекс посева в палитре схемы
+     */
+    public static BuildStep clearingFor(BlockPos pos, int sown) {
+        if (sown < 0) {
+            throw new IllegalArgumentException("расчистке под посев нужен посев: " + sown);
+        }
+        return new BuildStep(pos, BuildCategory.CLEAR, sown);
+    }
+
     public static BuildStep placing(BlockPos pos, BuildCategory category, int paletteIndex) {
         return new BuildStep(pos, category, paletteIndex);
     }
 
     public boolean placesBlock() {
-        return paletteIndex != NO_BLOCK;
+        return category != BuildCategory.CLEAR;
     }
 
     /**

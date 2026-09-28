@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -26,13 +27,38 @@ class BuildOrderTest {
     @Test
     void categoriesGoInFixedOrder() {
         List<BuildStep> steps = sorted(List.of(
+                BuildStep.placing(new BlockPos(0, 0, 3), BuildCategory.SOWING, 3),
                 BuildStep.placing(new BlockPos(0, 0, 0), BuildCategory.DECOR, 1),
                 BuildStep.placing(new BlockPos(0, 0, 1), BuildCategory.STRUCTURE, 2),
                 BuildStep.clearing(new BlockPos(0, 0, 2))));
 
         assertEquals(
-                List.of(BuildCategory.CLEAR, BuildCategory.STRUCTURE, BuildCategory.DECOR),
+                List.of(BuildCategory.CLEAR, BuildCategory.STRUCTURE, BuildCategory.DECOR,
+                        BuildCategory.SOWING),
                 steps.stream().map(BuildStep::category).toList());
+    }
+
+    /**
+     * Посев — после ламп, даже если лампа висит выше грядки: грядка живёт
+     * светом, и сеять её в темноте значит осыпать.
+     */
+    @Test
+    void sowingComesAfterTheLampsAbove() {
+        List<BuildStep> steps = sorted(List.of(
+                BuildStep.placing(new BlockPos(0, 1, 0), BuildCategory.SOWING, 0),
+                BuildStep.placing(new BlockPos(0, 3, 0), BuildCategory.DECOR, 1)));
+
+        assertEquals(List.of(3, 1), heights(steps));
+    }
+
+    /** Расчистка под посев помнит посев, но блока не ставит. */
+    @Test
+    void clearingForABedPlacesNothing() {
+        BuildStep step = BuildStep.clearingFor(new BlockPos(1, 2, 3), 4);
+
+        assertEquals(BuildCategory.CLEAR, step.category());
+        assertEquals(4, step.paletteIndex());
+        assertFalse(step.placesBlock());
     }
 
     @Test

@@ -61,6 +61,17 @@ public final class BuildJob {
     public static final int TICKS_PER_STEP = 10;
 
     /**
+     * Как ложится посев: без толчка соседям.
+     * <p>
+     * Грядку проверяет на свет каждый толчок соседа, а свет движок
+     * досчитывает своим ходом, не сразу. Деревня при закладке встаёт
+     * за один тик: лампы уже висят, а свет от них ещё не посчитан, — и каждая
+     * следующая морковь, толкнув соседнюю, осыпала её на пол. Без толчка
+     * посев доживает до света, а дальше держится сам.
+     */
+    private static final int SOWN = Block.NOTIFY_LISTENERS | Block.FORCE_STATE;
+
+    /**
      * Насколько близко должно быть хранилище, чтобы билдер брал материалы сам.
      * <p>
      * Решение заказчика: стройка под боком у склада идёт без курьера, а
@@ -464,6 +475,12 @@ public final class BuildJob {
             if (world.getBlockState(where).isAir()) {
                 return StepResult.SKIPPED;
             }
+            // Засеянную грядку ремонт не перепахивает: под посев расчищают
+            // породу и сорняк, а не морковь, которая уже растёт.
+            if (step.paletteIndex() != BuildStep.NO_BLOCK && world.getBlockState(where)
+                    .isOf(schematic.blockAt(step.paletteIndex()).getBlock())) {
+                return StepResult.SKIPPED;
+            }
 
             // Расчистка подхода выходит за след здания, и там уже может
             // стоять соседний дом. Прогрызть в нём дыру ради прохода —
@@ -545,7 +562,8 @@ public final class BuildJob {
             return StepResult.OCCUPIED;
         }
 
-        world.setBlockState(where, laid, Block.NOTIFY_ALL);
+        world.setBlockState(where, laid,
+                step.category() == BuildCategory.SOWING ? SOWN : Block.NOTIFY_ALL);
         // Что кладётся внутрь поставленного: бельё на верёвку и прочая
         // обстановка. Для всего остального — одна проверка типа блока.
         Furnishings.stock(world, where, laid, where.asLong());

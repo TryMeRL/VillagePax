@@ -69,7 +69,15 @@ public final class BuildPlanner {
                 continue;
             }
 
-            steps.add(BuildStep.placing(block.pos(), categoryOf(state), block.paletteIndex()));
+            BuildCategory category = categoryOf(state);
+            if (category == BuildCategory.SOWING) {
+                // Грядка пустеет вместе со всем объёмом, а не ждёт посева
+                // породой: пашня, легшая под камень, через тик сама
+                // становится землёй — так строитель и сдавал гномье поле
+                // без единой грядки.
+                steps.add(BuildStep.clearingFor(block.pos(), block.paletteIndex()));
+            }
+            steps.add(BuildStep.placing(block.pos(), category, block.paletteIndex()));
         }
 
         clearApproaches(size, palette, blocks, markers, steps);
@@ -206,6 +214,9 @@ public final class BuildPlanner {
     }
 
     public static BuildCategory categoryOf(BlockState state) {
+        if (state.isIn(ModTags.BUILD_SOWING)) {
+            return BuildCategory.SOWING;
+        }
         return state.isIn(ModTags.BUILD_DECOR) ? BuildCategory.DECOR : BuildCategory.STRUCTURE;
     }
 

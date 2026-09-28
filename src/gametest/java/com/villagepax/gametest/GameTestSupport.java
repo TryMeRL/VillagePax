@@ -97,6 +97,48 @@ import java.util.UUID;
  */
 abstract class GameTestSupport implements FabricGameTest {
 
+    /** Сколько ждать, пока сущности на делянке оживут: дальше — как есть. */
+    private static final long ENTITIES_WAKE_NANOS = 2_000_000_000L;
+
+    /**
+     * Запустить проверку, когда на её делянке уже живут сущности.
+     * <p>
+     * Раскладчик кладёт партии всё дальше по миру, в свежие чанки, и держит
+     * их загруженными с первого тика — но сущности в таком чанке начинают
+     * жить на тик-другой позже. Проверка, нанявшая жителя в первый же тик,
+     * изредка получала тело, которого мир не находит: «тело не в мире,
+     * сущности тикают false, чанк загружен true». Прибавишь проверок —
+     * и мерцать начинает уже другая: раскладка сдвинулась.
+     * <p>
+     * Ждать тиками нельзя: проверки меряют время от своего начала, и отложенная
+     * получила бы все свои «через пять тиков» разом. Поэтому загрузка чанков
+     * досчитывается тут же, как её досчитывает сервер, когда чанк нужен сразу.
+     */
+    @Override
+    public void invokeTestMethod(TestContext context, java.lang.reflect.Method method) {
+        ServerWorld world = context.getWorld();
+        long deadline = System.nanoTime() + ENTITIES_WAKE_NANOS;
+        while (!entitiesLiveOn(context) && System.nanoTime() < deadline) {
+            if (!world.getChunkManager().executeQueuedTasks()) {
+                java.util.concurrent.locks.LockSupport.parkNanos(1_000_000L);
+            }
+        }
+        FabricGameTest.super.invokeTestMethod(context, method);
+    }
+
+    /** Живут ли сущности по всей делянке: от угла до дальнего края широкого шаблона. */
+    private static boolean entitiesLiveOn(TestContext context) {
+        ServerWorld world = context.getWorld();
+        for (int dx = 0; dx <= 32; dx += 16) {
+            for (int dz = 0; dz <= 32; dz += 16) {
+                if (!world.shouldTickEntity(context.getAbsolutePos(new BlockPos(dx, 0, dz)))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     /**
      * Пустой шаблон 32×24×32 — для проверок, которые строят дальше восьми
      * блоков от угла.

@@ -36,11 +36,16 @@ public record BuildPlan(Vec3i size, List<BuildStep> steps, List<PointOfInterest>
      * Позиции шагов намеренно <b>не</b> проверяются на попадание в {@link #size}:
      * в задаче 1.6 билдеру понадобятся шаги ниже нуля, чтобы подвести опоры
      * под здание на склоне.
+     * <p>
+     * На одну клетку — не больше одной расчистки и одной укладки. Вместе они
+     * встречаются у грядки: её расчищают со всем объёмом, а сеют последней.
+     * Расчистка при этом всегда раньше: её фаза первая.
      */
     private static List<BuildStep> ordered(List<BuildStep> steps) {
-        Set<BlockPos> taken = new HashSet<>();
+        Set<BlockPos> cleared = new HashSet<>();
+        Set<BlockPos> laid = new HashSet<>();
         for (BuildStep step : steps) {
-            if (!taken.add(step.pos())) {
+            if (!(step.placesBlock() ? laid : cleared).add(step.pos())) {
                 throw new IllegalArgumentException(
                         "два шага стройки на одну позицию: " + step.pos().toShortString());
             }

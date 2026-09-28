@@ -118,6 +118,35 @@ class BuildPlanTest {
         assertTrue(failure.getMessage().contains("1, 1, 1"), failure.getMessage());
     }
 
+    /**
+     * Грядка — единственная клетка с двумя шагами: её расчищают со всем
+     * объёмом, а сеют последней. Расчистка при этом идёт первой.
+     */
+    @Test
+    void aBedIsClearedFirstAndSownLast() {
+        BlockPos bed = new BlockPos(1, 1, 1);
+        BuildPlan plan = new BuildPlan(SIZE, List.of(
+                BuildStep.placing(bed, BuildCategory.SOWING, 2),
+                BuildStep.placing(new BlockPos(1, 0, 1), BuildCategory.STRUCTURE, 0),
+                BuildStep.clearingFor(bed, 2)),
+                List.of());
+
+        assertEquals(List.of(BuildCategory.CLEAR, BuildCategory.STRUCTURE, BuildCategory.SOWING),
+                plan.steps().stream().map(BuildStep::category).toList());
+        assertEquals(1, plan.steps().stream().filter(step -> step.pos().equals(bed))
+                .filter(BuildStep::placesBlock).count(), "посев на грядке один");
+        assertEquals(2, plan.blockCount(), "расчистка под посев блока не ставит");
+    }
+
+    @Test
+    void twoClearingsOnOnePositionAreRejected() {
+        assertThrows(IllegalArgumentException.class, () ->
+                new BuildPlan(SIZE, List.of(
+                        BuildStep.clearing(new BlockPos(1, 1, 1)),
+                        BuildStep.clearingFor(new BlockPos(1, 1, 1), 2)),
+                        List.of()));
+    }
+
     @Test
     void stepsAndPointsAreFrozen() {
         BuildPlan plan = new BuildPlan(SIZE,

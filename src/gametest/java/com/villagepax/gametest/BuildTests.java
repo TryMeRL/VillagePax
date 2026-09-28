@@ -239,21 +239,33 @@ public class BuildTests extends GameTestSupport {
         context.complete();
     }
 
+    /**
+     * Порядок фаз: расчистка, кладка, обстановка, посев — и у ратуши, и у поля.
+     * Всех четырёх нет ни у одного здания, кроме поля: посев есть только
+     * там, — поэтому полнота спрашивается у поля.
+     */
     @GameTest(templateName = EMPTY_STRUCTURE)
     public void buildPlanOrdersClearingThenStructureThenDecor(TestContext context) {
-        BuildPlan plan = loadedTownHall(context).plan();
+        checkPhaseOrder(context, loadedTownHall(context).plan());
+        BuildPlan field = SchematicLoader.get(new Identifier("villagepax", "norman/farm_lvl1"))
+                .orElseThrow().plan();
 
-        // Если в схеме нет всех трёх категорий, порядок между ними не
-        // подтверждён ничем и тест был бы пустым.
+        // Если в схеме нет всех фаз, порядок между ними не подтверждён
+        // ничем и тест был бы пустым.
         EnumSet<BuildCategory> present = EnumSet.noneOf(BuildCategory.class);
-        for (BuildStep step : plan.steps()) {
+        for (BuildStep step : field.steps()) {
             present.add(step.category());
         }
         if (present.size() != BuildCategory.values().length) {
-            context.throwGameTestException("В плане есть только " + present
-                    + " — порядок категорий проверять нечем");
+            context.throwGameTestException("В плане поля есть только " + present
+                    + " — порядок фаз проверять нечем");
         }
+        checkPhaseOrder(context, field);
 
+        context.complete();
+    }
+
+    private static void checkPhaseOrder(TestContext context, BuildPlan plan) {
         BuildCategory category = null;
         int height = 0;
         for (BuildStep step : plan.steps()) {
@@ -273,8 +285,6 @@ public class BuildTests extends GameTestSupport {
             }
             height = current;
         }
-
-        context.complete();
     }
 
     /**

@@ -1091,5 +1091,6 @@
   "villagepax.stall.reason.closed": "The stall opens only on the festival",
   "villagepax.stall.reason.no_such": "The stall has no such prize",
   "villagepax.stall.reason.poor": "Not enough ribbons — they are won in the contests",
-  "villagepax.entertainer.says": "%s %s: \"%s\""
+  "villagepax.entertainer.says": "%s %s: \"%s\"",
+  "villagepax.speech": "“%s”"
 }

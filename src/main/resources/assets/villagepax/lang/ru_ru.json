@@ -1091,5 +1091,6 @@
   "villagepax.stall.reason.closed": "Лавка открыта только в праздник",
   "villagepax.stall.reason.no_such": "Такого товара в лавке нет",
   "villagepax.stall.reason.poor": "Не хватает лент — их дают за места в состязаниях",
-  "villagepax.entertainer.says": "%s %s: «%s»"
+  "villagepax.entertainer.says": "%s %s: «%s»",
+  "villagepax.speech": "«%s»"
 }

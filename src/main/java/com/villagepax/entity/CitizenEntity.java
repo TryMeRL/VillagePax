@@ -575,6 +575,28 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     private static final TrackedData<Float> STATURE =
             DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.FLOAT);
 
+    /**
+     * Фраза над головой: что житель сказал вслух.
+     * <p>
+     * Отслеживаемым полем, а не чатом: чат забивается и не показывает, кто
+     * говорит, а над головой видно — вот этот сказал. Ключ с подстановками,
+     * а не готовая строка: клиент покажет её на своём языке.
+     */
+    private static final TrackedData<Optional<Text>> SPEECH =
+            DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.OPTIONAL_TEXT_COMPONENT);
+
+    /** Сколько тиков фраза видна: три секунды. */
+    public static final int SPEECH_TICKS = 60;
+
+    /** Сколько тиков после фразы новая не встаёт: две секунды. */
+    public static final int SPEECH_GAP = 40;
+
+    /** До какого тика мира фраза видна. Только сервер; не сохраняется: это голос, а не память. */
+    private long speechUntil;
+
+    /** Когда сказана последняя фраза. */
+    private long spokeAt = -SPEECH_GAP;
+
     // --- движения ------------------------------------------------------------
     //
     // Имена общие для всех тел: человек и конь «идут», «работают» и «дышат»
@@ -1619,6 +1641,31 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         }
     }
 
+    /**
+     * Сказать вслух — над головой, на три секунды.
+     * <p>
+     * Чаще раза в две секунды житель не говорит: компания у стола, где
+     * каждый отвечает каждому, иначе тараторила бы, и ни одну фразу
+     * не успеть бы прочесть.
+     *
+     * @return встала ли фраза
+     */
+    public boolean say(Text line) {
+        long now = getWorld().getTime();
+        if (now - spokeAt < SPEECH_GAP) {
+            return false;
+        }
+        spokeAt = now;
+        speechUntil = now + SPEECH_TICKS;
+        dataTracker.set(SPEECH, Optional.of(line));
+        return true;
+    }
+
+    /** Что житель сейчас говорит. */
+    public Optional<Text> speech() {
+        return dataTracker.get(SPEECH);
+    }
+
     @Override
     public AnimatableInstanceCache getAnimatableInstanceCache() {
         return animations;
@@ -1632,11 +1679,17 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         dataTracker.startTracking(DOZING, false);
         dataTracker.startTracking(DANCING, false);
         dataTracker.startTracking(STATURE, Culture.PLAIN_STATURE);
+        dataTracker.startTracking(SPEECH, Optional.empty());
     }
 
     @Override
     public void tick() {
         super.tick();
+
+        if (speechUntil != 0 && !getWorld().isClient() && getWorld().getTime() >= speechUntil) {
+            speechUntil = 0;
+            dataTracker.set(SPEECH, Optional.empty());
+        }
 
         if (!getWorld().isClient() && age % OFF_FENCE_EVERY == 0) {
             stepOutOfTrouble();

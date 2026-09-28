@@ -180,6 +180,30 @@ public class CitizenEntityRenderer extends GeoEntityRenderer<CitizenEntity> {
         matrices.pop();
     }
 
+    /** На сколько выше подписи встаёт сказанное: строка и промежуток. */
+    private static final float SPEECH_RISE = 0.3f;
+
+    /**
+     * Сказанное — строкой над подписью, в кавычках: имя и слово не спутать.
+     * <p>
+     * Рисуется всегда, а не только когда видна подпись: спрятавшийся ребёнок
+     * без подписи всё равно кричит «Нашёл!», когда его нашли. Поправка на рост
+     * — та же, что у подписи: над гномом фраза висела бы в полблока от макушки.
+     */
+    @Override
+    public void render(CitizenEntity citizen, float yaw, float delta, MatrixStack matrices,
+                       VertexConsumerProvider buffers, int light) {
+        super.render(citizen, yaw, delta, matrices, buffers, light);
+        citizen.speech().ifPresent(line -> {
+            matrices.push();
+            matrices.translate(0, SPEECH_RISE
+                    + (statureOf(citizen).height() - 1.0f) * citizen.getHeight(), 0);
+            super.renderLabelIfPresent(citizen, Text.translatable("villagepax.speech", line),
+                    matrices, buffers, light);
+            matrices.pop();
+        });
+    }
+
     /**
      * Показать приметы этого жителя и спрятать чужие.
      * <p>

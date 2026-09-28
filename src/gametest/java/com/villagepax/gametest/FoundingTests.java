@@ -458,6 +458,246 @@ public class FoundingTests extends GameTestSupport {
         context.complete();
     }
 
+    /**
+     * Житель обходит рыхлый снег, а не идёт по нему.
+     * <p>
+     * В настоящем прогоне курьер пони замёрз насмертью в двух шагах от избы:
+     * рыхлый снег выглядит сугробом, ваниль считает клетку над ним обычной
+     * дорогой, а провалившийся изнутри пути уже не строит. Поперёк площадки
+     * лежит полоса снега с проходом у края — путь обязан лечь в обход.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "snow")
+    public void aCitizenWalksAroundPowderSnow(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos ground = context.getAbsolutePos(new BlockPos(4, 8, 4));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        List<BlockPos> laid = new ArrayList<>();
+        try {
+            for (int dx = -4; dx <= 4; dx++) {
+                for (int dz = -3; dz <= 3; dz++) {
+                    BlockPos at = ground.add(dx, 0, dz);
+                    boolean snow = dz == 0 && dx <= 2;
+                    world.setBlockState(at, snow ? Blocks.POWDER_SNOW.getDefaultState()
+                            : Blocks.STONE.getDefaultState());
+                    world.setBlockState(at.down(), Blocks.STONE.getDefaultState());
+                    laid.add(at);
+                    laid.add(at.down());
+                }
+            }
+            com.villagepax.sim.Citizen walker = hireWithBody(world, colony, BuildJob.BUILDER,
+                    ground.add(0, 1, -3));
+            com.villagepax.entity.CitizenEntity body = (com.villagepax.entity.CitizenEntity)
+                    world.getEntity(walker.entityUuid().orElseThrow());
+            // Только что появившееся тело ещё не стоит на земле, и навигация
+            // без опоры пути не ищет вовсе.
+            body.setOnGround(true);
+            net.minecraft.entity.ai.pathing.Path path = body.getNavigation()
+                    .findPathTo(ground.add(0, 1, 3), 0);
+            if (path == null || !path.reachesTarget()) {
+                context.throwGameTestException("Путь в обход снега не найден: " + path);
+                return;
+            }
+            for (int i = 0; i < path.getLength(); i++) {
+                BlockPos node = path.getNodePos(i);
+                if (world.getBlockState(node.down()).isOf(Blocks.POWDER_SNOW)
+                        || world.getBlockState(node).isOf(Blocks.POWDER_SNOW)) {
+                    context.throwGameTestException("Путь ведёт по рыхлому снегу через "
+                            + node.subtract(ground).toShortString());
+                }
+            }
+        } finally {
+            for (BlockPos at : laid) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    /**
+     * Провалившийся в рыхлый снег выбирается наверх, на твёрдый край.
+     * <p>
+     * Рефлекс «выйти из беды» искал опору на своей высоте и на блок ниже:
+     * с забора сходят вниз. Из снега выходят вверх — утонувшему по пояс
+     * твёрдый край ямы приходится на блок выше ног, и рефлекс его не видел.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "snow")
+    public void aCitizenClimbsOutOfPowderSnow(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        BlockPos ground = context.getAbsolutePos(new BlockPos(4, 8, 4));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        List<BlockPos> laid = new ArrayList<>();
+        try {
+            for (int dx = -3; dx <= 3; dx++) {
+                for (int dz = -3; dz <= 3; dz++) {
+                    BlockPos at = ground.add(dx, 0, dz);
+                    boolean pit = Math.abs(dx) <= 1 && Math.abs(dz) <= 1;
+                    world.setBlockState(at, pit ? Blocks.POWDER_SNOW.getDefaultState()
+                            : Blocks.STONE.getDefaultState());
+                    world.setBlockState(at.down(), Blocks.STONE.getDefaultState());
+                    laid.add(at);
+                    laid.add(at.down());
+                }
+            }
+            com.villagepax.sim.Citizen sunk = hireWithBody(world, colony, BuildJob.BUILDER,
+                    ground.add(0, 1, 0));
+            com.villagepax.entity.CitizenEntity body = (com.villagepax.entity.CitizenEntity)
+                    world.getEntity(sunk.entityUuid().orElseThrow());
+            body.refreshPositionAndAngles(ground.getX() + 0.5, ground.getY(), ground.getZ() + 0.5,
+                    0f, 0f);
+            if (!world.getBlockState(body.getBlockPos()).isOf(Blocks.POWDER_SNOW)) {
+                context.throwGameTestException("Посылка теста не выполнена: житель не в снегу, а в "
+                        + world.getBlockState(body.getBlockPos()).getBlock());
+            }
+            if (!body.stepOutOfTrouble()) {
+                context.throwGameTestException("Житель остался тонуть в рыхлом снегу");
+            }
+            BlockPos feet = body.getBlockPos();
+            if (com.villagepax.sim.Hazards.standingHurts(world, feet)
+                    || !world.getBlockState(feet.down()).isSolidBlock(world, feet.down())) {
+                context.throwGameTestException("Житель выбрался, но не на твёрдое: под ним "
+                        + world.getBlockState(feet.down()).getBlock());
+            }
+        } finally {
+            for (BlockPos at : laid) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
+    /**
+     * Дом, поднятый разом на пасущихся курах, их не замуровывает.
+     * <p>
+     * После закладки норманнской деревни на холмах на земле лежали перья
+     * и куриные тушки: стройка отодвигала от кладки жителей, а скотину —
+     * нет, и курица, оказавшаяся в стене, задыхалась.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "flock", tickLimit = 100)
+    public void aBuildingRaisedOnAFlockBuriesNoHen(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Schematic plan = SchematicLoader.get(HOUSE_SCHEMATIC).orElseThrow();
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 12));
+        BlockPos anchor = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Building site = new Building(UUID.randomUUID(), NORMAN_HOUSE_TYPE, 1, anchor,
+                BlockRotation.NONE, BuildProgress.PLANNED, List.of());
+        colony.addBuilding(site);
+        Materials.required(plan).forEach((item, count) ->
+                site.stock().add(Registries.ITEM.getId(item), count));
+        List<net.minecraft.entity.passive.ChickenEntity> flock = new ArrayList<>();
+        for (int x = 0; x < plan.size().getX(); x += 2) {
+            for (int z = 0; z < plan.size().getZ(); z += 2) {
+                net.minecraft.entity.passive.ChickenEntity hen = net.minecraft.entity.EntityType.CHICKEN
+                        .create(world);
+                hen.refreshPositionAndAngles(anchor.getX() + x + 0.5, anchor.getY() + 1,
+                        anchor.getZ() + z + 0.5, 0f, 0f);
+                world.spawnEntity(hen);
+                flock.add(hen);
+            }
+        }
+        if (BuildJob.advance(world, manager, colony.id(), site.id(), 40_000)
+                != BuildJob.Outcome.FINISHED) {
+            flock.forEach(net.minecraft.entity.Entity::discard);
+            demolish(world, site, plan);
+            manager.remove(colony.id());
+            context.throwGameTestException("Дом не достроился");
+            return;
+        }
+        context.runAtTick(SETTLES, () -> {
+            try {
+                List<String> buried = new ArrayList<>();
+                for (net.minecraft.entity.passive.ChickenEntity hen : flock) {
+                    BlockPos at = hen.getBlockPos();
+                    if (!hen.isAlive() || hen.isInsideWall()
+                            || !world.getBlockState(at).getCollisionShape(world, at).isEmpty()) {
+                        buried.add(at.subtract(anchor).toShortString()
+                                + (hen.isAlive() ? " в " + world.getBlockState(at).getBlock().getName().getString()
+                                : " погибла"));
+                    }
+                }
+                if (!buried.isEmpty()) {
+                    context.throwGameTestException("Дом замуровал кур: " + buried.size() + " из "
+                            + flock.size() + " " + buried.stream().limit(4).toList());
+                }
+            } finally {
+                flock.forEach(net.minecraft.entity.Entity::discard);
+                world.getEntitiesByClass(ItemEntity.class, new Box(anchor).expand(12), item -> true)
+                        .forEach(net.minecraft.entity.Entity::discard);
+                demolish(world, site, plan);
+                manager.remove(colony.id());
+                world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            }
+            context.complete();
+        });
+    }
+
+    /**
+     * Деревня, заложенная посреди пасущейся стаи, не замуровывает ни одной
+     * курицы — ни домом, ни колодцем, ни фонарём, ни откосом.
+     * <p>
+     * Дом отводит скотину из кладки сам; всё прочее, что закладка кладёт
+     * вокруг, — улица, колодец, крыльцо, откос — клало блоки прямо на кур.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "flock_village", tickLimit = 100)
+    public void aVillageFoundedAmidAFlockBuriesNoHen(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(16, 1, 16));
+        List<net.minecraft.entity.passive.ChickenEntity> flock = new ArrayList<>();
+        for (int x = -30; x <= 46; x += 3) {
+            for (int z = -30; z <= 46; z += 3) {
+                BlockPos column = context.getAbsolutePos(new BlockPos(x, 0, z));
+                int top = world.getTopY(net.minecraft.world.Heightmap.Type.WORLD_SURFACE,
+                        column.getX(), column.getZ());
+                net.minecraft.entity.passive.ChickenEntity hen = net.minecraft.entity.EntityType.CHICKEN
+                        .create(world);
+                hen.refreshPositionAndAngles(column.getX() + 0.5, top, column.getZ() + 0.5, 0f, 0f);
+                world.spawnEntity(hen);
+                flock.add(hen);
+            }
+        }
+        Settlement village = Villages.found(world, NORMAN, centre).orElse(null);
+        if (village == null) {
+            flock.forEach(net.minecraft.entity.Entity::discard);
+            context.throwGameTestException("Деревня не встала: помеха=" + whoBlocks(manager, centre));
+            return;
+        }
+        context.runAtTick(SETTLES, () -> {
+            try {
+                List<String> buried = new ArrayList<>();
+                for (net.minecraft.entity.passive.ChickenEntity hen : flock) {
+                    if (!hen.isAlive() || hen.isInsideWall()) {
+                        BlockPos at = hen.getBlockPos();
+                        buried.add(at.subtract(centre).toShortString() + " "
+                                + (hen.isAlive() ? world.getBlockState(at).getBlock().getName().getString()
+                                : "погибла"));
+                    }
+                }
+                if (!buried.isEmpty()) {
+                    context.throwGameTestException("Деревня замуровала кур: " + buried.size() + " из "
+                            + flock.size() + " " + buried.stream().limit(5).toList());
+                }
+            } finally {
+                flock.forEach(net.minecraft.entity.Entity::discard);
+                cleanUpVillage(world, manager, village, centre, List.of());
+                world.getEntitiesByClass(ItemEntity.class, new Box(centre).expand(60, 20, 60),
+                        item -> true).forEach(net.minecraft.entity.Entity::discard);
+            }
+            context.complete();
+        });
+    }
+
     /** Грядки поля, на которых посева нет, — в координатах мира. */
     private static List<String> bareBeds(ServerWorld world, Building farm) {
         Schematic plan = SchematicLoader.get(BuildJob.schematicId(farm)).orElseThrow();

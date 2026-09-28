@@ -100,6 +100,69 @@ public final class Standing {
         return Optional.empty();
     }
 
+    /** Как далеко искать, куда отойти со стройки: шире самого широкого следа. */
+    private static final int OFF_SITE = 16;
+
+    /**
+     * Ближайшая клетка, где можно стоять, — за пределами стройки.
+     * <p>
+     * Куда отойти тому, кто стоит там, где сейчас ляжет блок. Не на шаг
+     * в сторону, а прочь со следа: курицу, отведённую на соседнюю клетку,
+     * ставило на верх растущей стены или под будущий стол, и накрывало
+     * снова. Сперва — по своей высоте и ниже, вокруг целиком, и только
+     * потом на блок выше.
+     *
+     * @param building клетки самой стройки: туда отходить нельзя
+     */
+    public static Optional<BlockPos> freeOutside(ServerWorld world, BlockPos taken,
+                                                 java.util.function.Predicate<BlockPos> building) {
+        for (int radius = 1; radius <= OFF_SITE; radius++) {
+            for (int dy : new int[]{0, -1, 1}) {
+                for (int dx = -radius; dx <= radius; dx++) {
+                    for (int dz = -radius; dz <= radius; dz++) {
+                        if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                            continue;
+                        }
+                        BlockPos spot = taken.add(dx, dy, dz);
+                        if (!building.test(spot) && canStandAt(world, spot)) {
+                            return Optional.of(spot);
+                        }
+                    }
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Вывести на свободное место всякого, кого замуровало.
+     * <p>
+     * Страховка после всего, что кладёт блоки вокруг зданий разом: откоса,
+     * площадки, крыльца, улицы, колодца. Дом отводит скотину из своей
+     * кладки сам, а каждый из этих путей класть блок «с оглядкой» не умеет —
+     * и курица, на которую лёг булыжник улицы, задыхалась. Проще и вернее
+     * один раз после работы спросить мир, кто застрял в блоке.
+     *
+     * @return сколько вывели
+     */
+    public static int rescueBuried(ServerWorld world, net.minecraft.util.math.Box area) {
+        int rescued = 0;
+        for (net.minecraft.entity.mob.MobEntity mob : world.getEntitiesByClass(
+                net.minecraft.entity.mob.MobEntity.class, area,
+                mob -> mob.isAlive() && mob.isInsideWall())) {
+            BlockPos at = mob.getBlockPos();
+            Optional<BlockPos> free = canStandAt(world, at.up()) ? Optional.of(at.up())
+                    : freeOutside(world, at, spot -> false);
+            if (free.isPresent()) {
+                BlockPos spot = free.get();
+                mob.refreshPositionAndAngles(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5,
+                        mob.getYaw(), mob.getPitch());
+                rescued++;
+            }
+        }
+        return rescued;
+    }
+
     /**
      * То же, но с оговоркой: не нашлось места — идём к самой цели.
      * <p>

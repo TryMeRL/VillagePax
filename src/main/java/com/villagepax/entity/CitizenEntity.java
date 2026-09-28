@@ -119,7 +119,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     public CitizenEntity(EntityType<? extends PathAwareEntity> type, World world) {
         super(type, world);
         keepTools();
-        avoidFire();
+        avoidHarm();
     }
 
     /**
@@ -135,11 +135,17 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
      * возможность выйти самому, а рефлекс {@link #stepOutOfTrouble}
      * срабатывает раз в полсекунды и может не успеть.
      */
-    private void avoidFire() {
+    private void avoidHarm() {
         setPathfindingPenalty(PathNodeType.DAMAGE_FIRE, 64.0f);
         setPathfindingPenalty(PathNodeType.DANGER_FIRE, 32.0f);
         setPathfindingPenalty(PathNodeType.DAMAGE_OTHER, 64.0f);
         setPathfindingPenalty(PathNodeType.DANGER_OTHER, 32.0f);
+        // Рыхлый снег выглядит сугробом, и ваниль ведёт по нему, как
+        // по дороге: клетка над ним для неё ничего не стоит. Провалившийся
+        // изнутри пути уже не строит и замерзает — так курьер пони погиб
+        // в двух шагах от избы. По снегу житель не идёт вовсе: ни одна
+        // дорога не стоит того, чтобы на ней замёрзнуть.
+        setPathfindingPenalty(PathNodeType.DANGER_POWDER_SNOW, -1.0f);
     }
 
     public static DefaultAttributeContainer.Builder createAttributes() {
@@ -1415,6 +1421,9 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
      */
     private static final int OFF_FENCE_REACH = 2;
 
+    /** На каких высотах от ног ищется, куда перенести жителя из беды. */
+    private static final int[] SAFETY_HEIGHTS = {0, -1, 1};
+
     /**
      * Три дорожки движения, и у каждой свои кости.
      * <p>
@@ -1705,11 +1714,13 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
                         continue;
                     }
 
-                    // Своя высота и на блок ниже: с забора сходят вниз —
-                    // его верх и есть та лишняя половина блока, из-за
-                    // которой житель там стоял.
-                    for (int down = 0; down <= 1; down++) {
-                        BlockPos spot = getBlockPos().add(dx, -down, dz);
+                    // Своя высота, на блок ниже и на блок выше: с забора
+                    // сходят вниз — его верх и есть та лишняя половина
+                    // блока, из-за которой житель там стоял, — а из рыхлого
+                    // снега выходят вверх: утонувшему твёрдый край ямы
+                    // приходится на блок выше ног.
+                    for (int dy : SAFETY_HEIGHTS) {
+                        BlockPos spot = getBlockPos().add(dx, dy, dz);
                         if (spot.equals(avoid) || !isSafeFooting(spot)) {
                             continue;
                         }

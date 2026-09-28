@@ -250,6 +250,11 @@ public final class Villages {
         planNext(world, manager, village, culture);
         // И улицы уже убраны: колодец, фонари, цветы — деревня старше игрока.
         Streetscape.dress(world, manager, village);
+        // Всё это легло за один тик, и не всё умеет класть блок с оглядкой:
+        // кого замуровало, выводим. См. Standing.rescueBuried.
+        int reach = CitizenSpawner.tetherRange(village) + 16;
+        com.villagepax.sim.work.Standing.rescueBuried(world,
+                new net.minecraft.util.math.Box(village.center()).expand(reach, 24, reach));
 
         Levels.refresh(village);
         VillagePax.LOGGER.info("Деревня {} народа {} встала на {}",

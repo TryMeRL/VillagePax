@@ -71,6 +71,11 @@ public final class Decor {
                 continue;
             }
 
+            // Тот же порядок, что у стройки: сперва отойти из клетки. Тюк
+            // сена, поставленный на курицу, её замуровывал.
+            if (!BuildJob.makeRoomFor(world, building, schematic, slot, chosen)) {
+                continue;
+            }
             world.setBlockState(slot, chosen, Block.NOTIFY_ALL);
             Sounds.placed(world, slot, chosen);
         }

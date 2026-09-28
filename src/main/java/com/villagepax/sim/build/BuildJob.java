@@ -25,6 +25,7 @@ import net.minecraft.registry.Registries;
 import net.minecraft.registry.tag.BlockTags;
 import com.villagepax.screen.TownHallNet;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Box;
@@ -272,6 +273,8 @@ public final class BuildJob {
             // И сразу за площадкой — откос вокруг неё: без него под домом
             // ровно, а в шаге за стеной прежний склон, и вход висит над ним.
             Grading.grade(world, settlement, building, schematic);
+            // Землю переносят разом, и пасущуюся рядом скотину ею засыпает.
+            com.villagepax.sim.work.Standing.rescueBuried(world, around(building, schematic));
         }
         building.setProgress(BuildProgress.BUILDING);
 
@@ -317,6 +320,7 @@ public final class BuildJob {
             // Ступени у входов. После площадки, а не до: она поднимает
             // подошву, и крыльцо надо мерить уже от готового порога.
             Access.porch(world, building, schematic);
+            com.villagepax.sim.work.Standing.rescueBuried(world, around(building, schematic));
 
             returnLeftovers(world, warehouse, building);
             announceDone(world, settlement, building);
@@ -436,7 +440,8 @@ public final class BuildJob {
      *
      * @return можно ли ставить
      */
-    private static boolean makeRoomFor(ServerWorld world, BlockPos where, BlockState laid) {
+    static boolean makeRoomFor(ServerWorld world, Building building, Schematic schematic,
+                               BlockPos where, BlockState laid) {
         if (laid.getCollisionShape(world, where).isEmpty() && !Hazards.hurts(laid)) {
             return true;
         }
@@ -445,6 +450,17 @@ public final class BuildJob {
         for (CitizenEntity citizen : world.getEntitiesByClass(CitizenEntity.class, cell,
                 alive -> true)) {
             citizen.stepAsideFrom(where);
+        }
+        // Скотину — тоже, и прочь со стройки, а не на шаг: курица, оказавшаяся
+        // в кладке, задыхается — после закладки деревни на холмах на земле
+        // лежали перья и тушки, дом встал разом прямо на стаю. Отойди она
+        // на соседнюю клетку внутри — её накроет стол или очаг.
+        for (MobEntity mob : world.getEntitiesByClass(MobEntity.class, cell,
+                mob -> !(mob instanceof CitizenEntity))) {
+            com.villagepax.sim.work.Standing.freeOutside(world, where, spot ->
+                    BuildSite.covers(building.anchor(), schematic.size(), building.rotation(), spot))
+                    .ifPresent(spot -> mob.refreshPositionAndAngles(spot.getX() + 0.5, spot.getY(),
+                            spot.getZ() + 0.5, mob.getYaw(), mob.getPitch()));
         }
 
         if (!Hazards.hurts(laid)) {
@@ -554,7 +570,7 @@ public final class BuildJob {
         BlockState settled = Block.postProcessState(planned, world, where);
         BlockState laid = settled.isAir() ? planned : settled;
 
-        if (!makeRoomFor(world, where, laid)) {
+        if (!makeRoomFor(world, building, schematic, where, laid)) {
             // Материал уже взят со склада — вернём: иначе он пропал бы,
             // а шаг всё равно повторится следующим решением.
             material.ifPresent(item -> Warehouse.of(world, settlement)
@@ -699,6 +715,14 @@ public final class BuildJob {
                 building.stock().add(Registries.ITEM.getId(drop.getItem()), drop.getCount());
             }
         }
+    }
+
+    /** След здания с откосом и крыльцом вокруг — там, где стройка кладёт землю и ступени. */
+    private static Box around(Building building, Schematic schematic) {
+        Vec3i footprint = BuildSite.rotatedSize(schematic.size(), building.rotation());
+        BlockPos anchor = building.anchor();
+        return new Box(anchor, anchor.add(footprint)).expand(Grading.MARGIN + Grading.APPROACH + 1,
+                Terrace.DEEP, Grading.MARGIN + Grading.APPROACH + 1);
     }
 
     private static boolean footprintIsLoaded(ServerWorld world, Building building, Schematic schematic) {

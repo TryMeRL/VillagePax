@@ -1,0 +1,478 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "planks": "minecraft:block/oak_planks",
+    "post": "minecraft:block/stripped_oak_log",
+    "post_top": "minecraft:block/stripped_oak_log_top",
+    "particle": "minecraft:block/oak_planks",
+    "die": "minecraft:block/diorite",
+    "mug": "minecraft:block/barrel_side",
+    "mug_top": "minecraft:block/barrel_top"
+  },
+  "elements": [
+    {
+      "__comment": "столешница",
+      "from": [
+        0,
+        14,
+        0
+      ],
+      "to": [
+        16,
+        16,
+        16
+      ],
+      "faces": {
+        "north": {
+          "texture": "#planks"
+        },
+        "south": {
+          "texture": "#planks"
+        },
+        "east": {
+          "texture": "#planks"
+        },
+        "west": {
+          "texture": "#planks"
+        },
+        "up": {
+          "texture": "#planks",
+          "cullface": "up"
+        },
+        "down": {
+          "texture": "#planks"
+        }
+      }
+    },
+    {
+      "__comment": "царга",
+      "from": [
+        3.5,
+        12,
+        1.75
+      ],
+      "to": [
+        12.5,
+        14,
+        2.75
+      ],
+      "faces": {
+        "north": {
+          "texture": "#planks"
+        },
+        "south": {
+          "texture": "#planks"
+        },
+        "down": {
+          "texture": "#planks"
+        }
+      }
+    },
+    {
+      "__comment": "царга",
+      "from": [
+        3.5,
+        12,
+        13.25
+      ],
+      "to": [
+        12.5,
+        14,
+        14.25
+      ],
+      "faces": {
+        "north": {
+          "texture": "#planks"
+        },
+        "south": {
+          "texture": "#planks"
+        },
+        "down": {
+          "texture": "#planks"
+        }
+      }
+    },
+    {
+      "__comment": "царга",
+      "from": [
+        1.75,
+        12,
+        3.5
+      ],
+      "to": [
+        2.75,
+        14,
+        12.5
+      ],
+      "faces": {
+        "east": {
+          "texture": "#planks"
+        },
+        "west": {
+          "texture": "#planks"
+        },
+        "down": {
+          "texture": "#planks"
+        }
+      }
+    },
+    {
+      "__comment": "царга",
+      "from": [
+        13.25,
+        12,
+        3.5
+      ],
+      "to": [
+        14.25,
+        14,
+        12.5
+      ],
+      "faces": {
+        "east": {
+          "texture": "#planks"
+        },
+        "west": {
+          "texture": "#planks"
+        },
+        "down": {
+          "texture": "#planks"
+        }
+      }
+    },
+    {
+      "__comment": "ножка",
+      "from": [
+        1.5,
+        0,
+        1.5
+      ],
+      "to": [
+        3.5,
+        14,
+        3.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#post"
+        },
+        "south": {
+          "texture": "#post"
+        },
+        "east": {
+          "texture": "#post"
+        },
+        "west": {
+          "texture": "#post"
+        },
+        "down": {
+          "texture": "#post_top",
+          "cullface": "down"
+        }
+      }
+    },
+    {
+      "__comment": "ножка",
+      "from": [
+        1.5,
+        0,
+        12.5
+      ],
+      "to": [
+        3.5,
+        14,
+        14.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#post"
+        },
+        "south": {
+          "texture": "#post"
+        },
+        "east": {
+          "texture": "#post"
+        },
+        "west": {
+          "texture": "#post"
+        },
+        "down": {
+          "texture": "#post_top",
+          "cullface": "down"
+        }
+      }
+    },
+    {
+      "__comment": "ножка",
+      "from": [
+        12.5,
+        0,
+        1.5
+      ],
+      "to": [
+        14.5,
+        14,
+        3.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#post"
+        },
+        "south": {
+          "texture": "#post"
+        },
+        "east": {
+          "texture": "#post"
+        },
+        "west": {
+          "texture": "#post"
+        },
+        "down": {
+          "texture": "#post_top",
+          "cullface": "down"
+        }
+      }
+    },
+    {
+      "__comment": "ножка",
+      "from": [
+        12.5,
+        0,
+        12.5
+      ],
+      "to": [
+        14.5,
+        14,
+        14.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#post"
+        },
+        "south": {
+          "texture": "#post"
+        },
+        "east": {
+          "texture": "#post"
+        },
+        "west": {
+          "texture": "#post"
+        },
+        "down": {
+          "texture": "#post_top",
+          "cullface": "down"
+        }
+      }
+    },
+    {
+      "__comment": "проножка",
+      "from": [
+        2,
+        3,
+        3.5
+      ],
+      "to": [
+        3,
+        4,
+        12.5
+      ],
+      "faces": {
+        "east": {
+          "texture": "#post"
+        },
+        "west": {
+          "texture": "#post"
+        },
+        "up": {
+          "texture": "#post"
+        },
+        "down": {
+          "texture": "#post"
+        }
+      }
+    },
+    {
+      "__comment": "проножка",
+      "from": [
+        13,
+        3,
+        3.5
+      ],
+      "to": [
+        14,
+        4,
+        12.5
+      ],
+      "faces": {
+        "east": {
+          "texture": "#post"
+        },
+        "west": {
+          "texture": "#post"
+        },
+        "up": {
+          "texture": "#post"
+        },
+        "down": {
+          "texture": "#post"
+        }
+      }
+    },
+    {
+      "__comment": "средник",
+      "from": [
+        3,
+        3,
+        7.5
+      ],
+      "to": [
+        13,
+        4,
+        8.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#post"
+        },
+        "south": {
+          "texture": "#post"
+        },
+        "up": {
+          "texture": "#post"
+        },
+        "down": {
+          "texture": "#post"
+        }
+      }
+    },
+    {
+      "__comment": "кость",
+      "from": [
+        5.5,
+        16,
+        6
+      ],
+      "to": [
+        7.5,
+        18,
+        8
+      ],
+      "faces": {
+        "north": {
+          "texture": "#die"
+        },
+        "south": {
+          "texture": "#die"
+        },
+        "east": {
+          "texture": "#die"
+        },
+        "west": {
+          "texture": "#die"
+        },
+        "up": {
+          "texture": "#die"
+        }
+      }
+    },
+    {
+      "__comment": "кость, брошенная наискось",
+      "from": [
+        8.5,
+        16,
+        8.5
+      ],
+      "to": [
+        10.5,
+        18,
+        10.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#die"
+        },
+        "south": {
+          "texture": "#die"
+        },
+        "east": {
+          "texture": "#die"
+        },
+        "west": {
+          "texture": "#die"
+        },
+        "up": {
+          "texture": "#die"
+        }
+      },
+      "rotation": {
+        "origin": [
+          9.5,
+          16,
+          9.5
+        ],
+        "axis": "y",
+        "angle": 22.5
+      }
+    },
+    {
+      "__comment": "кружка",
+      "from": [
+        2.5,
+        16,
+        11
+      ],
+      "to": [
+        5.5,
+        20,
+        14
+      ],
+      "faces": {
+        "north": {
+          "texture": "#mug"
+        },
+        "south": {
+          "texture": "#mug"
+        },
+        "east": {
+          "texture": "#mug"
+        },
+        "west": {
+          "texture": "#mug"
+        },
+        "up": {
+          "texture": "#mug_top"
+        }
+      }
+    },
+    {
+      "__comment": "кружка",
+      "from": [
+        11,
+        16,
+        2.5
+      ],
+      "to": [
+        14,
+        20,
+        5.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#mug"
+        },
+        "south": {
+          "texture": "#mug"
+        },
+        "east": {
+          "texture": "#mug"
+        },
+        "west": {
+          "texture": "#mug"
+        },
+        "up": {
+          "texture": "#mug_top"
+        }
+      }
+    }
+  ]
+}

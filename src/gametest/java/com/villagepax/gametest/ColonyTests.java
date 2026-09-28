@@ -1625,6 +1625,13 @@ public class ColonyTests extends GameTestSupport {
         used.add(ModBlocks.FESTIVAL_TOKEN);
         used.add(ModBlocks.TROPHY);
 
+        // И пятый — убранство улиц. Игорный стол деревне народа ставит оно
+        // само, у двери пивной или у ратуши, и за ним собирается вечерняя
+        // компания. Рецепта у него нет нарочно: колония играет стоя —
+        // у своих решает игрок, — и скрафченный стол в ней ничего бы
+        // не значил, а игрок ждал бы, что за ним соберутся.
+        used.add(ModBlocks.GAME_TABLE);
+
         List<Identifier> idle = new ArrayList<>();
         ModBlocks.registered().forEach((id, block) -> {
             if (!used.contains(block)) {

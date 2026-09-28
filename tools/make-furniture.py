@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Пишет модели мебели и алтаря: скамья, стол, полка, алтарь.
+"""Пишет модели мебели и алтаря: скамья, стол, игорный стол, полка, алтарь.
 
 Зачем кодом: модель мебели — это два десятка брусков, и у каждого есть
 смысл (ножка, царга, проножка, спинка). Числами в JSON этот смысл
@@ -108,6 +108,34 @@ def table():
          "particle": "minecraft:block/oak_planks"},
         [box("столешница", (0, 14, 0), (16, 16, 16), planks, cull=("up",)),
          *apron, *legs, *stretchers])
+
+
+# --- игорный стол ---------------------------------------------------------------
+#
+# Тот же стол, а на столешнице — две кости и две кружки: за ним по вечерам
+# играют, и это видно раньше, чем кто-нибудь бросит кость. Кости — диорит:
+# светлый камень в тёмную крапину, и на двух текселях крапина читается
+# очком. Кружки — бочарная клёпка с обручем, как у пивовара. Вторая кость
+# повёрнута: две кости ровно в ряд лежат не брошенными, а выставленными.
+
+def game_table():
+    table_model = table()
+    die, mug, mug_top = "#die", "#mug", "#mug_top"
+    table_model["textures"].update({"die": "minecraft:block/diorite",
+                                    "mug": "minecraft:block/barrel_side",
+                                    "mug_top": "minecraft:block/barrel_top"})
+    thrown = box("кость, брошенная наискось", (8.5, 16, 8.5), (10.5, 18, 10.5), die,
+                 faces=("north", "south", "east", "west", "up"))
+    thrown["rotation"] = {"origin": [9.5, 16, 9.5], "axis": "y", "angle": 22.5}
+    table_model["elements"] += [
+        box("кость", (5.5, 16, 6), (7.5, 18, 8), die, faces=("north", "south", "east", "west", "up")),
+        thrown,
+        box("кружка", (2.5, 16, 11), (5.5, 20, 14), {"*": mug, "up": mug_top},
+            faces=("north", "south", "east", "west", "up")),
+        box("кружка", (11, 16, 2.5), (14, 20, 5.5), {"*": mug, "up": mug_top},
+            faces=("north", "south", "east", "west", "up")),
+    ]
+    return table_model
 
 
 # --- полка ----------------------------------------------------------------------
@@ -281,7 +309,8 @@ def signpost():
 
 
 def main():
-    for name, build in (("bench", bench), ("table", table), ("shelf", shelf), ("altar", altar),
+    for name, build in (("bench", bench), ("table", table), ("game_table", game_table),
+                        ("shelf", shelf), ("altar", altar),
                         ("paper_lantern", lambda: paper_lantern(False)),
                         ("paper_lantern_hanging", lambda: paper_lantern(True)),
                         ("flower_box", flower_box), ("signpost", signpost)):

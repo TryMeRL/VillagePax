@@ -1,12 +1,16 @@
 package com.villagepax.sim;
 
+import com.villagepax.block.FurnitureBlock;
 import com.villagepax.block.ModBlocks;
 import com.villagepax.core.building.BuildingTypes;
+import com.villagepax.sim.build.Access;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.BuildSite;
 import com.villagepax.sim.build.Footing;
+import com.villagepax.sim.build.Grading;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.sim.build.SchematicLoader;
+import com.villagepax.sim.games.GameSpot;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -25,9 +29,13 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.RotationPropertyHelper;
 import net.minecraft.util.math.Vec3i;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * Убранство улиц деревни народа: колодец на площади, фонари у домов, цветы.
@@ -178,6 +186,7 @@ public final class Streetscape {
             });
             manager.markDressed(building.id());
         }
+        gameTable(world, manager, village);
     }
 
     static Palette paletteOf(Identifier culture) {
@@ -484,6 +493,99 @@ public final class Streetscape {
             }
         }
         return false;
+    }
+
+    // --- игорный стол ---
+
+    /**
+     * Игорный стол с лавками по бокам — у двери пивной, а где её нет, у ратуши.
+     * <p>
+     * За ним по вечерам собирается компания: кости, кружки и две лавки
+     * говорят «здесь играют» раньше, чем кто-нибудь бросит кость. Ставится
+     * раз и навсегда; не нашлось места — пробуется при следующем обходе:
+     * старая деревня получает стол на первом же, а та, что застроила площадь
+     * вплотную, — когда место найдётся.
+     * <p>
+     * Не на пути ни к одной двери: стол посреди прохода — баррикада, и через
+     * него житель не прошёл бы домой. Лицом к площади, лавки — поперёк:
+     * игроки сидят друг против друга, и с площади видно обоих.
+     *
+     * @return где встал стол; пусто — не встал или уже стоит
+     */
+    static Optional<BlockPos> gameTable(ServerWorld world, SettlementManager manager,
+                                        Settlement village) {
+        UUID marker = GameSpot.tableMarker(village.id());
+        if (manager.isDressed(marker)) {
+            return Optional.empty();
+        }
+        Optional<BlockPos> door = GameSpot.breweryDoor(village);
+        BlockPos level = door.orElse(village.center());
+        Set<Long> passages = passages(village);
+        for (int reach = GameSpot.TABLE_FROM; reach <= GameSpot.TABLE_TO; reach++) {
+            for (BlockPos column : tableRing(village, door, reach)) {
+                BlockPos table = Ground.buildableAt(world, column.getX(), column.getZ())
+                        .filter(at -> Math.abs(at.getY() - level.getY()) <= 2)
+                        .orElse(null);
+                if (table == null || !seatable(world, village, passages, table)) {
+                    continue;
+                }
+                Direction face = Direction.getFacing(village.center().getX() - table.getX(), 0,
+                        village.center().getZ() - table.getZ());
+                List<Direction> sides = List.of(face.rotateYClockwise(), face.rotateYCounterclockwise());
+                boolean benches = sides.stream().allMatch(side -> {
+                    BlockPos bench = table.offset(side);
+                    return Ground.buildableAt(world, bench.getX(), bench.getZ())
+                            .filter(bench::equals).isPresent()
+                            && seatable(world, village, passages, bench);
+                });
+                if (!benches) {
+                    continue;
+                }
+                put(world, manager, village, table, ModBlocks.GAME_TABLE.getDefaultState()
+                        .with(FurnitureBlock.FACING, face));
+                for (Direction side : sides) {
+                    put(world, manager, village, table.offset(side), ModBlocks.BENCH.getDefaultState()
+                            .with(FurnitureBlock.FACING, side.getOpposite()));
+                }
+                manager.markDressed(marker);
+                return Optional.of(table);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** Колонны в этом шаге: вокруг клетки перед пивной или вокруг стен ратуши. */
+    private static List<BlockPos> tableRing(Settlement village, Optional<BlockPos> door, int reach) {
+        int[] box = door.map(at -> new int[]{at.getX(), at.getZ(), at.getX(), at.getZ()})
+                .orElseGet(() -> GameSpot.hallBox(village));
+        List<BlockPos> ring = new ArrayList<>();
+        for (int x = box[0] - reach; x <= box[2] + reach; x++) {
+            for (int z = box[1] - reach; z <= box[3] + reach; z++) {
+                boolean edge = x == box[0] - reach || x == box[2] + reach
+                        || z == box[1] - reach || z == box[3] + reach;
+                if (edge) {
+                    ring.add(new BlockPos(x, 0, z));
+                }
+            }
+        }
+        return ring;
+    }
+
+    /** Под стол и лавку: природная земля вне следов, воздух в рост и не проход к двери. */
+    private static boolean seatable(ServerWorld world, Settlement village, Set<Long> passages,
+                                    BlockPos at) {
+        return freeFor(world, village, at, 2)
+                && !passages.contains(BlockPos.asLong(at.getX(), 0, at.getZ()));
+    }
+
+    /** Проходы к дверям всех зданий: колонны, где убранству не место. */
+    private static Set<Long> passages(Settlement village) {
+        Set<Long> cells = new HashSet<>();
+        for (Building building : village.buildings()) {
+            SchematicLoader.get(BuildJob.schematicId(building)).ifPresent(schematic -> cells.addAll(
+                    Access.doorway(building, schematic, Grading.APPROACH, 1)));
+        }
+        return cells;
     }
 
     // --- общее ---

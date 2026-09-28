@@ -192,7 +192,7 @@ public final class Housing {
         // свелась бы к детям, умирающим раньше родителей.
         Ages.arrivedGrown(newcomer);
         neededProfession(settlement, newcomer).ifPresent(newcomer::setProfession);
-        newcomer.setPosition(Vec3d.ofBottomCenter(settlement.center().up()));
+        newcomer.setPosition(CitizenSpawner.arrival(world, settlement));
         settlement.addCitizen(newcomer);
 
         assignBeds(world, settlement);

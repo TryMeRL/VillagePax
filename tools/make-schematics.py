@@ -4451,7 +4451,7 @@ PONY_FARM = with_scarecrow(PONY_FARM, 4, 3)
 PONY_FARM_2 = with_scarecrow(PONY_FARM_2, 4, 3)
 
 
-# --- ярмарка, 13x13 ---
+# --- ярмарка, 15x15 ---
 #
 # Праздник раз в лунный месяц идёт здесь: хоровод вокруг сердца праздника,
 # состязания и стол с пирогами. Раскладка одна на все народы — северянин
@@ -4459,25 +4459,35 @@ PONY_FARM_2 = with_scarecrow(PONY_FARM_2, 4, 3)
 # собирает функция, а не текст руками. Координаты x — с запада на восток,
 # z — с севера на юг:
 #
-#   * запад, x 0…2 — стрелище: черта на юге (z 11), мишени на 4, 7 и 10
+#   * запад, x 0…2 — стрелище: черта на юге (z 13), мишени на 4, 8 и 12
 #     шагов, от площадки отгорожено забором по x 3;
-#   * северо-восток, x 6…12, z 0…6 — загон 7x7, борт в один блок: человек
+#   * северо-восток, x 7…14, z 0…7 — загон 8x8, борт в один блок: человек
 #     перешагивает, а зверёк удирает только по клеткам «П» внутри;
-#   * сердце праздника — (8, 9), вокруг свободное кольцо радиусом 2 под хоровод;
-#   * восток, x 11 — стол на три места: на него праздник ставит пироги;
+#   * сердце праздника — (9, 10), вокруг свободное кольцо радиусом 2 под хоровод;
+#   * восток, x 13 — стол на три места, за проходом от хоровода: на него
+#     праздник ставит пироги;
 #   * северо-запад — прилавок затейника (K) у стойки;
 #   * юг — вход (D) между столбами с флажками.
+#
+# Была 13x13, и заказчик попросил «побольше чутка»: загон вырос на клетку
+# в каждую сторону — зверьку есть где петлять, — стрелище на две — дальняя
+# мишень дальше, — а между хороводом и столом лёг проход.
 #
 # У гномов то же самое — зал под сводом, у эльфов — помост под пологом:
 # край раскладки у них стена, и борт загона там — сама стена.
 
-FAIR = 13
-FAIR_HEART = (8, 9)
+FAIR = 15
+FAIR_HEART = (9, 10)
 # Мишени стрелища — (x, z): дальняя, средняя, ближняя. Вразбежку по ширине
-# дорожки: в один ряд ближняя заслоняла бы от черты (1, 11) обе дальние,
-# и дальняя с тройными очками была бы недостижима. x = 0 не берётся — у гномов
+# дорожки: в один ряд ближняя заслоняла бы от черты обе дальние, и дальняя
+# с тройными очками была бы недостижима. x = 0 не берётся — у гномов
 # и эльфов там стена.
-FAIR_TARGETS = ((2, 1), (1, 4), (2, 7))
+FAIR_TARGETS = ((2, 1), (1, 5), (2, 9))
+# Черта стрелка — на юге дорожки, за концом забора.
+FAIR_LINE = (1, 13)
+# Загон — от x до края и от края до z включительно.
+FAIR_PEN_X = 7
+FAIR_PEN_Z = 7
 
 FAIR_STYLES = {
     "norman": dict(floor="d", ring="C", lane="д", post="B", rim_x="H", rim_z="Z", fence="q",
@@ -4539,15 +4549,16 @@ def fairground(people):
     for x, z in FAIR_TARGETS:
         put(x, 1, z, style["post"])
         put(x, 2, z, "◎")
-    put(1, 1, 11, "Ч")
-    for z in range(0, 11):
+    lane_end = FAIR_LINE[1]
+    put(FAIR_LINE[0], 1, FAIR_LINE[1], "Ч")
+    for z in range(0, lane_end):
         put(3, 1, z, style["fence"])
 
     # Загон: борт по краю, внутри — клетки, по которым бегают зверьки.
-    for z in range(0, 7):
-        for x in range(6, 13):
-            edge_x = z in (0, 6)
-            edge_z = x in (6, 12)
+    for z in range(0, FAIR_PEN_Z + 1):
+        for x in range(FAIR_PEN_X, FAIR):
+            edge_x = z in (0, FAIR_PEN_Z)
+            edge_z = x in (FAIR_PEN_X, FAIR - 1)
             if edge_x or edge_z:
                 put(x, 1, z, style["rim_x"] if edge_x else style["rim_z"])
             else:
@@ -4557,9 +4568,10 @@ def fairground(people):
     put(4, 1, 1, "K")
     put(5, 1, 1, style["counter"])
 
-    # Стол: три места под пироги.
-    for z in (8, 9, 10):
-        put(11, 1, z, ("villagepax:table", {"facing": "west"}))
+    # Стол: три места под пироги, через проход от кольца хоровода.
+    table_x = hx + 4
+    for z in (hz - 1, hz, hz + 1):
+        put(table_x, 1, z, ("villagepax:table", {"facing": "west"}))
 
     # Сердце праздника.
     heart, tall = style["heart"]
@@ -4577,29 +4589,31 @@ def fairground(people):
 
     # Флажки на бечеве вдоль забора стрелища: от угла до столба.
     for level in (1, 2, 3):
-        put(3, level, 10, style["post"])
-    for z in range(1, 10):
+        put(3, level, lane_end - 1, style["post"])
+    for z in range(1, lane_end - 1):
         put(3, 3, z, (style["bunting"], {"axis": "z"}))
 
     if walled:
         return _walled_fair(style, grid, walled)
 
     # Под открытым небом: столбы у входа с флажками поверху и свет на столбах.
+    south = FAIR - 1
+    gate_west, gate_east = hx - 3, hx + 3
     for level in (1, 2, 3):
         put(3, level, 0, style["post"])
-        put(5, level, 12, style["post"])
-        put(11, level, 12, style["post"])
-    for x in range(6, 11):
-        put(x, 3, 12, (style["bunting"], {"axis": "x"}))
-    for x, z in ((3, 0), (3, 10), (5, 12), (11, 12)):
+        put(gate_west, level, south, style["post"])
+        put(gate_east, level, south, style["post"])
+    for x in range(gate_west + 1, gate_east):
+        put(x, 3, south, (style["bunting"], {"axis": "x"}))
+    for x, z in ((3, 0), (3, lane_end - 1), (gate_west, south), (gate_east, south)):
         put(x, 4, z, "!")
-    for x, z in ((6, 0), (12, 0), (6, 6), (12, 6)):
+    for x, z in ((FAIR_PEN_X, 0), (FAIR - 1, 0), (FAIR_PEN_X, FAIR_PEN_Z), (FAIR - 1, FAIR_PEN_Z)):
         put(x, 2, z, "!")
     put(5, 2, 1, "!")
     # Лавки у стола, лицом к нему.
-    for z in (8, 9, 10):
-        put(12, 1, z, ("villagepax:bench", {"facing": "west"}))
-    put(8, 1, 12, "D")
+    for z in (hz - 1, hz, hz + 1):
+        put(table_x + 1, 1, z, ("villagepax:bench", {"facing": "west"}))
+    put(hx, 1, south, "D")
     return [["".join(row) for row in layer] for layer in grid]
 
 
@@ -4611,19 +4625,22 @@ def _walled_fair(style, grid, walled):
         for x in range(FAIR):
             edge = x in (0, FAIR - 1) or z in (0, FAIR - 1)
             corner = x in (0, FAIR - 1) and z in (0, FAIR - 1)
-            if (x, z) == (8, FAIR - 1):
+            if (x, z) == (FAIR_HEART[0], FAIR - 1):
                 row.append("D")
             elif edge:
                 row.append(("/" if corner else "-") if walled == "hold" else "{")
             else:
                 row.append(grid[1][z][x])
         furnished.append("".join(row))
+    door = (FAIR_HEART[0], FAIR - 1)
     if walled == "hold":
-        layers = chamber(furnished, height=5, door=(8, FAIR - 1))
-        lamps = ((5, 4), (5, 10), (9, 3), (10, 11))
+        layers = chamber(furnished, height=5, door=door)
+        # Над проходом у стрелища, над загоном и над хороводом: под сводом
+        # светло всюду, где ходят.
+        lamps = ((5, 4), (5, 11), (10, 3), (11, 12))
     else:
-        layers = bower(furnished, height=5, door=(8, FAIR - 1),
-                       panes=((0, 6), (12, 3), (4, 0)))
+        layers = bower(furnished, height=5, door=door,
+                       panes=((0, 7), (FAIR - 1, 3), (4, 0)))
         lamps = ()
     # Пол — свой, а не сплошной: кольцо и стрелище видны и под сводом.
     layers[0] = ["".join(grid[0][z][x] if 0 < x < FAIR - 1 and 0 < z < FAIR - 1

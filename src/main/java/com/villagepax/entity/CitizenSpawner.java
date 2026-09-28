@@ -58,7 +58,7 @@ public final class CitizenSpawner {
                 continue;
             }
             for (Citizen citizen : settlement.citizens()) {
-                if (!livesIn(settlement, citizen, chunk) || hasLiveBody(world, citizen)) {
+                if (!livesIn(world, settlement, citizen, chunk) || hasLiveBody(world, citizen)) {
                     continue;
                 }
                 if (spawnBody(world, settlement, citizen) != null) {
@@ -97,7 +97,7 @@ public final class CitizenSpawner {
             return null;
         }
 
-        Vec3d where = spawnPosition(settlement, citizen);
+        Vec3d where = spawnPosition(world, settlement, citizen);
         body.refreshPositionAndAngles(where.x, where.y, where.z, world.random.nextFloat() * 360f, 0f);
         body.link(settlement.id(), citizen.id());
         body.applyFrom(citizen);
@@ -183,15 +183,74 @@ public final class CitizenSpawner {
      * используется — иначе житель, оказавшийся снаружи (после смены уровня
      * поселения или правки данных руками), потерялся бы навсегда.
      */
-    private static Vec3d spawnPosition(Settlement settlement, Citizen citizen) {
-        Vec3d fallback = Vec3d.ofBottomCenter(settlement.center().up());
+    private static Vec3d spawnPosition(ServerWorld world, Settlement settlement, Citizen citizen) {
         return citizen.position()
                 .filter(pos -> settlement.claims(BlockPos.ofFloored(pos)))
-                .orElse(fallback);
+                .orElseGet(() -> arrival(world, settlement));
     }
 
-    private static boolean livesIn(Settlement settlement, Citizen citizen, ChunkPos chunk) {
-        return new ChunkPos(BlockPos.ofFloored(spawnPosition(settlement, citizen))).equals(chunk);
+    private static boolean livesIn(ServerWorld world, Settlement settlement, Citizen citizen,
+                                   ChunkPos chunk) {
+        return new ChunkPos(BlockPos.ofFloored(spawnPosition(world, settlement, citizen)))
+                .equals(chunk);
+    }
+
+    /** На сколько шагов от ратуши искать клетку, где жителю появиться. */
+    private static final int ARRIVAL_REACH = 4;
+
+    /**
+     * Где житель появляется в поселении: на свободной клетке у ратуши.
+     * <p>
+     * Прежде — ровно над блоком ратуши. На лугу это воздух над ним, но
+     * в ратуше-зале над ним лежит ковёр или камень, а у пони, гномов
+     * и эльфов горит очаг. Основатели гномьей деревни появлялись в костре,
+     * их переносило на шаг в сторону, к самому огню, и курьера в толкотне
+     * вдавливало в очаг: из огня ваниль пути не строит, и он сгорал в первую
+     * же минуту деревни. Туда же попадали бы пришлые, рождённые и вернувшиеся
+     * из похода.
+     * <p>
+     * Теперь клетка ищется кольцами от ратуши, на уровне пола зала и на уровне
+     * земли вокруг неё: пустая в рост, с полом под ногами, без воды, не в огне
+     * и не рядом с ним. Не нашлось — прежнее место: в нём житель хотя бы
+     * не пропадёт.
+     */
+    public static Vec3d arrival(ServerWorld world, Settlement settlement) {
+        BlockPos above = settlement.center().up();
+        for (int radius = 0; radius <= ARRIVAL_REACH; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                        continue;
+                    }
+                    for (int down = 0; down <= 1; down++) {
+                        BlockPos feet = above.add(dx, -down, dz);
+                        if (world.isChunkLoaded(feet) && isArrivalSpot(world, feet)) {
+                            return Vec3d.ofBottomCenter(feet);
+                        }
+                    }
+                }
+            }
+        }
+        return Vec3d.ofBottomCenter(above);
+    }
+
+    /** Встать можно: пол под ногами, пусто в рост, и огня нет ни здесь, ни рядом. */
+    private static boolean isArrivalSpot(ServerWorld world, BlockPos feet) {
+        BlockPos below = feet.down();
+        if (!world.getBlockState(below).isSolidBlock(world, below)
+                || !world.getBlockState(feet).getCollisionShape(world, feet).isEmpty()
+                || !world.getBlockState(feet.up()).getCollisionShape(world, feet.up()).isEmpty()
+                || !world.getFluidState(feet).isEmpty()) {
+            return false;
+        }
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (com.villagepax.sim.Hazards.standingHurts(world, feet.add(dx, 0, dz))) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /** Есть ли у жителя тело в мире прямо сейчас. */

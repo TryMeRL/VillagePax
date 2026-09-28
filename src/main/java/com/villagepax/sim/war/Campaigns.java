@@ -314,7 +314,7 @@ public final class Campaigns {
         manager.update(colony.id(), state -> {
             for (CitizenEntity body : alive) {
                 body.citizenId().flatMap(state::citizen).ifPresent(soldier ->
-                        soldier.setPosition(Vec3d.ofBottomCenter(state.center().up())));
+                        soldier.setPosition(com.villagepax.entity.CitizenSpawner.arrival(world, state)));
             }
             state.cameHome();
         });

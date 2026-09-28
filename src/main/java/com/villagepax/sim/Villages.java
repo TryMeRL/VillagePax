@@ -209,21 +209,27 @@ public final class Villages {
         // Четверо сразу: без строителя не встанет ничего, без старейшины
         // не с кем говорить, без купца не с кем торговать, а один житель
         // на деревню — это не деревня.
-        settle(world, village, Founding.firstBuilder(cultureId, culture, random));
-        settle(world, village, elder(cultureId, culture, random));
-        settle(world, village, tradesman(cultureId, culture, random));
-        settle(world, village, hand(village, cultureId, culture, random));
+        enrol(village, Founding.firstBuilder(cultureId, culture, random));
+        enrol(village, elder(cultureId, culture, random));
+        enrol(village, tradesman(cultureId, culture, random));
+        enrol(village, hand(village, cultureId, culture, random));
         // Пятый — затейник, если народу есть где праздновать. Явно, как купец:
         // праздника без затейника не бывает, а пришлые приходят раз в день,
         // и ремесло с малым приоритетом досталось бы ему последним.
         if (BuildingTypes.workplaceOf(culture.buildings(), ENTERTAINER).isPresent()) {
-            settle(world, village, entertainer(cultureId, culture, random));
+            enrol(village, entertainer(cultureId, culture, random));
         }
 
         // Чертог вскрывается уже при жителях, а не сразу за ратушей:
         // зал рубят гномы, и пустому месту стройка не по силам — движок
         // так и отвечает, «некому строить».
         openTheWay(world, manager, village);
+        // Тела — уже в вырубленном зале: до него на месте жителя камень,
+        // а над ратушей зала горит очаг. См. CitizenSpawner.arrival.
+        for (Citizen founder : List.copyOf(village.citizens())) {
+            founder.setPosition(CitizenSpawner.arrival(world, village));
+            CitizenSpawner.spawnBody(world, village, founder);
+        }
 
         // Дом и ферма уже стоят: деревня старше игрока.
         for (Identifier type : startingBuildings(culture)) {
@@ -487,7 +493,9 @@ public final class Villages {
             if (SchematicLoader.get(schematicId).isEmpty()) {
                 continue;
             }
-            if (Raising.placeNear(world, manager, village, schematicId).isPresent()) {
+            boolean fair = isFair(culture, type);
+            if (Raising.placeNear(world, manager, village, schematicId,
+                    fair ? Raising.FAR_RINGS : Raising.PLACE_RINGS, fair).isPresent()) {
                 return;
             }
         }
@@ -580,7 +588,17 @@ public final class Villages {
     private static void raiseFair(ServerWorld world, SettlementManager manager,
                                   Settlement village, Culture culture) {
         BuildingTypes.workplaceOf(culture.buildings(), ENTERTAINER)
-                .ifPresent(fair -> Raising.raise(world, manager, village, fair));
+                .ifPresent(fair -> Raising.raise(world, manager, village, fair,
+                        Raising.FAR_RINGS, true));
+    }
+
+    /**
+     * Ярмарка ли это. Ей место ищут до границы хутора и на поляне, которую
+     * вырубят: см. {@link Raising#FAR_RINGS}.
+     */
+    private static boolean isFair(Culture culture, Identifier type) {
+        return BuildingTypes.workplaceOf(culture.buildings(), ENTERTAINER)
+                .filter(type::equals).isPresent();
     }
 
     /** Затейник: ставится явно, как купец, — см. {@link #found}. */
@@ -590,9 +608,16 @@ public final class Villages {
         return entertainer;
     }
 
-    private static void settle(ServerWorld world, Settlement village, Citizen citizen) {
+    /**
+     * Записать основателя в деревню — пока без тела.
+     * <p>
+     * Запись нужна сразу: зал ратуши рубят жители, и без строителя в списке
+     * стройка отвечает «некому строить». А тело появляется позже, когда
+     * зал уже вырублен, — иначе основатель встал бы в камень, а потом
+     * рядом с очагом.
+     */
+    private static void enrol(Settlement village, Citizen citizen) {
         citizen.setPosition(Vec3d.ofBottomCenter(village.center().up()));
         village.addCitizen(citizen);
-        CitizenSpawner.spawnBody(world, village, citizen);
     }
 }

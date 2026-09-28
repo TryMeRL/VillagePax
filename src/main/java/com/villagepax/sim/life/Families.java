@@ -161,7 +161,7 @@ public final class Families {
             child.setLived(0);
             child.setParents(father.id(), mother.id());
             child.setLastName(patronymic(culture, father, child));
-            child.setPosition(Vec3d.ofBottomCenter(settlement.center().up()));
+            child.setPosition(com.villagepax.entity.CitizenSpawner.arrival(world, settlement));
             settlement.addCitizen(child);
 
             Housing.assignBeds(world, settlement);

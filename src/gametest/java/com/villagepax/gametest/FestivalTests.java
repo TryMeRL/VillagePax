@@ -68,6 +68,108 @@ import java.util.UUID;
 public class FestivalTests extends GameTestSupport {
 
     /**
+     * Деревня в лесу вырубает под ярмарку поляну.
+     * <p>
+     * Норманнская деревня на холмах стояла без праздника: ярмарке нужен след
+     * пятнадцать на пятнадцать, и все ровные места вокруг были в лесу, а
+     * колонна со стволом для разметки — не земля. Лес здесь — стволы через
+     * каждые пять шагов: ни один след ярмарки их не обходит. Ярмарка обязана
+     * встать, на её следе не остаётся ни ствола, а брёвна не валяются
+     * под ногами — деревня стояла до игрока, и щепа убрана.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "glade", tickLimit = 100)
+    public void aVillageInTheWoodsClearsAGladeForItsFair(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        // Лес на всю землю хутора и ещё шестнадцать шагов за границей: угол
+        // ярмарки разметка ставит только внутри границы, но след тянется
+        // от угла на пятнадцать шагов. Лес меньше этого — и ярмарка вставала
+        // на его краю, на чистой земле, ничего не доказывая.
+        BlockPos centre = context.getAbsolutePos(new BlockPos(24, 1, 24));
+        net.minecraft.util.math.ChunkPos home = new net.minecraft.util.math.ChunkPos(centre);
+        int claim = com.villagepax.sim.SettlementLevel.HAMLET.claimRadiusChunks();
+        int west = (home.x - claim) * 16 - 16;
+        int east = (home.x + claim + 1) * 16 + 15;
+        int north = (home.z - claim) * 16 - 16;
+        int south = (home.z + claim + 1) * 16 + 15;
+        List<BlockPos> wood = new ArrayList<>();
+        for (int x = west; x <= east; x += 5) {
+            for (int z = north; z <= south; z += 5) {
+                if (Math.abs(x - centre.getX()) <= 2 && Math.abs(z - centre.getZ()) <= 2) {
+                    continue;
+                }
+                // Дерево растёт из земли: за делянкой мир на блок ниже, и ствол
+                // на высоте делянки висел бы в воздухе — под ним разметка
+                // честно нашла бы землю, и проверка не доказала бы ничего.
+                BlockPos root = new BlockPos(x, world.getTopY(
+                        net.minecraft.world.Heightmap.Type.WORLD_SURFACE, x, z), z);
+                for (int up = 0; up < 4; up++) {
+                    world.setBlockState(root.up(up), Blocks.OAK_LOG.getDefaultState());
+                    wood.add(root.up(up));
+                }
+                world.setBlockState(root.up(4), Blocks.OAK_LEAVES.getDefaultState()
+                        .with(net.minecraft.block.LeavesBlock.PERSISTENT, true));
+                wood.add(root.up(4));
+            }
+        }
+        Settlement village = null;
+        try {
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня в лесу не встала: помеха="
+                        + whoBlocks(manager, centre));
+                return;
+            }
+            Building fair = village.buildings().stream()
+                    .filter(building -> building.type().equals(NORMAN_FAIR))
+                    .findFirst().orElse(null);
+            if (fair == null) {
+                context.throwGameTestException("В лесу ярмарка не встала: "
+                        + village.buildings().stream().map(b -> b.type().getPath()).toList());
+                return;
+            }
+            if (fair.progress() != BuildProgress.DONE) {
+                context.throwGameTestException("Ярмарка в лесу только размечена, а не стоит: "
+                        + fair.progress().id() + " — при закладке места ей не нашлось");
+                return;
+            }
+            Schematic plan = schematic(context, NORMAN_FAIR_PLAN);
+            net.minecraft.util.math.Vec3i size = com.villagepax.sim.build.BuildSite
+                    .rotatedSize(plan.size(), fair.rotation());
+            // Свои брёвна у ярмарки есть — столбы и борт загона; пнём
+            // считается только бревно там, где схема его не ставит.
+            java.util.Set<BlockPos> posts = new java.util.HashSet<>();
+            for (com.villagepax.sim.build.BuildStep step : plan.plan().steps()) {
+                if (step.placesBlock() && plan.blockAt(step.paletteIndex())
+                        .isIn(net.minecraft.registry.tag.BlockTags.LOGS)) {
+                    posts.add(com.villagepax.sim.build.BuildJob.worldPos(fair, plan.size(), step.pos()));
+                }
+            }
+            List<String> stumps = new ArrayList<>();
+            for (BlockPos at : BlockPos.iterate(fair.anchor(),
+                    fair.anchor().add(size.getX() - 1, size.getY() - 1, size.getZ() - 1))) {
+                if (world.getBlockState(at).isIn(net.minecraft.registry.tag.BlockTags.LOGS)
+                        && !posts.contains(at)) {
+                    stumps.add(at.toShortString());
+                }
+            }
+            net.minecraft.util.math.Box around = new net.minecraft.util.math.Box(fair.anchor(),
+                    fair.anchor().add(size)).expand(3);
+            List<String> litter = world.getEntitiesByClass(net.minecraft.entity.ItemEntity.class,
+                    around, item -> true).stream()
+                    .map(item -> item.getStack().getCount() + " " + item.getStack().getItem())
+                    .toList();
+            if (!stumps.isEmpty() || !litter.isEmpty()) {
+                context.throwGameTestException("Поляна под ярмаркой не расчищена: стволы "
+                        + stumps.stream().limit(4).toList() + ", на земле " + litter);
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, wood);
+        }
+        context.complete();
+    }
+
+    /**
      * У каждого народа есть ярмарка, и у ярмарки — все места праздника.
      * <p>
      * Места спрашиваются у схемы, а не у мира, поэтому проверка обходится

@@ -122,4 +122,35 @@ public final class Ground {
     public static Optional<Integer> levelAt(ServerWorld world, int x, int z) {
         return buildableAt(world, x, z).map(BlockPos::getY);
     }
+
+    /**
+     * Земля под лесом: где стояла бы нога, если свалить деревья.
+     * <p>
+     * Для поляны, которую вырубят. Колонна ствола для {@link #levelAt} —
+     * не земля, и там это верно: стоять на ней негде. Но у ярмарки след
+     * пятнадцать на пятнадцать, и в лесу на холмах такого, где не растёт
+     * ни одного ствола, не нашлось ни одного — деревня оставалась без
+     * праздника, хотя стволы на следе строитель и так валит при расчистке.
+     * Здесь ствол и листва пропускаются, как воздух: земля — там, где
+     * дерево растёт из неё.
+     */
+    public static Optional<Integer> levelUnderTrees(ServerWorld world, int x, int z) {
+        if (!world.isChunkLoaded(new BlockPos(x, world.getSeaLevel(), z))) {
+            return Optional.empty();
+        }
+        int top = world.getTopY(Heightmap.Type.WORLD_SURFACE, x, z);
+        int floor = Math.max(world.getBottomY() + 1, top - DIG);
+        for (int y = top; y >= floor; y--) {
+            BlockPos spot = new BlockPos(x, y, z);
+            BlockPos below = spot.down();
+            BlockState here = world.getBlockState(spot);
+            boolean open = here.isReplaceable() || here.isIn(BlockTags.LOGS)
+                    || here.isIn(BlockTags.LEAVES);
+            if (open && world.getBlockState(below).isSolidBlock(world, below)
+                    && !isTree(world, below)) {
+                return Optional.of(y);
+            }
+        }
+        return Optional.empty();
+    }
 }

@@ -34,14 +34,17 @@ import java.util.TreeMap;
 import java.util.UUID;
 
 /**
- * Поле стоит так, как нарисовано: посев не осыпается ни при закладке
- * деревни, ни у строителя.
+ * Деревня встаёт такой, как нарисована: при закладке и у строителя ничего
+ * не осыпается, а жители появляются не в огне и не в камне.
  * <p>
  * Жалоба заказчика: «морковь у гномов при начальной расстановке выпадает,
  * ибо ты ставишь морковь, потом свет». Посев живёт светом: в темноте
- * грядка при первом же толчке соседа осыпается морковью на пол.
+ * грядка при первом же толчке соседа осыпается морковью на пол. Та же
+ * природа у лестницы, прислонённой к окну, у пашни под тюком сена
+ * и у основателей, появлявшихся в очаге зала, — всё, что ставится
+ * раньше того, на чём держится.
  */
-public class FieldTests extends GameTestSupport {
+public class FoundingTests extends GameTestSupport {
 
     private static final Identifier DWARF_FARM_TYPE = new Identifier("villagepax", "dwarf/farm");
     private static final Identifier DWARF_FARM_PLAN = new Identifier("villagepax", "dwarf/farm_lvl1");
@@ -278,7 +281,13 @@ public class FieldTests extends GameTestSupport {
                         if (!actual.isOf(planned.getBlock())) {
                             wrong.add(step.pos().toShortString() + " " + actual.getBlock().getName().getString()
                                     + " вместо " + planned.getBlock().getName().getString());
-                        } else if (!actual.canPlaceAt(world, where)) {
+                        } else if (actual.isIn(com.villagepax.core.ModTags.BUILD_SOWING)
+                                ? !world.getBlockState(where.down()).isOf(Blocks.FARMLAND)
+                                // Свет посева в такой проверке не спрашивается: здания
+                                // встают одно за другим за один тик, и свет от прежнего
+                                // ещё не пересчитан. Ровно поэтому посев и ложится
+                                // без толчка соседям — а пашня под ним обязана быть.
+                                : !actual.canPlaceAt(world, where)) {
                             wrong.add(step.pos().toShortString() + " " + actual.getBlock().getName().getString()
                                     + " не вправе стоять: снизу " + world.getBlockState(where.down())
                                     .getBlock().getName().getString() + ", сверху "
@@ -321,6 +330,132 @@ public class FieldTests extends GameTestSupport {
         Vec3i size = BuildSite.rotatedSize(plan.size(), building.rotation());
         Box around = new Box(building.anchor(), building.anchor().add(size)).expand(1);
         return world.getEntitiesByClass(ItemEntity.class, around, entity -> true);
+    }
+
+    /**
+     * Основатели чертога появляются не в очаге и не вплотную к нему.
+     * <p>
+     * Над блоком ратуши у гномов горит очаг зала, а жители появлялись ровно
+     * над блоком ратуши: их сносило на шаг к самому огню, и курьера в толкотне
+     * вдавливало в костёр — в каждом прогоне настоящего рельефа он сгорал
+     * в первую минуту деревни.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "fields_arrival", tickLimit = 200)
+    public void aHoldsFoundersArriveClearOfTheHearth(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos foot = context.getAbsolutePos(new BlockPos(0, 1, 0));
+        List<BlockPos> mountain = raiseMountain(world, foot);
+        BlockPos floor = Hold.floorUnder(world, foot.getX(), foot.getZ()).orElse(foot);
+        Settlement[] hold = new Settlement[1];
+
+        context.runAtTick(DARKENS, () -> {
+            hold[0] = Villages.found(world, DWARF, floor).orElse(null);
+            try {
+                if (hold[0] == null) {
+                    context.throwGameTestException("Чертог не встал в горе: помеха="
+                            + whoBlocks(manager, floor));
+                    return;
+                }
+                List<String> burning = new ArrayList<>();
+                for (com.villagepax.sim.Citizen founder : hold[0].citizens()) {
+                    com.villagepax.entity.CitizenEntity body = founder.entityUuid()
+                            .map(world::getEntity)
+                            .filter(com.villagepax.entity.CitizenEntity.class::isInstance)
+                            .map(com.villagepax.entity.CitizenEntity.class::cast).orElse(null);
+                    if (body == null) {
+                        burning.add(founder.fullName() + " без тела");
+                        continue;
+                    }
+                    BlockPos feet = body.getBlockPos();
+                    boolean fire = false;
+                    for (int dx = -1; dx <= 1; dx++) {
+                        for (int dz = -1; dz <= 1; dz++) {
+                            fire |= com.villagepax.sim.Hazards.standingHurts(world, feet.add(dx, 0, dz));
+                        }
+                    }
+                    boolean walled = !world.getBlockState(feet).getCollisionShape(world, feet).isEmpty();
+                    if (fire || walled) {
+                        burning.add(founder.fullName() + " в " + feet.toShortString()
+                                + (fire ? " у огня" : "") + (walled ? " в камне" : ""));
+                    }
+                }
+                if (!burning.isEmpty()) {
+                    context.throwGameTestException("Основатели чертога появились в опасном месте: "
+                            + burning);
+                }
+            } finally {
+                cleanUpVillage(world, manager, hold[0], floor, mountain);
+            }
+            context.complete();
+        });
+    }
+
+    /**
+     * В ратуше любого народа и уровня житель появляется на свободном полу,
+     * не в огне и не рядом с ним.
+     * <p>
+     * Над блоком ратуши у пони, гномов и эльфов горит очаг, у норманнов
+     * и майя лежит ковёр, у северян — камень очага. Пришлый, рождённый
+     * и вернувшийся из похода появлялись ровно над блоком ратуши — то есть
+     * в огне или в камне, как только колония поднимала ратушу.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "fields_townhalls", tickLimit = 100)
+    public void everyTownHallHasAPlaceToArrive(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(12, 141, 12));
+        List<String> complaints = new ArrayList<>();
+        List<Identifier> halls = SchematicLoader.ids().stream()
+                .filter(id -> id.getPath().contains("/town_hall_lvl"))
+                .sorted(java.util.Comparator.comparing(Identifier::toString)).toList();
+        for (Identifier id : halls) {
+            Identifier type = BuildJob.buildingTypeOf(id).orElseThrow();
+            Identifier culture = new Identifier(type.getNamespace(), type.getPath().split("/")[0]);
+            Schematic first = SchematicLoader.get(new Identifier(type.getNamespace(),
+                    type.getPath() + "_lvl1")).orElseThrow();
+            Schematic schematic = SchematicLoader.get(id).orElseThrow();
+            BlockPos anchor = com.villagepax.screen.BuildOrders.centredAnchor(centre, first,
+                    BlockRotation.NONE);
+            Settlement colony = colonyWithBuilder(world, manager, centre, culture);
+            Building site = new Building(UUID.randomUUID(), type, BuildJob.levelOf(id).orElse(1),
+                    anchor, BlockRotation.NONE, BuildProgress.PLANNED, List.of());
+            colony.addBuilding(site);
+            Materials.required(schematic).forEach((item, count) ->
+                    site.stock().add(Registries.ITEM.getId(item), count));
+            try {
+                if (BuildJob.advance(world, manager, colony.id(), site.id(), 40_000)
+                        != BuildJob.Outcome.FINISHED) {
+                    complaints.add(id + ": не достроилась");
+                    continue;
+                }
+                BlockPos feet = BlockPos.ofFloored(com.villagepax.entity.CitizenSpawner.arrival(world, colony));
+                boolean fire = false;
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        fire |= com.villagepax.sim.Hazards.standingHurts(world, feet.add(dx, 0, dz));
+                    }
+                }
+                boolean walled = !world.getBlockState(feet).getCollisionShape(world, feet).isEmpty()
+                        || !world.getBlockState(feet.up()).getCollisionShape(world, feet.up()).isEmpty();
+                boolean floating = !world.getBlockState(feet.down()).isSolidBlock(world, feet.down());
+                if (fire || walled || floating) {
+                    complaints.add(id + ": житель появится в " + feet.subtract(centre).toShortString()
+                            + " от ратуши" + (fire ? ", у огня" : "") + (walled ? ", в стене" : "")
+                            + (floating ? ", над пустотой" : ""));
+                }
+            } finally {
+                demolish(world, site, schematic);
+                manager.remove(colony.id());
+                world.setBlockState(centre, Blocks.AIR.getDefaultState());
+            }
+        }
+        if (!complaints.isEmpty()) {
+            context.throwGameTestException("Ратуши, где житель появляется в опасном месте:\n  "
+                    + String.join("\n  ", complaints));
+        }
+        context.complete();
     }
 
     /** Грядки поля, на которых посева нет, — в координатах мира. */

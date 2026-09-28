@@ -49,7 +49,7 @@ import java.util.Set;
 public final class Raising {
 
     /** Кольца поиска места для нового здания и шаг между ними, в блоках. */
-    private static final int PLACE_RINGS = 5;
+    public static final int PLACE_RINGS = 5;
     private static final int PLACE_STEP = 7;
 
     /**
@@ -62,6 +62,17 @@ public final class Raising {
      * кольцах — надела не будет, и это честнее дома за околицей.
      */
     public static final int CLOSE_RINGS = 2;
+
+    /**
+     * Сколько колец обходят под ярмарку — до самой границы хутора.
+     * <p>
+     * Ярмарке место на выгоне, а не во дворе: это самый большой след
+     * деревни, пятнадцать на пятнадцать, и на холмах пять общих колец
+     * не находили ему ровного места — деревня стояла без праздника.
+     * Семь колец по семь шагов накрывают всю землю хутора, а за границу
+     * разметка не пустит сама.
+     */
+    public static final int FAR_RINGS = 7;
 
     /** Сколько шагов в сторону стоит один блок подъёма: круче не ходят. */
     private static final int CLIMB_PER_STEP = 3;
@@ -89,13 +100,26 @@ public final class Raising {
     /** То же, но с ограничением, как далеко от ратуши искать место. */
     public static Optional<Building> raise(ServerWorld world, SettlementManager manager,
                                            Settlement settlement, Identifier type, int rings) {
+        return raise(world, manager, settlement, type, rings, false);
+    }
+
+    /**
+     * То же, и в лесу — на поляне, которую вырубят.
+     *
+     * @param clearing мерить землю под деревьями: стволы на следе не мешают,
+     *                 их свалит расчистка
+     */
+    public static Optional<Building> raise(ServerWorld world, SettlementManager manager,
+                                           Settlement settlement, Identifier type, int rings,
+                                           boolean clearing) {
         Identifier schematicId = new Identifier(type.getNamespace(), type.getPath() + "_lvl1");
         Schematic schematic = SchematicLoader.get(schematicId).orElse(null);
         if (schematic == null) {
             return Optional.empty();
         }
 
-        Building site = placeNear(world, manager, settlement, schematicId, rings).orElse(null);
+        Building site = placeNear(world, manager, settlement, schematicId, rings, clearing)
+                .orElse(null);
         if (site == null) {
             return Optional.empty();
         }
@@ -168,6 +192,23 @@ public final class Raising {
     public static Optional<Building> placeNear(ServerWorld world, SettlementManager manager,
                                                Settlement settlement, Identifier schematicId,
                                                int rings) {
+        return placeNear(world, manager, settlement, schematicId, rings, false);
+    }
+
+    /**
+     * То же — и, если велено, на поляне, которую вырубят.
+     * <p>
+     * Обычно колонна со стволом — не место: дом, поставленный в лес, валил
+     * бы рощу ради себя, и деревня выглядела бы вырубкой. Ярмарке это
+     * позволено: её след пятнадцать на пятнадцать, и в лесу на холмах
+     * ни одного такого без ствола не нашлось. Стволы на следе стоят
+     * дороже луга — поляна выбирается, только если ровного луга рядом нет.
+     *
+     * @param clearing мерить землю под деревьями, как будто их свалили
+     */
+    public static Optional<Building> placeNear(ServerWorld world, SettlementManager manager,
+                                               Settlement settlement, Identifier schematicId,
+                                               int rings, boolean clearing) {
         Schematic schematic = SchematicLoader.get(schematicId).orElse(null);
         if (schematic == null) {
             return Optional.empty();
@@ -177,7 +218,7 @@ public final class Raising {
         // к середине, дверью к ней и с наименьшей земляной работой. Дальше
         // искать незачем — дальнее место хуже ближнего уже тем, что дальнее.
         Footing footing = Footing.of(settlement);
-        Heights heights = new Heights(world);
+        Heights heights = new Heights(world, clearing);
         int allowed = Traits.maxSlope(settlement.culture());
         BlockPos centre = settlement.center();
         Set<Long> taken = occupied(world, manager, settlement);
@@ -413,6 +454,14 @@ public final class Raising {
     private static final double DOOR_STEP_WEIGHT = 1.5;
 
     /**
+     * Во что обходится ствол на следе поляны — как полшага лишней дороги.
+     * <p>
+     * Лес под ярмаркой рубят, но луг лучше: поляна с дюжиной стволов
+     * проигрывает ровному лугу в шести шагах дальше.
+     */
+    private static final double FELLING_WEIGHT = 0.5;
+
+    /**
      * Во что обходится каждый блок высоты между полом и площадью.
      * <p>
      * Деревня, у которой все дома на одной отметке, читается улицей;
@@ -455,6 +504,7 @@ public final class Raising {
                                     Schematic schematic, BlockRotation rotation) {
         Vec3i size = BuildSite.rotatedSize(schematic.size(), rotation);
         int[] ground = new int[size.getX() * size.getZ()];
+        int felled = 0;
         for (int dx = 0; dx < size.getX(); dx++) {
             for (int dz = 0; dz < size.getZ(); dz++) {
                 int height = heights.at(column.getX() + dx, column.getZ() + dz);
@@ -462,6 +512,9 @@ public final class Raising {
                     return null;
                 }
                 ground[dx * size.getZ() + dz] = height;
+                if (heights.fells(column.getX() + dx, column.getZ() + dz)) {
+                    felled++;
+                }
             }
         }
 
@@ -471,7 +524,8 @@ public final class Raising {
             return null;
         }
         return new Site(column.withY(floor.y()),
-                EARTHWORK_WEIGHT * floor.meanDeviation() + DOOR_STEP_WEIGHT * floor.mismatch());
+                EARTHWORK_WEIGHT * floor.meanDeviation() + DOOR_STEP_WEIGHT * floor.mismatch()
+                        + FELLING_WEIGHT * felled);
     }
 
     /**

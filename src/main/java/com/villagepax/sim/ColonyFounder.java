@@ -127,7 +127,7 @@ public final class ColonyFounder {
     private static void settleFirstBuilder(ServerWorld world, Settlement settlement,
                                            Culture culture, Identifier cultureId) {
         Citizen builder = Founding.firstBuilder(cultureId, culture, new Random(world.getRandom().nextLong()));
-        builder.setPosition(Vec3d.ofBottomCenter(settlement.center().up()));
+        builder.setPosition(CitizenSpawner.arrival(world, settlement));
         settlement.addCitizen(builder);
 
         CitizenSpawner.spawnBody(world, settlement, builder);

@@ -2,6 +2,7 @@ package com.villagepax.sim.build;
 
 import com.villagepax.sim.Ground;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
+import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 
@@ -19,10 +20,20 @@ public final class Heights {
     private static final int UNKNOWN = Integer.MIN_VALUE + 1;
 
     private final ServerWorld world;
+    private final boolean underTrees;
     private final Long2IntOpenHashMap known = new Long2IntOpenHashMap();
 
     public Heights(ServerWorld world) {
+        this(world, false);
+    }
+
+    /**
+     * @param underTrees мерить землю под деревьями, как будто их свалили,
+     *                   — для поляны, которую вырубят (см. {@link Ground#levelUnderTrees})
+     */
+    public Heights(ServerWorld world, boolean underTrees) {
         this.world = world;
+        this.underTrees = underTrees;
         known.defaultReturnValue(UNKNOWN);
     }
 
@@ -34,9 +45,17 @@ public final class Heights {
         long key = BlockPos.asLong(x, 0, z);
         int height = known.get(key);
         if (height == UNKNOWN) {
-            height = Ground.levelAt(world, x, z).orElse(FloorChoice.NO_GROUND);
+            height = (underTrees ? Ground.levelUnderTrees(world, x, z) : Ground.levelAt(world, x, z))
+                    .orElse(FloorChoice.NO_GROUND);
             known.put(key, height);
         }
         return height;
+    }
+
+    /** Растёт ли в колонне дерево, которое придётся свалить: земля его — под стволом. */
+    public boolean fells(int x, int z) {
+        int height = at(x, z);
+        return underTrees && height != FloorChoice.NO_GROUND
+                && world.getBlockState(new BlockPos(x, height, z)).isIn(BlockTags.LOGS);
     }
 }

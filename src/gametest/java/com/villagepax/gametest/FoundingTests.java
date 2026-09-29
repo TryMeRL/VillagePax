@@ -667,6 +667,11 @@ public class FoundingTests extends GameTestSupport {
                 flock.add(hen);
             }
         }
+        // Кого мир видит сейчас, до закладки: курица в невидимой секции чанка
+        // для деревни не существует, и вывести её из-под земли некому.
+        Set<java.util.UUID> seen = new java.util.HashSet<>();
+        world.getEntitiesByClass(net.minecraft.entity.passive.ChickenEntity.class,
+                new Box(centre).expand(48, 16, 48), hen -> true).forEach(hen -> seen.add(hen.getUuid()));
         Settlement village = Villages.found(world, NORMAN, centre).orElse(null);
         if (village == null) {
             flock.forEach(net.minecraft.entity.Entity::discard);
@@ -681,12 +686,13 @@ public class FoundingTests extends GameTestSupport {
                         BlockPos at = hen.getBlockPos();
                         buried.add(at.subtract(centre).toShortString() + " "
                                 + (hen.isAlive() ? world.getBlockState(at).getBlock().getName().getString()
-                                : "погибла"));
+                                : "погибла") + (seen.contains(hen.getUuid()) ? "" : " (мир её не видел)"));
                     }
                 }
                 if (!buried.isEmpty()) {
                     context.throwGameTestException("Деревня замуровала кур: " + buried.size() + " из "
-                            + flock.size() + " " + buried.stream().limit(5).toList());
+                            + flock.size() + " (видел мир " + seen.size() + ") "
+                            + buried.stream().limit(5).toList());
                 }
             } finally {
                 flock.forEach(net.minecraft.entity.Entity::discard);

@@ -1608,7 +1608,13 @@ abstract class GameTestSupport implements FabricGameTest {
                                         BlockPos at) {
         // Ровный по той же причине, что и билдер: работник в проверке
         // нанят ради своего ремесла, а не ради характера.
-        Citizen citizen = someoneWith(Nature.EVEN, "Работник", Gender.FEMALE);
+        return hireWithBody(world, colony, profession, at, Nature.EVEN);
+    }
+
+    /** То же, но с нравом: игры с жителями смотрят на него — кто садится за стол первым. */
+    static Citizen hireWithBody(ServerWorld world, Settlement colony, Identifier profession,
+                                BlockPos at, Nature nature) {
+        Citizen citizen = someoneWith(nature, "Работник", Gender.FEMALE);
         citizen.setLived(Ages.grownAt());
         citizen.setProfession(profession);
         citizen.setPosition(Vec3d.ofBottomCenter(at));

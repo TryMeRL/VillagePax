@@ -560,6 +560,15 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
             DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
     /**
+     * Борется на руках за игрой.
+     * <p>
+     * Отслеживаемым полем, как пляска: партию знает сервер, а рисует клиент,
+     * и рука соперника должна дрожать от натуги у всех, кто смотрит.
+     */
+    private static final TrackedData<Boolean> WRESTLING =
+            DataTracker.registerData(CitizenEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+
+    /**
      * Рост народа, каким его объявил датапак.
      * <p>
      * Отслеживаемым полем по той же причине, что облик и детство: культура
@@ -640,6 +649,10 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     private static final RawAnimation JUGGLE = RawAnimation.begin().thenLoop("juggle");
     /** Ликует: кончилось состязание. Запускается сервером, как взмах руки. */
     private static final RawAnimation CHEER = RawAnimation.begin().thenPlay("cheer");
+    /** Бросает кости: трясёт кулак у груди и выбрасывает вперёд. Запускается сервером. */
+    private static final RawAnimation THROW = RawAnimation.begin().thenPlay("throw");
+    /** Борется на руках: рука вперёд и согнута, мелкая дрожь от натуги. */
+    private static final RawAnimation WRESTLE = RawAnimation.begin().thenLoop("wrestle");
 
     /** Дорожка рук — её же зовёт сервер, чтобы помахать. */
     private static final String ARMS = "руки";
@@ -1471,20 +1484,23 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
                 state.setAndContinue(WALK)));
         dancers.add(new AnimationController<>(this, ARMS, 3, state ->
                 state.setAndContinue(ARM_TRACKS.get(armsTrack(isSleeping() || isDozing(),
-                        isDancing(), handSwinging, isAttacking(), getMainHandStack(),
+                        isDancing(), isWrestling(), handSwinging, isAttacking(), getMainHandStack(),
                         state.isMoving()))))
                 .triggerableAnim("greet", GREET)
-                .triggerableAnim("cheer", CHEER));
+                .triggerableAnim("cheer", CHEER)
+                .triggerableAnim("throw", THROW));
+        // Борющийся подаётся вперёд, как бегущий: всем весом на руку.
         dancers.add(new AnimationController<>(this, "дыхание", 8, state ->
                 state.setAndContinue(BODY_TRACKS.get(bodyTrack(isSleeping() || isDozing(),
-                        isDancing(), limbAnimator.getSpeed() > RUNNING)))));
+                        isDancing(), limbAnimator.getSpeed() > RUNNING || isWrestling())))));
     }
 
     private static final Map<String, RawAnimation> ARM_TRACKS = Map.ofEntries(
             Map.entry("sleep", SLEEP), Map.entry("dance", DANCE), Map.entry("chop", CHOP),
             Map.entry("dig", DIG), Map.entry("strike", STRIKE), Map.entry("place", PLACE),
             Map.entry("work", WORK), Map.entry("guard", GUARD), Map.entry("juggle", JUGGLE),
-            Map.entry("carry", CARRY), Map.entry("stride", STRIDE), Map.entry("rest", REST));
+            Map.entry("carry", CARRY), Map.entry("stride", STRIDE), Map.entry("rest", REST),
+            Map.entry("wrestle", WRESTLE));
 
     private static final Map<String, RawAnimation> BODY_TRACKS = Map.of(
             "doze", DOZE, "sway", SWAY, "lean", LEAN, "breathe", BREATHE);
@@ -1505,11 +1521,26 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
      */
     public static String armsTrack(boolean resting, boolean dancing, boolean swinging,
                                    boolean guarding, ItemStack held, boolean moving) {
+        return armsTrack(resting, dancing, false, swinging, guarding, held, moving);
+    }
+
+    /**
+     * То же, и с борьбой на руках: борющийся не машет орудием — рука занята
+     * рукой соперника. Спящий и пляшущий не борются, и порядок это держит.
+     *
+     * @return имя дорожки рук
+     */
+    public static String armsTrack(boolean resting, boolean dancing, boolean wrestling,
+                                   boolean swinging, boolean guarding, ItemStack held,
+                                   boolean moving) {
         if (resting) {
             return "sleep";
         }
         if (dancing) {
             return "dance";
+        }
+        if (wrestling) {
+            return "wrestle";
         }
         if (swinging) {
             Item tool = held.getItem();
@@ -1631,6 +1662,27 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         triggerAnim(ARMS, "cheer");
     }
 
+    /**
+     * Бросить кости: взмах рукой над столом.
+     * <p>
+     * Сервер шлёт это сам, как взмах приветствия: только он знает, что
+     * бросок был, — а без движения фраза «Шесть!» висела бы над стоящим
+     * столбом.
+     */
+    public void throwDice() {
+        triggerAnim(ARMS, "throw");
+    }
+
+    public boolean isWrestling() {
+        return dataTracker.get(WRESTLING);
+    }
+
+    public void setWrestling(boolean wrestling) {
+        if (dataTracker.get(WRESTLING) != wrestling) {
+            dataTracker.set(WRESTLING, wrestling);
+        }
+    }
+
     public boolean isDancing() {
         return dataTracker.get(DANCING);
     }
@@ -1678,6 +1730,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         dataTracker.startTracking(CHILD, false);
         dataTracker.startTracking(DOZING, false);
         dataTracker.startTracking(DANCING, false);
+        dataTracker.startTracking(WRESTLING, false);
         dataTracker.startTracking(STATURE, Culture.PLAIN_STATURE);
         dataTracker.startTracking(SPEECH, Optional.empty());
     }

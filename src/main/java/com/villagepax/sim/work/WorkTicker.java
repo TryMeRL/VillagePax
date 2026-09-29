@@ -243,6 +243,12 @@ public final class WorkTicker {
         }
         body.setDancing(false);
 
+        // Вечер у стола — тоже подмена цели, а не работы: компания стоит
+        // у места игры, партия держит соперника лицом к игроку.
+        if (com.villagepax.sim.games.Games.takesOver(context, part, day)) {
+            return;
+        }
+
         switch (part) {
             case SLEEP -> {
                 // Спать с топором в руке житель не должен: инструмент —

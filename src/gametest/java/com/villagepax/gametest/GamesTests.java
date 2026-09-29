@@ -102,35 +102,6 @@ public class GamesTests extends GameTestSupport {
     private static final Identifier NORMAN_BREWERY_PLAN =
             new Identifier("villagepax", "norman/brewery_lvl1");
 
-    /** Деревня народа на своём лугу: трава поверх земли мира, ратуша-блок в углу. */
-    private record Meadow(Settlement village, BlockPos hall, List<BlockPos> grass) {
-    }
-
-    private static Meadow meadow(TestContext context, ServerWorld world, SettlementManager manager) {
-        List<BlockPos> grass = new ArrayList<>();
-        for (int x = 0; x < 32; x++) {
-            for (int z = 0; z < 32; z++) {
-                BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
-                world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
-                grass.add(at);
-            }
-        }
-        BlockPos hall = context.getAbsolutePos(new BlockPos(24, 2, 24));
-        Settlement village = colonyWithBuilder(world, manager, hall);
-        village.setOwner(Owner.AUTONOMOUS);
-        return new Meadow(village, hall, grass);
-    }
-
-    private static void clearMeadow(ServerWorld world, SettlementManager manager, Meadow meadow) {
-        for (BlockPos at : manager.decorOf(meadow.village().id())) {
-            world.setBlockState(at, Blocks.AIR.getDefaultState());
-        }
-        discardBodies(world, meadow.village());
-        manager.remove(meadow.village().id());
-        world.setBlockState(meadow.hall(), Blocks.AIR.getDefaultState());
-        meadow.grass().forEach(at -> world.setBlockState(at, Blocks.AIR.getDefaultState()));
-    }
-
     /** Место игры — у игорного стола, если он есть: за ним и собираются. */
     @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_spot")
     public void theSpotIsTheTableFirst(TestContext context) {
@@ -304,13 +275,6 @@ public class GamesTests extends GameTestSupport {
                     context.getAbsolutePos(new BlockPos(16 + i, 2, 18)), SIX.get(i)));
         }
         return adults;
-    }
-
-    /** Что житель сейчас говорит — ключом словаря. */
-    private static Optional<String> spoken(CitizenEntity body) {
-        return body.speech().map(Text::getContent)
-                .filter(TranslatableTextContent.class::isInstance)
-                .map(content -> ((TranslatableTextContent) content).getKey());
     }
 
     /**

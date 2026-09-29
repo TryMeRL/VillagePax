@@ -12,7 +12,8 @@ import net.minecraft.server.world.ServerWorld;
 import java.util.List;
 
 /**
- * Часы игр: идущие партии, ответы компании, игра самой с собой, оклики прохожих.
+ * Часы игр: идущие партии и прятки, ответы компании, игра самой с собой,
+ * оклики прохожих и приглашения детей.
  * <p>
  * Настоящие время и игроки подставляются здесь и только здесь: правила
  * принимают их доводами, потому что мир игровых проверок общий и время
@@ -51,11 +52,13 @@ public final class GamesTicker {
     public static void register() {
         ServerTickEvents.END_WORLD_TICK.register(Profiled.tick("games", GamesTicker::tick));
         ServerLifecycleEvents.SERVER_STOPPING.register(Bouts::stopAll);
+        ServerLifecycleEvents.SERVER_STOPPING.register(HideAndSeek::stopAll);
     }
 
     static void tick(ServerWorld world) {
         SettlementManager manager = SettlementManager.get(world);
         Bouts.tick(world);
+        HideAndSeek.tick(world);
         Company.replies(world, manager);
         forgetOld(world, manager);
         List<ServerPlayerEntity> players = world.getPlayers();
@@ -66,6 +69,9 @@ public final class GamesTicker {
         long day = Schedule.dayOf(timeOfDay);
         if (world.getTime() % PASSERSBY_EVERY == 0) {
             Passersby.tick(world, manager, day, timeOfDay, players);
+            for (Settlement settlement : manager.all()) {
+                HideAndSeek.invite(world, settlement, day, timeOfDay, players);
+            }
         }
         if (world.getTime() % Company.AMBIENT_EVERY == 0) {
             for (Settlement settlement : manager.all()) {

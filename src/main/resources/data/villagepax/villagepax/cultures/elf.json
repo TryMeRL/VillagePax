@@ -76,5 +76,6 @@
     "villagepax:maya": 5,
     "villagepax:norman": 0,
     "villagepax:dwarf": -10
-  }
+  },
+  "treat": "villagepax:elven_nectar"
 }

@@ -1220,5 +1220,11 @@
   "villagepax.games.screen.plus": "+%s мед.",
   "villagepax.games.screen.minus": "−%s мед.",
   "villagepax.games.screen.again": "Ещё партию",
-  "villagepax.games.screen.leave": "Встать"
+  "villagepax.games.screen.leave": "Встать",
+  "villagepax.hide.counting": "Считаю… %s",
+  "villagepax.hide.seek": "Ищи!",
+  "villagepax.hide.bar_counting": "Прятки: считаю…",
+  "villagepax.hide.bar": "Прятки: найдено %s из %s · %s",
+  "villagepax.hide.gift": "Гостинец от %s: %s и два медяка",
+  "villagepax.hide.village": "деревни"
 }

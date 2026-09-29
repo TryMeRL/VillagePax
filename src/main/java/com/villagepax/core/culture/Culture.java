@@ -37,7 +37,8 @@ public record Culture(
         List<Identifier> traits,
         float stature,
         Map<Identifier, Integer> diplomacyDefaults,
-        Map<Identifier, String> titles
+        Map<Identifier, String> titles,
+        Optional<Identifier> treat
 ) {
 
     /**
@@ -56,7 +57,7 @@ public record Culture(
                    List<Identifier> buildings, List<Identifier> traits,
                    Map<Identifier, Integer> diplomacyDefaults) {
         this(displayName, kind, spawn, namePools, buildings, List.of(), List.of(), traits,
-                PLAIN_STATURE, diplomacyDefaults, Map.of());
+                PLAIN_STATURE, diplomacyDefaults, Map.of(), Optional.empty());
     }
 
     public static final Codec<Culture> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -76,7 +77,12 @@ public record Culture(
             // и автор датапака искал бы, куда делся его скальд.
             com.villagepax.core.StrictCodecs.optional("titles",
                     Codec.unboundedMap(Identifier.CODEC, Codec.STRING), Map.<Identifier, String>of())
-                    .forGetter(Culture::titles)
+                    .forGetter(Culture::titles),
+            // Сласть народа — гостинец за прятки. Строго: описка в имени
+            // предмета тихо вернула бы печенье, и автор датапака гадал бы,
+            // куда делся его пирог.
+            com.villagepax.core.StrictCodecs.optional("treat", Identifier.CODEC)
+                    .forGetter(Culture::treat)
     ).apply(instance, Culture::new));
 
     /**

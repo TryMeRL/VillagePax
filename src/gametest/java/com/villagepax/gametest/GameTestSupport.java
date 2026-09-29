@@ -16,6 +16,8 @@ import com.villagepax.sim.BuildProgress;
 import net.minecraft.server.world.ServerWorld;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.entity.CitizenSpawner;
+import net.minecraft.text.Text;
+import net.minecraft.text.TranslatableTextContent;
 import net.minecraft.util.math.Vec3d;
 import com.villagepax.core.war.WarParty;
 import com.villagepax.sim.Building;
@@ -1867,5 +1869,43 @@ abstract class GameTestSupport implements FabricGameTest {
         for (int tick = 0; tick <= Match.COUNTDOWN; tick++) {
             Matches.tick(world);
         }
+    }
+
+    // --- игры с жителями: деревня на лугу ---
+
+    /** Деревня народа на своём лугу: трава поверх земли мира, ратуша-блок в углу. */
+    record Meadow(Settlement village, BlockPos hall, List<BlockPos> grass) {
+    }
+
+    static Meadow meadow(TestContext context, ServerWorld world, SettlementManager manager) {
+        List<BlockPos> grass = new ArrayList<>();
+        for (int x = 0; x < 32; x++) {
+            for (int z = 0; z < 32; z++) {
+                BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                grass.add(at);
+            }
+        }
+        BlockPos hall = context.getAbsolutePos(new BlockPos(24, 2, 24));
+        Settlement village = colonyWithBuilder(world, manager, hall);
+        village.setOwner(Owner.AUTONOMOUS);
+        return new Meadow(village, hall, grass);
+    }
+
+    static void clearMeadow(ServerWorld world, SettlementManager manager, Meadow meadow) {
+        for (BlockPos at : manager.decorOf(meadow.village().id())) {
+            world.setBlockState(at, Blocks.AIR.getDefaultState());
+        }
+        discardBodies(world, meadow.village());
+        manager.remove(meadow.village().id());
+        world.setBlockState(meadow.hall(), Blocks.AIR.getDefaultState());
+        meadow.grass().forEach(at -> world.setBlockState(at, Blocks.AIR.getDefaultState()));
+    }
+
+    /** Что житель сейчас говорит — ключом словаря. */
+    static Optional<String> spoken(CitizenEntity body) {
+        return body.speech().map(Text::getContent)
+                .filter(TranslatableTextContent.class::isInstance)
+                .map(content -> ((TranslatableTextContent) content).getKey());
     }
 }

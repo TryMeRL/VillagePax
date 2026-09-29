@@ -73,5 +73,6 @@
   "diplomacy_defaults": {
     "villagepax:norman": 5,
     "villagepax:maya": 0
-  }
+  },
+  "treat": "villagepax:rainbow_cupcake"
 }

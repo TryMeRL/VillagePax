@@ -68,6 +68,31 @@ class CultureCodecTest {
                 "незнакомый народ нейтрален, а не враждебен");
     }
 
+    /**
+     * Сласть для гостинца за прятки — необязательна: без неё — печенье,
+     * а народ из датапака вправе угощать своим.
+     */
+    @Test
+    void aTreatIsOptional() {
+        Culture plain = parse("""
+                {
+                  "display_name": "villagepax.culture.spare",
+                  "kind": "fantasy",
+                  "spawn": { "biomes": "#minecraft:is_hill" }
+                }
+                """).result().orElseThrow();
+        Culture sweet = parse("""
+                {
+                  "display_name": "villagepax.culture.pony",
+                  "kind": "fantasy",
+                  "spawn": { "biomes": "#minecraft:is_hill" },
+                  "treat": "villagepax:rainbow_cupcake"
+                }
+                """).result().orElseThrow();
+        assertEquals(java.util.Optional.empty(), plain.treat());
+        assertEquals(java.util.Optional.of(new Identifier("villagepax", "rainbow_cupcake")), sweet.treat());
+    }
+
     @Test
     void rejectsUnknownKind() {
         DataResult<Culture> result = parse("""

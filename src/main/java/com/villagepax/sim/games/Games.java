@@ -37,6 +37,10 @@ public final class Games {
         if (Bouts.steers(context)) {
             return true;
         }
+        // Прячущегося ведут прятки: днём, когда взрослые на работе.
+        if (HideAndSeek.steers(context)) {
+            return true;
+        }
         ServerWorld world = context.world();
         List<Citizen> company = Company.of(world, context.settlement(), day, part,
                 world.getTimeOfDay(), world.getPlayers());
@@ -67,7 +71,8 @@ public final class Games {
     /**
      * Щелчок по жителю — что на него ответят игры.
      * <p>
-     * По порядку: своя партия с ним — её окно; ребёнок — прятки; у кого своё
+     * По порядку: своя партия с ним — её окно; ребёнок — прятки (начать днём,
+     * найти в идущих); у кого своё
      * дело по щелчку (затейник, старейшина с квестами, купец за прилавком),
      * тому обычный щелчок, а игре — щелчок с Shift; можно сесть за стол —
      * окно игры. Иначе отказ вслух с причиной — но только пустой рукой или
@@ -81,7 +86,8 @@ public final class Games {
             return Answer.WINDOW;
         }
         if (Ages.isChild(citizen)) {
-            return Answer.PASS;
+            return HideAndSeek.clicked(world, player, settlement, citizen, day, timeOfDay)
+                    ? Answer.HIDING : Answer.PASS;
         }
         if (business && !player.isSneaking()) {
             return Answer.PASS;

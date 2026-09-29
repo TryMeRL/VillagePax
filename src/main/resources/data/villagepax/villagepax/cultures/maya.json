@@ -76,5 +76,6 @@
   },
   "diplomacy_defaults": {
     "villagepax:norman": -10
-  }
+  },
+  "treat": "villagepax:cacao"
 }

@@ -1220,5 +1220,11 @@
   "villagepax.games.screen.plus": "+%s cp",
   "villagepax.games.screen.minus": "−%s cp",
   "villagepax.games.screen.again": "Again",
-  "villagepax.games.screen.leave": "Leave"
+  "villagepax.games.screen.leave": "Leave",
+  "villagepax.hide.counting": "Counting… %s",
+  "villagepax.hide.seek": "Seek!",
+  "villagepax.hide.bar_counting": "Hide-and-seek: counting…",
+  "villagepax.hide.bar": "Hide-and-seek: found %s of %s · %s",
+  "villagepax.hide.gift": "A treat from %s: %s and two coppers",
+  "villagepax.hide.village": "the village"
 }

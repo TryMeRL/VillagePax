@@ -16,6 +16,7 @@ import com.villagepax.sim.build.Schematic;
 import com.villagepax.item.ModItems;
 import com.villagepax.screen.GamesNet;
 import com.villagepax.sim.Warehouse;
+import com.villagepax.sim.games.ArmWrestle;
 import com.villagepax.sim.games.Bout;
 import com.villagepax.sim.games.Bouts;
 import com.villagepax.sim.games.Company;
@@ -820,6 +821,109 @@ public class GamesTests extends GameTestSupport {
             clearTable(world, manager, table);
         }
         context.complete();
+    }
+
+    // --- армрестлинг ---
+
+    /** Соперник для армрестлинга: по ремеслу — сила, по нраву — упорство. */
+    private static Table armTable(TestContext context, ServerWorld world, SettlementManager manager,
+                                  Identifier craft, Nature nature) {
+        Meadow ground = meadow(context, world, manager);
+        Citizen rival = hireWithBody(world, ground.village(), craft,
+                context.getAbsolutePos(new BlockPos(20, 2, 24)), nature);
+        CitizenEntity body = (CitizenEntity) world.getEntity(rival.entityUuid().orElseThrow());
+        PlayerEntity player = playerAt(context, context.getAbsolutePos(new BlockPos(22, 2, 24)));
+        player.getInventory().setStack(9, new ItemStack(ModItems.COIN, 10));
+        return new Table(ground, rival, body, player);
+    }
+
+    /** Нажимать посреди каждого прохода: на двенадцатом тике отметка — в середине зелёного. */
+    private static void pressInTime(TestContext context, ServerWorld world, Bout bout, int passes) {
+        for (int pass = 0; pass < passes; pass++) {
+            context.runAtTick(12 + 24L * pass, () -> bout.press(world));
+        }
+    }
+
+    /**
+     * Нажатия в такт кладут руку купца: сила 0,4 — давление 0,4 за тик,
+     * за проход +18 − 9,6 = +8,4, край к двенадцатому нажатию. Соперник всю
+     * партию борется телом, а по итогу отпускает руку.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_arm", tickLimit = 400)
+    public void pressingInTheGreenWinsTheArm(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = armTable(context, world, manager, Villages.MERCHANT, Nature.EVEN);
+        Bout bout = begin(context, world, table, Bouts.Kind.ARM, 1, dice(3));
+        pressInTime(context, world, bout, 15);
+        context.runAtTick(2, () -> {
+            if (!table.body().isWrestling()) {
+                clearTable(world, manager, table);
+                context.throwGameTestException("Соперник за армрестлингом не борется телом");
+            }
+        });
+        context.runAtTick(360, () -> {
+            try {
+                if (!bout.arm().flatMap(ArmWrestle::outcome).equals(Optional.of(ArmWrestle.Outcome.WIN))) {
+                    context.throwGameTestException("Нажатия в такт не положили руку: " + bout.arm()
+                            .map(arm -> arm.outcome() + " при " + arm.balance()).orElse("нет борьбы"));
+                }
+                if (coins(table.player()) != 11 || table.body().isWrestling()) {
+                    context.throwGameTestException("После победы: монет " + coins(table.player())
+                            + ", всё ещё борется " + table.body().isWrestling());
+                }
+            } finally {
+                clearTable(world, manager, table);
+            }
+            context.complete();
+        });
+    }
+
+    /** Без нажатий рука игрока ложится: 100 / 0,4 = 250 тиков. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_arm", tickLimit = 320)
+    public void aSilentPlayerLosesTheArm(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = armTable(context, world, manager, Villages.MERCHANT, Nature.EVEN);
+        Bout bout = begin(context, world, table, Bouts.Kind.ARM, 1, dice(3));
+        context.runAtTick(270, () -> {
+            try {
+                if (!bout.arm().flatMap(ArmWrestle::outcome).equals(Optional.of(ArmWrestle.Outcome.LOSE))
+                        || coins(table.player()) != 9) {
+                    context.throwGameTestException("Молчащий игрок: итог " + bout.arm()
+                            .flatMap(ArmWrestle::outcome) + ", монет " + coins(table.player()));
+                }
+            } finally {
+                clearTable(world, manager, table);
+            }
+            context.complete();
+        });
+    }
+
+    /**
+     * Ленивый сдаётся, не дожидаясь края: фермер, сила 0,6 — давление 0,5,
+     * после восьмого нажатия перевес 6 × 8 + 6 = 54 ≥ 50.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_arm", tickLimit = 300)
+    public void theLazyRivalGivesUp(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = armTable(context, world, manager, FarmJob.FARMER, Nature.LAZY);
+        Bout bout = begin(context, world, table, Bouts.Kind.ARM, 1, dice(3));
+        pressInTime(context, world, bout, 10);
+        context.runAtTick(240, () -> {
+            try {
+                double balance = bout.arm().map(ArmWrestle::balance).orElse(0.0);
+                if (!bout.arm().flatMap(ArmWrestle::outcome).equals(Optional.of(ArmWrestle.Outcome.WIN))
+                        || balance >= 100) {
+                    context.throwGameTestException("Ленивый не сдался раньше края: итог "
+                            + bout.arm().flatMap(ArmWrestle::outcome) + " при " + balance);
+                }
+            } finally {
+                clearTable(world, manager, table);
+            }
+            context.complete();
+        });
     }
 
     // --- разговор ---

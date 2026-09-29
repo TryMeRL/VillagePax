@@ -234,6 +234,8 @@ public final class Bouts {
         BY_PLAYER.put(player.getUuid(), bout);
         Company.body(world, rival).ifPresent(body -> {
             body.greet();
+            // Рука — на стол сразу: решение стратегии может прийти не в этот тик.
+            body.setWrestling(kind == Kind.ARM);
             Lines.say(body, rival, Say.ACCEPT, player.getName());
         });
         watcher.changed(world, bout);

@@ -1274,6 +1274,8 @@ public class GamesTests extends GameTestSupport {
                 clearMeadow(world, manager, ground);
                 context.throwGameTestException("Кости с фермером: " + dice.settled());
             }
+            // Игрок подходит к строителю туда, где тот стоит: за минуту он мог отойти.
+            player.setPosition(withBuilder.body().getPos().add(1, 0, 0));
             begin(context, world, withBuilder, Bouts.Kind.ARM, 1, dice(3));
         });
 
@@ -1292,11 +1294,13 @@ public class GamesTests extends GameTestSupport {
                 context.throwGameTestException("Наутро: фермер " + spoken(farmerBody) + ", строитель "
                         + spoken(builderBody));
             }
-            // Днём дети: игрок подходит к ним.
-            player.setPosition(net.minecraft.util.math.Vec3d.ofBottomCenter(
-                    context.getAbsolutePos(new BlockPos(17, 2, 14))));
         });
         context.runAtTick(330, () -> {
+            // Днём игрок подходит к детям — туда, где они есть: за день они
+            // успели убежать от места, где появились.
+            CitizenEntity kidBody = (CitizenEntity) world.getEntity(kids.get(0).entityUuid().orElseThrow(() ->
+                    new IllegalStateException("у ребёнка нет тела")));
+            player.setPosition(kidBody.getPos().add(2, 0, 0));
             if (!HideAndSeek.invite(world, village, EVENING_DAY + 1, 3_000, List.of(player))) {
                 clearMeadow(world, manager, ground);
                 context.throwGameTestException("Днём дети не позвали в прятки");

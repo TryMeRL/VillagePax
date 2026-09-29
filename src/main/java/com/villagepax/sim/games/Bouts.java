@@ -234,7 +234,11 @@ public final class Bouts {
         BY_PLAYER.put(player.getUuid(), bout);
         Company.body(world, rival).ifPresent(body -> {
             body.greet();
-            // Рука — на стол сразу: решение стратегии может прийти не в этот тик.
+            // Встаёт, где стоит, и руку — на стол сразу: решение стратегии
+            // может прийти не в этот тик, а согласившийся не должен уходить
+            // к прежней цели — дальше восьми блоков это сданная партия.
+            body.setWorkTarget(body.getBlockPos());
+            body.setWorkFocus(player.getBlockPos().up());
             body.setWrestling(kind == Kind.ARM);
             Lines.say(body, rival, Say.ACCEPT, player.getName());
         });

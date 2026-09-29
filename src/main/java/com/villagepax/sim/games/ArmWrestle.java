@@ -66,6 +66,18 @@ public final class ArmWrestle {
         return t <= PASS_TICKS ? (double) t / PASS_TICKS : 2.0 - (double) t / PASS_TICKS;
     }
 
+    /**
+     * То же для кадра: между тиками отметка бежит плавно.
+     * <p>
+     * Судит сервер по целому тику ({@link #markerAt(long)}); клиенту же
+     * снимок приходит раз в два тика, а рисовать отметку надо каждый кадр.
+     */
+    public static double markerAt(double tick) {
+        double period = 2.0 * PASS_TICKS;
+        double t = ((tick % period) + period) % period;
+        return t <= PASS_TICKS ? t / PASS_TICKS : 2.0 - t / PASS_TICKS;
+    }
+
     public boolean inZone(double marker) {
         return Math.abs(marker - 0.5) <= zoneWidth() / 2;
     }

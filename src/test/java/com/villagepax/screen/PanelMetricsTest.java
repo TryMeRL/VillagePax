@@ -58,6 +58,23 @@ class PanelMetricsTest {
                 "в экране затейника тело не вмещает и трёх состязаний");
     }
 
+    /**
+     * Окно игры: заголовок, строка «чей ход» и тело, в котором встают две
+     * игры со ставками или кости обоих с кнопками. И помещается в самое
+     * маленькое окно игры — 320 на 240 при крупном интерфейсе.
+     */
+    @Test
+    void gamePanelAddsUpAndFits() {
+        assertTrue(PanelMetrics.addsUp(PanelMetrics.GAME_HEIGHT,
+                        PanelMetrics.HEADER, PanelMetrics.STATUS),
+                "окно игры не сходится по высоте");
+        assertTrue(PanelMetrics.bodyHeight(PanelMetrics.GAME_HEIGHT,
+                        PanelMetrics.HEADER, PanelMetrics.STATUS) >= 120,
+                "в окне игры тело не вмещает двух игр со ставками");
+        assertTrue(PanelMetrics.GAME_WIDTH <= 320 && PanelMetrics.GAME_HEIGHT <= 240,
+                "окно игры не помещается в 320 на 240");
+    }
+
     /** Тело обязано быть больше строки: иначе прокрутка бессмысленна. */
     @Test
     void bodyIsWorthScrolling() {

@@ -43,6 +43,16 @@ class ArmWrestleTest {
         assertEquals(0.0, ArmWrestle.markerAt(48), 1e-9);
     }
 
+    /** Для кадра — та же отметка, но и между тиками: клиент рисует её плавно. */
+    @Test
+    void theMarkerGlidesBetweenTicks() {
+        assertEquals(0.25, ArmWrestle.markerAt(6.0), 1e-9);
+        assertEquals(0.5, ArmWrestle.markerAt(12.0), 1e-9);
+        assertEquals(0.75, ArmWrestle.markerAt(30.0), 1e-9);
+        assertEquals(0.25, ArmWrestle.markerAt(-6.0), 1e-9);
+        assertEquals(ArmWrestle.markerAt(36L), ArmWrestle.markerAt(36.0), 1e-9);
+    }
+
     @Test
     void theStrongerTheNarrowerTheGreen() {
         assertEquals(0.30, new ArmWrestle(0.0, Nature.EVEN).zoneWidth(), 1e-9);

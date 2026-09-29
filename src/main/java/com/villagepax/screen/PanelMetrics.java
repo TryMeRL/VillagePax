@@ -54,6 +54,14 @@ public final class PanelMetrics {
     public static final int FESTIVAL_WIDTH = 320;
     public static final int FESTIVAL_HEIGHT = 230;
 
+    /**
+     * Окно игры за столом: соперник, строка «чей ход» и тело — выбор игры
+     * или партия. Меньше затейника: игра одна, и смотрят в неё, а не
+     * читают.
+     */
+    public static final int GAME_WIDTH = 280;
+    public static final int GAME_HEIGHT = 200;
+
     /** Строка «сегодня праздник» или «через N дн.» под заголовком. */
     public static final int STATUS = 12;
 

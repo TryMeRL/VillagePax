@@ -98,6 +98,7 @@ public class VillagePaxClient implements ClientModInitializer {
         registerColonyMap();
         registerQuestScreen();
         registerFestivalScreen();
+        registerGameScreen();
         registerHologram();
         registerTooltips();
     }
@@ -183,6 +184,24 @@ public class VillagePaxClient implements ClientModInitializer {
                     var view = com.villagepax.screen.FestivalNet.read(buf);
                     client.execute(() -> view.ifPresent(fresh ->
                             com.villagepax.client.screen.FestivalScreen.open(client, fresh)));
+                });
+    }
+
+    /**
+     * Окно игры за столом: снимок с сервера после каждого хода; сервер же
+     * закрывает его, когда партия снята или сдана.
+     */
+    private static void registerGameScreen() {
+        ClientPlayNetworking.registerGlobalReceiver(com.villagepax.screen.GamesNet.OPEN,
+                (client, handler, buf, sender) -> {
+                    var view = com.villagepax.screen.GamesNet.read(buf);
+                    client.execute(() -> view.ifPresent(fresh ->
+                            com.villagepax.client.screen.GameScreen.open(client, fresh)));
+                });
+        ClientPlayNetworking.registerGlobalReceiver(com.villagepax.screen.GamesNet.CLOSE,
+                (client, handler, buf, sender) -> {
+                    buf.readString();
+                    client.execute(() -> com.villagepax.client.screen.GameScreen.closeFromServer(client));
                 });
     }
 

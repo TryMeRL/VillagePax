@@ -1226,5 +1226,8 @@
   "villagepax.hide.bar_counting": "Hide-and-seek: counting…",
   "villagepax.hide.bar": "Hide-and-seek: found %s of %s · %s",
   "villagepax.hide.gift": "A treat from %s: %s and two coppers",
-  "villagepax.hide.village": "the village"
+  "villagepax.hide.village": "the village",
+  "villagepax.guide.games": "§lTable games§r\n\nEvenings, a company stands by the brewery or the town hall. Click one: dice or arm wrestling.\n\nElder, merchant: Shift-click.\n\nThey remember the score.",
+  "villagepax.guide.stakes": "§lStakes§r\n\nIn a village, for coppers: at most half the rival's purse. Exactly 21 pays double.\n\nLeave early and you forfeit.\n\nIn a colony, just for fun.",
+  "villagepax.guide.hide": "§lHide-and-seek§r\n\nBy day the children ask you themselves. Click a child: count for ten seconds, then seek for two minutes.\n\nFind them all and a mother gives you her people's treat and two coppers."
 }

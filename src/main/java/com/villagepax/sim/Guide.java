@@ -64,7 +64,10 @@ public final class Guide {
             "villagepax.guide.bonds",
             "villagepax.guide.treats",
             "villagepax.guide.festival",
-            "villagepax.guide.contests");
+            "villagepax.guide.contests",
+            "villagepax.guide.games",
+            "villagepax.guide.stakes",
+            "villagepax.guide.hide");
 
     private Guide() {
     }

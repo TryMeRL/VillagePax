@@ -14,10 +14,12 @@ import com.villagepax.sim.build.Access;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Schematic;
 import com.villagepax.item.ModItems;
+import com.villagepax.screen.GamesNet;
 import com.villagepax.sim.Warehouse;
 import com.villagepax.sim.games.Bout;
 import com.villagepax.sim.games.Bouts;
 import com.villagepax.sim.games.Company;
+import com.villagepax.sim.games.Games;
 import com.villagepax.sim.games.GameSpot;
 import com.villagepax.sim.games.GamesLedger;
 import com.villagepax.sim.games.Rivalry;
@@ -818,5 +820,135 @@ public class GamesTests extends GameTestSupport {
             clearTable(world, manager, table);
         }
         context.complete();
+    }
+
+    // --- разговор ---
+
+    /**
+     * Щелчок по члену компании вечером — окно игры со ставками по кошельку
+     * соперника; днём пустой рукой — отказ вслух с причиной; с предметом
+     * в руке — щелчок не съедается: он остаётся предмету.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_talk")
+    public void aClickOpensTheTableOrSaysWhyNot(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        Citizen other = hireWithBody(world, table.ground().village(), FarmJob.FARMER,
+                context.getAbsolutePos(new BlockPos(21, 2, 26)));
+        CitizenEntity otherBody = (CitizenEntity) world.getEntity(other.entityUuid().orElseThrow());
+        try {
+            Settlement village = table.ground().village();
+            Games.Answer evening = Games.answer(world, table.player(), village, table.rival(), false,
+                    EVENING_DAY, EVENING);
+            if (evening != Games.Answer.WINDOW) {
+                context.throwGameTestException("Вечером щелчок по игроку компании: " + evening);
+            }
+            List<Integer> stakes = GamesNet.viewOf(world, table.player(), village, table.rival(),
+                    EVENING_DAY, EVENING).stakes();
+            if (!stakes.equals(List.of(1, 2))) {
+                context.throwGameTestException("Ставки у фермера с кошельком 4: " + stakes);
+            }
+            Games.Answer day = Games.answer(world, table.player(), village, table.rival(), false,
+                    EVENING_DAY, 8_000);
+            if (day != Games.Answer.REFUSED
+                    || spoken(table.body()).filter(key -> key.contains(".busy.")).isEmpty()) {
+                context.throwGameTestException("Днём пустой рукой: " + day + ", сказал "
+                        + spoken(table.body()));
+            }
+            table.player().getInventory().setStack(table.player().getInventory().selectedSlot,
+                    new ItemStack(net.minecraft.item.Items.OAK_PLANKS));
+            Games.Answer busyHands = Games.answer(world, table.player(), village, other, false,
+                    EVENING_DAY, 8_000);
+            if (busyHands != Games.Answer.PASS || otherBody.speech().isPresent()) {
+                context.throwGameTestException("С доской в руке днём: " + busyHands + ", сказал "
+                        + spoken(otherBody));
+            }
+        } finally {
+            clearTable(world, manager, table);
+        }
+        context.complete();
+    }
+
+    /**
+     * У старейшины своё дело по щелчку — квесты: обычный щелчок остаётся ему,
+     * а сыграть с ним — щелчок с Shift.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_talk")
+    public void anEldersClickStaysHisOwn(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        Citizen elder = hireWithBody(world, table.ground().village(), Villages.ELDER,
+                context.getAbsolutePos(new BlockPos(21, 2, 26)));
+        try {
+            Settlement village = table.ground().village();
+            Games.Answer plain = Games.answer(world, table.player(), village, elder, true,
+                    EVENING_DAY, EVENING);
+            table.player().setSneaking(true);
+            Games.Answer crouched = Games.answer(world, table.player(), village, elder, true,
+                    EVENING_DAY, EVENING);
+            if (plain != Games.Answer.PASS || crouched != Games.Answer.WINDOW) {
+                context.throwGameTestException("Щелчок по занятому делом: обычный " + plain
+                        + ", с Shift " + crouched);
+            }
+        } finally {
+            clearTable(world, manager, table);
+        }
+        context.complete();
+    }
+
+    /**
+     * Монеты только в кошеле-предмете: ставку видно, и платят из кошеля —
+     * ничего не теряется.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_talk", tickLimit = 120)
+    public void stakesArePaidFromAPurseToo(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Meadow ground = meadow(context, world, manager);
+        Citizen merchant = hireWithBody(world, ground.village(), Villages.MERCHANT,
+                context.getAbsolutePos(new BlockPos(20, 2, 24)));
+        PlayerEntity player = playerAt(context, context.getAbsolutePos(new BlockPos(22, 2, 24)));
+        ItemStack purse = new ItemStack(ModItems.PURSE);
+        com.villagepax.item.PurseItem.put(purse, 20);
+        // Не в руку: рука игрока в проверках разговора должна быть пустой.
+        player.getInventory().setStack(9, purse);
+        Table table = new Table(ground, merchant,
+                (CitizenEntity) world.getEntity(merchant.entityUuid().orElseThrow()), player);
+        List<Integer> stakes = GamesNet.viewOf(world, player, ground.village(), merchant,
+                EVENING_DAY, EVENING).stakes();
+        if (!stakes.equals(List.of(1, 2, 5, 9))) {
+            clearTable(world, manager, table);
+            context.throwGameTestException("Ставки из кошеля у купца: " + stakes);
+        }
+        Bout bout = begin(context, world, table, Bouts.Kind.DICE, 5, dice(6, 6, 6, 6, 1));
+        bout.roll(world);
+        bout.roll(world);
+        bout.stand(world);
+        context.runAtTick(80, () -> {
+            try {
+                int left = purseValue(player);
+                if (coins(player) != 15 || left != 15) {
+                    context.throwGameTestException("После проигрыша пяти: всего " + coins(player)
+                            + ", в кошеле " + left + ", ждали 15");
+                }
+            } finally {
+                clearTable(world, manager, table);
+            }
+            context.complete();
+        });
+    }
+
+    /** Сколько медяков в кошелях игрока. */
+    private static int purseValue(PlayerEntity player) {
+        int value = 0;
+        for (int slot = 0; slot < player.getInventory().size(); slot++) {
+            ItemStack stack = player.getInventory().getStack(slot);
+            if (stack.isOf(ModItems.PURSE)) {
+                value += com.villagepax.item.PurseItem.valueOf(stack);
+            }
+        }
+        return value;
     }
 }

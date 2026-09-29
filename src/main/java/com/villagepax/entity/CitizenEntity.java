@@ -1010,10 +1010,12 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     /**
      * Щелчок по жителю: разговор.
      * <p>
-     * Отвечает только тот, кому есть что сказать, — выдающий квесты или
-     * стоящий за столом торга своего народа. Все остальные пропускают
-     * нажатие дальше, чтобы не съедать игроку действие предметом в руке:
-     * житель, глотающий удар кайлом, раздражал бы.
+     * Отвечает тот, кому есть что сказать, — выдающий квесты, стоящий за
+     * столом торга своего народа или сидящий вечером за игорным столом.
+     * Все остальные пропускают нажатие дальше, чтобы не съедать игроку
+     * действие предметом в руке: житель, глотающий удар кайлом, раздражал бы.
+     * Пустой рукой житель говорит, почему не сядет играть, — это ответ,
+     * а не съеденное действие.
      */
     @Override
     protected ActionResult interactMob(PlayerEntity player, Hand hand) {
@@ -1032,7 +1034,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         }
 
         Citizen citizen = data(world).orElse(null);
-        if (citizen == null || citizen.profession().isEmpty()) {
+        if (citizen == null) {
             return ActionResult.PASS;
         }
         SettlementManager manager = SettlementManager.get(world);
@@ -1040,38 +1042,54 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         if (village == null) {
             return ActionResult.PASS;
         }
-        // Торг — вторая причина заговорить, и её нельзя было забыть: народ
-        // с прилавком, но без квестов, молчал бы на щелчок, и прилавок
-        // остался бы недостижимым.
+
+        // Кому есть что сказать по щелчку своим делом.
         //
-        // Но торгует не всякий, а купец: иначе нажатие съедал бы
-        // каждый житель деревни, и удар кайлом по пахарю открывал бы
-        // прилавок.
-        //
-        // Именно купец, а не старейшина, — это «разделим обязанности»
-        // заказчика. Пока купца в деревне нет, за прилавком по-прежнему
-        // старейшина: спрашивается об этом одно место на весь мод, иначе
-        // тело и экран разошлись бы во мнениях, и игрок щёлкал бы
-        // по человеку, который открывает пустоту.
-        Identifier profession = citizen.profession().get();
         // Затейник отвечает всегда — и в своей колонии, и в чужой деревне:
         // праздник для всех, и лавка его — праздничный товар, а не торг
         // с самим собой.
-        if (profession.equals(Villages.ENTERTAINER)) {
-            greet();
-            FestivalNet.open(server, world, village, citizen);
-            return ActionResult.SUCCESS;
-        }
-        boolean gives = QuestManager.all().values().stream()
-                .anyMatch(quest -> quest.giver().equals(profession));
+        //
+        // Торг — вторая причина заговорить, и её нельзя было забыть: народ
+        // с прилавком, но без квестов, молчал бы на щелчок, и прилавок
+        // остался бы недостижимым. Но торгует не всякий, а купец: иначе
+        // нажатие съедал бы каждый житель деревни, и удар кайлом по пахарю
+        // открывал бы прилавок. Именно купец, а не старейшина, — это
+        // «разделим обязанности» заказчика. Пока купца в деревне нет,
+        // за прилавком по-прежнему старейшина: спрашивается об этом одно
+        // место на весь мод, иначе тело и экран разошлись бы во мнениях,
+        // и игрок щёлкал бы по человеку, который открывает пустоту.
         //
         // И торгуют с игроком только чужие: свой купец за своим прилавком
         // продавал бы игроку его же зерно за его же монету. Колонии ларёк
         // всё равно нужен — у него останавливается обоз, — но разговор
         // с самим собой не разговор.
-        boolean trades = profession.equals(Villages.counterKeeper(village))
+        Optional<Identifier> craft = citizen.profession();
+        boolean hosts = craft.filter(Villages.ENTERTAINER::equals).isPresent();
+        boolean gives = craft.filter(id -> QuestManager.all().values().stream()
+                .anyMatch(quest -> quest.giver().equals(id))).isPresent();
+        boolean trades = craft.filter(id -> id.equals(Villages.counterKeeper(village))).isPresent()
                 && village.owner().isAutonomous()
                 && Trading.tableOf(village).isPresent();
+
+        // Игра — раньше дела: у стола в сумерках сидит и старейшина, и купец.
+        // Но у них своё дело по щелчку, и обычный щелчок остаётся делу,
+        // а сыграть с ними — щелчок с Shift. Взрослый без ремесла тоже
+        // играет, поэтому проверка ремесла — после игры.
+        long time = world.getTimeOfDay();
+        com.villagepax.sim.games.Games.Answer answer = com.villagepax.sim.games.Games.answer(world,
+                server, village, citizen, hosts || gives || trades, Schedule.dayOf(time), time);
+        if (answer == com.villagepax.sim.games.Games.Answer.WINDOW) {
+            com.villagepax.screen.GamesNet.open(server, village, citizen);
+            return ActionResult.SUCCESS;
+        }
+        if (answer != com.villagepax.sim.games.Games.Answer.PASS) {
+            return ActionResult.SUCCESS;
+        }
+        if (hosts) {
+            greet();
+            FestivalNet.open(server, world, village, citizen);
+            return ActionResult.SUCCESS;
+        }
         if (!gives && !trades) {
             return ActionResult.PASS;
         }
@@ -1087,7 +1105,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         // прилавок у старейшины, иначе решит, что торговлю сломали:
         // молча исчезнувшая возможность выглядит поломкой, даже когда
         // она просто переехала.
-        if (profession.equals(Villages.ELDER) && !trades
+        if (craft.filter(Villages.ELDER::equals).isPresent() && !trades
                 && village.owner().isAutonomous()
                 && Trading.tableOf(village).isPresent()) {
             server.sendMessage(Text.translatable("villagepax.trade.at_the_stall"), true);

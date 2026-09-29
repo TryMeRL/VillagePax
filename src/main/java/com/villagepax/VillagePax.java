@@ -64,6 +64,7 @@ public class VillagePax implements ModInitializer {
         com.villagepax.sim.festival.Matches.register();
         com.villagepax.sim.games.GamesTicker.register();
         com.villagepax.screen.FestivalNet.registerServer();
+        com.villagepax.screen.GamesNet.registerServer();
         Greeting.register();
         Protection.register();
         BuildCommand.register();

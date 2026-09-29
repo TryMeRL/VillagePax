@@ -175,12 +175,13 @@ public final class Needs {
                 // числа складываются в одно.
                 //
                 // Праздник — за вчерашний день: подсчёт идёт на рассвете,
-                // а гуляли вчера.
+                // а гуляли вчера. И вечер за игрой с хозяином — тоже вчерашний.
                 citizen.setHappiness(citizen.happiness() + HAPPINESS_FED
                         + Comfort.of(world, settlement, citizen)
                         + Faith.solace(world, settlement)
                         + Bonds.moodOf(settlement, citizen)
                         + FestivalDay.cheer(settlement, today - 1)
+                        + com.villagepax.sim.games.GameCheer.of(world, citizen, today - 1)
                         - Wages.discontentOf(settlement));
                 citizen.contented();
             }

@@ -23,6 +23,7 @@ import com.villagepax.sim.games.Company;
 import com.villagepax.sim.games.Games;
 import com.villagepax.sim.games.GameSpot;
 import com.villagepax.sim.games.GamesLedger;
+import com.villagepax.sim.games.Passersby;
 import com.villagepax.sim.games.Rivalry;
 import com.villagepax.sim.trade.Coins;
 import net.minecraft.item.ItemStack;
@@ -918,6 +919,180 @@ public class GamesTests extends GameTestSupport {
                         || balance >= 100) {
                     context.throwGameTestException("Ленивый не сдался раньше края: итог "
                             + bout.arm().flatMap(ArmWrestle::outcome) + " при " + balance);
+                }
+            } finally {
+                clearTable(world, manager, table);
+            }
+            context.complete();
+        });
+    }
+
+    // --- прохожий ---
+
+    /** Утро: житель не спит и окликает. */
+    private static final long MORNING = 1_000;
+
+    /** Проигравший последнюю партию окликает «отыграться» — и не тараторит об этом. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_rivals", tickLimit = 140)
+    public void theLoserCallsForARematch(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        GamesLedger.get(world).record(table.rival().id(), table.player().getUuid(), Rivalry.Result.LOST,
+                EVENING_DAY);
+        Passersby.tick(world, manager, EVENING_DAY + 1, MORNING, List.of(table.player()));
+        if (spoken(table.body()).filter(key -> key.contains(".rematch.")).isEmpty()) {
+            clearTable(world, manager, table);
+            context.throwGameTestException("Проигравший не окликнул: " + spoken(table.body()));
+        }
+        context.runAtTick(100, () -> {
+            try {
+                Passersby.tick(world, manager, EVENING_DAY + 1, MORNING, List.of(table.player()));
+                if (table.body().speech().isPresent()) {
+                    context.throwGameTestException("Окликнул второй раз через пять секунд: "
+                            + spoken(table.body()));
+                }
+            } finally {
+                clearTable(world, manager, table);
+            }
+            context.complete();
+        });
+    }
+
+    /** Выигравший — хвалится. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_rivals")
+    public void theWinnerBoasts(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        try {
+            GamesLedger.get(world).record(table.rival().id(), table.player().getUuid(),
+                    Rivalry.Result.WON, EVENING_DAY);
+            Passersby.tick(world, manager, EVENING_DAY + 1, MORNING, List.of(table.player()));
+            if (spoken(table.body()).filter(key -> key.contains(".boast.")).isEmpty()) {
+                context.throwGameTestException("Выигравший не похвалился: " + spoken(table.body()));
+            }
+        } finally {
+            clearTable(world, manager, table);
+        }
+        context.complete();
+    }
+
+    /** С незнакомцем житель молчит; ночью молчат все. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_rivals")
+    public void aStrangerIsNotHailed(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        try {
+            Passersby.tick(world, manager, EVENING_DAY + 1, MORNING, List.of(table.player()));
+            if (table.body().speech().isPresent()) {
+                context.throwGameTestException("Незнакомца окликнули: " + spoken(table.body()));
+            }
+            GamesLedger.get(world).record(table.rival().id(), table.player().getUuid(),
+                    Rivalry.Result.LOST, EVENING_DAY);
+            Passersby.tick(world, manager, EVENING_DAY + 1, 15_000, List.of(table.player()));
+            if (table.body().speech().isPresent()) {
+                context.throwGameTestException("Окликнули ночью: " + spoken(table.body()));
+            }
+        } finally {
+            clearTable(world, manager, table);
+        }
+        context.complete();
+    }
+
+    // --- колония ---
+
+    /**
+     * В своей колонии — на интерес: ставок нет, монеты не двигаются,
+     * а колонист благодарит хозяина за вечер и наутро будет бодрее.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_colony", tickLimit = 120)
+    public void aColonyPlaysForFun(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        table.ground().village().setOwner(Owner.of(table.player().getUuid()));
+        com.villagepax.screen.GameView view = GamesNet.viewOf(world, table.player(), table.ground().village(),
+                table.rival(), EVENING_DAY, EVENING);
+        if (view.coins() || !view.stakes().equals(List.of(0))) {
+            clearTable(world, manager, table);
+            context.throwGameTestException("В своей колонии на монеты: " + view.coins() + ", ставки "
+                    + view.stakes());
+        }
+        Bout bout = begin(context, world, table, Bouts.Kind.DICE, 0, dice(6, 6, 6, 6, 1));
+        bout.roll(world);
+        bout.roll(world);
+        bout.stand(world);
+        context.runAtTick(80, () -> {
+            try {
+                if (coins(table.player()) != 10) {
+                    context.throwGameTestException("Игра на интерес двинула монеты: " + coins(table.player()));
+                }
+                if (spoken(table.body()).filter(key -> key.contains(".thanks.")).isEmpty()) {
+                    context.throwGameTestException("Колонист не поблагодарил: " + spoken(table.body()));
+                }
+                if (!GamesLedger.get(world).cheered(table.rival().id(), EVENING_DAY)) {
+                    context.throwGameTestException("Вечер с хозяином не запомнился");
+                }
+            } finally {
+                clearTable(world, manager, table);
+            }
+            context.complete();
+        });
+    }
+
+    /** Вечер с хозяином — наутро на три бодрее, чем у того, кто не играл. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_colony")
+    public void anEveningWithTheOwnerCheersUp(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Meadow ground = meadow(context, world, manager);
+        try {
+            Settlement colony = ground.village();
+            colony.setOwner(Owner.of(UUID.randomUUID()));
+            Citizen glad = hireWithBody(world, colony, FarmJob.FARMER,
+                    context.getAbsolutePos(new BlockPos(18, 2, 18)));
+            Citizen plain = hireWithBody(world, colony, FarmJob.FARMER,
+                    context.getAbsolutePos(new BlockPos(19, 2, 18)));
+            for (Citizen citizen : List.of(glad, plain)) {
+                citizen.setSaturation(40);
+                citizen.setHappiness(50);
+            }
+            GamesLedger.get(world).markCheer(glad.id(), EVENING_DAY);
+            com.villagepax.sim.work.Needs.newDay(world, manager, colony, EVENING_DAY + 1);
+            int difference = glad.happiness() - plain.happiness();
+            if (difference != 3) {
+                context.throwGameTestException("Игравший с хозяином бодрее на " + difference + ", ждали 3");
+            }
+        } finally {
+            clearMeadow(world, manager, ground);
+        }
+        context.complete();
+    }
+
+    /** Гость в чужой колонии тоже играет на интерес: колония — не казино. И бодрости за это нет. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_colony", tickLimit = 120)
+    public void aGuestPlaysForFunInAColonyToo(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        table.ground().village().setOwner(Owner.of(UUID.randomUUID()));
+        if (GamesNet.viewOf(world, table.player(), table.ground().village(), table.rival(), EVENING_DAY,
+                EVENING).coins()) {
+            clearTable(world, manager, table);
+            context.throwGameTestException("Гость в колонии играет на монеты");
+        }
+        Bout bout = begin(context, world, table, Bouts.Kind.DICE, 0, dice(6, 6, 6, 6, 1));
+        bout.roll(world);
+        bout.roll(world);
+        bout.stand(world);
+        context.runAtTick(80, () -> {
+            try {
+                if (coins(table.player()) != 10
+                        || GamesLedger.get(world).cheered(table.rival().id(), EVENING_DAY)) {
+                    context.throwGameTestException("Гость: монет " + coins(table.player()) + ", бодрость "
+                            + GamesLedger.get(world).cheered(table.rival().id(), EVENING_DAY));
                 }
             } finally {
                 clearTable(world, manager, table);

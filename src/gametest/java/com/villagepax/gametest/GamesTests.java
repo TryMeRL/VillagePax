@@ -23,6 +23,7 @@ import com.villagepax.sim.games.Company;
 import com.villagepax.sim.games.Games;
 import com.villagepax.sim.games.GameSpot;
 import com.villagepax.sim.games.GamesLedger;
+import com.villagepax.sim.games.HideAndSeek;
 import com.villagepax.sim.games.Passersby;
 import com.villagepax.sim.games.Rivalry;
 import com.villagepax.sim.trade.Coins;
@@ -1193,5 +1194,136 @@ public class GamesTests extends GameTestSupport {
             }
         }
         return value;
+    }
+
+    // --- лакмус ---
+
+    /**
+     * Вечер и день в одной деревне — вся игра с жителями разом.
+     * <p>
+     * Вечером у места игры компания из четырёх, при игроке она бросает сама;
+     * игрок выигрывает в кости у фермера и проигрывает армрестлинг строителю.
+     * Наутро проигравший окликает «отыграться», выигравший хвалится. Днём
+     * ребёнок зовёт в прятки, игрок находит обоих и получает гостинец.
+     * В конце сходятся монеты: у игрока — начальные, плюс выигрыш, минус
+     * проигрыш, плюс два медяка гостинца; на складе деревни — проигрыш.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "litmus_games", tickLimit = 700)
+    public void anEveningAndADayInAVillage(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Meadow ground = meadow(context, world, manager);
+        Settlement village = ground.village();
+        Citizen farmer = hireWithBody(world, village, FarmJob.FARMER,
+                context.getAbsolutePos(new BlockPos(20, 2, 24)), Nature.EVEN);
+        Citizen builder = hireWithBody(world, village, BuildJob.BUILDER,
+                context.getAbsolutePos(new BlockPos(22, 2, 26)), Nature.EVEN);
+        List<Citizen> others = new ArrayList<>();
+        for (Nature nature : List.of(Nature.AMBITIOUS, Nature.LAZY, Nature.COWARD, Nature.PIOUS)) {
+            others.add(hireWithBody(world, village, FarmJob.FARMER,
+                    context.getAbsolutePos(new BlockPos(14 + others.size(), 2, 20)), nature));
+        }
+        Citizen mother = others.get(0);
+        List<Citizen> kids = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            Citizen kid = someoneWith(Nature.EVEN, "Дитя", com.villagepax.sim.Gender.MALE);
+            kid.setLived(0);
+            kid.setParents(UUID.randomUUID(), mother.id());
+            kid.setPosition(net.minecraft.util.math.Vec3d.ofBottomCenter(
+                    context.getAbsolutePos(new BlockPos(16 + i, 2, 12))));
+            village.addCitizen(kid);
+            com.villagepax.entity.CitizenSpawner.spawnBody(world, village, kid);
+            kids.add(kid);
+        }
+        PlayerEntity player = playerAt(context, context.getAbsolutePos(new BlockPos(21, 2, 25)));
+        player.getInventory().setStack(9, new ItemStack(ModItems.COIN, 10));
+        Table withFarmer = new Table(ground, farmer,
+                (CitizenEntity) world.getEntity(farmer.entityUuid().orElseThrow()), player);
+        Table withBuilder = new Table(ground, builder,
+                (CitizenEntity) world.getEntity(builder.entityUuid().orElseThrow()), player);
+        int storeBefore = Warehouse.of(world, village).count(ModItems.COIN);
+
+        // Вечер: компания из четырёх, и при игроке она бросает сама.
+        List<Citizen> company = Company.of(world, village, EVENING_DAY, Schedule.LEISURE, EVENING, List.of(player));
+        if (company.size() != 4) {
+            clearMeadow(world, manager, ground);
+            context.throwGameTestException("Вечером за столом " + company.size() + ", ждали четверых");
+            return;
+        }
+        Company.tick(world, manager, village, EVENING_DAY, EVENING, List.of(player));
+        long threw = village.citizens().stream().flatMap(c -> c.entityUuid().stream())
+                .map(world::getEntity).filter(CitizenEntity.class::isInstance).map(CitizenEntity.class::cast)
+                .filter(body -> spoken(body).filter(key -> key.contains(".ambient_throw.")).isPresent())
+                .count();
+        if (threw != 1) {
+            clearMeadow(world, manager, ground);
+            context.throwGameTestException("Компания при игроке не бросила сама: " + threw);
+            return;
+        }
+
+        // Кости с фермером: встал на семнадцати, фермер перебрал — +2.
+        Bout dice = begin(context, world, withFarmer, Bouts.Kind.DICE, 2, dice(6, 6, 5, 6, 6, 4, 6));
+        dice.roll(world);
+        dice.roll(world);
+        dice.roll(world);
+        dice.stand(world);
+
+        // Армрестлинг со строителем, молча: рука ложится — −1.
+        context.runAtTick(70, () -> {
+            if (!dice.settled().equals(java.util.OptionalInt.of(2))) {
+                clearMeadow(world, manager, ground);
+                context.throwGameTestException("Кости с фермером: " + dice.settled());
+            }
+            begin(context, world, withBuilder, Bouts.Kind.ARM, 1, dice(3));
+        });
+
+        // Утро: проигравший фермер окликает, выигравший строитель хвалится.
+        context.runAtTick(320, () -> {
+            CitizenEntity farmerBody = withFarmer.body();
+            CitizenEntity builderBody = withBuilder.body();
+            // Мир проверок живёт своим временем, и за день оба могли отойти:
+            // ставим их у дороги, по которой идёт игрок.
+            farmerBody.refreshPositionAndAngles(player.getX() + 1, player.getY(), player.getZ(), 0f, 0f);
+            builderBody.refreshPositionAndAngles(player.getX() - 1, player.getY(), player.getZ(), 0f, 0f);
+            Passersby.tick(world, manager, EVENING_DAY + 1, 1_000, List.of(player));
+            if (spoken(farmerBody).filter(key -> key.contains(".rematch.")).isEmpty()
+                    || spoken(builderBody).filter(key -> key.contains(".boast.")).isEmpty()) {
+                clearMeadow(world, manager, ground);
+                context.throwGameTestException("Наутро: фермер " + spoken(farmerBody) + ", строитель "
+                        + spoken(builderBody));
+            }
+            // Днём дети: игрок подходит к ним.
+            player.setPosition(net.minecraft.util.math.Vec3d.ofBottomCenter(
+                    context.getAbsolutePos(new BlockPos(17, 2, 14))));
+        });
+        context.runAtTick(330, () -> {
+            if (!HideAndSeek.invite(world, village, EVENING_DAY + 1, 3_000, List.of(player))) {
+                clearMeadow(world, manager, ground);
+                context.throwGameTestException("Днём дети не позвали в прятки");
+            }
+            HideAndSeek.clicked(world, player, village, kids.get(0), EVENING_DAY + 1, 3_000);
+        });
+        context.runAtTick(330 + HideAndSeek.COUNTDOWN + 10, () -> {
+            for (Citizen kid : kids) {
+                HideAndSeek.clicked(world, player, village, kid, EVENING_DAY + 1, 3_000);
+            }
+        });
+        context.runAtTick(330 + HideAndSeek.COUNTDOWN + 25, () -> {
+            try {
+                int coins = Coins.total(player.getInventory());
+                int stored = Warehouse.of(world, village).count(ModItems.COIN) - storeBefore;
+                if (coins != 10 + 2 - 1 + 2 || stored != 1
+                        || player.getInventory().count(net.minecraft.item.Items.COOKIE) != 1) {
+                    context.throwGameTestException("Итог дня: у игрока " + coins + " (ждали 13), на складе +"
+                            + stored + " (ждали 1), печенья "
+                            + player.getInventory().count(net.minecraft.item.Items.COOKIE));
+                }
+            } finally {
+                HideAndSeek.at(village.id()).ifPresent(session -> HideAndSeek.stop(world, session));
+                Bouts.of(player.getUuid()).ifPresent(bout -> Bouts.cancel(world, bout));
+                clearMeadow(world, manager, ground);
+            }
+            context.complete();
+        });
     }
 }

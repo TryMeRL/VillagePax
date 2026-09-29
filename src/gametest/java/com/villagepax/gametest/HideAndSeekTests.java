@@ -187,14 +187,17 @@ public class HideAndSeekTests extends GameTestSupport {
                 context.throwGameTestException("Прячущийся идёт в " + body.workTarget() + " вместо " + spot
                         + ", подпись видна " + body.isCustomNameVisible());
             }
-            // Дошёл: проверка не ждёт ходьбы, ходьбу проверяют другие.
-            body.refreshPositionAndAngles(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, 0f, 0f);
+            if (!world.shouldTickEntity(spot)) {
+                clearYard(world, manager, yard);
+                context.throwGameTestException("Место " + spot.toShortString()
+                        + " там, где мир не ведёт тела: ребёнок оторвался бы от записи");
+            }
         }
         Citizen first = yard.kids().get(0);
-        context.runAtTick(HideAndSeek.COUNTDOWN + 5, () -> {
-            session.spotOf(first.id()).ifPresent(spot ->
-                    yard.player().setPosition(Vec3d.ofBottomCenter(spot.east())));
-        });
+        // Ищут там, где ребёнок стоит, а не там, куда его послали: ходьбу
+        // проверяют другие, а эта — что найденного находят.
+        context.runAtTick(HideAndSeek.COUNTDOWN + 5, () -> yard.player().setPosition(
+                body(world, first).getPos().add(1, 0, 0)));
         context.runAtTick(HideAndSeek.COUNTDOWN + 20, () -> {
             if (!session.isFound(first.id()) || !body(world, first).isCustomNameVisible()) {
                 clearYard(world, manager, yard);

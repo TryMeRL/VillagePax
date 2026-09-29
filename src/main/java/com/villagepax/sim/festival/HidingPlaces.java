@@ -60,7 +60,7 @@ public final class HidingPlaces {
     /** До {@code count} мест, спрятанные вперёд; порядок — от случая. */
     public static List<BlockPos> find(ServerWorld world, Settlement settlement, Fair fair, int count,
                                       Random random) {
-        return find(world, settlement, fair.heart(), fair.standingY(), count, random);
+        return find(world, settlement, fair.heart(), fair.standingY(), count, random, spot -> true);
     }
 
     /**
@@ -68,9 +68,11 @@ public final class HidingPlaces {
      * вещицы, и по тем же правилам — не в домах, не на улице, не кучкой.
      *
      * @param standingY высота пола у народов одного уровня: от неё ищут пол
+     * @param allowed   куда можно: прятки пускают детей только туда, где мир ведёт тела
      */
     public static List<BlockPos> find(ServerWorld world, Settlement settlement, BlockPos heart,
-                                      int standingY, int count, Random random) {
+                                      int standingY, int count, Random random,
+                                      java.util.function.Predicate<BlockPos> allowed) {
         boolean oneLevel = Footing.of(settlement).keepsOneLevel();
         Set<Long> built = footprints(settlement);
         Set<Block> street = Roads.streetBlocks(settlement);
@@ -90,7 +92,8 @@ public final class HidingPlaces {
                 }
                 BlockPos feet = oneLevel ? floorSpot(world, x, z, standingY)
                         : surfaceSpot(world, x, z);
-                if (feet == null || street.contains(world.getBlockState(feet.down()).getBlock())) {
+                if (feet == null || street.contains(world.getBlockState(feet.down()).getBlock())
+                        || !allowed.test(feet)) {
                     continue;
                 }
                 (hidden(world, feet) ? hidden : open).add(feet);

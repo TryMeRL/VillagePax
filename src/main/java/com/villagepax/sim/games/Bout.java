@@ -34,6 +34,22 @@ public final class Bout {
     /** Перевес игрока, на котором соперник кряхтит вслух: раз за партию. */
     static final double STRAIN_AT = 60;
 
+    /** Свой бросок соперник комментирует через раз из стольких: говорить на каждый — тараторить. */
+    static final int COMMENT_ODDS = 3;
+
+    /** С какой грани бросок — «большой»: «Шесть!», «Ого!». */
+    static final int HIGH_FACE = 5;
+
+    /** До какой — «малый»: «Эх, единица…». */
+    static final int LOW_FACE = 2;
+
+    /**
+     * Перевес армрестлинга уходит в окно раз в столько тиков: полосу рисует
+     * кадр, а снимок каждый тик — это двадцать пакетов в секунду ради
+     * сдвига на полпикселя.
+     */
+    static final int SHOW_EVERY = 2;
+
     private final RegistryKey<World> world;
     private final UUID player;
     /** Кто начал: подставной игрок проверок в списке игроков сервера не числится. */
@@ -226,7 +242,7 @@ public final class Bout {
             }
             if (arm.outcome().isPresent()) {
                 finish(world);
-            } else if (world.getTime() % 2 == 0) {
+            } else if (world.getTime() % SHOW_EVERY == 0) {
                 Bouts.watcher().changed(world, this);
             }
         }
@@ -254,10 +270,10 @@ public final class Bout {
             body.throwDice();
             world.playSound(null, body.getBlockPos(), SoundEvents.BLOCK_WOOD_HIT, SoundCategory.NEUTRAL,
                     0.6f, 1.2f);
-            if (world.getRandom().nextInt(3) == 0) {
-                if (face.getAsInt() >= 5) {
+            if (world.getRandom().nextInt(COMMENT_ODDS) == 0) {
+                if (face.getAsInt() >= HIGH_FACE) {
                     Lines.say(body, citizen, Say.ROLL_HIGH);
-                } else if (face.getAsInt() <= 2) {
+                } else if (face.getAsInt() <= LOW_FACE) {
                     Lines.say(body, citizen, Say.ROLL_LOW);
                 }
             }

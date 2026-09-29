@@ -231,8 +231,10 @@ public final class HideAndSeek {
                 .sorted(Comparator.comparing((Citizen kid) -> !kid.id().equals(inviter.id())))
                 .limit(MAX_CHILDREN)
                 .toList();
+        // Только туда, где мир ведёт тела: ребёнок, забежавший в секцию без
+        // сущностей, отрывается от своей записи, и прятки потеряли бы его.
         List<BlockPos> places = HidingPlaces.find(world, settlement, base, base.getY(), kids.size(),
-                world.getRandom());
+                world.getRandom(), world::shouldTickEntity);
         if (places.isEmpty()) {
             Lines.sayNow(caller, inviter, Say.HIDE_NOWHERE);
             return true;

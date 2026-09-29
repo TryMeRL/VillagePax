@@ -215,6 +215,28 @@ public final class Coins {
         return true;
     }
 
+    /**
+     * Монеты на эту сумму — крупными вперёд, стопками не больше полной.
+     * <p>
+     * Нужно тому, кто кладёт монету не в руки, а в сундук: проигрыш
+     * за игорным столом уходит на склад деревни, и девять медяков ложатся
+     * туда серебряком, а не девятью монетами.
+     */
+    public static List<ItemStack> stacksFor(int amount) {
+        List<ItemStack> stacks = new ArrayList<>();
+        int left = amount;
+        for (Item coin : WORTH.keySet()) {
+            int many = left / worth(coin);
+            left -= many * worth(coin);
+            while (many > 0) {
+                int chunk = Math.min(many, coin.getMaxCount());
+                stacks.add(new ItemStack(coin, chunk));
+                many -= chunk;
+            }
+        }
+        return stacks;
+    }
+
     // --- кошель руками ---
 
     /** Убрать всю россыпь в кошель. Возвращает, сколько убралось. */

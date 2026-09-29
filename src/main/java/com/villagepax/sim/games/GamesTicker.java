@@ -4,6 +4,7 @@ import com.villagepax.core.Profiled;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.work.Schedule;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
@@ -11,7 +12,7 @@ import net.minecraft.server.world.ServerWorld;
 import java.util.List;
 
 /**
- * Часы игр: ответы компании, игра самой с собой.
+ * Часы игр: идущие партии, ответы компании, игра самой с собой.
  * <p>
  * Настоящие время и игроки подставляются здесь и только здесь: правила
  * принимают их доводами, потому что мир игровых проверок общий и время
@@ -25,10 +26,12 @@ public final class GamesTicker {
 
     public static void register() {
         ServerTickEvents.END_WORLD_TICK.register(Profiled.tick("games", GamesTicker::tick));
+        ServerLifecycleEvents.SERVER_STOPPING.register(Bouts::stopAll);
     }
 
     static void tick(ServerWorld world) {
         SettlementManager manager = SettlementManager.get(world);
+        Bouts.tick(world);
         Company.replies(world, manager);
         if (world.getTime() % Company.AMBIENT_EVERY != 0) {
             return;

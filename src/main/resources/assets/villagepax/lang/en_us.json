@@ -1181,5 +1181,17 @@
   "villagepax.games.say.hide_thanks.3": "The kids loved it!",
   "villagepax.games.say.thanks.1": "A fine evening, chief.",
   "villagepax.games.say.thanks.2": "Thanks for the game!",
-  "villagepax.games.say.thanks.3": "Let's play again!"
+  "villagepax.games.say.thanks.3": "Let's play again!",
+  "villagepax.games.reason.playing": "One of you is already in a game",
+  "villagepax.games.reason.pious": "The pious don't play for money",
+  "villagepax.games.reason.festival": "It's the festival — everyone is at the fair",
+  "villagepax.games.reason.asleep": "It's night: time to sleep",
+  "villagepax.games.reason.busy": "They're working — come in the evening",
+  "villagepax.games.reason.sulk": "They won't play with you again today",
+  "villagepax.games.reason.broke": "The purse is empty — come back tomorrow",
+  "villagepax.games.reason.full": "There's no room at the table",
+  "villagepax.games.reason.too_far": "Come closer",
+  "villagepax.games.reason.stake": "You can't bet that",
+  "villagepax.games.forfeit": "You walked away — the game is forfeit",
+  "villagepax.games.cancelled": "The game was interrupted"
 }

@@ -111,7 +111,8 @@ public final class Company {
             return List.of();
         }
         List<Citizen> company = settlement.citizens().stream()
-                .filter(Ages::isAdult)
+                // Старики — тоже взрослые: «старый Рено» за столом — часть вечера.
+                .filter(citizen -> !Ages.isChild(citizen))
                 .filter(citizen -> Natures.of(citizen) != Nature.PIOUS)
                 .filter(citizen -> awake(world, citizen))
                 .sorted(Comparator.comparingInt((Citizen citizen) -> seat(Natures.of(citizen)))
@@ -170,7 +171,7 @@ public final class Company {
      * Компания играет сама с собой: один бросает, другой через секунду отвечает.
      * <p>
      * Только когда есть кому смотреть — игрок в {@link #AUDIENCE} блоках:
-     * пустой деревне это ни к чему.
+     * пустой деревне это ни к чему. Играющий с игроком не отвлекается.
      */
     public static void tick(ServerWorld world, SettlementManager manager, Settlement settlement,
                             long day, long timeOfDay, List<? extends PlayerEntity> players) {
@@ -185,7 +186,9 @@ public final class Company {
         if (!watched) {
             return;
         }
-        List<Citizen> free = of(world, settlement, day, part, timeOfDay, players);
+        List<Citizen> free = of(world, settlement, day, part, timeOfDay, players).stream()
+                .filter(citizen -> Bouts.rivalOf(citizen.id()).isEmpty())
+                .toList();
         if (free.size() < 2) {
             return;
         }

@@ -1181,5 +1181,17 @@
   "villagepax.games.say.hide_thanks.3": "Уважил ребятню!",
   "villagepax.games.say.thanks.1": "Славный вечер, хозяин.",
   "villagepax.games.say.thanks.2": "Спасибо за игру!",
-  "villagepax.games.say.thanks.3": "Ещё сыграем!"
+  "villagepax.games.say.thanks.3": "Ещё сыграем!",
+  "villagepax.games.reason.playing": "Кто-то из вас уже играет",
+  "villagepax.games.reason.pious": "Набожные на деньги не играют",
+  "villagepax.games.reason.festival": "Сегодня праздник — все на ярмарке",
+  "villagepax.games.reason.asleep": "Ночь: пора спать",
+  "villagepax.games.reason.busy": "Сейчас работают — приходи вечером",
+  "villagepax.games.reason.sulk": "С тобой сегодня больше не сядут играть",
+  "villagepax.games.reason.broke": "Кошелёк пуст — приходи завтра",
+  "villagepax.games.reason.full": "За столом нет места",
+  "villagepax.games.reason.too_far": "Подойди ближе",
+  "villagepax.games.reason.stake": "Такой ставки нет",
+  "villagepax.games.forfeit": "Отошёл — партия сдана",
+  "villagepax.games.cancelled": "Партия прервана"
 }

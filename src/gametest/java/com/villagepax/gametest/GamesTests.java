@@ -13,8 +13,16 @@ import com.villagepax.sim.Villages;
 import com.villagepax.sim.build.Access;
 import com.villagepax.sim.build.BuildJob;
 import com.villagepax.sim.build.Schematic;
+import com.villagepax.item.ModItems;
+import com.villagepax.sim.Warehouse;
+import com.villagepax.sim.games.Bout;
+import com.villagepax.sim.games.Bouts;
 import com.villagepax.sim.games.Company;
 import com.villagepax.sim.games.GameSpot;
+import com.villagepax.sim.games.GamesLedger;
+import com.villagepax.sim.games.Rivalry;
+import com.villagepax.sim.trade.Coins;
+import net.minecraft.item.ItemStack;
 import com.villagepax.sim.life.Nature;
 import com.villagepax.sim.life.Natures;
 import com.villagepax.sim.work.FarmJob;
@@ -36,6 +44,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.IntSupplier;
 
 /**
  * Игры с жителями: слова над головой, вечерняя компания, партия за столом.
@@ -350,6 +359,31 @@ public class GamesTests extends GameTestSupport {
         context.complete();
     }
 
+    /**
+     * Старик — тоже взрослый: «старый Рено» за столом — часть вечера.
+     * Пора жизни у старика своя, и отбор «только взрослые» его бы потерял.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_company")
+    public void anElderSitsAtTheTableToo(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Meadow ground = meadow(context, world, manager);
+        try {
+            Citizen elder = hireWithBody(world, ground.village(), FarmJob.FARMER,
+                    context.getAbsolutePos(new BlockPos(18, 2, 18)));
+            elder.setLived(com.villagepax.sim.life.Ages.oldAt());
+            hireWithBody(world, ground.village(), FarmJob.FARMER,
+                    context.getAbsolutePos(new BlockPos(19, 2, 18)));
+            if (!Company.of(world, ground.village(), EVENING_DAY, Schedule.LEISURE, EVENING, List.of())
+                    .contains(elder)) {
+                context.throwGameTestException("Старика не позвали за стол");
+            }
+        } finally {
+            clearMeadow(world, manager, ground);
+        }
+        context.complete();
+    }
+
     /** Днём компании нет: работают. */
     @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_company")
     public void noCompanyByDay(TestContext context) {
@@ -480,5 +514,309 @@ public class GamesTests extends GameTestSupport {
             }
             context.complete();
         });
+    }
+
+    // --- партия ---
+
+    /** Стол для партии: деревня на лугу, соперник-фермер (кошелёк 4) и игрок с десятью медяками. */
+    private record Table(Meadow ground, Citizen rival, CitizenEntity body, PlayerEntity player) {
+    }
+
+    private static Table table(TestContext context, ServerWorld world, SettlementManager manager) {
+        Meadow ground = meadow(context, world, manager);
+        Citizen rival = hireWithBody(world, ground.village(), FarmJob.FARMER,
+                context.getAbsolutePos(new BlockPos(20, 2, 24)));
+        CitizenEntity body = (CitizenEntity) world.getEntity(rival.entityUuid().orElseThrow());
+        PlayerEntity player = playerAt(context, context.getAbsolutePos(new BlockPos(22, 2, 24)));
+        // Не в руку: щелчок пустой рукой — это отказ вслух, а с монетами в руке — нет.
+        player.getInventory().setStack(9, new ItemStack(ModItems.COIN, 10));
+        return new Table(ground, rival, body, player);
+    }
+
+    private static void clearTable(ServerWorld world, SettlementManager manager, Table table) {
+        Bouts.of(table.player().getUuid()).ifPresent(bout -> Bouts.cancel(world, bout));
+        clearMeadow(world, manager, table.ground());
+    }
+
+    private static IntSupplier dice(int... faces) {
+        java.util.ArrayDeque<Integer> queue = new java.util.ArrayDeque<>();
+        for (int face : faces) {
+            queue.add(face);
+        }
+        return queue::removeFirst;
+    }
+
+    private static Bout begin(TestContext context, ServerWorld world, Table table, Bouts.Kind kind,
+                              int stake, IntSupplier faces) {
+        Bouts.Verdict verdict;
+        try (Bouts.Loaded ignored = Bouts.withDice(faces)) {
+            verdict = Bouts.start(world, table.player(), table.ground().village(), table.rival(), kind,
+                    stake, EVENING_DAY, EVENING);
+        }
+        if (verdict != Bouts.Verdict.YES) {
+            context.throwGameTestException("Партия не началась: " + verdict);
+        }
+        return Bouts.of(table.player().getUuid()).orElseThrow();
+    }
+
+    private static int coins(PlayerEntity player) {
+        return Coins.total(player.getInventory());
+    }
+
+    /**
+     * Партия в кости до выплаты: игрок встал на семнадцати, соперник добирал
+     * и перебрал — игроку два медяка из кошелька соперника.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_bout", tickLimit = 120)
+    public void aDiceBoutPaysTheWinner(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        Bout bout = begin(context, world, table, Bouts.Kind.DICE, 2, dice(6, 6, 5, 6, 6, 4, 6));
+        bout.roll(world);
+        bout.roll(world);
+        bout.roll(world);
+        bout.stand(world);
+        context.runAtTick(80, () -> {
+            try {
+                if (coins(table.player()) != 12) {
+                    context.throwGameTestException("У победителя " + coins(table.player())
+                            + " медяков, ждали 12");
+                }
+                int spent = GamesLedger.get(world).spent(table.rival().id(), EVENING_DAY);
+                if (spent != 2) {
+                    context.throwGameTestException("Из кошелька соперника ушло " + spent + ", ждали 2");
+                }
+                if (spoken(table.body()).filter(key -> key.contains(".bust.")).isEmpty()) {
+                    context.throwGameTestException("Перебравший промолчал: " + spoken(table.body()));
+                }
+                if (!bout.settled().equals(java.util.OptionalInt.of(2))) {
+                    context.throwGameTestException("Итог партии не +2: " + bout.settled());
+                }
+            } finally {
+                clearTable(world, manager, table);
+            }
+            context.complete();
+        });
+    }
+
+    /** Проигрыш уходит на склад деревни: житель потратит его на рынке. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_bout", tickLimit = 120)
+    public void aLostBoutFillsTheVillageStore(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        int before = Warehouse.of(world, table.ground().village()).count(ModItems.COIN);
+        Bout bout = begin(context, world, table, Bouts.Kind.DICE, 2, dice(6, 6, 6, 6, 1));
+        bout.roll(world);
+        bout.roll(world);
+        bout.stand(world);
+        context.runAtTick(80, () -> {
+            try {
+                if (coins(table.player()) != 8) {
+                    context.throwGameTestException("У проигравшего " + coins(table.player())
+                            + " медяков, ждали 8");
+                }
+                int stored = Warehouse.of(world, table.ground().village()).count(ModItems.COIN) - before;
+                if (stored != 2) {
+                    context.throwGameTestException("На склад деревни легло " + stored + ", ждали 2");
+                }
+                if (spoken(table.body()).filter(key -> key.contains(".win.")).isEmpty()) {
+                    context.throwGameTestException("Выигравший промолчал: " + spoken(table.body()));
+                }
+            } finally {
+                clearTable(world, manager, table);
+            }
+            context.complete();
+        });
+    }
+
+    /** Ровно двадцать одно — ставка вдвойне. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_bout", tickLimit = 120)
+    public void twentyOnePaysDouble(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        Bout bout = begin(context, world, table, Bouts.Kind.DICE, 2, dice(6, 6, 5, 4, 6, 6, 6, 4));
+        bout.roll(world);
+        bout.roll(world);
+        bout.roll(world);
+        bout.roll(world);
+        context.runAtTick(80, () -> {
+            try {
+                if (coins(table.player()) != 14) {
+                    context.throwGameTestException("За очко у игрока " + coins(table.player())
+                            + " медяков, ждали 14");
+                }
+            } finally {
+                clearTable(world, manager, table);
+            }
+            context.complete();
+        });
+    }
+
+    /** Пустой кошелёк — «Продулся, приходи завтра». */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_bout")
+    public void aBrokeRivalRefuses(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        try {
+            GamesLedger.get(world).spend(table.rival().id(), EVENING_DAY, 4);
+            Bouts.Verdict verdict = Bouts.check(world, table.player(), table.ground().village(),
+                    table.rival(), EVENING_DAY, EVENING);
+            if (verdict != Bouts.Verdict.BROKE) {
+                context.throwGameTestException("Продувшийся ответил " + verdict);
+            }
+        } finally {
+            clearTable(world, manager, table);
+        }
+        context.complete();
+    }
+
+    /** Три поражения подряд за вечер — обида до завтра. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_bout")
+    public void threeLossesAndHeSulks(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        try {
+            for (int i = 0; i < 3; i++) {
+                GamesLedger.get(world).record(table.rival().id(), table.player().getUuid(),
+                        Rivalry.Result.LOST, EVENING_DAY);
+            }
+            Bouts.Verdict tonight = Bouts.check(world, table.player(), table.ground().village(),
+                    table.rival(), EVENING_DAY, EVENING);
+            Bouts.Verdict tomorrow = Bouts.check(world, table.player(), table.ground().village(),
+                    table.rival(), EVENING_DAY + 1, EVENING);
+            if (tonight != Bouts.Verdict.SULK || tomorrow != Bouts.Verdict.YES) {
+                context.throwGameTestException("Обида: сегодня " + tonight + ", завтра " + tomorrow);
+            }
+        } finally {
+            clearTable(world, manager, table);
+        }
+        context.complete();
+    }
+
+    /** С одним соперником — одна партия, и у игрока одна партия. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_bout")
+    public void oneRivalOneBout(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        PlayerEntity second = playerAt(context, context.getAbsolutePos(new BlockPos(19, 2, 25)));
+        second.getInventory().setStack(9, new ItemStack(ModItems.COIN, 10));
+        Citizen other = hireWithBody(world, table.ground().village(), FarmJob.FARMER,
+                context.getAbsolutePos(new BlockPos(21, 2, 26)));
+        try {
+            begin(context, world, table, Bouts.Kind.DICE, 1, dice(3));
+            Bouts.Verdict taken = Bouts.check(world, second, table.ground().village(), table.rival(),
+                    EVENING_DAY, EVENING);
+            Bouts.Verdict busy = Bouts.check(world, table.player(), table.ground().village(), other,
+                    EVENING_DAY, EVENING);
+            if (taken != Bouts.Verdict.PLAYING || busy != Bouts.Verdict.PLAYING) {
+                context.throwGameTestException("Занятому сопернику: " + taken + ", занятому игроку: "
+                        + busy);
+            }
+        } finally {
+            clearTable(world, manager, table);
+        }
+        context.complete();
+    }
+
+    /** Отошёл дальше восьми блоков — партия сдана: иначе уход был бы бесплатным отказом от проигрыша. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_bout", tickLimit = 100)
+    public void walkingAwayForfeits(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        begin(context, world, table, Bouts.Kind.DICE, 2, dice(3));
+        BlockPos away = context.getAbsolutePos(new BlockPos(20, 2, 12));
+        table.player().setPosition(net.minecraft.util.math.Vec3d.ofBottomCenter(away));
+        context.runAtTick(45, () -> {
+            try {
+                if (Bouts.of(table.player().getUuid()).isPresent()) {
+                    context.throwGameTestException("Ушедший всё ещё за столом");
+                }
+                if (coins(table.player()) != 8) {
+                    context.throwGameTestException("Сдавший партию не заплатил: " + coins(table.player()));
+                }
+                if (spoken(table.body()).filter(key -> key.contains(".win.")).isEmpty()) {
+                    context.throwGameTestException("Соперник не порадовался: " + spoken(table.body()));
+                }
+            } finally {
+                clearTable(world, manager, table);
+            }
+            context.complete();
+        });
+    }
+
+    /** Игрок пропал посреди партии — партия снята без выплаты, соперник свободен. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_bout", tickLimit = 40)
+    public void aBoutEndsWhenThePlayerIsGone(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        begin(context, world, table, Bouts.Kind.DICE, 2, dice(3));
+        table.player().discard();
+        context.runAtTick(5, () -> {
+            try {
+                if (Bouts.of(table.player().getUuid()).isPresent()
+                        || Bouts.rivalOf(table.rival().id()).isPresent()) {
+                    context.throwGameTestException("Партия пережила ушедшего игрока");
+                }
+                if (coins(table.player()) != 10) {
+                    context.throwGameTestException("Снятая партия двинула монеты: " + coins(table.player()));
+                }
+            } finally {
+                clearTable(world, manager, table);
+            }
+            context.complete();
+        });
+    }
+
+    /** Соперник пропал посреди партии — снята без выплаты. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_bout", tickLimit = 40)
+    public void aBoutEndsWhenTheRivalIsGone(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        begin(context, world, table, Bouts.Kind.DICE, 2, dice(3));
+        table.body().discard();
+        context.runAtTick(5, () -> {
+            try {
+                if (Bouts.of(table.player().getUuid()).isPresent()) {
+                    context.throwGameTestException("Партия пережила пропавшего соперника");
+                }
+                if (coins(table.player()) != 10) {
+                    context.throwGameTestException("Снятая партия двинула монеты: " + coins(table.player()));
+                }
+            } finally {
+                clearTable(world, manager, table);
+            }
+            context.complete();
+        });
+    }
+
+    /** За партией соперник стоит на месте и смотрит на игрока, а не бродит по площади. */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_bout")
+    public void theRivalFacesThePlayerAndStands(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        Table table = table(context, world, manager);
+        try {
+            begin(context, world, table, Bouts.Kind.DICE, 1, dice(3));
+            WorkTicker.decide(world, manager, table.ground().village(), table.rival(), Schedule.LEISURE,
+                    EVENING_DAY);
+            CitizenEntity body = table.body();
+            if (!body.getBlockPos().equals(body.workTarget())
+                    || !table.player().getBlockPos().up().equals(body.workFocus())) {
+                context.throwGameTestException("Соперник за партией: цель " + body.workTarget()
+                        + " (стоит на " + body.getBlockPos() + "), взгляд " + body.workFocus());
+            }
+        } finally {
+            clearTable(world, manager, table);
+        }
+        context.complete();
     }
 }

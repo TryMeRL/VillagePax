@@ -1160,18 +1160,29 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
             return;
         }
 
-        // Имя ремесла — народное, если народ его назвал: у норманнов
-        // затейник — жонглёр, у северян — скальд.
-        Culture people = CultureManager.get(citizen.culture());
-        Text name = citizen.profession()
-                .flatMap(id -> ProfessionManager.get(id).map(profession -> (Text) Text.translatable(
-                        "villagepax.citizen.label", citizen.fullName(), Text.translatable(
-                                people == null ? profession.displayName()
-                                        : people.titleOf(id).orElse(profession.displayName())))))
+        Text name = titleKeyOf(citizen)
+                .map(title -> (Text) Text.translatable("villagepax.citizen.label", citizen.fullName(),
+                        Text.translatable(title)))
                 .orElse(Text.literal(citizen.fullName()));
 
         setCustomName(atWork(citizen).orElse(name));
         setCustomNameVisible(true);
+    }
+
+    /**
+     * Ключ имени ремесла — народного, если народ его назвал: у норманнов
+     * затейник — жонглёр, у северян — скальд.
+     * <p>
+     * Одно место на весь мод: подпись над головой и окно игры за столом
+     * называют соперника одинаково.
+     *
+     * @return пусто, если ремесла нет
+     */
+    public static Optional<String> titleKeyOf(Citizen citizen) {
+        Culture people = CultureManager.get(citizen.culture());
+        return citizen.profession().flatMap(id -> ProfessionManager.get(id).map(profession ->
+                people == null ? profession.displayName()
+                        : people.titleOf(id).orElse(profession.displayName())));
     }
 
     /**
@@ -1703,8 +1714,18 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
      * @return встала ли фраза
      */
     public boolean say(Text line) {
+        return say(line, false);
+    }
+
+    /**
+     * Сказать — и, если {@code urgent}, поверх недавней фразы.
+     * <p>
+     * Итог партии ждут все за столом: «Перебор!» не должно пропасть
+     * оттого, что полсекунды назад житель сказал «Шесть!».
+     */
+    public boolean say(Text line, boolean urgent) {
         long now = getWorld().getTime();
-        if (now - spokeAt < SPEECH_GAP) {
+        if (!urgent && now - spokeAt < SPEECH_GAP) {
             return false;
         }
         spokeAt = now;

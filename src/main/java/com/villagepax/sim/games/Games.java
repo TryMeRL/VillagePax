@@ -13,8 +13,8 @@ import java.util.List;
  * Игры с жителями — одна точка для стратегии жителя.
  * <p>
  * Как праздник, игра подменяет цель, но не стирает работу: наутро стройка
- * там, где её оставили. Решает здесь одно — член ли житель вечерней
- * компании, и если да, где ему стоять.
+ * там, где её оставили. Решает здесь, по порядку: идёт ли у жителя партия,
+ * член ли он вечерней компании — и если да, где ему стоять.
  */
 public final class Games {
 
@@ -27,6 +27,11 @@ public final class Games {
      * @return истина, если житель у стола и решать за него больше нечего
      */
     public static boolean takesOver(WorkContext context, Schedule part, long day) {
+        // Соперника идущей партии ведёт партия — в любой час: вечер,
+        // начатый до отбоя, может кончиться после.
+        if (Bouts.steers(context)) {
+            return true;
+        }
         ServerWorld world = context.world();
         List<Citizen> company = Company.of(world, context.settlement(), day, part,
                 world.getTimeOfDay(), world.getPlayers());

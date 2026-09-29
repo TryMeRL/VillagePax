@@ -56,8 +56,17 @@ public final class Lines {
 
     /** Сказать над головой фразу по нраву этого жителя. @return встала ли фраза */
     public static boolean say(CitizenEntity body, Citizen citizen, Say say, Object... args) {
+        return body.say(line(body, citizen, say, args), false);
+    }
+
+    /** То же — поверх недавней фразы: итог партии не ждёт, пока отзвучит «Шесть!». */
+    public static boolean sayNow(CitizenEntity body, Citizen citizen, Say say, Object... args) {
+        return body.say(line(body, citizen, say, args), true);
+    }
+
+    private static Text line(CitizenEntity body, Citizen citizen, Say say, Object... args) {
         String key = pick(say, Natures.of(citizen), Language.getInstance()::hasTranslation,
                 bound -> body.getRandom().nextInt(bound));
-        return body.say(Text.translatable(key, args));
+        return Text.translatable(key, args);
     }
 }

@@ -147,6 +147,45 @@ public final class Founding {
         return renamed;
     }
 
+    /**
+     * Деревня народа, названная как другое поселение мира, получает свободное
+     * название; первая по списку остаётся как была.
+     * <p>
+     * Для миров, начатых при списке в шесть названий: там две «Кан» уже
+     * стоят, и компас с чатом путают их. Колонию игрока не переименовывают
+     * никогда — её назвал он.
+     *
+     * @return новое название; пусто — переименовывать не пришлось
+     */
+    public static Optional<String> renameIfTwin(SettlementManager manager, Settlement settlement,
+                                                Culture culture, Random random) {
+        if (!settlement.owner().isAutonomous() || culture.namePools().settlement().isEmpty()) {
+            return Optional.empty();
+        }
+        boolean twin = false;
+        List<String> others = new ArrayList<>();
+        boolean before = true;
+        for (Settlement other : manager.all()) {
+            if (other.id().equals(settlement.id())) {
+                before = false;
+                continue;
+            }
+            others.add(other.name());
+            if (before && other.name().equals(settlement.name())) {
+                twin = true;
+            }
+        }
+        if (!twin) {
+            return Optional.empty();
+        }
+        String name = rarest(culture.namePools().settlement(), others, random);
+        if (name.equals(settlement.name())) {
+            return Optional.empty();
+        }
+        settlement.rename(name);
+        return Optional.of(name);
+    }
+
     /** Названия всех поселений мира: их и обходит новое. */
     public static List<String> namesOnTheMap(SettlementManager manager) {
         return manager.all().stream().map(Settlement::name).toList();

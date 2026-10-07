@@ -280,6 +280,35 @@ class FoundingTest {
         assertTrue(Founding.tellTwinsApart(village, culture, seeded()).isEmpty(), "второй раз — нечего");
     }
 
+    /**
+     * Две деревни с одним названием в старом мире: вторая получает свободное.
+     * Колонию игрока не переименовывают никогда — её назвал он.
+     */
+    @Test
+    void aVillageNamedLikeAnotherGetsAFreeName() {
+        Culture culture = new Culture("villagepax.culture.norman", CultureKind.HISTORICAL,
+                new SpawnSettings("#minecraft:is_forest", 10, 48),
+                new NamePools(List.of("Rollo"), List.of("Emma"), List.of("Бовуар", "Рокмон", "Кан")),
+                List.of(), List.of(), Map.of());
+        SettlementManager manager = new SettlementManager();
+        Settlement first = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", SOMEWHERE);
+        Settlement second = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", new BlockPos(5000, 70, 5000));
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Рокмон",
+                new BlockPos(-5000, 70, -5000));
+        Settlement colonyTwin = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Рокмон",
+                new BlockPos(-9000, 70, -9000));
+        for (Settlement one : List.of(first, second, colony, colonyTwin)) {
+            manager.add(one);
+        }
+
+        assertTrue(Founding.renameIfTwin(manager, first, culture, seeded()).isEmpty(),
+                "первую по списку не трогают");
+        assertEquals(Optional.of("Кан"), Founding.renameIfTwin(manager, second, culture, seeded()));
+        assertEquals("Кан", second.name());
+        assertTrue(Founding.renameIfTwin(manager, colonyTwin, culture, seeded()).isEmpty(),
+                "колонию игрока не переименовывают");
+    }
+
     @Test
     void fallsBackWhenCultureHasNoSettlementNames() {
         Culture nameless = new Culture(

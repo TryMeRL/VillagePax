@@ -1082,6 +1082,132 @@ NORMAN_HOUSE_2 = storey(
 # открыта с потолка первого этажа, кладка трубы — от первого слоя кровли.
 NORMAN_HOUSE_2 = with_flue(NORMAN_HOUSE_2, 3, 5, 3, 7)
 
+# --- городской дом норманнов: три этажа под крутой кровлей ---
+#
+# Город отличается от деревни не только площадью: улица в нём выше.
+# Изба в один этаж — хозяйство хутора; в городе земля дорога, и дом
+# растёт вверх. Низ — каменный, как у ратуши второй ступени: в нём
+# лавка или мастерская хозяина; два верхних этажа — фахверк, по спальне
+# на этаж, и крутая кровля над всем.
+#
+# След тот же, что у избы, 7x7: город строится теми же улицами, и дом,
+# шире избы, не встал бы на её место. Средний столбец свободен от двери
+# до задней стены на каждом этаже, лестница — у западной стены сквозь
+# оба настила, факелы на южной стене каждого этажа: света под кровлей
+# хватает только верхнему.
+TOWNHOUSE_BODY = [
+    # y=0 — цоколь
+    ["CCCCCCC"] * 7,
+    # y=1 — каменный низ: стол с лавкой, сундук, полка, лестница наверх
+    ["BMMDMMB",
+     "M.....M",
+     "M%:..SM",
+     "M=...;M",
+     "M.....M",
+     "Mx..O.M",
+     "BMMMMMB"],
+    # y=2 — окна низа, факел на южной стене
+    ["BMG.GMB",
+     "M.....M",
+     "G.....G",
+     "M.....M",
+     "G.....G",
+     "Mx.^..M",
+     "BMGMGMB"],
+    # y=3 — настил второго этажа, лаз у западной стены
+    ["HHHHHHH",
+     "ZPPPPPZ",
+     "ZPPPPPZ",
+     "ZPPPPPZ",
+     "ZPPPPPZ",
+     "ZxPPPPZ",
+     "HHHHHHH"],
+    # y=4 — первая спальня: две кровати, стол с лавкой
+    ["BWWWWWB",
+     "W.....W",
+     "Wff.%.W",
+     "Whh.=.W",
+     "W.....W",
+     "Wx.^O.W",
+     "BWWWWWB"],
+    # y=5 — окна второго этажа
+    ["BXGWGXB",
+     "X.....X",
+     "G.....G",
+     "B.....B",
+     "G.....G",
+     "Xx....X",
+     "BXGWGXB"],
+    # y=6 — настил третьего этажа
+    ["HHHHHHH",
+     "ZPPPPPZ",
+     "ZPPPPPZ",
+     "ZPPPPPZ",
+     "ZPPPPPZ",
+     "ZxPPPPZ",
+     "HHHHHHH"],
+    # y=7 — вторая спальня под кровлей
+    ["BWWWWWB",
+     "W.....W",
+     "W.%.ffW",
+     "W.=.hhW",
+     "W.....W",
+     "Wx.O..W",
+     "BWWWWWB"],
+    # y=8 — окна третьего этажа
+    ["BXGWGXB",
+     "X.....X",
+     "G.....G",
+     "B.....B",
+     "G.....G",
+     "X.....X",
+     "BXGWGXB"],
+    # y=9 — верхняя обвязка
+    ["HHHHHHH",
+     "Z.....Z",
+     "Z.....Z",
+     "Z.....Z",
+     "Z.....Z",
+     "Z.....Z",
+     "HHHHHHH"],
+]
+
+
+def restyle(layers, swap, walls=None):
+    """Тот же план в материалах другого народа.
+
+    swap  — символ на символ, где бы он ни стоял;
+    walls — символ стены на пару «вдоль запада-востока, вдоль севера-юга»:
+            у сруба бревно в стене лежит вдоль неё, и северная стена
+            из брёвен по оси X, а боковые — по оси Z.
+    """
+    out = []
+    for layer in layers:
+        depth = len(layer)
+        rows = []
+        for z, row in enumerate(layer):
+            chars = []
+            for x, ch in enumerate(row):
+                if walls and ch in walls:
+                    along_x, along_z = walls[ch]
+                    ch = along_x if z in (0, depth - 1) else along_z
+                else:
+                    ch = swap.get(ch, ch)
+                chars.append(ch)
+            rows.append("".join(chars))
+        out.append(rows)
+    return out
+
+
+NORMAN_TOWNHOUSE = TOWNHOUSE_BODY + steep_gable(7, 7, "s", "n", "X", "7", beam="B", window="G")
+
+# Пони: рыжий сруб акации сверху донизу — камня у народа саванны нет,
+# и низ отличается от верха только жердями обвязки.
+PONY_TOWNHOUSE = restyle(TOWNHOUSE_BODY, {
+    "B": "o", "M": "I", "W": "I", "X": "I", "H": "m", "Z": "N", "P": "I",
+}) + steep_gable(7, 7, "]", "[", "I", "_", beam="o", window="G")
+
+
 # --- ферма норманнов, уровень 1 ---
 
 # Земляное основание, грядки с колодцем в середине, ограда и место
@@ -3528,6 +3654,12 @@ NORD_HOUSE = nord_hut(
      "лжGжжжGжл"],
     9, 5)
 
+# Северяне: каменный низ, как цоколь их ратуши, и сруб в два яруса под
+# драконьей кровлей; постели — синие, как у них заведено.
+NORD_TOWNHOUSE = restyle(TOWNHOUSE_BODY, {
+    "B": "л", "M": "C", "H": "ж", "Z": "з", "P": "е", "f": "к", "h": "г",
+}, walls={"W": ("ж", "з"), "X": ("ж", "з")}) + dragon_roof(7, 7)
+
 # --- изба северян, уровень 2: полати над столом ---
 #
 # Вторым уровнем дом не надстраивается сплошным этажом, а поднимает стены
@@ -4679,6 +4811,9 @@ RAW_SCHEMATICS = {
     "norman/town_hall_lvl2": NORMAN_TOWN_HALL_2,
     "norman/house_lvl1": NORMAN_HOUSE,
     "norman/house_lvl2": NORMAN_HOUSE_2,
+    "norman/townhouse_lvl1": NORMAN_TOWNHOUSE,
+    "pony/townhouse_lvl1": PONY_TOWNHOUSE,
+    "nord/townhouse_lvl1": NORD_TOWNHOUSE,
     "norman/lumberjack_lvl1": NORMAN_LUMBERJACK,
     "norman/farm_lvl1": NORMAN_FARM,
     "norman/farm_lvl2": NORMAN_FARM_2,

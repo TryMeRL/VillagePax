@@ -26,6 +26,7 @@ import com.villagepax.sim.Warehouse;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Стратегический слой ИИ: раз в {@link #ticksPerDecision()} тиков каждый
@@ -337,6 +338,41 @@ public final class WorkTicker {
         }
     }
 
+    /** Дети играют в догонялки не дальше стольких блоков друг от друга. */
+    private static final double TAG_REACH = 16;
+
+    /**
+     * Догонялки: днём ребёнок бежит за следующим по кругу ребёнком рядом.
+     * <p>
+     * Без дела ребёнок прежде бродил, как взрослый без ремесла, — и деревня
+     * с детьми выглядела так же, как без них. Теперь они носятся друг
+     * за другом у площади: каждый за «своим», и круг замыкается — догоняет
+     * один, убегает другой, а со стороны это игра. Одинокому ребёнку не
+     * с кем играть, и он бродит, как прежде.
+     */
+    private static BlockPos playmate(WorkContext context) {
+        UUID me = context.citizen().id();
+        List<Citizen> children = context.settlement().citizens().stream()
+                .filter(com.villagepax.sim.life.Ages::isChild)
+                .sorted(java.util.Comparator.comparing(Citizen::id))
+                .toList();
+        if (children.size() < 2) {
+            return null;
+        }
+        int index = 0;
+        for (int at = 0; at < children.size(); at++) {
+            if (children.get(at).id().equals(me)) {
+                index = at;
+            }
+        }
+        Citizen chased = children.get((index + 1) % children.size());
+        CitizenEntity body = liveBody(context.world(), chased);
+        if (body == null || body.squaredDistanceTo(context.body()) > TAG_REACH * TAG_REACH) {
+            return null;
+        }
+        return body.getBlockPos();
+    }
+
     /** Ниже этой доли здоровья житель отлёживается в постели, а не работает. */
     static final float REST_BELOW = 0.4f;
 
@@ -498,7 +534,8 @@ public final class WorkTicker {
 
         if (job == null) {
             context.holdNothing();
-            context.body().setWorkTarget(null);
+            context.body().setWorkTarget(com.villagepax.sim.life.Ages.isChild(context.citizen())
+                    ? playmate(context) : null);
             return;
         }
 

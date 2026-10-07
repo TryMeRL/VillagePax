@@ -298,8 +298,12 @@ public final class QuestNet {
         // это по-прежнему старейшина. Правило «разговор не упирается
         // в тупик» старше разделения обязанностей.
         boolean keeper = caravan.isPresent() || giver.equals(Villages.counterKeeper(village));
+        // В рыночный день прилавок открыт, как другу: тот же товар и та же
+        // цена, что и у сделки, — экран показывает ровно то, что будет.
         List<QuestView.Stall> stalls = keeper
-                ? stalls(village, reputation, carried, wares) : List.of();
+                ? stalls(village, caravan.isPresent() ? reputation
+                        : com.villagepax.sim.trade.MarketDay.tradeTrust(village, reputation, today),
+                carried, wares) : List.of();
 
         return Optional.of(new QuestView(village.id(), village.name(), giver,
                 standing.displayKey(), reputation, nextThreshold(standing), offer,
@@ -861,11 +865,14 @@ public final class QuestNet {
         Trading.Outcome[] outcome = new Trading.Outcome[1];
         // Через update: доверие за сделку — состояние поселения, и его надо
         // сохранить. Склад сохраняет себя сам, он в блок-энтити.
+        long today = Schedule.dayOf(world.getTimeOfDay());
         manager.update(village, state -> outcome[0] = Trading.trade(state, player.getUuid(),
                 player.getInventory(), wares, side, deal,
                 // Сдача, которой не нашлось места, падает под ноги: терять
                 // деньги игрока молча нельзя.
-                left -> player.getInventory().offerOrDrop(left)));
+                left -> player.getInventory().offerOrDrop(left),
+                com.villagepax.sim.trade.MarketDay.tradeTrust(state,
+                        state.reputationOf(player.getUuid()), today)));
 
         if (outcome[0] == Trading.Outcome.DONE) {
             world.playSound(null, player.getBlockPos(), SoundEvents.ENTITY_VILLAGER_TRADE,

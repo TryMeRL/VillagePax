@@ -203,16 +203,27 @@ public final class Trading {
     public static Outcome trade(Settlement village, UUID player, Inventory carried,
                                 Warehouse wares, Side side, TradeTable.Deal deal,
                                 Consumer<ItemStack> spill) {
+        return trade(village, player, carried, wares, side, deal, spill, village.reputationOf(player));
+    }
+
+    /**
+     * То же — с доверием, по которому торгуют сегодня: в рыночный день
+     * оно не ниже дружбы ({@link MarketDay#tradeTrust}). Награда за сделку
+     * всё равно идёт к настоящему доверию.
+     */
+    public static Outcome trade(Settlement village, UUID player, Inventory carried,
+                                Warehouse wares, Side side, TradeTable.Deal deal,
+                                Consumer<ItemStack> spill, int trust) {
         if (!dealsOn(village, side).contains(deal)) {
             return Outcome.NO_DEAL;
         }
-        if (!deal.open(village.reputationOf(player))) {
+        if (!deal.open(trust)) {
             return Outcome.NO_TRUST;
         }
 
         Item goods = deal.item();
         int count = deal.count();
-        int price = priceFor(deal, side, village.reputationOf(player));
+        int price = priceFor(deal, side, trust);
 
         Inventory chest = wares.coins();
 

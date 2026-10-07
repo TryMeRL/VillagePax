@@ -104,7 +104,13 @@ public class TownHallBlockEntity extends BlockEntity implements Inventory, Named
 
     @Override
     public ItemStack removeStack(int slot) {
-        return Inventories.removeStack(stacks, slot);
+        // Как и у взятия части стопки: изменённый склад обязан сохраниться,
+        // иначе после выхода из мира забранное вернулось бы в сундук.
+        ItemStack removed = Inventories.removeStack(stacks, slot);
+        if (!removed.isEmpty()) {
+            markDirty();
+        }
+        return removed;
     }
 
     @Override

@@ -241,6 +241,11 @@ public final class TownHallNet {
             tell(player, "villagepax.screen.order.overlaps",
                     Text.translatable(buildingKey(clash.clash().type())),
                     Text.literal(clash.clash().anchor().toShortString()));
+        } else if (result instanceof BuildOrders.Result.Locked locked) {
+            // Голограмма говорит «рано» заранее, но заказ мог прийти и мимо
+            // неё — и молчать в ответ значит, что кнопка сломана.
+            tell(player, "villagepax.screen.place.locked",
+                    Text.translatable("villagepax.level." + locked.needs().id()));
         }
     }
 

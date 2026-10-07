@@ -402,6 +402,183 @@ public class VillageTests extends GameTestSupport {
     }
 
     /**
+     * Хутор вырастает в столицу: ратуша поднимается ступень за ступенью
+     * и встаёт на своём месте, не упираясь в соседей.
+     * <p>
+     * Прежде деревня народа навсегда оставалась хутором: ратушу ей не
+     * улучшал никто. А дома при закладке вставали вплотную к ратуше-хутору,
+     * и верхней ступени, которая шире первой, некуда было бы расти.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "village", tickLimit = 400)
+    public void aHamletGrowsIntoACapital(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+
+        try {
+            for (int x = -20; x <= 20; x++) {
+                for (int z = -20; z <= 20; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала");
+                return;
+            }
+            // Начатое при закладке достраивается: ратуша растёт одна за раз.
+            for (Building site : List.copyOf(village.buildings())) {
+                if (BuildJob.isUnderConstruction(site)) {
+                    manager.update(village.id(), state -> state.removeBuilding(site.id()));
+                }
+            }
+
+            for (com.villagepax.sim.SettlementLevel next : List.of(
+                    com.villagepax.sim.SettlementLevel.VILLAGE, com.villagepax.sim.SettlementLevel.TOWN,
+                    com.villagepax.sim.SettlementLevel.CAPITAL)) {
+                Settlement now = manager.byId(village.id()).orElseThrow();
+                if (!Villages.raiseTheHall(world, now)) {
+                    context.throwGameTestException("Ратуша не заложена под ступень " + next.id()
+                            + ": уровень " + hallOf(now).level());
+                    return;
+                }
+                Building hall = hallOf(manager.byId(village.id()).orElseThrow());
+                Schematic plan = com.villagepax.sim.build.SchematicLoader.get(BuildJob.schematicId(hall))
+                        .orElseThrow();
+                com.villagepax.sim.build.Materials.required(plan).forEach((item, count) ->
+                        hall.stock().add(net.minecraft.registry.Registries.ITEM.getId(item), count));
+                BuildJob.Outcome outcome = BuildJob.advance(world, manager, village.id(), hall.id(),
+                        Integer.MAX_VALUE);
+                if (outcome != BuildJob.Outcome.FINISHED) {
+                    context.throwGameTestException("Ратуша ступени " + next.id() + " не встала: " + outcome);
+                    return;
+                }
+                com.villagepax.sim.Levels.refresh(world, manager.byId(village.id()).orElseThrow());
+                if (manager.byId(village.id()).orElseThrow().level() != next) {
+                    context.throwGameTestException("Ратуша встала, а деревня не выросла до " + next.id());
+                }
+            }
+            if (Villages.raiseTheHall(world, manager.byId(village.id()).orElseThrow())) {
+                context.throwGameTestException("Столица заложила ратушу выше верхней ступени");
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Выросший город — город и на земле: фонари вдоль улиц, мощёная площадь
+     * у ратуши, ставни на окнах, а поля — за домами, на выселках.
+     * <p>
+     * С переменной окружения {@code VILLAGEPAX_SNAPSHOT} проверка ещё и
+     * сохраняет город файлом схемы в {@code build/}: его рисует сценарий
+     * осмотра, и разметку видно глазами, а не только числами.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "town_snapshot", tickLimit = 600)
+    public void aRaisedTownLooksLikeATown(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+        int reach = 48;
+
+        try {
+            for (int x = -reach; x <= reach; x++) {
+                for (int z = -reach; z <= reach; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала");
+                return;
+            }
+            Villages.growNow(world, manager, village, 14, com.villagepax.sim.SettlementLevel.TOWN);
+            Settlement town = manager.byId(village.id()).orElseThrow();
+            if (town.level() != com.villagepax.sim.SettlementLevel.TOWN) {
+                context.throwGameTestException("Дорастили, а ступень " + town.level().id());
+            }
+
+            int lamps = 0;
+            int shutters = 0;
+            for (BlockPos at : manager.decorOf(town.id())) {
+                net.minecraft.block.BlockState state = world.getBlockState(at);
+                if (state.isOf(Blocks.LANTERN) && world.getBlockState(at.down()).isIn(
+                        net.minecraft.registry.tag.BlockTags.FENCES)) {
+                    lamps++;
+                }
+                if (state.isIn(net.minecraft.registry.tag.BlockTags.TRAPDOORS)) {
+                    shutters++;
+                }
+            }
+            if (lamps < 6) {
+                context.throwGameTestException("На улицах города всего " + lamps + " фонарей");
+            }
+            if (shutters == 0) {
+                context.throwGameTestException("Ни одной ставни на окнах");
+            }
+
+            Building hall = hallOf(town);
+            int paved = 0;
+            for (BlockPos at : BlockPos.iterate(hall.anchor().add(-3, -2, -3), hall.anchor().add(12, 0, 12))) {
+                if (world.getBlockState(at).isOf(Blocks.COBBLESTONE)) {
+                    paved++;
+                }
+            }
+            if (paved < 20) {
+                context.throwGameTestException("Площадь у ратуши не вымощена: камня " + paved);
+            }
+
+            for (Building building : town.buildings()) {
+                if (com.villagepax.core.building.BuildingTypes.employs(building.type(),
+                        com.villagepax.sim.work.FarmJob.FARMER)) {
+                    int away = Math.max(Math.abs(building.anchor().getX() - centre.getX()),
+                            Math.abs(building.anchor().getZ() - centre.getZ()));
+                    if (away < 10) {
+                        context.throwGameTestException("Поле посреди деревни: в " + away + " от ратуши");
+                    }
+                }
+            }
+
+            if (System.getenv("VILLAGEPAX_SNAPSHOT") != null) {
+                BlockPos from = centre.add(-reach, -3, -reach);
+                net.minecraft.structure.StructureTemplate template = new net.minecraft.structure.StructureTemplate();
+                template.saveFromWorld(world, from, new net.minecraft.util.math.Vec3i(2 * reach + 1, 30,
+                        2 * reach + 1), false, null);
+                java.io.File file = new java.io.File("../town-snapshot.nbt");
+                try {
+                    net.minecraft.nbt.NbtIo.writeCompressed(template.writeNbt(new net.minecraft.nbt.NbtCompound()),
+                            file);
+                } catch (java.io.IOException failed) {
+                    context.throwGameTestException("Снимок города не записан: " + failed);
+                }
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+
+        context.complete();
+    }
+
+    private static Building hallOf(Settlement village) {
+        return village.buildings().stream()
+                .filter(building -> com.villagepax.core.building.BuildingTypes.isTownHall(building.type()))
+                .findFirst().orElseThrow();
+    }
+
+    /**
      * Команда поиска отвечает, и отвечает одно и то же.
      * <p>
      * Без неё мод буквально нельзя найти: места деревень стоят в семи

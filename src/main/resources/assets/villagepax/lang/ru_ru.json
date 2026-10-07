@@ -450,6 +450,7 @@
   "villagepax.level.town": "Город",
   "villagepax.level.capital": "Столица",
   "villagepax.level.reached": "«%s» выросла: теперь это %s!",
+  "villagepax.village.hall_rising": "«%s» закладывает новую ратушу. Растёт до ступени: %s.",
   "villagepax.level.opened_craft": "  Открылось ремесло: %s",
   "villagepax.level.opened_building": "  Открылось здание: %s",
   "villagepax.screen.overview.section_growth": "Рост",

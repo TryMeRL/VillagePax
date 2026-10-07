@@ -74,6 +74,17 @@ public final class Raising {
      */
     public static final int FAR_RINGS = 7;
 
+    /**
+     * Сколько колец обходить под новое здание этого поселения.
+     * <p>
+     * По границе, а не числом на все случаи: пять колец по семь шагов —
+     * это земля хутора. Город на четыре чанка во все стороны искал место
+     * только у самой ратуши, и, застроив её, переставал строиться вовсе.
+     */
+    public static int ringsFor(Settlement settlement) {
+        return Math.max(PLACE_RINGS, settlement.level().claimRadiusChunks() * 16 / PLACE_STEP);
+    }
+
     /** Сколько шагов в сторону стоит один блок подъёма: круче не ходят. */
     private static final int CLIMB_PER_STEP = 3;
 
@@ -221,12 +232,18 @@ public final class Raising {
         Heights heights = new Heights(world, clearing);
         int allowed = Traits.maxSlope(settlement.culture());
         BlockPos centre = settlement.center();
-        Set<Long> taken = occupied(world, manager, settlement);
+        Set<Long> streets = Roads.pavedColumns(world, settlement);
+        Set<Long> taken = occupied(world, manager, settlement, streets);
         Set<Long> walls = footprintColumns(settlement);
+        int inner = outskirtsFrom(settlement, schematicId);
 
         Candidate best = null;
         int found = 0;
         for (BlockPos column : columns(centre, rings * PLACE_STEP)) {
+            if (Math.max(Math.abs(column.getX() - centre.getX()),
+                    Math.abs(column.getZ() - centre.getZ())) < inner) {
+                continue;
+            }
             for (BlockRotation rotation : BlockRotation.values()) {
                 // Сперва дешёвое — границы и чужие следы: они от высоты
                 // не зависят, а отсекают больше всего мест.
@@ -246,6 +263,7 @@ public final class Raising {
                     continue;
                 }
                 double score = score(centre, schematic, site.anchor(), rotation)
+                        - frontage(streets, schematic, site.anchor(), rotation)
                         + site.earthwork()
                         + CLIMB_WEIGHT * Math.abs(site.anchor().getY() - centre.getY());
                 if (best == null || score < best.score()) {
@@ -286,14 +304,32 @@ public final class Raising {
      * @return колонны в виде {@code BlockPos.asLong(x, 0, z)}
      */
     private static Set<Long> occupied(ServerWorld world, SettlementManager manager,
-                                      Settlement settlement) {
-        Set<Long> taken = Roads.pavedColumns(world, settlement);
+                                      Settlement settlement, Set<Long> streets) {
+        Set<Long> taken = new java.util.HashSet<>(streets);
         // Проход перед чужой дверью: в проверке «деревня на холмах» новый
         // дом встал в трёх клетках прямо перед входом соседа — зазор это
         // позволял, — и тот упёрся в его стену.
         for (Building building : settlement.buildings()) {
             SchematicLoader.get(BuildJob.schematicId(building)).ifPresent(plan ->
                     taken.addAll(Access.doorway(building, plan, Grading.APPROACH, 1)));
+        }
+        // Ратуше — место на вырост: её верхние ступени шире первой, а растёт
+        // она от своего угла. Дом, вставший вплотную к ратуше-хутору, не дал
+        // бы ей подняться: улучшение отказывает, если след упирается в соседа.
+        for (Building building : settlement.buildings()) {
+            if (com.villagepax.core.building.BuildingTypes.isTownHall(building.type())) {
+                Schematic top = tallest(building).orElse(null);
+                if (top != null) {
+                    Vec3i size = BuildSite.rotatedSize(top.size(), building.rotation());
+                    int gap = BuildOrders.GAP;
+                    for (int dx = -gap; dx < size.getX() + gap; dx++) {
+                        for (int dz = -gap; dz < size.getZ() + gap; dz++) {
+                            taken.add(BlockPos.asLong(building.anchor().getX() + dx, 0,
+                                    building.anchor().getZ() + dz));
+                        }
+                    }
+                }
+            }
         }
         for (BlockPos at : manager.decorOf(settlement.id())) {
             if (world.isChunkLoaded(at)) {
@@ -309,6 +345,19 @@ public final class Raising {
             }
         }
         return taken;
+    }
+
+    /** Верхняя ступень здания — та, до которой оно может дорасти. */
+    private static Optional<Schematic> tallest(Building building) {
+        Optional<Schematic> top = Optional.empty();
+        for (int level = building.level(); ; level++) {
+            Optional<Schematic> next = SchematicLoader.get(new Identifier(building.type().getNamespace(),
+                    building.type().getPath() + "_lvl" + level));
+            if (next.isEmpty()) {
+                return top;
+            }
+            top = next;
+        }
     }
 
     /** Колонны всех следов поселения — куда нельзя упереться дверью. */
@@ -413,6 +462,77 @@ public final class Raising {
         double length = Math.sqrt(tx * tx + tz * tz);
         double facing = length < 1e-6 ? 1 : (fx * tx + fz * tz) / length;
         return away + (1 - facing) * DOOR_AWAY;
+    }
+
+    /** Насколько выгоднее место, чья дверь выходит на улицу: как четыре шага дороги. */
+    private static final double ON_THE_STREET = 4;
+
+    /** Как далеко от порога смотреть мостовую. */
+    private static final int STREET_REACH = 3;
+
+    /**
+     * Выходит ли дверь на улицу.
+     * <p>
+     * Дом, поставленный дверью к мостовой, продолжает улицу: соседи
+     * встают в ряд вдоль неё, а не россыпью на лугу. Прежде мостовая
+     * для разметки была только запретом — «не строить поперёк», — и дома
+     * поворачивались к площади, где бы ни стояли.
+     */
+    static double frontage(Set<Long> streets, Schematic schematic, BlockPos anchor,
+                           BlockRotation rotation) {
+        if (streets.isEmpty() || schematic.entrances().isEmpty()) {
+            return 0;
+        }
+        Schematic.Entrance door = schematic.entrances().get(0);
+        Vec3i size = schematic.size();
+        BlockPos inside = BuildSite.toWorld(anchor, size, rotation, door.pos());
+        BlockPos outside = BuildSite.toWorld(anchor, size, rotation, door.pos().offset(door.wayOut()));
+        int fx = outside.getX() - inside.getX();
+        int fz = outside.getZ() - inside.getZ();
+        for (int step = 1; step <= STREET_REACH; step++) {
+            for (int side = -1; side <= 1; side++) {
+                long cell = BlockPos.asLong(inside.getX() + fx * step + fz * side, 0,
+                        inside.getZ() + fz * step + fx * side);
+                if (streets.contains(cell)) {
+                    return ON_THE_STREET;
+                }
+            }
+        }
+        return 0;
+    }
+
+    /** Поле начинается не ближе стольких блоков от ратуши — у хутора. */
+    private static final int FIELDS_FROM = 10;
+
+    /**
+     * С какого удаления от ратуши искать место: поля и лесосеки — на выселках.
+     * <p>
+     * Деревня читается деревней, когда у неё есть середина: площадь,
+     * ратуша, лавки и дома вокруг, — а пашня и роща за ними. Прежде поле
+     * вставало в первом свободном месте у самой площади, и разросшаяся
+     * деревня оказывалась городом, в середине которого пасётся огород.
+     * Кольцо полей отодвигается вместе с границей: у города оно дальше.
+     * <p>
+     * Только у деревень народов: колонию размечает игрок, а её первому
+     * полю место во дворе — его и так ищут в двух кольцах.
+     */
+    static int outskirtsFrom(Settlement settlement, Identifier schematicId) {
+        if (!settlement.owner().isAutonomous()) {
+            return 0;
+        }
+        Identifier type = BuildJob.buildingTypeOf(schematicId).orElse(null);
+        if (type == null) {
+            return 0;
+        }
+        boolean outskirts = com.villagepax.core.building.BuildingTypes.employs(type,
+                com.villagepax.sim.work.FarmJob.FARMER)
+                || com.villagepax.core.building.BuildingTypes.employs(type,
+                com.villagepax.sim.work.GatherJob.LUMBERJACK);
+        if (!outskirts) {
+            return 0;
+        }
+        int claim = settlement.level().claimRadiusChunks() * 16;
+        return Math.max(FIELDS_FROM, claim / 3);
     }
 
     /** Колонны вокруг середины — квадратными кольцами наружу, по мелкой сетке. */

@@ -58,8 +58,12 @@ public final class Milestones {
                         Text.translatable(levelKey(level)))
                 .formatted(Formatting.GOLD));
 
-        for (Text line : opened(level)) {
-            tell(world, colony, line);
+        // Что открылось — это о заказах в пульте, а пульт есть только
+        // у колонии. Деревне народа хватит колокола и слов.
+        if (!colony.owner().isAutonomous()) {
+            for (Text line : opened(level)) {
+                tell(world, colony, line);
+            }
         }
     }
 

@@ -482,6 +482,7 @@ public final class Villages {
     private static void deliver(ServerWorld world, Settlement village, Warehouse warehouse) {
         Building site = underConstruction(village).orElse(null);
         if (site == null) {
+            stockTheStreets(world, village, warehouse);
             return;
         }
         Schematic schematic = SchematicLoader.get(BuildJob.schematicId(site)).orElse(null);
@@ -523,6 +524,42 @@ public final class Villages {
         }
     }
 
+    /** Сколько камня на улицы город держит сверх неприкосновенного запаса. */
+    private static final int STREET_STOCK = 64;
+
+    /**
+     * Камень на мостовые — городу, когда стройки нет.
+     * <p>
+     * Улицы мостят из излишков ({@link com.villagepax.sim.build.Roads#reserve}):
+     * у колонии их привозит игрок, а деревне народа их взять было неоткуда,
+     * и её улицы навсегда оставались натоптанными тропами. Город покупает
+     * камень на дневную выручку, и строитель перекладывает тропы в мостовую:
+     * по улицам видно, что это уже не деревня.
+     */
+    private static void stockTheStreets(ServerWorld world, Settlement village, Warehouse warehouse) {
+        if (village.level().ordinal() < SettlementLevel.TOWN.ordinal()) {
+            return;
+        }
+        Item stone = Streetscape.cobbleOf(village, Streetscape.paletteOf(village.culture())).asItem();
+        int wanted = com.villagepax.sim.build.Roads.reserve() + STREET_STOCK - warehouse.count(stone);
+        if (stone == net.minecraft.item.Items.AIR || wanted <= 0) {
+            return;
+        }
+        TradeTable.Deal rate = Trading.rate(village, stone);
+        int bring = Math.min(Math.min(wanted, tradePerDay()),
+                Math.min(stone.getMaxCount(), Trading.affordable(rate, Trading.purse(warehouse))));
+        if (bring <= 0) {
+            return;
+        }
+        int cost = Trading.costOf(rate, bring);
+        if (!Coins.has(warehouse.coins(), cost)) {
+            return;
+        }
+        Coins.pay(warehouse.coins(), cost).forEach(change ->
+                warehouse.addOrScatter(world, village.center(), change));
+        warehouse.addOrScatter(world, village.center(), new ItemStack(stone, bring));
+    }
+
     /**
      * Разметить следующее здание, если деревня ничего не строит.
      * <p>
@@ -539,6 +576,7 @@ public final class Villages {
         // которому нашлось место, и строится; не нашлось ни одному — деревня
         // подождёт до завтра.
         int beds = com.villagepax.sim.work.Housing.sleepingSpots(world, village).size();
+        int rings = Raising.ringsFor(village);
         for (Identifier type : VillagePlanner.wishes(village, culture.buildings(), beds,
                 com.villagepax.core.building.BuildingTypes::get,
                 type -> com.villagepax.core.building.BuildingTypes.employs(type,
@@ -549,10 +587,162 @@ public final class Villages {
             }
             boolean fair = isFair(culture, type);
             if (Raising.placeNear(world, manager, village, schematicId,
-                    fair ? Raising.FAR_RINGS : Raising.PLACE_RINGS, fair).isPresent()) {
+                    fair ? Math.max(Raising.FAR_RINGS, rings) : rings, fair).isPresent()) {
                 return;
             }
         }
+
+        // Ставить больше нечего — или некуда. Тесно — растёт ратуша: с ней
+        // поднимается ступень, предел жителей и граница, и открываются
+        // здания следующей ступени. Прежде деревня народа навсегда
+        // оставалась хутором в шесть душ: ратушу ей не улучшал никто,
+        // и храм, пивоварня, башня, ткацкая и рынок не вставали никогда.
+        long fields = village.buildings().stream()
+                .filter(building -> BuildingTypes.employs(building.type(),
+                        com.villagepax.sim.work.FarmJob.FARMER))
+                .count();
+        if (VillagePlanner.readyToGrow(village, beds, fields) && raiseTheHall(world, village)) {
+            return;
+        }
+
+        // А в городе, где земли под новый дом уже нет, дом растёт вверх:
+        // второй этаж — те же кровати без нового следа.
+        if (village.level().ordinal() >= SettlementLevel.TOWN.ordinal() && village.hasRoomForCitizen()
+                && beds < village.maxCitizens() + VillagePlanner.SPARE_BEDS) {
+            storeyUp(world, village);
+        }
+    }
+
+    /**
+     * Дорастить деревню сразу: ратушу — до названной ступени, и ещё столько
+     * зданий готовыми, сколько велено, — по тем же желаниям, по которым
+     * деревня строится сама.
+     * <p>
+     * Инструмент оператора и проверок: посмотреть, как город ляжет на этот
+     * рельеф, не дожидаясь игровых недель. Материал не спрашивается, как
+     * и у прочего «деревня старше игрока».
+     *
+     * @return сколько зданий встало сверху ратуши
+     */
+    public static int growNow(ServerWorld world, SettlementManager manager, Settlement village,
+                              int buildings, SettlementLevel level) {
+        Culture culture = CultureManager.get(village.culture());
+        if (culture == null) {
+            return 0;
+        }
+        while (village.level().ordinal() < level.ordinal()) {
+            Building hall = village.buildings().stream()
+                    .filter(building -> BuildingTypes.isTownHall(building.type()))
+                    .findFirst().orElse(null);
+            if (hall == null || !com.villagepax.screen.BuildOrders.canUpgrade(hall)
+                    || !(com.villagepax.screen.BuildOrders.upgrade(manager, village, hall.id())
+                    instanceof com.villagepax.screen.BuildOrders.Result.Placed)) {
+                break;
+            }
+            Schematic plan = SchematicLoader.get(BuildJob.schematicId(hall)).orElse(null);
+            if (plan == null) {
+                break;
+            }
+            Materials.required(plan).forEach((item, count) ->
+                    hall.stock().add(Registries.ITEM.getId(item), count));
+            if (BuildJob.advance(world, manager, village.id(), hall.id(), Integer.MAX_VALUE)
+                    != BuildJob.Outcome.FINISHED) {
+                break;
+            }
+            Levels.refresh(world, village);
+        }
+
+        int raised = 0;
+        for (int i = 0; i < buildings; i++) {
+            int beds = com.villagepax.sim.work.Housing.sleepingSpots(world, village).size();
+            boolean placed = false;
+            for (Identifier type : VillagePlanner.wishes(village, culture.buildings(), beds,
+                    BuildingTypes::get,
+                    kind -> BuildingTypes.employs(kind, com.villagepax.sim.work.FarmJob.FARMER))) {
+                if (SchematicLoader.get(new Identifier(type.getNamespace(), type.getPath() + "_lvl1"))
+                        .isEmpty()) {
+                    continue;
+                }
+                boolean fair = isFair(culture, type);
+                int rings = Raising.ringsFor(village);
+                if (Raising.raise(world, manager, village, type,
+                        fair ? Math.max(Raising.FAR_RINGS, rings) : rings, fair).isPresent()) {
+                    raised++;
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) {
+                break;
+            }
+        }
+        com.villagepax.sim.work.Housing.assignBeds(world, village);
+        Workplaces.assign(world, village);
+        // Улицы — до убранства: фонари и цветы встают у мостовой, а не на ней.
+        if (Footing.of(village).levelsTheGround()) {
+            com.villagepax.sim.build.Roads.layNow(world, village,
+                    village.level().ordinal() >= SettlementLevel.TOWN.ordinal()
+                            ? Streetscape.cobbleOf(village, Streetscape.paletteOf(village.culture()))
+                            : net.minecraft.block.Blocks.DIRT_PATH);
+        }
+        Streetscape.dress(world, manager, village);
+        return raised;
+    }
+
+    /** Как далеко слышно, что в деревне заложили новую ратушу. */
+    private static final int NEWS_REACH = 96;
+
+    /**
+     * Заложить следующую ступень ратуши.
+     * <p>
+     * Тем же заказом, каким улучшает здание игрок: якорь на месте, новое
+     * достраивается поверх старого, материал довозит обоз деревни. Ступень
+     * поднимется, когда ратушу сдадут, — {@link Levels#refresh} из работы
+     * строителя.
+     */
+    public static boolean raiseTheHall(ServerWorld world, Settlement village) {
+        Building hall = village.buildings().stream()
+                .filter(building -> BuildingTypes.isTownHall(building.type()) && building.isOperational())
+                .findFirst().orElse(null);
+        if (hall == null || !com.villagepax.screen.BuildOrders.canUpgrade(hall)) {
+            return false;
+        }
+        if (!(com.villagepax.screen.BuildOrders.upgrade(SettlementManager.get(world), village, hall.id())
+                instanceof com.villagepax.screen.BuildOrders.Result.Placed)) {
+            return false;
+        }
+        VillagePax.LOGGER.info("Деревня {} закладывает ратушу {} уровня", village.name(), hall.level() + 1);
+        Vec3d centre = Vec3d.ofCenter(village.center());
+        for (ServerPlayerEntity player : world.getPlayers()) {
+            if (player.squaredDistanceTo(centre) <= (double) NEWS_REACH * NEWS_REACH) {
+                player.sendMessage(net.minecraft.text.Text.translatable("villagepax.village.hall_rising",
+                        village.name(), net.minecraft.text.Text.translatable(
+                                Milestones.levelKey(village.level().next())))
+                        .formatted(net.minecraft.util.Formatting.GOLD), false);
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Надстроить дом: ближний к площади, ещё в один этаж.
+     * <p>
+     * Ближний — потому что так растут города: середина тянется вверх,
+     * окраина остаётся избами.
+     */
+    private static void storeyUp(ServerWorld world, Settlement village) {
+        BlockPos centre = village.center();
+        village.buildings().stream()
+                .filter(Building::isOperational)
+                .filter(building -> BuildingTypes.get(building.type())
+                        .filter(kind -> kind.role() == com.villagepax.core.building.BuildingType.Role.HOME)
+                        .isPresent())
+                .filter(com.villagepax.screen.BuildOrders::canUpgrade)
+                .sorted(java.util.Comparator.comparingDouble(building ->
+                        building.anchor().getSquaredDistance(centre)))
+                .filter(building -> com.villagepax.screen.BuildOrders.upgrade(SettlementManager.get(world),
+                        village, building.id()) instanceof com.villagepax.screen.BuildOrders.Result.Placed)
+                .findFirst();
     }
 
     private static Optional<Building> underConstruction(Settlement village) {

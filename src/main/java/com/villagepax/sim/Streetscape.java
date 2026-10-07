@@ -197,7 +197,297 @@ public final class Streetscape {
             });
             manager.markDressed(building.id());
         }
+        // Окна — отдельно от крыльца и на каждом уровне здания: надстроенный
+        // этаж получает свои ставни, а деревни, убранные до ставен, получают
+        // их на ближайшем рассвете.
+        for (Building building : village.buildings()) {
+            UUID marker = windowsMarker(building);
+            if (building.progress() != BuildProgress.DONE || manager.isDressed(marker)) {
+                continue;
+            }
+            Schematic plan = SchematicLoader.get(BuildJob.schematicId(building)).orElse(null);
+            if (plan == null) {
+                continue;
+            }
+            Vec3i around = BuildSite.rotatedSize(plan.size(), building.rotation());
+            if (!world.isRegionLoaded(building.anchor().add(-2, 0, -2),
+                    building.anchor().add(around.getX() + 2, 0, around.getZ() + 2))) {
+                continue;
+            }
+            windows(world, manager, village, building, plan);
+            manager.markDressed(marker);
+        }
         gameTable(world, manager, village);
+        // Ступень видна на улице, а не только в чате: у деревни вдоль улиц
+        // встают фонари, у города мостится площадь у ратуши.
+        if (village.level().ordinal() >= SettlementLevel.VILLAGE.ordinal()) {
+            streetLamps(world, manager, village, palette);
+        }
+        if (village.level().ordinal() >= SettlementLevel.TOWN.ordinal()) {
+            square(world, manager, village, palette);
+        }
+    }
+
+    // --- окна: ставни и цветочные ящики ---
+
+    /** Отметка «окна этого здания на этом уровне убраны». */
+    static UUID windowsMarker(Building building) {
+        return UUID.nameUUIDFromBytes(("villagepax:windows/" + building.id() + "/" + building.level())
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Чем народ закрывает окна снаружи. У ямато окна — бумажные сёдзи,
+     * и деревянные ставни на них были бы чужой вещью.
+     */
+    static Optional<Block> shutterOf(Identifier culture) {
+        return switch (culture.getPath()) {
+            case "norman" -> Optional.of(Blocks.DARK_OAK_TRAPDOOR);
+            case "pony" -> Optional.of(Blocks.ACACIA_TRAPDOOR);
+            case "nord" -> Optional.of(Blocks.SPRUCE_TRAPDOOR);
+            case "maya" -> Optional.of(Blocks.JUNGLE_TRAPDOOR);
+            default -> Optional.empty();
+        };
+    }
+
+    /**
+     * Ставни по бокам окна и цветочный ящик под ним — снаружи стены.
+     * <p>
+     * Дом из коробки становится домом, в котором живут, от мелочей у окна:
+     * ставня, распахнутая к стене, и герань в ящике. Всё — за следом
+     * здания, на клетку от стены, поэтому ни схеме, ни ремонту, ни ходу
+     * внутри это не мешает. Мимо дверей и проходов — ничего: перед входом
+     * ящик был бы порогом, о который спотыкаются.
+     */
+    static void windows(ServerWorld world, SettlementManager manager, Settlement village,
+                        Building building, Schematic schematic) {
+        Block shutter = shutterOf(village.culture()).orElse(null);
+        Vec3i size = schematic.size();
+        Set<Long> passages = passages(village);
+        for (com.villagepax.sim.build.BuildStep step : schematic.plan().steps()) {
+            if (!step.placesBlock() || !isWindow(schematic.blockAt(step.paletteIndex()))) {
+                continue;
+            }
+            BlockPos local = step.pos();
+            int dx = local.getX() == 0 ? -1 : local.getX() == size.getX() - 1 ? 1 : 0;
+            int dz = local.getZ() == 0 ? -1 : local.getZ() == size.getZ() - 1 ? 1 : 0;
+            if ((dx == 0) == (dz == 0) || local.getY() < 1) {
+                continue;
+            }
+            BlockPos pane = BuildSite.toWorld(building.anchor(), size, building.rotation(), local);
+            BlockPos front = BuildSite.toWorld(building.anchor(), size, building.rotation(),
+                    local.add(dx, 0, dz));
+            Direction out = Direction.getFacing(front.getX() - pane.getX(), 0, front.getZ() - pane.getZ());
+            if (!world.getBlockState(pane).isOf(schematic.blockAt(step.paletteIndex()).getBlock())) {
+                continue;
+            }
+
+            BlockPos box = front.down();
+            if (!passages.contains(BlockPos.asLong(box.getX(), 0, box.getZ()))
+                    && world.getBlockState(box).isAir()
+                    && natural(world.getBlockState(box.down()))) {
+                put(world, manager, village, box, ModBlocks.FLOWER_BOX.getDefaultState()
+                        .with(FurnitureBlock.FACING, out));
+            }
+
+            if (shutter == null) {
+                continue;
+            }
+            for (Direction side : List.of(out.rotateYClockwise(), out.rotateYCounterclockwise())) {
+                BlockPos beside = front.offset(side);
+                if (isWindow(world.getBlockState(pane.offset(side)))
+                        || passages.contains(BlockPos.asLong(beside.getX(), 0, beside.getZ()))
+                        || !world.getBlockState(beside).isAir()
+                        || !world.getBlockState(pane.offset(side)).isSolidBlock(world, pane.offset(side))) {
+                    continue;
+                }
+                put(world, manager, village, beside, shutter.getDefaultState()
+                        .with(net.minecraft.block.TrapdoorBlock.FACING, out)
+                        .with(net.minecraft.block.TrapdoorBlock.OPEN, true)
+                        .with(net.minecraft.block.TrapdoorBlock.HALF,
+                                net.minecraft.block.enums.BlockHalf.TOP));
+            }
+        }
+    }
+
+    /** Окно — стекло или стеклянная панель; решётка гномов окном не считается. */
+    private static boolean isWindow(BlockState state) {
+        return !state.isOf(Blocks.IRON_BARS)
+                && (state.getBlock() instanceof net.minecraft.block.PaneBlock
+                || state.getBlock() instanceof net.minecraft.block.AbstractGlassBlock);
+    }
+
+    // --- улицы деревни и площадь города ---
+
+    /** Фонари на улице — не чаще, чем через столько блоков. */
+    static final int LAMP_SPACING = 8;
+
+    /**
+     * Фонари вдоль улиц — у деревни, выросшей из хутора.
+     * <p>
+     * У хутора фонарь только у крыльца; деревня зажигает улицу: столб
+     * сбоку от мостовой через каждые несколько шагов, по обе стороны
+     * не мешая ни проходу, ни двери. Ночью по огням видно, где улицы
+     * и куда они ведут, — и нечисть на них не родится.
+     */
+    static void streetLamps(ServerWorld world, SettlementManager manager, Settlement village,
+                            Palette palette) {
+        List<List<BlockPos>> routes = new ArrayList<>();
+        Set<Long> streets = new HashSet<>();
+        for (Building building : village.buildings()) {
+            if (building.progress() != BuildProgress.DONE) {
+                continue;
+            }
+            List<BlockPos> route = com.villagepax.sim.build.Roads.route(world, village, building);
+            routes.add(route);
+            route.forEach(tile -> streets.add(BlockPos.asLong(tile.getX(), 0, tile.getZ())));
+        }
+        List<BlockPos> lamps = new ArrayList<>();
+        for (BlockPos at : manager.decorOf(village.id())) {
+            if (world.isChunkLoaded(at) && world.getBlockState(at).isOf(palette.lamp())) {
+                lamps.add(at);
+            }
+        }
+        Set<Long> passages = passages(village);
+
+        for (List<BlockPos> route : routes) {
+            for (int i = 1; i + 1 < route.size(); i++) {
+                BlockPos tile = route.get(i);
+                if (near(lamps, tile, LAMP_SPACING)) {
+                    continue;
+                }
+                BlockPos before = route.get(i - 1);
+                BlockPos after = route.get(i + 1);
+                Direction along = Direction.getFacing(after.getX() - before.getX(), 0,
+                        after.getZ() - before.getZ());
+                for (Direction side : List.of(along.rotateYClockwise(), along.rotateYCounterclockwise())) {
+                    BlockPos column = tile.offset(side);
+                    long key = BlockPos.asLong(column.getX(), 0, column.getZ());
+                    if (streets.contains(key) || passages.contains(key)) {
+                        continue;
+                    }
+                    BlockPos at = Ground.buildableAt(world, column.getX(), column.getZ())
+                            .filter(spot -> Math.abs(spot.getY() - tile.up().getY()) <= 1)
+                            .filter(spot -> freeFor(world, village, spot, 3))
+                            .orElse(null);
+                    if (at != null) {
+                        put(world, manager, village, at, palette.fence().getDefaultState());
+                        put(world, manager, village, at.up(), palette.fence().getDefaultState());
+                        put(world, manager, village, at.up(2), lamp(palette, false));
+                        lamps.add(at.up(2));
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    private static boolean near(List<BlockPos> lamps, BlockPos tile, int reach) {
+        for (BlockPos lamp : lamps) {
+            int dx = lamp.getX() - tile.getX();
+            int dz = lamp.getZ() - tile.getZ();
+            if (dx * dx + dz * dz < reach * reach) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** На сколько клеток площадь выходит за след ратуши: у города и у столицы. */
+    static int squareMargin(SettlementLevel level) {
+        return level.ordinal() >= SettlementLevel.CAPITAL.ordinal() ? 5 : 3;
+    }
+
+    /** Отметка «площадь этой ступени уже вымощена». */
+    static UUID squareMarker(UUID village, SettlementLevel level) {
+        return UUID.nameUUIDFromBytes(("villagepax:square/" + village + "/" + level.id())
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Мощёная площадь у ратуши — у города.
+     * <p>
+     * Город отличается от деревни тем, что у него есть середина, по которой
+     * не топчут траву: камень вокруг ратуши, фонари по углам. Мостится
+     * только природная земля вровень с порогом ратуши — колодец, доска,
+     * игорный стол и чужое остаются как стояли. У столицы площадь шире.
+     */
+    static void square(ServerWorld world, SettlementManager manager, Settlement village,
+                       Palette palette) {
+        UUID marker = squareMarker(village.id(), village.level());
+        if (manager.isDressed(marker)) {
+            return;
+        }
+        Building hall = village.buildings().stream()
+                .filter(building -> BuildingTypes.isTownHall(building.type()))
+                .findFirst().orElse(null);
+        Schematic plan = hall == null ? null : SchematicLoader.get(BuildJob.schematicId(hall)).orElse(null);
+        if (plan == null) {
+            return;
+        }
+        Vec3i size = BuildSite.rotatedSize(plan.size(), hall.rotation());
+        int margin = squareMargin(village.level());
+        BlockPos from = hall.anchor().add(-margin, 0, -margin);
+        BlockPos to = hall.anchor().add(size.getX() + margin - 1, 0, size.getZ() + margin - 1);
+        if (!world.isRegionLoaded(from, to)) {
+            return;
+        }
+        BlockState stone = cobbleOf(village, palette).getDefaultState();
+        int floor = hall.anchor().getY() - 1;
+        for (int x = from.getX(); x <= to.getX(); x++) {
+            for (int z = from.getZ(); z <= to.getZ(); z++) {
+                BlockPos column = new BlockPos(x, floor, z);
+                if (BuildSite.covers(hall.anchor(), plan.size(), hall.rotation(),
+                        new BlockPos(x, hall.anchor().getY(), z))) {
+                    continue;
+                }
+                for (int dy = -1; dy <= 1; dy++) {
+                    BlockPos ground = column.up(dy);
+                    BlockState state = world.getBlockState(ground);
+                    if ((natural(state) || state.isOf(Blocks.DIRT_PATH))
+                            && world.getBlockState(ground.up()).isReplaceable()) {
+                        world.setBlockState(ground, stone);
+                        break;
+                    }
+                }
+            }
+        }
+        // Фонари — по четырём углам площади.
+        for (BlockPos corner : List.of(from, new BlockPos(to.getX(), floor, from.getZ()),
+                new BlockPos(from.getX(), floor, to.getZ()), to)) {
+            Ground.buildableAt(world, corner.getX(), corner.getZ())
+                    .filter(at -> Math.abs(at.getY() - hall.anchor().getY()) <= 1)
+                    .filter(at -> !covered(village, at)
+                            && world.getBlockState(at).isReplaceable()
+                            && world.getBlockState(at.up()).isReplaceable()
+                            && world.getBlockState(at.up(2)).isReplaceable())
+                    .ifPresent(at -> {
+                        put(world, manager, village, at, palette.fence().getDefaultState());
+                        put(world, manager, village, at.up(), palette.fence().getDefaultState());
+                        put(world, manager, village, at.up(2), lamp(palette, false));
+                    });
+        }
+        manager.markDressed(marker);
+    }
+
+    /**
+     * Камень мостовой народа: первое из его списка, что кладётся целым
+     * блоком, — натоптанной тропой площадь не мостят.
+     */
+    static Block cobbleOf(Settlement village, Palette palette) {
+        com.villagepax.core.culture.Culture culture =
+                com.villagepax.core.culture.CultureManager.get(village.culture());
+        if (culture != null) {
+            for (Identifier id : culture.road()) {
+                Block block = net.minecraft.registry.Registries.BLOCK.get(id);
+                if (block != Blocks.AIR && block != Blocks.DIRT_PATH
+                        && block.getDefaultState().isFullCube(net.minecraft.world.EmptyBlockView.INSTANCE,
+                        BlockPos.ORIGIN)) {
+                    return block;
+                }
+            }
+        }
+        return palette.wall();
     }
 
     static Palette paletteOf(Identifier culture) {

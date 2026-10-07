@@ -261,6 +261,45 @@ public final class Roads {
     }
 
     /**
+     * Проложить улицы сразу: от каждой двери к площади, тем же маршрутом
+     * и теми же правилами, по которым их мостит строитель, — но без склада.
+     * <p>
+     * Для доращивания оператором: деревня, которую показывают выросшей,
+     * должна стоять с улицами, а не россыпью домов на лугу, по которому
+     * улица пройдёт только через неделю игры.
+     *
+     * @return сколько клеток уложено
+     */
+    public static int layNow(ServerWorld world, Settlement colony, Block paving) {
+        net.minecraft.inventory.SimpleInventory stock = new net.minecraft.inventory.SimpleInventory(27);
+        Warehouse supply = Warehouse.over(colony.center(), stock);
+        Item material = paving.asItem();
+        int laid = 0;
+        for (Building building : colony.buildings()) {
+            if (!building.isOperational()) {
+                continue;
+            }
+            for (BlockPos ground : route(world, colony, building)) {
+                if (!needsWork(world, colony, ground, paving)) {
+                    continue;
+                }
+                // Склад на одну клетку: материал с запасом сверх
+                // неприкосновенного — и ничего лишнего от расчистки.
+                stock.clear();
+                if (material != Items.AIR) {
+                    for (int slot = 0; slot < 8; slot++) {
+                        stock.setStack(slot, new ItemStack(material, material.getMaxCount()));
+                    }
+                }
+                if (pave(world, colony, supply, ground, paving)) {
+                    laid++;
+                }
+            }
+        }
+        return laid;
+    }
+
+    /**
      * Досыпать опору под только что положенной клеткой улицы.
      * <p>
      * Молча и не глубже {@link #FILL_DEPTH}: клетку назначал {@link #step},

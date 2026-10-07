@@ -682,11 +682,19 @@ public class FoundingTests extends GameTestSupport {
             try {
                 List<String> buried = new ArrayList<>();
                 for (net.minecraft.entity.passive.ChickenEntity hen : flock) {
+                    // Курица, которой мир не видел до закладки, — в секции
+                    // чанка, где сущности не ведутся: увидеть и отвести её
+                    // закладка не может, и спрашивать с неё нечего. Прежде
+                    // проверка считала и их — и падала, когда поле ложилось
+                    // на край прогрузки.
+                    if (!seen.contains(hen.getUuid())) {
+                        continue;
+                    }
                     if (!hen.isAlive() || hen.isInsideWall()) {
                         BlockPos at = hen.getBlockPos();
                         buried.add(at.subtract(centre).toShortString() + " "
                                 + (hen.isAlive() ? world.getBlockState(at).getBlock().getName().getString()
-                                : "погибла") + (seen.contains(hen.getUuid()) ? "" : " (мир её не видел)"));
+                                : "погибла"));
                     }
                 }
                 if (!buried.isEmpty()) {

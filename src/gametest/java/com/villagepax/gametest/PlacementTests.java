@@ -133,6 +133,15 @@ public class PlacementTests extends GameTestSupport {
                     if (decor.isReplaceable() || decor.isIn(BlockTags.FLOWERS)) {
                         continue;
                     }
+                    // Ставни и ящик под окном — убранство самого дома, у его
+                    // стены снаружи; чужое здание к ним не подходит ближе соседа.
+                    boolean ownWindow = (decor.isIn(BlockTags.TRAPDOORS)
+                            || decor.isOf(com.villagepax.block.ModBlocks.FLOWER_BOX))
+                            && !(at.getX() >= a.getX() && at.getX() < a.getX() + size.getX()
+                            && at.getZ() >= a.getZ() && at.getZ() < a.getZ() + size.getZ());
+                    if (ownWindow) {
+                        continue;
+                    }
                     if (at.getX() >= a.getX() - 1 && at.getX() <= a.getX() + size.getX()
                             && at.getZ() >= a.getZ() - 1 && at.getZ() <= a.getZ() + size.getZ()) {
                         context.throwGameTestException(building.type() + " размечен на убранстве: "

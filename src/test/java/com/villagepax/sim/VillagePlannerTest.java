@@ -26,6 +26,8 @@ class VillagePlannerTest {
     private static final Identifier SHRINE = type("shrine");
     private static final Identifier HOUSE = type("house");
     private static final Identifier FARM = type("farm");
+    private static final Identifier COTTAGE = type("cottage");
+    private static final Identifier TOWNHOUSE = type("townhouse");
     private static final List<Identifier> LIST = List.of(HALL, STALL, SHRINE, HOUSE, FARM);
 
     private static final Map<Identifier, BuildingType> TYPES = Map.of(
@@ -33,7 +35,9 @@ class VillagePlannerTest {
             STALL, kind(BuildingType.Role.WORKPLACE, SettlementLevel.HAMLET),
             SHRINE, kind(BuildingType.Role.PLAIN, SettlementLevel.VILLAGE),
             HOUSE, kind(BuildingType.Role.HOME, SettlementLevel.HAMLET),
-            FARM, kind(BuildingType.Role.WORKPLACE, SettlementLevel.HAMLET));
+            FARM, kind(BuildingType.Role.WORKPLACE, SettlementLevel.HAMLET),
+            COTTAGE, kind(BuildingType.Role.HOME, SettlementLevel.HAMLET),
+            TOWNHOUSE, kind(BuildingType.Role.HOME, SettlementLevel.TOWN));
 
     private static Identifier type(String name) {
         return new Identifier("villagepax", "maya/" + name);
@@ -87,5 +91,50 @@ class VillagePlannerTest {
         assertFalse(wishes(village, 8).contains(SHRINE));
         village.setLevel(SettlementLevel.VILLAGE);
         assertTrue(wishes(village, 8).contains(SHRINE));
+    }
+
+    /** Прежняя беда: деревня без притока ставила дом за домом, пока была земля. */
+    @Test
+    void spareHousesStopAtTheVillageLimit() {
+        Settlement village = village(2, HALL, STALL, HOUSE, FARM);
+        int limit = village.maxCitizens() + VillagePlanner.SPARE_BEDS;
+        assertTrue(wishes(village, limit - 1).contains(HOUSE));
+        assertFalse(wishes(village, limit).contains(HOUSE), "дом сверх предела");
+    }
+
+    /** Двух видов дома — строится тот, которого меньше: улица не из одинаковых коробок. */
+    @Test
+    void homesTakeTurns() {
+        List<Identifier> list = List.of(HALL, HOUSE, COTTAGE, FARM);
+        Settlement village = village(2, HALL, HOUSE, HOUSE, FARM);
+        List<Identifier> wishes = VillagePlanner.wishes(village, list, 1,
+                type -> Optional.ofNullable(TYPES.get(type)), FARM::equals);
+        assertEquals(COTTAGE, wishes.get(0), "второй вид дома не дождался очереди: " + wishes);
+    }
+
+    /** В городе первыми — городские дома; в хуторе их нет вовсе. */
+    @Test
+    void aTownBuildsTownhousesFirst() {
+        List<Identifier> list = List.of(HALL, HOUSE, TOWNHOUSE, FARM);
+        Settlement village = village(2, HALL, FARM);
+        assertFalse(VillagePlanner.wishes(village, list, 1,
+                type -> Optional.ofNullable(TYPES.get(type)), FARM::equals).contains(TOWNHOUSE));
+        village.setLevel(SettlementLevel.TOWN);
+        assertEquals(TOWNHOUSE, VillagePlanner.wishes(village, list, 1,
+                type -> Optional.ofNullable(TYPES.get(type)), FARM::equals).get(0));
+    }
+
+    /** Ратуша растёт, когда деревне тесно: жителей под предел, всем есть где спать и что есть. */
+    @Test
+    void aCrowdedVillageRaisesItsHall() {
+        Settlement village = village(6, HALL, STALL, HOUSE, HOUSE, FARM, FARM);
+        assertTrue(VillagePlanner.readyToGrow(village, 6, 2));
+        assertFalse(VillagePlanner.readyToGrow(village, 5, 2), "растёт, а спать негде");
+        assertFalse(VillagePlanner.readyToGrow(village, 6, 1), "растёт, а есть нечего");
+        assertFalse(VillagePlanner.readyToGrow(village(5, HALL, FARM), 6, 1),
+                "растёт одними основателями");
+        Settlement capital = village(63, HALL, FARM);
+        capital.setLevel(SettlementLevel.CAPITAL);
+        assertFalse(VillagePlanner.readyToGrow(capital, 80, 20), "выше столицы");
     }
 }

@@ -102,12 +102,22 @@ public final class BuildCommand {
                                 .then(argument("culture", IdentifierArgumentType.identifier())
                                         .suggests((context, builder) -> CommandSource
                                                 .suggestIdentifiers(CultureManager.all().keySet(), builder))
-                                        .executes(context -> raise(context, 0))
+                                        .executes(context -> raise(context, 0, "hamlet"))
                                         .then(argument("buildings",
-                                                com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 12))
+                                                com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 40))
                                                 .executes(context -> raise(context,
                                                         com.mojang.brigadier.arguments.IntegerArgumentType
-                                                                .getInteger(context, "buildings"))))))
+                                                                .getInteger(context, "buildings"), "hamlet"))
+                                                .then(argument("level",
+                                                        com.mojang.brigadier.arguments.StringArgumentType.word())
+                                                        .suggests((context, builder) -> CommandSource.suggestMatching(
+                                                                java.util.Arrays.stream(com.villagepax.sim.SettlementLevel.values())
+                                                                        .map(com.villagepax.sim.SettlementLevel::id), builder))
+                                                        .executes(context -> raise(context,
+                                                                com.mojang.brigadier.arguments.IntegerArgumentType
+                                                                        .getInteger(context, "buildings"),
+                                                                com.mojang.brigadier.arguments.StringArgumentType
+                                                                        .getString(context, "level")))))))
                         .then(literal("locate").executes(BuildCommand::locate))
                         .then(literal("sites").executes(BuildCommand::sites))
                         .then(literal("status").executes(BuildCommand::status))
@@ -304,7 +314,7 @@ public final class BuildCommand {
      * общим правилам и ещё сколько-то зданий готовыми, из тех, что деревня
      * строит первыми. Инструмент оператора, как и прочая отладка.
      */
-    private static int raise(CommandContext<ServerCommandSource> context, int more) {
+    private static int raise(CommandContext<ServerCommandSource> context, int more, String levelId) {
         ServerCommandSource source = context.getSource();
         ServerWorld world = source.getWorld();
         Identifier cultureId = IdentifierArgumentType.getIdentifier(context, "culture");
@@ -321,16 +331,13 @@ public final class BuildCommand {
         }
 
         SettlementManager manager = SettlementManager.get(world);
-        List<Identifier> first = BuildingTypes.starting(culture.buildings());
-        int raised = 0;
-        for (int i = 0; i < more && !first.isEmpty(); i++) {
-            if (com.villagepax.sim.Raising.raise(world, manager, village,
-                    first.get(i % first.size())).isPresent()) {
-                raised++;
-            }
-        }
-        com.villagepax.sim.Streetscape.dress(world, manager, village);
-        int total = raised;
+        // Дорастить — по тем же желаниям, по которым деревня растёт сама,
+        // и до названной ступени: посмотреть на этом рельефе город, а не хутор.
+        com.villagepax.sim.SettlementLevel level = java.util.Arrays.stream(
+                        com.villagepax.sim.SettlementLevel.values())
+                .filter(one -> one.id().equals(levelId)).findFirst()
+                .orElse(com.villagepax.sim.SettlementLevel.HAMLET);
+        int total = com.villagepax.sim.Villages.growNow(world, manager, village, more, level);
         source.sendFeedback(() -> Text.translatable("villagepax.command.raise.done",
                 village.name(), village.center().toShortString(),
                 String.valueOf(village.buildings().size()), String.valueOf(total)), true);

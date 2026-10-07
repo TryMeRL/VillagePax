@@ -30,8 +30,17 @@ import java.util.stream.Collectors;
  *   <li>нет мастерской, лавки, храма, склада — по одному каждого, когда
  *       уровень деревни их открывает, в том порядке, в каком их называет
  *       народ;</li>
- *   <li>всё есть — ещё один дом, пока деревня не упёрлась в свой предел.</li>
+ *   <li>всё есть — ещё один дом, пока кроватей не станет на весь предел
+ *       деревни с запасом;</li>
+ *   <li>деревня тесна — жителей под предел, — а живущим есть где спать
+ *       и что есть: ратуша поднимается на ступень, {@link #readyToGrow}.
+ *       С ней растут предел, граница и список зданий: хутор становится
+ *       деревней, деревня — городом.</li>
  * </ol>
+ * Домов у народа может быть несколько видов; строится тот, которого
+ * меньше, — улица из одинаковых коробок не улица, — а в городе первыми
+ * идут городские дома.
+ * <p>
  * Правило чистое — ни мира, ни датапака, — и проверяется без игры.
  */
 public final class VillagePlanner {
@@ -66,6 +75,7 @@ public final class VillagePlanner {
         List<Identifier> homes = new ArrayList<>();
         List<Identifier> farms = new ArrayList<>();
         List<Identifier> others = new ArrayList<>();
+        Map<Identifier, Integer> homeLevel = new java.util.HashMap<>();
         for (Identifier type : available) {
             BuildingType kind = types.apply(type).orElse(null);
             if (kind == null || kind.isTownHall()
@@ -74,12 +84,19 @@ public final class VillagePlanner {
             }
             if (kind.role() == BuildingType.Role.HOME) {
                 homes.add(type);
+                homeLevel.put(type, kind.minLevel().ordinal());
             } else if (farming.apply(type)) {
                 farms.add(type);
             } else {
                 others.add(type);
             }
         }
+        // Дома — по разнообразию: городские первыми, среди равных — того
+        // вида, которого меньше. Порядок народа решает только при равенстве:
+        // сортировка устойчива.
+        homes.sort(java.util.Comparator
+                .comparingInt((Identifier type) -> -homeLevel.get(type))
+                .thenComparingLong(type -> built.getOrDefault(type, 0L)));
 
         Set<Identifier> wishes = new LinkedHashSet<>();
         if (room && beds < people + SPARE_BEDS) {
@@ -94,9 +111,33 @@ public final class VillagePlanner {
                 wishes.add(type);
             }
         }
-        if (room) {
+        // Про запас — пока кроватей не на весь предел. Прежде дом ставился
+        // всегда, пока жителей меньше предела, — и деревня без еды, к которой
+        // никто не шёл, ставила дом за домом, пока не кончалась земля.
+        if (room && beds < village.maxCitizens() + SPARE_BEDS) {
             wishes.addAll(homes);
         }
         return List.copyOf(wishes);
+    }
+
+    /**
+     * Пора ли ратуше на ступень выше.
+     * <p>
+     * Тогда, когда деревне тесно, а не когда прошло столько-то дней:
+     * жителей — сколько позволяет ступень, спать есть где всем, полей
+     * хватает на всех. Основатели предела не набирают: только что
+     * вставшая деревня сперва принимает пришлых и родит детей. Всё прочее — мастерские, храм, лавка — сюда не входит
+     * нарочно: здание, которому на этом рельефе нет места, держало бы
+     * деревню хутором вечно. Поэтому зовут это правило <b>после</b>
+     * {@link #wishes}: всё, что можно поставить, деревня ставит раньше.
+     *
+     * @param fields сколько полей стоит в деревне
+     */
+    public static boolean readyToGrow(Settlement village, int beds, long fields) {
+        int people = village.population();
+        return !village.level().isMax()
+                && people >= village.maxCitizens()
+                && beds >= people
+                && fields * PEOPLE_PER_FARM >= Math.max(1, people);
     }
 }

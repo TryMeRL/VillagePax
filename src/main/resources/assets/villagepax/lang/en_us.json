@@ -450,6 +450,7 @@
   "villagepax.level.town": "Town",
   "villagepax.level.capital": "Capital",
   "villagepax.level.reached": "The colony %s has grown: it is now a %s!",
+  "villagepax.village.hall_rising": "%s is laying a new town hall: soon it will be a %s.",
   "villagepax.level.opened_craft": "  New craft: %s",
   "villagepax.level.opened_building": "  New building: %s",
   "villagepax.screen.overview.section_growth": "Growth",

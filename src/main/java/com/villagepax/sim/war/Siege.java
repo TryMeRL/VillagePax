@@ -146,9 +146,12 @@ public final class Siege {
             }
             Item item = Registries.ITEM.get(kind.getKey());
             int amount = Math.min(quota, kind.getValue());
-            if (amount > 0 && warehouse.take(item, amount)) {
-                taken.add(new ItemStack(item, amount));
-                quota -= amount;
+            if (amount > 0) {
+                // Сами снятые стопки: с чарами, именами и содержимым.
+                for (ItemStack stack : warehouse.takeStacks(item, amount)) {
+                    taken.add(stack);
+                    quota -= stack.getCount();
+                }
             }
         }
 

@@ -97,6 +97,11 @@ public final class Tribute {
                 || today - village.beatenOn() > MEMORY) {
             return Verdict.NOT_BEATEN;
         }
+        // Бил не ты — не тебе и требовать. Старые сохранения не знают,
+        // кем бита деревня, и для них правило прежнее.
+        if (village.beatenBy().filter(winner -> !winner.equals(player)).isPresent()) {
+            return Verdict.NOT_BEATEN;
+        }
         if (village.reputationOf(player) >= Standing.FRIEND.from()) {
             return Verdict.TOO_FRIENDLY;
         }

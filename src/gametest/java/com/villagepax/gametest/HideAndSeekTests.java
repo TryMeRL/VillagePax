@@ -207,11 +207,32 @@ public class HideAndSeekTests extends GameTestSupport {
                 HideAndSeek.clicked(world, yard.player(), village, kid, DAY, MORNING);
             }
         });
-        context.runAtTick(HideAndSeek.COUNTDOWN + 30, () -> {
-            try {
+        // Конец пряток наступает на ближайшем обходе (раз в пять тиков), и
+        // под нагрузкой сервер его откладывает: проверка ждёт до шестидесяти
+        // тиков, а не ровно десять — прежде она однажды так и упала.
+        boolean[] checked = {false};
+        for (int extra = 0; extra <= 50; extra += 10) {
+            boolean last = extra == 50;
+            context.runAtTick(HideAndSeek.COUNTDOWN + 30 + extra, () -> {
+                if (checked[0]) {
+                    return;
+                }
                 if (HideAndSeek.at(village.id()).isPresent()) {
+                    if (!last) {
+                        return;
+                    }
+                    clearYard(world, manager, yard);
                     context.throwGameTestException("Все найдены, а прятки идут");
                 }
+                checked[0] = true;
+                finishFound(context, world, manager, yard);
+            });
+        }
+    }
+
+    private void finishFound(TestContext context, ServerWorld world, SettlementManager manager, Yard yard) {
+        {
+            try {
                 if (count(yard.player(), Items.COOKIE) != 1 || Coins.total(yard.player().getInventory()) != 2) {
                     context.throwGameTestException("Гостинец: печенья " + count(yard.player(), Items.COOKIE)
                             + ", медяков " + Coins.total(yard.player().getInventory()));
@@ -228,7 +249,7 @@ public class HideAndSeekTests extends GameTestSupport {
                 clearYard(world, manager, yard);
             }
             context.complete();
-        });
+        }
     }
 
     /** Время вышло — оставшиеся выходят сами: «Не нашёл!»; гостинца нет. */

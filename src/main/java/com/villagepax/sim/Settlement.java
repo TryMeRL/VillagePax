@@ -121,15 +121,23 @@ public class Settlement {
      * @param beatenOn     день, когда отряд <b>этого</b> поселения перебили
      * @param tributeTo    кому платят дань
      * @param tributeUntil до какого дня платят
+     * @param beatenBy     чья колония перебила отряд: дань требует только она
      */
     public record War(Optional<WarParty> siege, long lastRaid, long truceUntil,
                       Map<UUID, Long> allies, long beatenOn,
                       Optional<UUID> tributeTo, long tributeUntil,
-                      Optional<UUID> marchingOn) {
+                      Optional<UUID> marchingOn, Optional<UUID> beatenBy) {
 
         /** Мир: никто не стоит у ворот, никто никуда не идёт. */
         public static final War NONE = new War(Optional.empty(), UNSEEN_DAY, UNSEEN_DAY,
-                Map.of(), UNSEEN_DAY, Optional.empty(), UNSEEN_DAY, Optional.empty());
+                Map.of(), UNSEEN_DAY, Optional.empty(), UNSEEN_DAY, Optional.empty(), Optional.empty());
+
+        public War(Optional<WarParty> siege, long lastRaid, long truceUntil,
+                   Map<UUID, Long> allies, long beatenOn,
+                   Optional<UUID> tributeTo, long tributeUntil, Optional<UUID> marchingOn) {
+            this(siege, lastRaid, truceUntil, allies, beatenOn, tributeTo, tributeUntil, marchingOn,
+                    Optional.empty());
+        }
 
         public War {
             allies = Map.copyOf(allies);
@@ -158,43 +166,43 @@ public class Settlement {
 
         /** То же военное положение, но с другой данью. */
         public War paying(Optional<UUID> to, long until) {
-            return new War(siege, lastRaid, truceUntil, allies, beatenOn, to, until, marchingOn);
+            return new War(siege, lastRaid, truceUntil, allies, beatenOn, to, until, marchingOn, beatenBy);
         }
 
         /** То же, но с другим отрядом у ворот. */
         public War besieged(Optional<WarParty> party) {
             return new War(party, lastRaid, truceUntil, allies, beatenOn, tributeTo, tributeUntil,
-                    marchingOn);
+                    marchingOn, beatenBy);
         }
 
         /** То же, но набег пришёл в этот день. */
         public War raidedOn(long day) {
             return new War(siege, day, truceUntil, allies, beatenOn, tributeTo, tributeUntil,
-                    marchingOn);
+                    marchingOn, beatenBy);
         }
 
         /** То же, но с перемирием до этого дня. */
         public War restingUntil(long day) {
             return new War(siege, lastRaid, day, allies, beatenOn, tributeTo, tributeUntil,
-                    marchingOn);
+                    marchingOn, beatenBy);
         }
 
         /** То же, но с другими союзниками. */
         public War allied(Map<UUID, Long> with) {
             return new War(siege, lastRaid, truceUntil, with, beatenOn, tributeTo, tributeUntil,
-                    marchingOn);
+                    marchingOn, beatenBy);
         }
 
         /** То же, но отряд этого поселения перебит в этот день. */
-        public War beatenOnDay(long day) {
+        public War beatenOnDay(long day, Optional<UUID> by) {
             return new War(siege, lastRaid, truceUntil, allies, day, tributeTo, tributeUntil,
-                    marchingOn);
+                    marchingOn, by);
         }
 
         /** То же, но отряд колонии вышел в поход — или вернулся. */
         public War marching(Optional<UUID> target) {
             return new War(siege, lastRaid, truceUntil, allies, beatenOn, tributeTo,
-                    tributeUntil, target);
+                    tributeUntil, target, beatenBy);
         }
 
         public static final Codec<War> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -224,7 +232,11 @@ public class Settlement {
                 // вопроса: «в походе ли моя стража». Спрашивают его
                 // каждое решение каждого жителя, и обходить ради него
                 // все поселения мира было бы дорого.
-                Uuids.STRING_CODEC.optionalFieldOf("marching_on").forGetter(War::marchingOn)
+                Uuids.STRING_CODEC.optionalFieldOf("marching_on").forGetter(War::marchingOn),
+                // Кем бит — рядом с днём разгрома: дань требует победитель,
+                // а не первый, кто узнал о разгроме. Прежде на общем сервере
+                // её мог стребовать любой игрок-город.
+                Uuids.STRING_CODEC.optionalFieldOf("beaten_by").forGetter(War::beatenBy)
         ).apply(instance, War::new));
     }
 
@@ -585,7 +597,17 @@ public class Settlement {
 
     /** Отряд перебит: запомнить день. */
     public void beaten(long today) {
-        this.war = war.beatenOnDay(today);
+        beaten(today, Optional.empty());
+    }
+
+    /** Отряд поселения перебит колонией этого игрока. */
+    public void beaten(long today, Optional<UUID> by) {
+        this.war = war.beatenOnDay(today, by);
+    }
+
+    /** Чья колония перебила отряд, если это известно. */
+    public Optional<UUID> beatenBy() {
+        return war.beatenBy();
     }
 
     /**
@@ -863,8 +885,35 @@ public class Settlement {
         return Collections.unmodifiableList(questsDone.getOrDefault(player, List.of()));
     }
 
+    /**
+     * Записать сделанное.
+     * <p>
+     * Поручение дня пишется с номером дня, и прежде вчерашние не стирались:
+     * за сто дней игры у каждого игрока копилось по сотне записей на ремесло,
+     * и всё это ехало в сохранение. Нужны только сегодняшние — по ним
+     * поручение не выдаётся дважды за день. Писаные просьбы помнятся всегда:
+     * по ним идёт цепочка.
+     */
     public void noteQuestDone(UUID player, Identifier quest) {
-        questsDone.computeIfAbsent(player, ignored -> new ArrayList<>()).add(quest);
+        List<Identifier> done = questsDone.computeIfAbsent(player, ignored -> new ArrayList<>());
+        String day = errandDay(quest);
+        if (day != null) {
+            done.removeIf(old -> {
+                String then = errandDay(old);
+                return then != null && !then.equals(day);
+            });
+        }
+        done.add(quest);
+    }
+
+    /** День поручения по его имени «errand/ремесло_день», или ничего для писаной просьбы. */
+    private static String errandDay(Identifier quest) {
+        String path = quest.getPath();
+        if (!path.startsWith("errand/")) {
+            return null;
+        }
+        int at = path.lastIndexOf('_');
+        return at < 0 ? null : path.substring(at + 1);
     }
 
     public int population() {

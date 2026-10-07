@@ -210,8 +210,12 @@ public final class WorkTicker {
         String was = settlement.name();
         com.villagepax.sim.Founding.renameIfTwin(SettlementManager.get(world), settlement, culture,
                         new java.util.Random(world.getRandom().nextLong()))
-                .ifPresent(name -> com.villagepax.VillagePax.LOGGER.info(
-                        "Деревня {} названа {}: такое название на карте уже было", was, name));
+                .ifPresent(name -> {
+                    com.villagepax.VillagePax.LOGGER.info(
+                            "Деревня {} названа {}: такое название на карте уже было", was, name);
+                    // Табличка у колодца иначе так и звала бы её по-старому.
+                    com.villagepax.sim.Streetscape.relabel(world, settlement);
+                });
         List<com.villagepax.sim.Founding.Renamed> renamed = com.villagepax.sim.Founding.tellTwinsApart(
                 settlement, culture, new java.util.Random(world.getRandom().nextLong()));
         if (renamed.isEmpty()) {

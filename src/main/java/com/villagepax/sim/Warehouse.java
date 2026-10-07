@@ -342,6 +342,41 @@ public final class Warehouse {
         return left == 0;
     }
 
+    /**
+     * Взять не меньше и не больше {@code amount} штук — и отдать <b>сами
+     * снятые стопки</b>, со всем, что на них было: чарами, именем,
+     * содержимым кошеля. {@link #take} отвечает только «взято ли», и тот,
+     * кто потом собирал новую стопку из одного счёта, терял всё это:
+     * зачарованный меч уходил с набегом простым, а кошель — пустым.
+     *
+     * @return снятые стопки; пусто, если столько на складе нет
+     */
+    public List<ItemStack> takeStacks(Item item, int amount) {
+        if (amount <= 0 || count(item) < amount) {
+            return List.of();
+        }
+        List<ItemStack> taken = new ArrayList<>();
+        int left = amount;
+        for (Container container : containers) {
+            Inventory inventory = container.inventory();
+            for (int slot = 0; slot < inventory.size() && left > 0; slot++) {
+                ItemStack stack = inventory.getStack(slot);
+                if (!stack.isOf(item)) {
+                    continue;
+                }
+                ItemStack removed = inventory.removeStack(slot, Math.min(left, stack.getCount()));
+                left -= removed.getCount();
+                if (!removed.isEmpty()) {
+                    taken.add(removed);
+                }
+            }
+            if (left == 0) {
+                break;
+            }
+        }
+        return taken;
+    }
+
     /** Взять из одного конкретного контейнера: курьер стоит именно у него. */
     public static int takeFrom(Container container, Item item, int amount) {
         Inventory inventory = container.inventory();

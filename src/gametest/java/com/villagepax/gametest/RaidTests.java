@@ -1193,6 +1193,34 @@ public class RaidTests extends GameTestSupport {
      * каждый согласился бы с «пускать всегда».
      */
     /**
+     * Набег уносит сами стопки: зачарованный меч уходит зачарованным,
+     * а не простым, как прежде, когда добычу собирали заново из счёта.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE)
+    public void plunderKeepsWhatIsOnTheItems(TestContext context) {
+        net.minecraft.inventory.SimpleInventory chest = new net.minecraft.inventory.SimpleInventory(9);
+        ItemStack sword = new ItemStack(Items.DIAMOND_SWORD);
+        sword.setCustomName(net.minecraft.text.Text.literal("Дюрандаль"));
+        chest.setStack(0, sword);
+        chest.setStack(1, new ItemStack(Items.BREAD, 10));
+        com.villagepax.sim.Warehouse warehouse = com.villagepax.sim.Warehouse.over(BlockPos.ORIGIN, chest);
+
+        java.util.List<ItemStack> taken = warehouse.takeStacks(Items.DIAMOND_SWORD, 1);
+        if (taken.size() != 1 || !taken.get(0).hasCustomName()
+                || !taken.get(0).getName().getString().equals("Дюрандаль")) {
+            context.throwGameTestException("Меч ушёл без имени: " + taken);
+        }
+        java.util.List<ItemStack> bread = warehouse.takeStacks(Items.BREAD, 4);
+        if (bread.stream().mapToInt(ItemStack::getCount).sum() != 4 || chest.getStack(1).getCount() != 6) {
+            context.throwGameTestException("Хлеба унесли не столько: " + bread + ", осталось " + chest.getStack(1));
+        }
+        if (!warehouse.takeStacks(Items.BREAD, 99).isEmpty()) {
+            context.throwGameTestException("Унесли больше, чем было");
+        }
+        context.complete();
+    }
+
+    /**
      * Сундук в здании деревни — на замке; свой сундук на свободной земле
      * и сундук в отведённом гражданину доме — нет.
      */

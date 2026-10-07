@@ -410,7 +410,7 @@ public final class Raids {
             if (isCampaign(manager, party)) {
                 Campaigns.wipedOut(world, manager, colony, party);
             } else {
-                manager.update(party.home(), home -> home.beaten(today));
+                manager.update(party.home(), home -> home.beaten(today, colony.owner().player()));
                 Allies.dismiss(world, party);
             }
             // Ярмо держится страхом — там же и кончается. Без этого выхода
@@ -474,7 +474,7 @@ public final class Raids {
             // Отряд ушёл не сам — его положили. Деревня это помнит, и с этого
             // дня у игрока есть право требовать с неё дань: не «я сильнее
             // вообще», а «твои люди лежат под моими воротами».
-            manager.update(party.home(), home -> home.beaten(party.leavesOn()));
+            manager.update(party.home(), home -> home.beaten(party.leavesOn(), colony.owner().player()));
         }
         // Без крови пустая земля значит другое: отряд не нашли, потому что
         // его чанк не загружен, — игрока рядом не было. Битым такой отряд

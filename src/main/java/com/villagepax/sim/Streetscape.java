@@ -549,6 +549,28 @@ public final class Streetscape {
     }
 
     /**
+     * Переписать табличку у колодца: поселение переименовали.
+     * <p>
+     * Табличку ставят один раз, когда мостят площадь, и название в ней
+     * прежде так и оставалось первым — деревня звалась на карте одним
+     * именем, а у колодца другим.
+     */
+    public static void relabel(ServerWorld world, Settlement village) {
+        BlockPos centre = wellSpot(world, village).orElse(null);
+        if (centre == null) {
+            return;
+        }
+        Direction toward = Direction.getFacing(village.center().getX() - centre.getX(), 0,
+                village.center().getZ() - centre.getZ());
+        BlockPos at = centre.offset(toward, 2);
+        if (world.isChunkLoaded(at) && world.getBlockEntity(at) instanceof SignBlockEntity sign) {
+            sign.setText(sign.getText(true).withMessage(1, Text.literal(village.name())), true);
+            sign.markDirty();
+            world.updateListeners(at, world.getBlockState(at), world.getBlockState(at), 3);
+        }
+    }
+
+    /**
      * Какие животные у кого стоят у коновязи. Деревня без скотины — декорация:
      * у пони у столба кони, у норманнов овцы, у майя попугаи-ара, у северян
      * ездовые волки, у ямато — лисы, посланницы Инари. Гномы и эльфы живут

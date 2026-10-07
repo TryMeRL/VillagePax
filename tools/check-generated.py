@@ -42,6 +42,9 @@ GENERATORS = (
     "make-festival.py",
     "make-recipe-advancements.py",
     "make-icon.py",
+    "make-board.py",
+    # Последним: доводит блоки, которые генераторы выше пишут 16x16, до 32x32.
+    "make-hd.py",
 )
 
 

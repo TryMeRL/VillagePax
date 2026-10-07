@@ -51,6 +51,7 @@ public final class ChatterTicker {
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             HEARD.clear();
             Chatter.forget();
+            Gossip.forget();
         });
     }
 
@@ -59,6 +60,14 @@ public final class ChatterTicker {
         long now = world.getTime();
         long day = Schedule.dayOf(world.getTimeOfDay());
         SettlementManager manager = SettlementManager.get(world);
+        // Сплетни на вечерних площадях и ответы на них — тем же обходом.
+        Gossip.replies(world, manager, now);
+        if (!players.isEmpty()) {
+            for (Settlement settlement : List.copyOf(manager.all())) {
+                Gossip.tick(world, settlement, day, world.getTimeOfDay(), players,
+                        new Random(world.getRandom().nextLong()));
+            }
+        }
         for (PlayerEntity player : players) {
             if (player.isSpectator()) {
                 continue;

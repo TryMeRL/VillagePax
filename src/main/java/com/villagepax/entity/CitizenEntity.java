@@ -1281,15 +1281,86 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
      * тела — при выгрузке чанка, смерти или остановке сервера.
      */
     public void writeBackTo(ServerWorld world) {
+        writeBack(world, true);
+    }
+
+    /**
+     * Запомнить в записи, где тело и сколько у него здоровья, — но связи
+     * не рвать.
+     * <p>
+     * Нужно, когда мир перестаёт вести тело, не убирая его: тело зашло
+     * в секцию на краю прогрузки. Оно живо и вернётся в ведение само,
+     * а запись, забывшая его, родила бы при следующей загрузке чанка
+     * второе тело того же жителя — клона с тем же именем над головой.
+     */
+    public void rememberIn(ServerWorld world) {
+        writeBack(world, false);
+    }
+
+    /**
+     * Обратно в запись пишет только <b>своё</b> тело — то, на которое
+     * запись указывает. Лишнее тело, уходя, затёрло бы связь живого
+     * и место, где оно стоит.
+     */
+    private void writeBack(ServerWorld world, boolean unlink) {
         if (settlementId == null || citizenId == null) {
             return;
         }
         SettlementManager.get(world).update(settlementId, settlement -> settlement.citizen(citizenId)
+                .filter(this::isBodyOf)
                 .ifPresent(citizen -> {
                     citizen.setPosition(getPos());
                     citizen.setHealth(getHealth());
-                    citizen.setEntityUuid(null);
+                    if (unlink) {
+                        citizen.setEntityUuid(null);
+                    }
                 }));
+    }
+
+    /** Это ли тело записи: запись указывает на него. */
+    private boolean isBodyOf(Citizen citizen) {
+        return citizen.entityUuid().filter(getUuid()::equals).isPresent();
+    }
+
+    /**
+     * У жителя одно тело — проверка раз в секунду.
+     * <p>
+     * Запись указывает на другое живое тело — это тело лишнее и уходит
+     * молча: без обратной записи и без похорон. Записи нет — житель умер
+     * или ушёл, а тело осталось призраком с его именем; уходит и оно.
+     * Запись ни на кого не указывает — тело её и подхватывает: живой
+     * житель без тела стратегии не виден и стоял бы столбом.
+     * <p>
+     * Поселения нет вовсе — тело не трогается: так бывает с поселением,
+     * снятым только что, и с проверками, которые ставят тела без
+     * поселения в мире; уйдут с чанком.
+     */
+    private void keepOneBody(ServerWorld world) {
+        if (settlementId == null || citizenId == null) {
+            return;
+        }
+        SettlementManager manager = SettlementManager.get(world);
+        Settlement settlement = manager.byId(settlementId).orElse(null);
+        if (settlement == null) {
+            return;
+        }
+        Citizen citizen = settlement.citizen(citizenId).orElse(null);
+        if (citizen == null) {
+            discard();
+            return;
+        }
+        UUID owner = citizen.entityUuid().orElse(null);
+        if (getUuid().equals(owner)) {
+            return;
+        }
+        net.minecraft.entity.Entity other = owner == null ? null : world.getEntity(owner);
+        if (other != null && other.isAlive() && !other.isRemoved()) {
+            VillagePax.LOGGER.info("Лишнее тело жителя {} убрано", citizen.fullName());
+            discard();
+            return;
+        }
+        manager.update(settlementId, state -> state.citizen(citizenId)
+                .ifPresent(record -> record.setEntityUuid(getUuid())));
     }
 
     /**
@@ -1315,6 +1386,17 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
                 if (reason == RemovalReason.KILLED) {
                     com.villagepax.sim.war.Raids.fell(serverWorld, this);
                 }
+                // Кроме стража колонии в походе: он не кукла, а житель
+                // с записью. Павший уходит из колонии насовсем — прежде
+                // он воскресал дома при следующей загрузке чанка, — а
+                // уцелевший возвращает своё, как всякое тело.
+                if (citizenId != null) {
+                    if (reason == RemovalReason.KILLED) {
+                        buryCitizen(serverWorld);
+                    } else {
+                        writeBackTo(serverWorld);
+                    }
+                }
             } else if (raidId != null) {
                 // Павший союзник — тоже кукла, и её смерть не траур
                 // осаждающей деревне: она своих не теряла.
@@ -1333,9 +1415,31 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
      * Это «перехватить» из плана про караваны: грабёж возможен и наказуем.
      */
     private void robCaravan(ServerWorld world, DamageSource cause) {
-        UUID killer = cause != null && cause.getAttacker() instanceof PlayerEntity thief
-                ? thief.getUuid() : null;
-        com.villagepax.sim.trade.Caravans.robbed(world, this, killer);
+        PlayerEntity culprit = culpritOf(world, cause);
+        com.villagepax.sim.trade.Caravans.robbed(world, this, culprit == null ? null : culprit.getUuid());
+    }
+
+    /** Кто стоял рядом с торговцем, тот за него и в ответе: столько блоков. */
+    private static final double WITNESS_REACH = 16;
+
+    /**
+     * Кто в ответе за смерть торговца.
+     * <p>
+     * Ударивший — первым. Дальше тот, кто бил его последние секунды:
+     * лава и кактус добивают, но под удар подвёл человек. И последним —
+     * игрок, стоявший рядом: прежде торговца, сведённого в лаву, грабили
+     * даром — смерть «от мира» не стоила доверия ни очка, а товар и кошель
+     * обоза высыпались к ногам того, кто это подстроил.
+     */
+    private PlayerEntity culpritOf(ServerWorld world, DamageSource cause) {
+        if (cause != null && cause.getAttacker() instanceof PlayerEntity thief) {
+            return thief;
+        }
+        if (getPrimeAdversary() instanceof PlayerEntity hitter) {
+            return hitter;
+        }
+        return world.getClosestPlayer(getX(), getY(), getZ(), WITNESS_REACH,
+                net.minecraft.predicate.entity.EntityPredicates.EXCEPT_SPECTATOR);
     }
 
     /**
@@ -1348,6 +1452,15 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
             return;
         }
         SettlementManager manager = SettlementManager.get(world);
+        // Хоронят жителя только по его телу. Лишнее тело, убитое прежде,
+        // чем ушло само, — не житель: запись живого остаётся, а за убийство
+        // призрака деревня не спрашивает. Запись без тела — его.
+        boolean ours = manager.byId(settlementId).flatMap(settlement -> settlement.citizen(citizenId))
+                .map(citizen -> citizen.entityUuid().isEmpty() || isBodyOf(citizen))
+                .orElse(false);
+        if (!ours) {
+            return;
+        }
         manager.update(settlementId, settlement ->
                 settlement.citizen(citizenId).ifPresent(citizen -> {
                     // Горе считается до удаления: после него спрашивать,
@@ -1787,6 +1900,12 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
             stepOutOfTrouble();
         }
         if (!getWorld().isClient() && age % ROLE_EVERY == 0) {
+            if (getWorld() instanceof ServerWorld serverWorld) {
+                keepOneBody(serverWorld);
+                if (isRemoved()) {
+                    return;
+                }
+            }
             refreshRole();
             dropIfForgotten();
             noticeHats();

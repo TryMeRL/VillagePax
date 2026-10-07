@@ -1330,4 +1330,68 @@ public class EconomyTests extends GameTestSupport {
         context.complete();
     }
 
+    /**
+     * Торговец погиб, а рядом никого: товар не валяется кладом, доверие
+     * никому не стоит, обоз уезжает — и везёт товар домой, на склад.
+     * <p>
+     * Прежде смерть «от мира» высыпала весь товар и кошель к ногам того,
+     * кто свёл торговца в лаву, и не стоила ему ни очка доверия.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "caravan")
+    public void aMerchantLostWithoutWitnessesTakesTheGoodsHome(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        BlockPos standsAt = context.getAbsolutePos(new BlockPos(10, 2, 2));
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", villageAt);
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Моя", standsAt);
+        manager.add(village);
+        manager.add(colony);
+        world.setBlockState(villageAt, com.villagepax.block.ModBlocks.TOWN_HALL.getDefaultState());
+
+        try {
+            ItemTally cart = new ItemTally();
+            cart.add(Registries.ITEM.getId(Items.BREAD), 8);
+            Caravan guest = new Caravan(UUID.randomUUID(), village.id(), NORMAN, standsAt,
+                    cart, 0, 999);
+            manager.update(colony.id(), state -> state.welcome(guest));
+            int breadBefore = Warehouse.of(world, village).count(Items.BREAD);
+
+            CitizenEntity merchant = CitizenSpawner.spawnPuppet(world, standsAt);
+            if (merchant == null) {
+                context.throwGameTestException("Торговец не появился");
+                return;
+            }
+            merchant.linkCaravan(colony.id(), guest.id());
+            Caravans.robbed(world, merchant, null);
+
+            if (!manager.byId(colony.id()).orElseThrow().visitors().isEmpty()) {
+                context.throwGameTestException("Обоз без торговца всё ещё гостит");
+            }
+            boolean loot = !world.getEntitiesByClass(net.minecraft.entity.ItemEntity.class,
+                    new net.minecraft.util.math.Box(standsAt).expand(4), any -> true).isEmpty();
+            if (loot) {
+                context.throwGameTestException("Без свидетелей товар всё равно рассыпался кладом");
+            }
+            int breadAfter = Warehouse.of(world, village).count(Items.BREAD);
+            if (breadAfter != breadBefore + 8) {
+                context.throwGameTestException("Товар не вернулся на склад деревни: было "
+                        + breadBefore + ", стало " + breadAfter);
+            }
+        } finally {
+            world.getEntitiesByClass(net.minecraft.entity.ItemEntity.class,
+                            new net.minecraft.util.math.Box(villageAt).expand(12), any -> true)
+                    .forEach(net.minecraft.entity.ItemEntity::discard);
+            world.getEntitiesByClass(CitizenEntity.class,
+                            new net.minecraft.util.math.Box(standsAt).expand(6), any -> true)
+                    .forEach(CitizenEntity::discard);
+            manager.remove(village.id());
+            manager.remove(colony.id());
+            world.setBlockState(villageAt, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
 }

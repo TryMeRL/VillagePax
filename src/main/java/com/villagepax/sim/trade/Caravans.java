@@ -280,6 +280,17 @@ public final class Caravans {
             return;
         }
 
+        if (killer == null) {
+            // Рядом не было никого: торговца погубила дорога, а не грабитель.
+            // Товар не высыпается — подобрать его было бы некому, кроме того,
+            // кто придёт потом и найдёт клад, — а уезжает с обозом домой.
+            goHome(world, manager, guest);
+            manager.update(host.id(), state -> state.seeOff(caravanId));
+            VillagePax.LOGGER.info("Торговец обоза из {} погиб у {}: товар вернулся домой",
+                    guest.culture(), host.name());
+            return;
+        }
+
         guest.cargo().contents().forEach((item, count) -> {
             int left = count;
             net.minecraft.item.Item what = Registries.ITEM.get(item);
@@ -298,22 +309,46 @@ public final class Caravans {
         }
 
         manager.update(host.id(), state -> state.seeOff(caravanId));
-        if (killer != null) {
-            // Через поступок, а не правкой доверия на месте: об ограблении
-            // узнают и свои пославшей деревни, и её соседи. Для тех, кто
-            // на этот народ косится, чужая беда — не беда: формула эха
-            // разворачивает знак сама.
-            manager.byId(guest.home()).ifPresent(home -> {
-                List<Relations.Shift> shifts =
-                        Relations.deed(manager, home, killer, -ROBBERY_COSTS);
-                ServerPlayerEntity thief = world.getServer().getPlayerManager()
-                        .getPlayer(killer);
-                if (thief != null) {
-                    Relations.tell(thief, shifts);
-                }
-            });
-        }
+        // Через поступок, а не правкой доверия на месте: об ограблении
+        // узнают и свои пославшей деревни, и её соседи. Для тех, кто
+        // на этот народ косится, чужая беда — не беда: формула эха
+        // разворачивает знак сама.
+        manager.byId(guest.home()).ifPresent(home -> {
+            List<Relations.Shift> shifts =
+                    Relations.deed(manager, home, killer, -ROBBERY_COSTS);
+            ServerPlayerEntity thief = world.getServer().getPlayerManager()
+                    .getPlayer(killer);
+            if (thief != null) {
+                Relations.tell(thief, shifts);
+            }
+        });
         VillagePax.LOGGER.info("Обоз из {} разграблен у {}", guest.culture(), host.name());
+    }
+
+    /**
+     * Обоз без торговца возвращается домой: товар и кошель — на склад деревни.
+     * <p>
+     * Только если дом загружен — то же правило, что у добычи набега:
+     * класть вещи в невидимый чанк значит загрузить его здесь и сейчас.
+     * Не довезли — пропало, и это честнее, чем телепорт.
+     */
+    private static void goHome(ServerWorld world, SettlementManager manager, Caravan guest) {
+        Settlement home = manager.byId(guest.home()).orElse(null);
+        if (home == null || !world.isChunkLoaded(home.center())) {
+            return;
+        }
+        Warehouse warehouse = Warehouse.of(world, home);
+        guest.cargo().contents().forEach((item, count) -> {
+            net.minecraft.item.Item what = Registries.ITEM.get(item);
+            int left = count;
+            while (left > 0) {
+                int chunk = Math.min(left, what.getMaxCount());
+                warehouse.addOrScatter(world, home.center().up(), new ItemStack(what, chunk));
+                left -= chunk;
+            }
+        });
+        Coins.earn(warehouse.coins(), guest.purse())
+                .forEach(rest -> warehouse.addOrScatter(world, home.center().up(), rest));
     }
 
     // --- сборы в дорогу ---

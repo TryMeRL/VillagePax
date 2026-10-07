@@ -32,7 +32,8 @@
       "com.villagepax.gametest.StallTests",
       "com.villagepax.gametest.FoundingTests",
       "com.villagepax.gametest.GamesTests",
-      "com.villagepax.gametest.HideAndSeekTests"
+      "com.villagepax.gametest.HideAndSeekTests",
+      "com.villagepax.gametest.BodyTests"
     ]
   },
   "depends": {

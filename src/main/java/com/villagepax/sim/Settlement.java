@@ -161,6 +161,36 @@ public class Settlement {
             return new War(siege, lastRaid, truceUntil, allies, beatenOn, to, until, marchingOn);
         }
 
+        /** То же, но с другим отрядом у ворот. */
+        public War besieged(Optional<WarParty> party) {
+            return new War(party, lastRaid, truceUntil, allies, beatenOn, tributeTo, tributeUntil,
+                    marchingOn);
+        }
+
+        /** То же, но набег пришёл в этот день. */
+        public War raidedOn(long day) {
+            return new War(siege, day, truceUntil, allies, beatenOn, tributeTo, tributeUntil,
+                    marchingOn);
+        }
+
+        /** То же, но с перемирием до этого дня. */
+        public War restingUntil(long day) {
+            return new War(siege, lastRaid, day, allies, beatenOn, tributeTo, tributeUntil,
+                    marchingOn);
+        }
+
+        /** То же, но с другими союзниками. */
+        public War allied(Map<UUID, Long> with) {
+            return new War(siege, lastRaid, truceUntil, with, beatenOn, tributeTo, tributeUntil,
+                    marchingOn);
+        }
+
+        /** То же, но отряд этого поселения перебит в этот день. */
+        public War beatenOnDay(long day) {
+            return new War(siege, lastRaid, truceUntil, allies, day, tributeTo, tributeUntil,
+                    marchingOn);
+        }
+
         /** То же, но отряд колонии вышел в поход — или вернулся. */
         public War marching(Optional<UUID> target) {
             return new War(siege, lastRaid, truceUntil, allies, beatenOn, tributeTo,
@@ -528,8 +558,7 @@ public class Settlement {
         }
         Map<UUID, Long> left = new java.util.LinkedHashMap<>(war.allies());
         left.remove(player);
-        this.war = new War(war.siege(), war.lastRaid(), war.truceUntil(), left, war.beatenOn(),
-                war.tributeTo(), war.tributeUntil());
+        this.war = war.allied(left);
     }
 
     /**
@@ -556,8 +585,7 @@ public class Settlement {
 
     /** Отряд перебит: запомнить день. */
     public void beaten(long today) {
-        this.war = new War(war.siege(), war.lastRaid(), war.truceUntil(), war.allies(), today,
-                war.tributeTo(), war.tributeUntil());
+        this.war = war.beatenOnDay(today);
     }
 
     /**
@@ -582,8 +610,7 @@ public class Settlement {
     public void makeAlly(UUID player, long today) {
         Map<UUID, Long> allies = new java.util.LinkedHashMap<>(war.allies());
         allies.put(player, today);
-        this.war = new War(war.siege(), war.lastRaid(), war.truceUntil(), allies,
-                war.beatenOn(), war.tributeTo(), war.tributeUntil());
+        this.war = war.allied(allies);
     }
 
     /** Сколько дней тишины ещё осталось: ноль, если перемирия нет. */
@@ -601,27 +628,22 @@ public class Settlement {
     public void restFor(long today, int days) {
         // UNSEEN_DAY — это «давно прошло», и max с ним возвращает сегодня:
         // отдельной проверки «перемирия ещё не было» не нужно.
-        this.war = new War(war.siege(), war.lastRaid(),
-                Math.max(today, war.truceUntil()) + days, war.allies(), war.beatenOn(),
-                war.tributeTo(), war.tributeUntil());
+        this.war = war.restingUntil(Math.max(today, war.truceUntil()) + days);
     }
 
     /** Отряд встал у ворот. День запоминается сразу: остывать начинают с прихода. */
     public void besiege(WarParty party, long today) {
-        this.war = new War(Optional.of(party), today, war.truceUntil(), war.allies(),
-                war.beatenOn(), war.tributeTo(), war.tributeUntil());
+        this.war = war.besieged(Optional.of(party)).raidedOn(today);
     }
 
     /** Отряд поредел или ушёл: пустой отряд снимается с поселения. */
     public void updateSiege(WarParty party) {
         Optional<WarParty> left = party.fighters() <= 0 ? Optional.empty() : Optional.of(party);
-        this.war = new War(left, war.lastRaid(), war.truceUntil(), war.allies(),
-                war.beatenOn(), war.tributeTo(), war.tributeUntil());
+        this.war = war.besieged(left);
     }
 
     public void liftSiege() {
-        this.war = new War(Optional.empty(), war.lastRaid(), war.truceUntil(), war.allies(),
-                war.beatenOn(), war.tributeTo(), war.tributeUntil());
+        this.war = war.besieged(Optional.empty());
     }
 
     // --- гости ---

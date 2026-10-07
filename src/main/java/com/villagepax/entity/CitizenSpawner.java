@@ -44,9 +44,27 @@ public final class CitizenSpawner {
         // относительно секций сущностей ничем не гарантирован.
         ServerEntityEvents.ENTITY_UNLOAD.register((entity, world) -> {
             if (entity instanceof CitizenEntity body) {
-                Safely.run(body.getUuid(), "Возврат тела в запись", () -> body.writeBackTo(world));
+                Safely.run(body.getUuid(), "Возврат тела в запись", () -> bodyUnloaded(world, body));
             }
         });
+    }
+
+    /**
+     * Мир перестал вести тело.
+     * <p>
+     * Это событие приходит не только при выгрузке: тело, зашедшее в секцию
+     * на краю прогрузки, тоже уходит из ведения, оставаясь живым. Прежде
+     * связь рвалась в обоих случаях — и при следующей загрузке чанка у
+     * жителя появлялось второе тело, а первое бродило без решений, с тем же
+     * именем над головой. Теперь связь рвёт только настоящее удаление;
+     * иначе запись лишь запоминает, где тело.
+     */
+    public static void bodyUnloaded(ServerWorld world, CitizenEntity body) {
+        if (body.isRemoved()) {
+            body.writeBackTo(world);
+        } else {
+            body.rememberIn(world);
+        }
     }
 
     public static int onChunkLoad(ServerWorld world, ChunkPos chunk) {

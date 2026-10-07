@@ -59,6 +59,7 @@ public class VillagePaxClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         com.villagepax.client.dev.ScreenShots.install();
+        com.villagepax.client.dev.TownTour.install();
         // Слоя модели больше нет: кости жителя приходят из geo-файла,
         // а не собираются кодом. Регистрировать надо только переменные
         // шага — до того, как GeckoLib прочтёт первый файл движений.

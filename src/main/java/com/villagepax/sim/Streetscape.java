@@ -225,7 +225,259 @@ public final class Streetscape {
         }
         if (village.level().ordinal() >= SettlementLevel.TOWN.ordinal()) {
             square(world, manager, village, palette);
+            wall(world, manager, village);
         }
+    }
+
+    // --- городская стена ---
+
+    /** Из чего у народа стена: тело, зубец (или навершие), камень ворот. */
+    record Rampart(Block body, Block alternate, Block cap, boolean capEveryColumn, Block footing) {
+    }
+
+    static Rampart rampartOf(Identifier culture) {
+        return switch (culture.getPath()) {
+            // Майя: бут с мхом, зубцы через один — стена террас, а не замка.
+            case "maya" -> new Rampart(Blocks.COBBLESTONE, Blocks.MOSSY_COBBLESTONE,
+                    Blocks.MOSSY_COBBLESTONE, false, Blocks.COBBLESTONE);
+            // Пони и северяне — частокол: брёвна стоймя, заострённые жердью.
+            case "pony" -> new Rampart(Blocks.ACACIA_LOG, Blocks.ACACIA_LOG, Blocks.ACACIA_FENCE, true,
+                    Blocks.ACACIA_LOG);
+            case "nord" -> new Rampart(Blocks.SPRUCE_LOG, Blocks.SPRUCE_LOG, Blocks.SPRUCE_FENCE, true,
+                    Blocks.COBBLESTONE);
+            // Ямато: белёная стена на каменном цоколе под черепичным гребнем.
+            case "yamato" -> new Rampart(ModBlocks.PLASTER, ModBlocks.PLASTER, Blocks.DEEPSLATE_TILE_SLAB, true,
+                    Blocks.STONE_BRICKS);
+            // Норманны: тёсаный камень с замшелыми вставками, зубцы через один.
+            default -> new Rampart(Blocks.STONE_BRICKS, Blocks.MOSSY_STONE_BRICKS, Blocks.STONE_BRICKS, false,
+                    Blocks.STONE_BRICKS);
+        };
+    }
+
+    /** Стена — не ближе стольких блоков к крайнему зданию. */
+    static final int WALL_CLEARANCE = 6;
+
+    /** И не ближе стольких к ратуше: городу нужен простор. */
+    static final int WALL_LEAST = 40;
+
+    /** Высота стены над землёй, без зубцов. */
+    static final int WALL_HEIGHT = 3;
+
+    /** Ширина ворот. */
+    static final int GATE = 3;
+
+    static UUID wallMarker(Settlement village) {
+        return UUID.nameUUIDFromBytes(("villagepax:wall/" + village.id() + "/" + village.level().id())
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /** Ключ, под которым лежат блоки стены: чтобы при росте снять старое кольцо целиком. */
+    static UUID wallKey(Settlement village) {
+        return wallKey(village.id());
+    }
+
+    public static UUID wallKey(UUID village) {
+        return UUID.nameUUIDFromBytes(("villagepax:wall/" + village)
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /** Полуширина кольца стены — для проверок. */
+    public static int wallHalfOf(Settlement village) {
+        return wallHalf(village);
+    }
+
+    /** Полуширина кольца стены от ратуши: за крайним зданием, внутри границы. */
+    static int wallHalf(Settlement village) {
+        BlockPos c = village.center();
+        int extent = 0;
+        for (Building building : village.buildings()) {
+            Schematic plan = SchematicLoader.get(BuildJob.schematicId(building)).orElse(null);
+            if (plan == null) {
+                continue;
+            }
+            Vec3i size = BuildSite.rotatedSize(plan.size(), building.rotation());
+            BlockPos a = building.anchor();
+            extent = Math.max(extent, Math.max(
+                    Math.max(Math.abs(a.getX() - c.getX()), Math.abs(a.getX() + size.getX() - c.getX())),
+                    Math.max(Math.abs(a.getZ() - c.getZ()), Math.abs(a.getZ() + size.getZ() - c.getZ()))));
+        }
+        int edge = village.level().claimRadiusChunks() * 16 - 2;
+        return Math.min(edge, Math.max(WALL_LEAST, extent + WALL_CLEARANCE));
+    }
+
+    /**
+     * Стена города: кольцо по краю застройки, с воротами на каждой стороне
+     * и там, где её пересекает дорога или тропа.
+     * <p>
+     * Город отличается от деревни ещё и тем, что у него есть граница, которую
+     * видно: входишь — через ворота. Стена идёт по земле, повторяя рельеф,
+     * обходит здания и воду, а деревья на своей линии рубит. При росте
+     * до столицы старое кольцо разбирается, и встаёт новое, шире: стена
+     * поперёк улиц внутри города была бы помехой, а не защитой.
+     * <p>
+     * Гномам и эльфам стена не нужна: их чертог в толще горы, а палата в кронах.
+     */
+    static void wall(ServerWorld world, SettlementManager manager, Settlement village) {
+        UUID marker = wallMarker(village);
+        if (manager.isDressed(marker)) {
+            return;
+        }
+        BlockPos c = village.center();
+        int half = wallHalf(village);
+        if (!world.isRegionLoaded(c.add(-half - 1, 0, -half - 1), c.add(half + 1, 0, half + 1))) {
+            return;
+        }
+        Rampart rampart = rampartOf(village.culture());
+        Palette palette = paletteOf(village.culture());
+        UUID key = wallKey(village);
+
+        // Прежнее кольцо — долой: город перерос его.
+        for (BlockPos at : manager.decorOf(key)) {
+            BlockState state = world.getBlockState(at);
+            if (state.isOf(rampart.body()) || state.isOf(rampart.alternate()) || state.isOf(rampart.cap())
+                    || state.isOf(rampart.footing()) || state.isOf(palette.lamp())) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+        }
+        manager.forgetDecor(key);
+
+        List<BlockPos> ring = new ArrayList<>();
+        for (int d = -half; d <= half; d++) {
+            ring.add(new BlockPos(c.getX() + d, 0, c.getZ() - half));
+            ring.add(new BlockPos(c.getX() + half, 0, c.getZ() + d));
+            ring.add(new BlockPos(c.getX() - d, 0, c.getZ() + half));
+            ring.add(new BlockPos(c.getX() - half, 0, c.getZ() - d));
+        }
+        Set<Long> gates = gatesOf(world, village, c, half, ring);
+
+        int placed = 0;
+        for (BlockPos column : ring) {
+            long flat = BlockPos.asLong(column.getX(), 0, column.getZ());
+            if (gates.contains(flat) || covered(village, column)) {
+                continue;
+            }
+            clearWild(world, village, new BlockPos(column.getX(), c.getY() - 8, column.getZ()),
+                    new BlockPos(column.getX(), c.getY() + 24, column.getZ()));
+            BlockPos ground = Ground.buildableAt(world, column.getX(), column.getZ()).orElse(null);
+            if (ground == null || !world.getFluidState(ground.down()).isEmpty()
+                    || !world.getBlockState(ground.down()).isSolidBlock(world, ground.down())) {
+                continue;
+            }
+            int height = 0;
+            for (int dy = 0; dy < WALL_HEIGHT; dy++) {
+                BlockPos at = ground.up(dy);
+                if (!world.getBlockState(at).isReplaceable()) {
+                    break;
+                }
+                Block block = dy == 0 ? rampart.footing()
+                        : Math.floorMod(at.getX() * 31 + at.getZ() * 17 + dy, 6) == 0 ? rampart.alternate()
+                        : rampart.body();
+                wallPut(world, manager, village, key, at, block.getDefaultState());
+                height++;
+                placed++;
+            }
+            boolean crenel = rampart.capEveryColumn()
+                    || Math.floorMod(column.getX() + column.getZ(), 2) == 0;
+            BlockPos top = ground.up(height);
+            if (height == WALL_HEIGHT && crenel && world.getBlockState(top).isReplaceable()) {
+                wallPut(world, manager, village, key, top, rampart.cap().getDefaultState());
+            }
+        }
+
+        // Столбы ворот — на ступень выше стены, с фонарём наверху.
+        for (BlockPos post : gatePosts(ring, gates)) {
+            BlockPos ground = Ground.buildableAt(world, post.getX(), post.getZ()).orElse(null);
+            if (ground == null || covered(village, post)) {
+                continue;
+            }
+            for (int dy = 0; dy <= WALL_HEIGHT; dy++) {
+                BlockPos at = ground.up(dy);
+                if (world.getBlockState(at).isReplaceable() || world.getBlockState(at).isOf(rampart.cap())) {
+                    wallPut(world, manager, village, key, at,
+                            (dy == 0 ? rampart.footing() : rampart.body()).getDefaultState());
+                }
+            }
+            BlockPos lamp = ground.up(WALL_HEIGHT + 1);
+            if (world.getBlockState(lamp).isReplaceable()) {
+                wallPut(world, manager, village, key, lamp, lamp(palette, false));
+            }
+        }
+        // От главных ворот — мостовая к площади: ворота, к которым не ведёт
+        // улица, никуда не ведут.
+        Block road = cobbleOf(village, palette);
+        for (BlockPos gate : List.of(c.add(0, 0, -half + 1), c.add(0, 0, half - 1),
+                c.add(-half + 1, 0, 0), c.add(half - 1, 0, 0))) {
+            com.villagepax.sim.build.Roads.layRoute(world, village,
+                    com.villagepax.sim.build.Roads.routeFrom(world, village, gate), road);
+        }
+        com.villagepax.VillagePax.LOGGER.info("У города {} встала стена: {} блоков, ворот {}",
+                village.name(), placed, gates.size() / GATE);
+        manager.markDressed(marker);
+    }
+
+    /**
+     * Где в стене ворота: посередине каждой стороны и везде, где кольцо
+     * пересекает дорогу, тропу или проход к двери. Ворота — {@link #GATE}
+     * клеток в ширину.
+     */
+    private static Set<Long> gatesOf(ServerWorld world, Settlement village, BlockPos c, int half,
+                                     List<BlockPos> ring) {
+        Set<Long> gates = new HashSet<>();
+        java.util.function.BiConsumer<Integer, Integer> open = (x, z) -> {
+            boolean alongX = Math.abs(z - c.getZ()) == half;
+            for (int d = -(GATE / 2); d <= GATE / 2; d++) {
+                gates.add(alongX ? BlockPos.asLong(x + d, 0, z) : BlockPos.asLong(x, 0, z + d));
+            }
+        };
+        open.accept(c.getX(), c.getZ() - half);
+        open.accept(c.getX(), c.getZ() + half);
+        open.accept(c.getX() - half, c.getZ());
+        open.accept(c.getX() + half, c.getZ());
+        Set<Long> passages = passages(village);
+        Block road = cobbleOf(village, paletteOf(village.culture()));
+        for (BlockPos column : ring) {
+            long flat = BlockPos.asLong(column.getX(), 0, column.getZ());
+            if (passages.contains(flat)) {
+                open.accept(column.getX(), column.getZ());
+                continue;
+            }
+            Ground.buildableAt(world, column.getX(), column.getZ()).ifPresent(ground -> {
+                BlockState under = world.getBlockState(ground.down());
+                if (under.isOf(Blocks.DIRT_PATH) || under.isOf(road) || under.isOf(Blocks.GRAVEL)) {
+                    open.accept(column.getX(), column.getZ());
+                }
+            });
+        }
+        return gates;
+    }
+
+    /** Столбы — по обе стороны каждого проёма. */
+    private static List<BlockPos> gatePosts(List<BlockPos> ring, Set<Long> gates) {
+        List<BlockPos> posts = new ArrayList<>();
+        Set<Long> onRing = new HashSet<>();
+        ring.forEach(column -> onRing.add(BlockPos.asLong(column.getX(), 0, column.getZ())));
+        for (BlockPos column : ring) {
+            long flat = BlockPos.asLong(column.getX(), 0, column.getZ());
+            if (gates.contains(flat)) {
+                continue;
+            }
+            for (Direction side : Direction.Type.HORIZONTAL) {
+                BlockPos next = column.offset(side);
+                long beside = BlockPos.asLong(next.getX(), 0, next.getZ());
+                if (onRing.contains(beside) && gates.contains(beside)) {
+                    posts.add(column);
+                    break;
+                }
+            }
+        }
+        return posts;
+    }
+
+    /** Блок стены: в убранство деревни и в список своего кольца. */
+    private static void wallPut(ServerWorld world, SettlementManager manager, Settlement village, UUID key,
+                                BlockPos at, BlockState state) {
+        put(world, manager, village, at, state);
+        manager.recordDecor(key, at);
     }
 
     // --- окна: ставни и цветочные ящики ---

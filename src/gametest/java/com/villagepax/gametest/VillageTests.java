@@ -490,7 +490,8 @@ public class VillageTests extends GameTestSupport {
         BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
         List<BlockPos> meadow = new ArrayList<>();
         Settlement village = null;
-        int reach = 48;
+        // Луг — с запасом под городскую стену: она встаёт за крайним зданием.
+        int reach = 64;
 
         try {
             for (int x = -reach; x <= reach; x++) {
@@ -528,6 +529,28 @@ public class VillageTests extends GameTestSupport {
             }
             if (shutters == 0) {
                 context.throwGameTestException("Ни одной ставни на окнах");
+            }
+
+            // Стена города: кольцо камня с воротами посередине каждой стороны.
+            int wall = 0;
+            for (BlockPos at : manager.decorOf(com.villagepax.sim.Streetscape.wallKey(town.id()))) {
+                if (world.getBlockState(at).isOf(Blocks.STONE_BRICKS)
+                        || world.getBlockState(at).isOf(Blocks.MOSSY_STONE_BRICKS)) {
+                    wall++;
+                }
+            }
+            if (wall < 200) {
+                context.throwGameTestException("У города нет стены: камня в кольце " + wall);
+            }
+            int half = com.villagepax.sim.Streetscape.wallHalfOf(town);
+            for (BlockPos gate : List.of(centre.add(0, 0, -half), centre.add(0, 0, half),
+                    centre.add(-half, 0, 0), centre.add(half, 0, 0))) {
+                BlockPos ground = com.villagepax.sim.Ground.buildableAt(world, gate.getX(), gate.getZ())
+                        .orElse(null);
+                if (ground == null || !world.getBlockState(ground).isAir()
+                        || !world.getBlockState(ground.up()).isAir()) {
+                    context.throwGameTestException("Ворота в " + gate.toShortString() + " заложены");
+                }
             }
 
             Building hall = hallOf(town);

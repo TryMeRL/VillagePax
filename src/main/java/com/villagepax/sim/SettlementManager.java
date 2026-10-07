@@ -353,6 +353,13 @@ public class SettlementManager extends PersistentState {
     }
 
     /** Всё убранство деревни — чтобы убрать его вместе с ней. */
+    /** Забыть убранство под этим ключом: старое кольцо стены снято. */
+    public void forgetDecor(UUID key) {
+        if (decor.remove(key) != null) {
+            markDirty();
+        }
+    }
+
     public List<BlockPos> decorOf(UUID village) {
         return decor.getOrDefault(village, List.of()).stream().map(BlockPos::fromLong).toList();
     }
@@ -362,6 +369,7 @@ public class SettlementManager extends PersistentState {
         // Убранство забывается вместе с деревней: сносящий зовёт decorOf
         // до remove, если хочет убрать и его.
         decor.remove(id);
+        decor.remove(Streetscape.wallKey(id));
         dressed.remove(id);
         festive.remove(id);
         awarded.remove(id);

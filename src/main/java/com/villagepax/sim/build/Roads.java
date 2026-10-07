@@ -307,6 +307,72 @@ public final class Roads {
      * останавливаемся: незаконченная насыпь лучше, чем улица, съевшая
      * весь склад.
      */
+    /**
+     * Дорога от точки к площади — от ворот городской стены.
+     * <p>
+     * Поиск в обход зданий достаёт лишь на {@link #MAX_LENGTH} от ратуши, а
+     * ворота стоят дальше: до этой черты дорога идёт прямо внутрь, по земле,
+     * а дальше её ведёт тот же поиск, что и улицы от дверей.
+     */
+    public static List<BlockPos> routeFrom(ServerWorld world, Settlement colony, BlockPos start) {
+        List<Footprint> footprints = footprints(colony);
+        BlockPos centre = colony.center();
+        List<BlockPos> tiles = new ArrayList<>();
+        Integer height = null;
+        BlockPos last = null;
+        for (BlockPos column : line(start, centre)) {
+            if (Math.max(Math.abs(column.getX() - centre.getX()),
+                    Math.abs(column.getZ() - centre.getZ())) <= MAX_LENGTH - 2 && last != null) {
+                break;
+            }
+            if (inside(footprints, column) || !world.isChunkLoaded(column.getX() >> 4, column.getZ() >> 4)) {
+                continue;
+            }
+            BlockPos ground = height == null
+                    ? com.villagepax.sim.Ground.buildableAt(world, column.getX(), column.getZ())
+                    .map(BlockPos::down).orElse(null)
+                    : ground(world, column.getX(), column.getZ(), height);
+            if (ground == null && height != null) {
+                ground = step(world, column.getX(), column.getZ(), height);
+            }
+            if (ground == null) {
+                continue;
+            }
+            height = ground.getY();
+            tiles.add(ground);
+            last = ground;
+        }
+        if (last == null) {
+            return tiles;
+        }
+        List<BlockPos> rest = search(world, colony, last.up(), last.getY(), footprints);
+        tiles.addAll(rest);
+        return tiles;
+    }
+
+    /** Вымостить готовый путь сразу, без склада: так встают улицы деревни народа. */
+    public static int layRoute(ServerWorld world, Settlement colony, List<BlockPos> tiles, Block paving) {
+        net.minecraft.inventory.SimpleInventory stock = new net.minecraft.inventory.SimpleInventory(27);
+        Warehouse supply = Warehouse.over(colony.center(), stock);
+        Item material = paving.asItem();
+        int laid = 0;
+        for (BlockPos ground : tiles) {
+            if (!needsWork(world, colony, ground, paving)) {
+                continue;
+            }
+            stock.clear();
+            if (material != Items.AIR) {
+                for (int slot = 0; slot < 8; slot++) {
+                    stock.setStack(slot, new ItemStack(material, material.getMaxCount()));
+                }
+            }
+            if (pave(world, colony, supply, ground, paving)) {
+                laid++;
+            }
+        }
+        return laid;
+    }
+
     private static void fillUnder(ServerWorld world, Warehouse warehouse, BlockPos ground,
                                   Block paving) {
         Item material = paving.asItem();

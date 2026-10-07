@@ -1,5 +1,6 @@
 package com.villagepax.sim;
 
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.inventory.Inventory;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -20,6 +21,21 @@ import net.minecraft.item.ItemStack;
 public final class Stacks {
 
     private Stacks() {
+    }
+
+    /**
+     * Сколько слотов инвентаря годятся под поклажу.
+     * <p>
+     * У сумки игрока за сорока одним слотом стоят не только карманы:
+     * последние пять — доспехи и левая рука. Считать их местом значило
+     * класть купленный меч или сдачу медяками в слот шлема, где монета
+     * висит у игрока на голове. Под поклажу у него — только тридцать
+     * шесть карманов, как и у ванильного {@code insertStack}.
+     */
+    private static int storage(Inventory inventory) {
+        return inventory instanceof PlayerInventory player
+                ? player.main.size()
+                : inventory.size();
     }
 
     /**
@@ -45,7 +61,7 @@ public final class Stacks {
         int perStack = Math.min(item.getMaxCount(), inventory.getMaxCountPerStack());
         int free = 0;
 
-        for (int slot = 0; slot < inventory.size() && free < wanted; slot++) {
+        for (int slot = 0; slot < storage(inventory) && free < wanted; slot++) {
             ItemStack stack = inventory.getStack(slot);
             if (stack.isEmpty()) {
                 free += perStack;
@@ -89,7 +105,7 @@ public final class Stacks {
         ItemStack left = stack.copy();
         int perStack = Math.min(left.getMaxCount(), inventory.getMaxCountPerStack());
 
-        for (int slot = 0; slot < inventory.size() && !left.isEmpty(); slot++) {
+        for (int slot = 0; slot < storage(inventory) && !left.isEmpty(); slot++) {
             ItemStack existing = inventory.getStack(slot);
             if (existing.isEmpty() || !ItemStack.canCombine(existing, left)) {
                 continue;
@@ -103,7 +119,7 @@ public final class Stacks {
             inventory.markDirty();
         }
 
-        for (int slot = 0; slot < inventory.size() && !left.isEmpty(); slot++) {
+        for (int slot = 0; slot < storage(inventory) && !left.isEmpty(); slot++) {
             if (!inventory.getStack(slot).isEmpty()) {
                 continue;
             }

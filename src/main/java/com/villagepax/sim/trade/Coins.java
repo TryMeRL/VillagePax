@@ -257,77 +257,26 @@ public final class Coins {
      * <p>
      * Сколько поместится, а не всё: на полном инвентаре вытряхнутая
      * монета иначе упала бы на землю, и игрок нашёл бы её не сразу.
+     * <p>
+     * Не влезшее возвращается в кошель, а не считается заранее. Раньше
+     * «влезет ли» спрашивали у сумки, где кошели притворялись пустыми
+     * слотами, — и при полной сумке кошель отдавал стопку монет в свой же
+     * слот, которого не было: монета пропадала, а игрок читал «вынуто».
+     * Место в кошеле есть всегда — монета только что из него вышла.
      */
     public static int emptyPurse(Inventory holder, ItemStack purse) {
-        int value = PurseItem.valueOf(purse);
-        int fits = value;
-        while (fits > 0 && !room(withoutPurses(holder), fits)) {
-            fits -= COPPER;
-        }
-        if (fits <= 0) {
+        int value = PurseItem.take(purse, PurseItem.valueOf(purse));
+        if (value <= 0) {
             return 0;
         }
 
-        PurseItem.take(purse, fits);
-        earnLoose(holder, fits);
+        int back = 0;
+        for (ItemStack rest : earnLoose(holder, value)) {
+            back += worth(rest.getItem()) * rest.getCount();
+        }
+        PurseItem.put(purse, back);
         holder.markDirty();
-        return fits;
-    }
-
-    /**
-     * Тот же инвентарь, но кошели в нём не считаются местом для монеты.
-     * <p>
-     * Нужно ровно одному месту — проверке «влезет ли вытряхнутое»: без
-     * этого кошель отдавал бы монету себе же и считал, что всё уложилось.
-     */
-    private static Inventory withoutPurses(Inventory holder) {
-        return new Inventory() {
-            @Override
-            public int size() {
-                return holder.size();
-            }
-
-            @Override
-            public boolean isEmpty() {
-                return holder.isEmpty();
-            }
-
-            @Override
-            public ItemStack getStack(int slot) {
-                ItemStack stack = holder.getStack(slot);
-                return stack.isOf(ModItems.PURSE) ? ItemStack.EMPTY : stack;
-            }
-
-            @Override
-            public ItemStack removeStack(int slot, int amount) {
-                return holder.removeStack(slot, amount);
-            }
-
-            @Override
-            public ItemStack removeStack(int slot) {
-                return holder.removeStack(slot);
-            }
-
-            @Override
-            public void setStack(int slot, ItemStack stack) {
-                holder.setStack(slot, stack);
-            }
-
-            @Override
-            public void markDirty() {
-                holder.markDirty();
-            }
-
-            @Override
-            public boolean canPlayerUse(net.minecraft.entity.player.PlayerEntity player) {
-                return false;
-            }
-
-            @Override
-            public void clear() {
-                holder.clear();
-            }
-        };
+        return value - back;
     }
 
     // --- россыпь ---

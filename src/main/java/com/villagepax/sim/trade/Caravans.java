@@ -390,7 +390,9 @@ public final class Caravans {
         if (purse <= 0) {
             return 0;
         }
-        Coins.pay(warehouse.coins(), purse);
+        // Сдача с размена, не влезшая в сундуки, — рядом с ратушей, а не в никуда.
+        Coins.pay(warehouse.coins(), purse)
+                .forEach(rest -> warehouse.addOrScatter(world, village.center().up(), rest));
         return purse;
     }
 

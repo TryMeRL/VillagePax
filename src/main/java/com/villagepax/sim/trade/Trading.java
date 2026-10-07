@@ -229,7 +229,13 @@ public final class Trading {
 
             Coins.pay(carried, price).forEach(spill);
             wares.take(goods, count);
-            Stacks.insert(carried, new ItemStack(goods, count));
+            // Место под товар проверено до платы, а сдача с крупной монеты
+            // могла занять последний слот: не влезший товар — под ноги,
+            // а не в никуда.
+            ItemStack rest = Stacks.insert(carried, new ItemStack(goods, count));
+            if (!rest.isEmpty()) {
+                spill.accept(rest);
+            }
             Coins.earn(chest, price).forEach(spill);
         } else {
             if (carried.count(goods) < count) {

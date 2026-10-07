@@ -27,6 +27,7 @@ import com.villagepax.core.quest.Quest;
 import com.villagepax.core.trade.Caravan;
 import com.villagepax.core.trade.TradeTable;
 import net.minecraft.inventory.SimpleInventory;
+import net.minecraft.entity.player.PlayerInventory;
 import com.villagepax.core.quest.QuestManager;
 import com.villagepax.sim.Standing;
 import com.villagepax.sim.quest.Quests;
@@ -1085,6 +1086,52 @@ public class EconomyTests extends GameTestSupport {
             context.throwGameTestException("Предел кошеля не держит: внутри "
                     + PurseItem.valueOf(purse) + " при пределе " + PurseItem.CAPACITY
                     + ", отказано " + over);
+        }
+
+        context.complete();
+    }
+
+    /**
+     * Полная сумка: кошель отдаёт сколько влезло, а остальное держит.
+     * <p>
+     * Раньше кошель на вопрос «влезет ли» считал свой же слот пустым:
+     * при сумке, забитой землёй, стопка монет уходила в слот, которого
+     * не было, и пропадала. А доспешные слоты сумки игрока считались
+     * карманами — медяк ложился в слот ботинок.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "coins")
+    public void fullPocketsKeepTheCoinInThePurse(TestContext context) {
+        PlayerInventory pocket = context.createMockSurvivalPlayer().getInventory();
+        ItemStack purse = new ItemStack(ModItems.PURSE);
+        PurseItem.setValue(purse, 12);
+        pocket.setStack(0, purse);
+        for (int slot = 1; slot < pocket.main.size(); slot++) {
+            pocket.setStack(slot, new ItemStack(Items.DIRT, 64));
+        }
+
+        int taken = Coins.emptyPurse(pocket, purse);
+        if (taken != 0 || PurseItem.valueOf(purse) != 12 || Coins.loose(pocket) != 0) {
+            context.throwGameTestException("Полная сумка: вынуто " + taken + ", в кошеле "
+                    + PurseItem.valueOf(purse) + ", россыпью " + Coins.loose(pocket)
+                    + "; ожидалось 0, 12 и 0");
+        }
+
+        // Один карман: серебряк влезает, три медяка остаются в кошеле.
+        pocket.setStack(5, ItemStack.EMPTY);
+        taken = Coins.emptyPurse(pocket, purse);
+        if (taken != Coins.SILVER || PurseItem.valueOf(purse) != 12 - Coins.SILVER
+                || Coins.loose(pocket) != Coins.SILVER) {
+            context.throwGameTestException("Один карман: вынуто " + taken + ", в кошеле "
+                    + PurseItem.valueOf(purse) + ", россыпью " + Coins.loose(pocket));
+        }
+
+        for (ItemStack worn : pocket.armor) {
+            if (!worn.isEmpty()) {
+                context.throwGameTestException("Монета легла в слот доспеха: " + worn);
+            }
+        }
+        if (!pocket.offHand.get(0).isEmpty()) {
+            context.throwGameTestException("Монета легла в левую руку: " + pocket.offHand.get(0));
         }
 
         context.complete();

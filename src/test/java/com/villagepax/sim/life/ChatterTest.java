@@ -1,6 +1,13 @@
 package com.villagepax.sim.life;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import java.util.List;
 import java.util.Optional;
@@ -77,6 +84,37 @@ class ChatterTest {
         assertFalse(Chatter.topics(calm()).isEmpty());
         assertEquals(Topic.STRANGER, Chatter.choose(List.of(Topic.STRANGER, Topic.WORK), bound -> 0));
         assertEquals(Topic.WORK, Chatter.choose(List.of(Topic.STRANGER, Topic.WORK), bound -> 1));
+    }
+
+    /**
+     * У каждой темы есть что сказать — хотя бы три общие фразы; у дела —
+     * хотя бы две на каждое ремесло. Ключ собирается из частей, и
+     * {@code LangTest} забытый пул не увидит: он всплыл бы голым ключом
+     * над головой жителя.
+     */
+    @Test
+    void everyTopicHasWords() throws IOException {
+        JsonObject ru = JsonParser.parseString(Files.readString(Path.of("src", "main", "resources",
+                "assets", "villagepax", "lang", "ru_ru.json"), StandardCharsets.UTF_8)).getAsJsonObject();
+        for (Topic topic : Topic.values()) {
+            if (topic == Topic.WORK) {
+                continue;
+            }
+            for (int n = 1; n <= 3; n++) {
+                String key = topic.base() + "." + n;
+                assertTrue(ru.has(key), "Теме " + topic + " нечего сказать: нет " + key);
+            }
+        }
+        try (var professions = Files.list(Path.of("src", "main", "resources", "data", "villagepax",
+                "villagepax", "professions"))) {
+            for (Path file : professions.toList()) {
+                String trade = file.getFileName().toString().replace(".json", "");
+                for (int n = 1; n <= 2; n++) {
+                    String key = Topic.WORK.base() + "." + trade + "." + n;
+                    assertTrue(ru.has(key), "Ремеслу " + trade + " нечего сказать о деле: нет " + key);
+                }
+            }
+        }
     }
 
     private static Chatter.Situation withTrust(int trust) {

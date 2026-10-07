@@ -250,6 +250,8 @@ public final class Villages {
         planNext(world, manager, village, culture);
         // И улицы уже убраны: колодец, фонари, цветы — деревня старше игрока.
         Streetscape.dress(world, manager, village);
+        // И доска заданий у ратуши: листки ремёсел, сдавать у неё.
+        Streetscape.noticeBoard(world, manager, village);
         // Всё это легло за один тик, и не всё умеет класть блок с оглядкой:
         // кого замуровало, выводим. См. Standing.rescueBuried.
         int reach = CitizenSpawner.tetherRange(village) + 16;
@@ -395,6 +397,8 @@ public final class Villages {
             planNext(world, manager, village, culture);
             // Достроенный за день дом получает свой фонарь и цветы.
             Streetscape.dress(world, manager, village);
+            // Доска — и у деревень, вставших до неё: на первом же обходе.
+            Streetscape.noticeBoard(world, manager, village);
         }
     }
 

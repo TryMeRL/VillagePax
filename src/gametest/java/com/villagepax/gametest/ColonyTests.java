@@ -1632,6 +1632,10 @@ public class ColonyTests extends GameTestSupport {
         // не значил, а игрок ждал бы, что за ним соберутся.
         used.add(ModBlocks.GAME_TABLE);
 
+        // Доску заданий ставит деревне то же убранство, у ратуши. Рецепта
+        // нет по той же причине: колонии просить у хозяина нечего.
+        used.add(ModBlocks.NOTICE_BOARD);
+
         List<Identifier> idle = new ArrayList<>();
         ModBlocks.registered().forEach((id, block) -> {
             if (!used.contains(block)) {

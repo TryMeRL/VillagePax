@@ -211,6 +211,12 @@ public class VillagePaxClient implements ClientModInitializer {
                     Optional<QuestView> view = QuestNet.read(buf);
                     client.execute(() -> view.ifPresent(fresh -> QuestScreen.open(client, fresh)));
                 });
+        ClientPlayNetworking.registerGlobalReceiver(com.villagepax.screen.BoardNet.OPEN,
+                (client, handler, buf, sender) -> {
+                    Optional<com.villagepax.screen.BoardView> view = com.villagepax.screen.BoardNet.read(buf);
+                    client.execute(() -> view.ifPresent(fresh ->
+                            com.villagepax.client.screen.BoardScreen.open(client, fresh)));
+                });
     }
 
     /**

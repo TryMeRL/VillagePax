@@ -33,7 +33,8 @@
       "com.villagepax.gametest.FoundingTests",
       "com.villagepax.gametest.GamesTests",
       "com.villagepax.gametest.HideAndSeekTests",
-      "com.villagepax.gametest.BodyTests"
+      "com.villagepax.gametest.BodyTests",
+      "com.villagepax.gametest.BoardTests"
     ]
   },
   "depends": {

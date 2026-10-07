@@ -59,6 +59,7 @@ public final class Guide {
             "villagepax.guide.faith_gifts",
             "villagepax.guide.errands",
             "villagepax.guide.errands_more",
+            "villagepax.guide.board",
             "villagepax.guide.life",
             "villagepax.guide.kin",
             "villagepax.guide.bonds",

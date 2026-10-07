@@ -205,6 +205,20 @@ public final class ModBlocks {
             Block.createCuboidShape(0, 0, 0, 16, 16, 16)));
 
     /**
+     * Доска заданий: листки на гвоздях, по одному на ремесло деревни.
+     * Ставит её деревне убранство улиц, у ратуши; рецепта нет — колонии
+     * просить у хозяина нечего.
+     */
+    public static final Block NOTICE_BOARD = register("notice_board", new NoticeBoardBlock(
+            Block.createCuboidShape(0, 0, 6, 16, 16, 11), AbstractBlock.Settings.create()
+                    .mapColor(MapColor.SPRUCE_BROWN)
+                    .instrument(Instrument.BASS)
+                    .burnable()
+                    .strength(2.0f, 3.0f)
+                    .sounds(BlockSoundGroup.WOOD)
+                    .nonOpaque()));
+
+    /**
      * Алтарь: единственное место в моде, где говорят с небом.
      * <p>
      * Светится слабо (пять из пятнадцати) и намеренно слабо: алтарь

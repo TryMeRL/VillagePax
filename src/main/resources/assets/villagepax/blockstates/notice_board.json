@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "villagepax:block/notice_board"
+    },
+    "facing=east": {
+      "model": "villagepax:block/notice_board",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "villagepax:block/notice_board",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "villagepax:block/notice_board",
+      "y": 270
+    }
+  }
+}

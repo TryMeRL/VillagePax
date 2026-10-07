@@ -554,6 +554,111 @@ public final class Streetscape {
         return Optional.empty();
     }
 
+    // --- доска заданий ---
+
+    /** Доска — не ближе стольких шагов от стены ратуши и не дальше. */
+    static final int BOARD_FROM = 2;
+    static final int BOARD_TO = 6;
+
+    /** Метка «доска поставлена» в памяти убранства — раз и навсегда, как стол. */
+    public static UUID boardMarker(UUID village) {
+        return UUID.nameUUIDFromBytes(("villagepax:notice_board/" + village)
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Доска заданий у ратуши — лицом к площади.
+     * <p>
+     * У народа с земли — снаружи, на природной земле в двух–шести шагах
+     * от стены ратуши, не на проходе к двери и так, чтобы перед ней было
+     * где встать. У народа из горы и из крон снаружи земли нет — тогда
+     * на полу зала ратуши, не вплотную к блоку ратуши. Ставится раз
+     * и навсегда; не нашлось места — пробуется при следующем обходе.
+     *
+     * @return где встала доска; пусто — не встала или уже стоит
+     */
+    public static Optional<BlockPos> noticeBoard(ServerWorld world, SettlementManager manager,
+                                                 Settlement village) {
+        UUID marker = boardMarker(village.id());
+        if (!village.owner().isAutonomous() || manager.isDressed(marker)
+                || !world.isChunkLoaded(village.center())) {
+            return Optional.empty();
+        }
+        Set<Long> passages = passages(village);
+        BlockPos centre = village.center();
+        Optional<BlockPos> spot = Footing.of(village).levelsTheGround()
+                ? outsideTheHall(world, village, passages)
+                : insideTheHall(world, village, passages);
+        spot.ifPresent(at -> {
+            Direction face = Direction.getFacing(centre.getX() - at.getX(), 0, centre.getZ() - at.getZ());
+            put(world, manager, village, at, ModBlocks.NOTICE_BOARD.getDefaultState()
+                    .with(FurnitureBlock.FACING, face));
+            manager.markDressed(marker);
+        });
+        return spot;
+    }
+
+    private static Optional<BlockPos> outsideTheHall(ServerWorld world, Settlement village,
+                                                     Set<Long> passages) {
+        BlockPos centre = village.center();
+        for (int reach = BOARD_FROM; reach <= BOARD_TO; reach++) {
+            for (BlockPos column : tableRing(village, Optional.empty(), reach)) {
+                if (!world.isChunkLoaded(column)) {
+                    continue;
+                }
+                BlockPos at = Ground.buildableAt(world, column.getX(), column.getZ())
+                        .filter(found -> Math.abs(found.getY() - centre.getY()) <= 2)
+                        .orElse(null);
+                if (at == null || !seatable(world, village, passages, at)) {
+                    continue;
+                }
+                Direction face = Direction.getFacing(centre.getX() - at.getX(), 0,
+                        centre.getZ() - at.getZ());
+                BlockPos front = at.offset(face);
+                // Перед доской должно быть где встать — иначе листки читать неоткуда.
+                if (!com.villagepax.sim.work.Standing.canStandAt(world, front)
+                        || passages.contains(BlockPos.asLong(at.getX(), 0, at.getZ()))) {
+                    continue;
+                }
+                return Optional.of(at);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<BlockPos> insideTheHall(ServerWorld world, Settlement village,
+                                                    Set<Long> passages) {
+        int[] box = GameSpot.hallBox(village);
+        BlockPos centre = village.center();
+        BlockPos best = null;
+        double bestAway = Double.MAX_VALUE;
+        for (int x = box[0] + 1; x <= box[2] - 1; x++) {
+            for (int z = box[1] + 1; z <= box[3] - 1; z++) {
+                if (Math.max(Math.abs(x - centre.getX()), Math.abs(z - centre.getZ())) < 2
+                        || passages.contains(BlockPos.asLong(x, 0, z))) {
+                    continue;
+                }
+                for (int dy = -1; dy <= 1; dy++) {
+                    BlockPos at = new BlockPos(x, centre.getY() + dy, z);
+                    if (!world.isChunkLoaded(at) || !com.villagepax.sim.work.Standing.canStandAt(world, at)) {
+                        continue;
+                    }
+                    Direction face = Direction.getFacing(centre.getX() - x, 0, centre.getZ() - z);
+                    if (!com.villagepax.sim.work.Standing.canStandAt(world, at.offset(face))) {
+                        continue;
+                    }
+                    // Ближе к ратуше — виднее; дальше трёх шагов — уже угол зала.
+                    double away = at.getSquaredDistance(centre);
+                    if (away < bestAway) {
+                        bestAway = away;
+                        best = at;
+                    }
+                }
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
     /** Колонны в этом шаге: вокруг клетки перед пивной или вокруг стен ратуши. */
     private static List<BlockPos> tableRing(Settlement village, Optional<BlockPos> door, int reach) {
         int[] box = door.map(at -> new int[]{at.getX(), at.getZ(), at.getX(), at.getZ()})

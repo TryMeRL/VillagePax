@@ -72,6 +72,7 @@ public class VillagePax implements ModInitializer {
         TownHallNet.registerServer();
         ColonyNet.register();
         QuestNet.registerServer();
+        com.villagepax.screen.BoardNet.registerServer();
         Caravans.register();
         Raids.register();
 

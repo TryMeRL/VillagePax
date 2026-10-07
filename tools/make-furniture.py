@@ -308,12 +308,35 @@ def signpost():
                   "particle": "minecraft:block/spruce_planks"}, elements)
 
 
+# --- доска заданий --------------------------------------------------------------
+#
+# Два еловых столба, на них щит из досок с листками на гвоздях — лицо
+# на север — и козырёк сверху от дождя: доска стоит под открытым небом
+# у ратуши. Изнанка щита — простые доски: листки вешают с одной стороны.
+
+def notice_board():
+    post = {"*": "#post", "up": "#post_top", "down": "#post_top"}
+    return model(
+        {"post": "minecraft:block/stripped_spruce_log",
+         "post_top": "minecraft:block/stripped_spruce_log_top",
+         "planks": "minecraft:block/spruce_planks",
+         "front": "villagepax:block/notice_board_front",
+         "particle": "minecraft:block/spruce_planks"},
+        [box("левый столб", (1, 0, 8.5), (3, 15, 10.5), post, cull=("down",)),
+         box("правый столб", (13, 0, 8.5), (15, 15, 10.5), post, cull=("down",)),
+         box("щит", (0, 4, 7.5), (16, 14.5, 8.5), {"*": "#planks", "north": "#front"},
+             uv={"north": [0, 0, 16, 16]}),
+         box("козырёк", (-0.5, 14.5, 6), (16.5, 15.5, 10.5), "#planks"),
+         box("конёк козырька", (-0.5, 15.5, 7.5), (16.5, 16, 9.5), "#planks")])
+
+
 def main():
     for name, build in (("bench", bench), ("table", table), ("game_table", game_table),
                         ("shelf", shelf), ("altar", altar),
                         ("paper_lantern", lambda: paper_lantern(False)),
                         ("paper_lantern_hanging", lambda: paper_lantern(True)),
-                        ("flower_box", flower_box), ("signpost", signpost)):
+                        ("flower_box", flower_box), ("signpost", signpost),
+                        ("notice_board", notice_board)):
         path = MODELS / (name + ".json")
         path.write_text(json.dumps(build(), indent=2, ensure_ascii=False) + "\n",
                         encoding="utf-8", newline="\n")

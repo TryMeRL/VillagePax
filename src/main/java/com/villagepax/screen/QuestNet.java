@@ -376,7 +376,7 @@ public final class QuestNet {
     }
 
     /** Колония этого игрока, если она у него есть. */
-    private static Settlement colonyOf(SettlementManager manager, UUID player) {
+    static Settlement colonyOf(SettlementManager manager, UUID player) {
         for (Settlement candidate : manager.all()) {
             if (candidate.owner().isOwnedBy(player)) {
                 return candidate;
@@ -715,7 +715,7 @@ public final class QuestNet {
      * Требования с уже посчитанным «сколько есть» и награды готовыми
      * строками: клиент не должен знать ни про инвентарь, ни про датапак.
      */
-    private static QuestView.Offer offerOf(Progress.Seeker seeker, Quest quest, int reputation) {
+    static QuestView.Offer offerOf(Progress.Seeker seeker, Quest quest, int reputation) {
         List<QuestView.Need> needs = new ArrayList<>();
         boolean ready = reputation >= quest.minReputation();
 

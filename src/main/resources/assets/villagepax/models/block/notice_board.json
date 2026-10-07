@@ -1,0 +1,185 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "post": "minecraft:block/stripped_spruce_log",
+    "post_top": "minecraft:block/stripped_spruce_log_top",
+    "planks": "minecraft:block/spruce_planks",
+    "front": "villagepax:block/notice_board_front",
+    "particle": "minecraft:block/spruce_planks"
+  },
+  "elements": [
+    {
+      "__comment": "левый столб",
+      "from": [
+        1,
+        0,
+        8.5
+      ],
+      "to": [
+        3,
+        15,
+        10.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#post"
+        },
+        "south": {
+          "texture": "#post"
+        },
+        "east": {
+          "texture": "#post"
+        },
+        "west": {
+          "texture": "#post"
+        },
+        "up": {
+          "texture": "#post_top"
+        },
+        "down": {
+          "texture": "#post_top",
+          "cullface": "down"
+        }
+      }
+    },
+    {
+      "__comment": "правый столб",
+      "from": [
+        13,
+        0,
+        8.5
+      ],
+      "to": [
+        15,
+        15,
+        10.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#post"
+        },
+        "south": {
+          "texture": "#post"
+        },
+        "east": {
+          "texture": "#post"
+        },
+        "west": {
+          "texture": "#post"
+        },
+        "up": {
+          "texture": "#post_top"
+        },
+        "down": {
+          "texture": "#post_top",
+          "cullface": "down"
+        }
+      }
+    },
+    {
+      "__comment": "щит",
+      "from": [
+        0,
+        4,
+        7.5
+      ],
+      "to": [
+        16,
+        14.5,
+        8.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#front",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#planks"
+        },
+        "east": {
+          "texture": "#planks"
+        },
+        "west": {
+          "texture": "#planks"
+        },
+        "up": {
+          "texture": "#planks"
+        },
+        "down": {
+          "texture": "#planks"
+        }
+      }
+    },
+    {
+      "__comment": "козырёк",
+      "from": [
+        -0.5,
+        14.5,
+        6
+      ],
+      "to": [
+        16.5,
+        15.5,
+        10.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#planks"
+        },
+        "south": {
+          "texture": "#planks"
+        },
+        "east": {
+          "texture": "#planks"
+        },
+        "west": {
+          "texture": "#planks"
+        },
+        "up": {
+          "texture": "#planks"
+        },
+        "down": {
+          "texture": "#planks"
+        }
+      }
+    },
+    {
+      "__comment": "конёк козырька",
+      "from": [
+        -0.5,
+        15.5,
+        7.5
+      ],
+      "to": [
+        16.5,
+        16,
+        9.5
+      ],
+      "faces": {
+        "north": {
+          "texture": "#planks"
+        },
+        "south": {
+          "texture": "#planks"
+        },
+        "east": {
+          "texture": "#planks"
+        },
+        "west": {
+          "texture": "#planks"
+        },
+        "up": {
+          "texture": "#planks"
+        },
+        "down": {
+          "texture": "#planks"
+        }
+      }
+    }
+  ]
+}

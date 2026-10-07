@@ -35,7 +35,16 @@ public final class Lines {
      * @param choose случай: по границе — номер от нуля до неё
      */
     static String pick(Say say, Nature nature, Predicate<String> known, IntUnaryOperator choose) {
-        String base = PREFIX + say.id();
+        return pickKey(PREFIX + say.id(), nature, known, choose);
+    }
+
+    /**
+     * То же по любой базе ключа: так говорят и игры, и сама жизнь жителя
+     * ({@code villagepax.say.<тема>}). Правило одно — сперва запас нрава,
+     * потом общий, пропуск номера кончает запас.
+     */
+    public static String pickKey(String base, Nature nature, Predicate<String> known,
+                                 IntUnaryOperator choose) {
         String own = base + "." + nature.id();
         int mine = count(own, known);
         if (mine > 0) {
@@ -65,7 +74,17 @@ public final class Lines {
     }
 
     private static Text line(CitizenEntity body, Citizen citizen, Say say, Object... args) {
-        String key = pick(say, Natures.of(citizen), Language.getInstance()::hasTranslation,
+        return lineOf(body, citizen, PREFIX + say.id(), args);
+    }
+
+    /** Сказать фразу по базе ключа; {@code urgent} — поверх недавней. @return встала ли */
+    public static boolean sayKey(CitizenEntity body, Citizen citizen, String base, boolean urgent,
+                                 Object... args) {
+        return body.say(lineOf(body, citizen, base, args), urgent);
+    }
+
+    private static Text lineOf(CitizenEntity body, Citizen citizen, String base, Object... args) {
+        String key = pickKey(base, Natures.of(citizen), Language.getInstance()::hasTranslation,
                 bound -> body.getRandom().nextInt(bound));
         return Text.translatable(key, args);
     }

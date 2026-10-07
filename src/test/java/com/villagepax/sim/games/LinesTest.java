@@ -43,6 +43,16 @@ class LinesTest {
                 Lines.pick(Say.WIN, Nature.EVEN, known::contains, bound -> bound - 1));
     }
 
+    /** Подбор по любой базе — им говорят и игры, и жизнь жителя. */
+    @Test
+    void anyBaseSpeaksTheSameWay() {
+        String base = "villagepax.say.hungry";
+        Set<String> known = Set.of(base + ".lazy.1", base + ".1", base + ".2");
+        assertEquals(base + ".lazy.1", Lines.pickKey(base, Nature.LAZY, known::contains, bound -> 0));
+        assertEquals(base + ".2", Lines.pickKey(base, Nature.EVEN, known::contains, bound -> 1));
+        assertEquals(base + ".1", Lines.pickKey(base, Nature.EVEN, key -> false, bound -> 0));
+    }
+
     /** Совсем пустой запас — всё равно ключ: игрок увидит его и поймёт, что забыли слово. */
     @Test
     void anEmptyPoolStillNamesAKey() {

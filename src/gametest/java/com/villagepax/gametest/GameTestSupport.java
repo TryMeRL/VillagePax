@@ -1123,8 +1123,11 @@ abstract class GameTestSupport implements FabricGameTest {
             // Ищем опору только рядом: глубже четырёх блоков — это уже
             // обрыв или край испытательной площадки, а крыльцо мостов
             // не строит и спрашивать с него нечего.
+            // Сверху — с высоты шага, а не выше: блок на высоте головы
+            // над пустотой — это балка крыльца над проходом, а не стена.
+            // Стену в два блока видно и так — по блоку на высоте шага.
             int ground = Integer.MIN_VALUE;
-            for (int y = walk + 2; y >= walk - 4; y--) {
+            for (int y = walk + 1; y >= walk - 4; y--) {
                 BlockPos at = column.withY(y);
                 if (!world.getBlockState(at).getCollisionShape(world, at).isEmpty()) {
                     ground = y;

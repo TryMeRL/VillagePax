@@ -881,6 +881,49 @@ NORMAN_HOUSE = [
      "HHHHHHH"],
 ] + steep_gable(7, 7, "s", "n", "X", "7", beam="B", window="G")
 
+# --- изба с крыльцом: второй вид жилья хутора ---
+#
+# На том же следе 7x7, что и дом, но сруб короче на два ряда, а перед
+# дверью — крыльцо под общей кровлей: два столба, настил, лавка
+# и место для цветка. Хутор из одинаковых коробок читается складом;
+# два вида жилья, чередуясь, делают из него улицу.
+COTTAGE_BODY = [
+    # y=0 — настил крыльца и цоколь сруба
+    ["PPPPPPP",
+     "PPPPPPP",
+     "CCCCCCC",
+     "CCCCCCC",
+     "CCCCCCC",
+     "CCCCCCC",
+     "CCCCCCC"],
+    # y=1 — столбы крыльца, лавка; в срубе постели, стол, очаг
+    ["B.....B",
+     ".O...=.",
+     "BWWDWWB",
+     "Wff.:SW",
+     "Whh.%;W",
+     "WO.c.OW",
+     "BWWWWWB"],
+    # y=2 — столбы, окна по бокам двери и на задней стене
+    ["B.....B",
+     ".......",
+     "BXG.GXB",
+     "X.....X",
+     "G.....G",
+     "X.....X",
+     "BXGWGXB"],
+    # y=3 — обвязка: балка над крыльцом держит свес кровли
+    ["HHHHHHH",
+     "Z.....Z",
+     "HHHHHHH",
+     "Z.....Z",
+     "Z.....Z",
+     "Z.....Z",
+     "HHHHHHH"],
+]
+
+NORMAN_COTTAGE = COTTAGE_BODY + steep_gable(7, 7, "s", "n", "X", "7", beam="B", window="G")
+
 # Домик лесоруба, 10x5x5: жильё слева, огороженная роща справа.
 #
 # Решение заказчика: роща у домика — постоянное хозяйство лесоруба, там он
@@ -1209,6 +1252,11 @@ PONY_TOWNHOUSE = restyle(TOWNHOUSE_BODY, {
     "B": "o", "M": "I", "W": "I", "X": "I", "H": "m", "Z": "N", "P": "I",
 }) + steep_gable(7, 7, "]", "[", "I", "_", beam="o", window="G")
 
+
+# Пони: сруб из акации с верандой — та же изба в рыжем дереве.
+PONY_COTTAGE = restyle(COTTAGE_BODY, {
+    "B": "o", "M": "I", "W": "I", "X": "I", "H": "m", "Z": "N", "P": "I",
+}) + steep_gable(7, 7, "]", "[", "I", "_", beam="o", window="G")
 
 # --- ферма норманнов, уровень 1 ---
 
@@ -3759,6 +3807,11 @@ NORD_TOWNHOUSE = restyle(TOWNHOUSE_BODY, {
     "B": "л", "M": "C", "H": "ж", "Z": "з", "P": "е", "f": "к", "h": "г",
 }, walls={"W": ("ж", "з"), "X": ("ж", "з")}) + dragon_roof(7, 7)
 
+# Северяне: изба с сенями — ель на каменном цоколе, драконья кровля.
+NORD_COTTAGE = restyle(COTTAGE_BODY, {
+    "B": "л", "M": "C", "H": "ж", "Z": "з", "P": "е", "f": "к", "h": "г",
+}, walls={"W": ("ж", "з"), "X": ("ж", "з")}) + dragon_roof(7, 7)
+
 # --- изба северян, уровень 2: полати над столом ---
 #
 # Вторым уровнем дом не надстраивается сплошным этажом, а поднимает стены
@@ -4941,6 +4994,9 @@ RAW_SCHEMATICS = {
     "norman/townhouse_lvl1": NORMAN_TOWNHOUSE,
     "pony/townhouse_lvl1": PONY_TOWNHOUSE,
     "nord/townhouse_lvl1": NORD_TOWNHOUSE,
+    "norman/cottage_lvl1": NORMAN_COTTAGE,
+    "pony/cottage_lvl1": PONY_COTTAGE,
+    "nord/cottage_lvl1": NORD_COTTAGE,
     "maya/townhouse_lvl1": MAYA_TOWNHOUSE,
     "yamato/townhouse_lvl1": YAMATO_TOWNHOUSE,
     "norman/lumberjack_lvl1": NORMAN_LUMBERJACK,

@@ -203,9 +203,17 @@ public class HideAndSeekTests extends GameTestSupport {
                 clearYard(world, manager, yard);
                 context.throwGameTestException("Подошёл вплотную, а ребёнок не найден");
             }
-            for (Citizen kid : yard.kids().subList(1, 3)) {
-                HideAndSeek.clicked(world, yard.player(), village, kid, DAY, MORNING);
-            }
+            // Щёлкать — только пока прятки идут и только по ненайденным:
+            // если места выпали рядом, подошедший к первому находит всех
+            // сразу, и щелчок по ребёнку после конца начинал НОВЫЕ прятки —
+            // проверка изредка падала с «все найдены, а прятки идут».
+            HideAndSeek.at(village.id()).ifPresent(live -> {
+                for (Citizen kid : yard.kids().subList(1, 3)) {
+                    if (!live.isFound(kid.id())) {
+                        HideAndSeek.clicked(world, yard.player(), village, kid, DAY, MORNING);
+                    }
+                }
+            });
         });
         // Конец пряток наступает на ближайшем обходе (раз в пять тиков), и
         // под нагрузкой сервер его откладывает: проверка ждёт до шестидесяти

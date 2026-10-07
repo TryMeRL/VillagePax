@@ -266,6 +266,9 @@ public final class Streetscape {
     /** Ширина ворот. */
     static final int GATE = 3;
 
+    /** Выше или ниже площади на столько — гора или овраг: там стену не кладут. */
+    static final int WALL_SLOPE_LIMIT = 10;
+
     static UUID wallMarker(Settlement village) {
         return UUID.nameUUIDFromBytes(("villagepax:wall/" + village.id() + "/" + village.level().id())
                 .getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -349,7 +352,8 @@ public final class Streetscape {
         }
         Set<Long> gates = gatesOf(world, village, c, half, ring);
 
-        int placed = 0;
+        // Сперва — земля под каждым столбом: высота столба зависит от соседей.
+        java.util.Map<Long, BlockPos> grounds = new java.util.HashMap<>();
         for (BlockPos column : ring) {
             long flat = BlockPos.asLong(column.getX(), 0, column.getZ());
             if (gates.contains(flat) || covered(village, column)) {
@@ -359,11 +363,34 @@ public final class Streetscape {
                     new BlockPos(column.getX(), c.getY() + 24, column.getZ()));
             BlockPos ground = Ground.buildableAt(world, column.getX(), column.getZ()).orElse(null);
             if (ground == null || !world.getFluidState(ground.down()).isEmpty()
-                    || !world.getBlockState(ground.down()).isSolidBlock(world, ground.down())) {
+                    || !world.getBlockState(ground.down()).isSolidBlock(world, ground.down())
+                    // Гора и овраг — сами себе стена: на кручу кладку не тащат.
+                    || Math.abs(ground.getY() - c.getY()) > WALL_SLOPE_LIMIT) {
                 continue;
             }
+            grounds.put(flat, ground);
+        }
+
+        int placed = 0;
+        for (BlockPos column : ring) {
+            BlockPos ground = grounds.get(BlockPos.asLong(column.getX(), 0, column.getZ()));
+            if (ground == null) {
+                continue;
+            }
+            // Ступень меж соседями заделывается: столб тянется до верха
+            // соседа, чтобы в стене на склоне не было просветов, — но не
+            // выше чем на два блока сверх обычного.
+            int neighbourTop = ground.getY();
+            for (Direction side : Direction.Type.HORIZONTAL) {
+                BlockPos next = grounds.get(BlockPos.asLong(column.getX() + side.getOffsetX(), 0,
+                        column.getZ() + side.getOffsetZ()));
+                if (next != null) {
+                    neighbourTop = Math.max(neighbourTop, next.getY());
+                }
+            }
+            int tall = WALL_HEIGHT + Math.min(2, neighbourTop - ground.getY());
             int height = 0;
-            for (int dy = 0; dy < WALL_HEIGHT; dy++) {
+            for (int dy = 0; dy < tall; dy++) {
                 BlockPos at = ground.up(dy);
                 if (!world.getBlockState(at).isReplaceable()) {
                     break;
@@ -378,7 +405,7 @@ public final class Streetscape {
             boolean crenel = rampart.capEveryColumn()
                     || Math.floorMod(column.getX() + column.getZ(), 2) == 0;
             BlockPos top = ground.up(height);
-            if (height == WALL_HEIGHT && crenel && world.getBlockState(top).isReplaceable()) {
+            if (height == tall && crenel && world.getBlockState(top).isReplaceable()) {
                 wallPut(world, manager, village, key, top, rampart.cap().getDefaultState());
             }
         }
@@ -442,7 +469,9 @@ public final class Streetscape {
             }
             Ground.buildableAt(world, column.getX(), column.getZ()).ifPresent(ground -> {
                 BlockState under = world.getBlockState(ground.down());
-                if (under.isOf(Blocks.DIRT_PATH) || under.isOf(road) || under.isOf(Blocks.GRAVEL)) {
+                // Гравий не в счёт: он бывает и природным — у реки, на осыпи, —
+                // и первый же осмотр насчитал в лесу сорок ворот.
+                if (under.isOf(Blocks.DIRT_PATH) || under.isOf(road)) {
                     open.accept(column.getX(), column.getZ());
                 }
             });

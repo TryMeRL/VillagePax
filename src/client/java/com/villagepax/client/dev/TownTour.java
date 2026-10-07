@@ -37,7 +37,7 @@ public final class TownTour {
 
     private static final List<View> VIEWS = List.of(
             new View("aerial", 0, 45, -75, 0f, 30f),
-            new View("wall", 0, 3, -62, 0f, 0f),
+            new View("wall", 0, 9, -70, 0f, 10f),
             new View("east", 75, 35, 0, 90f, 25f),
             new View("above", 0, 110, 0, 0f, 90f));
 

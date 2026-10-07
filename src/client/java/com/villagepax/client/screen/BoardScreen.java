@@ -61,6 +61,7 @@ public class BoardScreen extends Screen {
     /** Где на экране лежат печати и вещи этой отрисовки: для щелчка и подсказки. */
     private final List<Stamp> stamps = new ArrayList<>();
     private final List<Icon> icons = new ArrayList<>();
+    private final List<Words> words = new ArrayList<>();
 
     private record Stamp(int x, int y, int w, int h, BoardView.Sheet sheet, boolean active) {
         boolean hit(double mx, double my) {
@@ -71,6 +72,13 @@ public class BoardScreen extends Screen {
     private record Icon(int x, int y, int size, ItemStack stack) {
         boolean hit(double mx, double my) {
             return mx >= x && mx < x + size && my >= y && my < y + size;
+        }
+    }
+
+    /** Слова, не уместившиеся на листке: по наведению — целиком. */
+    private record Words(int x, int y, int w, int h, Text full) {
+        boolean hit(double mx, double my) {
+            return mx >= x && mx < x + w && my >= y && my < y + h;
         }
     }
 
@@ -128,6 +136,7 @@ public class BoardScreen extends Screen {
         renderBackground(context);
         stamps.clear();
         icons.clear();
+        words.clear();
 
         int x = left();
         int y = top();
@@ -183,6 +192,12 @@ public class BoardScreen extends Screen {
         for (Icon icon : icons) {
             if (icon.hit(mouseX, mouseY)) {
                 context.drawItemTooltip(textRenderer, icon.stack(), mouseX, mouseY);
+            }
+        }
+        for (Words said : words) {
+            if (said.hit(mouseX, mouseY)) {
+                context.drawOrderedTooltip(textRenderer, textRenderer.wrapLines(said.full(), 200),
+                        mouseX, mouseY);
             }
         }
         for (Stamp stamp : stamps) {
@@ -249,8 +264,12 @@ public class BoardScreen extends Screen {
         ty += 4;
 
         QuestView.Offer offer = sheet.offer();
-        ty = drawWrapped(context, Text.translatable(offer.dialogue()).formatted(Formatting.ITALIC),
-                6, ty, inner, MUTED, 0.75f, 3);
+        Text said = Text.translatable(offer.dialogue()).formatted(Formatting.ITALIC);
+        int saidFrom = ty;
+        ty = drawWrapped(context, said, 6, ty, inner, MUTED, 0.75f, 3);
+        if (textRenderer.wrapLines(said, (int) (inner / 0.75f)).size() > 3) {
+            words.add(new Words(x + 6, y + saidFrom, inner, ty - saidFrom, said));
+        }
         ty += 3;
 
         for (QuestView.Need need : offer.objectives()) {
@@ -340,7 +359,11 @@ public class BoardScreen extends Screen {
             matrices.push();
             matrices.translate(x, y, 0);
             matrices.scale(scale, scale, 1f);
-            context.drawText(textRenderer, lines.get(i), 0, 0, colour, false);
+            int end = context.drawText(textRenderer, lines.get(i), 0, 0, colour, false);
+            // Не уместилось — многоточие, а целиком скажет подсказка.
+            if (i == shown - 1 && lines.size() > shown) {
+                context.drawText(textRenderer, "…", end, 0, colour, false);
+            }
             matrices.pop();
             y += (int) Math.ceil(10 * scale);
         }

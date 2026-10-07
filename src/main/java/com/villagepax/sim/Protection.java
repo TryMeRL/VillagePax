@@ -52,7 +52,8 @@ public final class Protection {
 
     public static void register() {
         PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) ->
-                !(world instanceof ServerWorld server) || allowed(server, player, pos));
+                !(world instanceof ServerWorld server) || (unlocked(server, player, pos)
+                        && allowed(server, player, pos)));
 
         UseBlockCallback.EVENT.register((player, world, hand, hit) -> {
             if (!(world instanceof ServerWorld server)) {
@@ -61,6 +62,21 @@ public final class Protection {
             BlockPos pos = hit.getBlockPos();
             BlockState clicked = world.getBlockState(pos);
             boolean holding = !player.getStackInHand(hand).isEmpty();
+            // Сундуки деревни народа — на замке; ратуша деревни отвечает сама.
+            if (!clicked.isOf(com.villagepax.block.ModBlocks.TOWN_HALL)
+                    && !(player.isSneaking() && holding) && !unlocked(server, player, pos)) {
+                return ActionResult.FAIL;
+            }
+            // И воронку под замок не подсунуть.
+            if (player.getStackInHand(hand).isOf(net.minecraft.item.Items.HOPPER)
+                    || player.getStackInHand(hand).isOf(net.minecraft.item.Items.HOPPER_MINECART)) {
+                Optional<Settlement> village = VillageLocks.inVillageBuilding(server, player,
+                        pos.offset(hit.getSide()));
+                if (village.isPresent()) {
+                    VillageLocks.tell(player, village.get());
+                    return ActionResult.FAIL;
+                }
+            }
             // С блоком в руке и присев — это не «открыть дверь», а «поставить
             // рядом с дверью»: ставить гостю нельзя, даже у двери.
             boolean placing = player.isSneaking() && holding;
@@ -137,6 +153,13 @@ public final class Protection {
     }
 
     /** То же, что {@link #allowed}, но молча: гостю, открывшему дверь, отказ не говорят. */
+    /** Не на замке ли деревни этот блок; если на замке — сказать об этом. */
+    private static boolean unlocked(ServerWorld world, PlayerEntity player, BlockPos pos) {
+        Optional<Settlement> village = VillageLocks.lockedFor(world, player, pos);
+        village.ifPresent(locked -> VillageLocks.tell(player, locked));
+        return village.isEmpty();
+    }
+
     private static boolean mayTouch(ServerWorld world, PlayerEntity player, BlockPos pos) {
         return !Configs.get().protectColonies() || player.hasPermissionLevel(2)
                 || guardedAgainst(SettlementManager.get(world), player.getUuid(), pos).isEmpty();

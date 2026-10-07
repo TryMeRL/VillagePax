@@ -919,6 +919,7 @@
   "villagepax.config.protect_colonies": "Colony land is protected",
   "villagepax.config.protect_colonies.tooltip": "Only the owner and those they trust (/villagepax trust) may break, place, open chests and strike citizens on colony land. Guests walk, open doors and talk.",
   "villagepax.protection.denied": "This is the land of the colony \"%s\": only its owner and those they trust build here.",
+  "villagepax.lock.village": "This belongs to the village of \"%s\": no taking without asking. Trade at the stall or help the village.",
   "villagepax.command.trust.done": "%s may now build and break on the land of the colony \"%s\".",
   "villagepax.command.trust.already": "%s may already build on the colony land.",
   "villagepax.command.untrust.done": "%s may no longer build on the land of the colony \"%s\".",

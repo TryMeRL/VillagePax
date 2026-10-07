@@ -919,6 +919,7 @@
   "villagepax.config.protect_colonies": "Земля колонии закрыта",
   "villagepax.config.protect_colonies.tooltip": "Ломать, ставить, открывать сундуки и бить жителей на земле колонии могут только её хозяин и те, кому он доверил (/villagepax trust). Гости ходят, открывают двери и говорят.",
   "villagepax.protection.denied": "Это земля колонии «%s»: здесь строят только её хозяин и те, кому он доверил.",
+  "villagepax.lock.village": "Это добро деревни «%s»: чужое без спроса не берут. Торгуйте у прилавка или помогите деревне.",
   "villagepax.command.trust.done": "%s теперь может строить и ломать на земле колонии «%s».",
   "villagepax.command.trust.already": "%s и так вправе строить на земле колонии.",
   "villagepax.command.untrust.done": "%s больше не может строить на земле колонии «%s».",

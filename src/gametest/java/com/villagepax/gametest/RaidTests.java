@@ -1192,6 +1192,48 @@ public class RaidTests extends GameTestSupport {
      * Millénaire». Проверяются все отказы разом, потому что порознь
      * каждый согласился бы с «пускать всегда».
      */
+    /**
+     * Сундук в здании деревни — на замке; свой сундук на свободной земле
+     * и сундук в отведённом гражданину доме — нет.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "citizenship")
+    public void aVillageChestIsLockedButYourOwnIsNot(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(2, 30, 2));
+        BlockPos houseAt = context.getAbsolutePos(new BlockPos(8, 30, 2));
+        Settlement village = villageWithHouse(world, manager, centre, houseAt);
+        BlockPos inHouse = houseAt.add(2, 1, 2);
+        BlockPos onOpenGround = context.getAbsolutePos(new BlockPos(2, 30, 12));
+        world.setBlockState(inHouse, Blocks.CHEST.getDefaultState());
+        world.setBlockState(onOpenGround, Blocks.CHEST.getDefaultState());
+        net.minecraft.entity.player.PlayerEntity player = context.createMockSurvivalPlayer();
+
+        try {
+            if (com.villagepax.sim.VillageLocks.lockedFor(world, player, inHouse).isEmpty()) {
+                context.throwGameTestException("Сундук в доме деревни открыт прохожему");
+            }
+            if (com.villagepax.sim.VillageLocks.lockedFor(world, player, centre).isEmpty()) {
+                context.throwGameTestException("Ратушу деревни можно разобрать вместе со складом");
+            }
+            if (com.villagepax.sim.VillageLocks.lockedFor(world, player, onOpenGround).isPresent()) {
+                context.throwGameTestException("Свой сундук на свободной земле деревни заперт");
+            }
+            Building house = village.buildings().get(0);
+            manager.update(village.id(), state ->
+                    state.building(house.id()).ifPresent(known -> known.setResident(player.getUuid())));
+            if (com.villagepax.sim.VillageLocks.lockedFor(world, player, inHouse).isPresent()) {
+                context.throwGameTestException("Гражданину не открыть сундук в своём доме");
+            }
+        } finally {
+            manager.remove(village.id());
+            world.setBlockState(inHouse, Blocks.AIR.getDefaultState());
+            world.setBlockState(onOpenGround, Blocks.AIR.getDefaultState());
+            world.setBlockState(centre, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
     @GameTest(templateName = EMPTY_STRUCTURE, batchId = "citizenship")
     public void aFriendIsGivenAHouse(TestContext context) {
         ServerWorld world = context.getWorld();

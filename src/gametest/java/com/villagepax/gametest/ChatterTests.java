@@ -9,6 +9,7 @@ import com.villagepax.sim.SettlementManager;
 import com.villagepax.sim.life.Ages;
 import com.villagepax.sim.life.Chatter;
 import com.villagepax.sim.life.Gossip;
+import com.villagepax.sim.life.Weddings;
 import com.villagepax.sim.work.Schedule;
 import net.minecraft.block.Blocks;
 import net.minecraft.entity.player.PlayerEntity;
@@ -127,6 +128,61 @@ public class ChatterTests extends GameTestSupport {
             }
             if (Gossip.tick(world, colony, day, 3_000, List.of(player), new Random(6)).isPresent()) {
                 context.throwGameTestException("Днём на работе сплетничают");
+            }
+            context.complete();
+        } finally {
+            discardBodies(world, colony);
+            manager.remove(colony.id());
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+    }
+
+    /**
+     * Свадебный вечер: гость кричит «Горько!», а пришедшего игрока молодые
+     * угощают — один раз за вечер. Наутро праздник забыт.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "chatter")
+    public void aWeddingTreatsItsGuestOnce(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        try {
+            Citizen groom = evenNewborn("Ren", "", NORMAN, Gender.MALE);
+            Citizen bride = evenNewborn("Sora", "", NORMAN, Gender.FEMALE);
+            Citizen guest = evenNewborn("Kaito", "", NORMAN, Gender.MALE);
+            for (Citizen citizen : List.of(groom, bride, guest)) {
+                citizen.setLived(Ages.grownAt() + 5);
+                colony.addCitizen(citizen);
+            }
+            groom.setPosition(Vec3d.ofBottomCenter(hall.add(2, 0, 2)));
+            bride.setPosition(Vec3d.ofBottomCenter(hall.add(3, 0, 2)));
+            guest.setPosition(Vec3d.ofBottomCenter(hall.add(2, 0, 5)));
+            CitizenSpawner.spawnBody(world, colony, groom);
+            CitizenSpawner.spawnBody(world, colony, bride);
+            CitizenEntity guestBody = CitizenSpawner.spawnBody(world, colony, guest);
+            PlayerEntity player = context.createMockSurvivalPlayer();
+            player.setPosition(Vec3d.ofCenter(hall.add(2, 1, 4)));
+            long day = Schedule.dayOf(world.getTimeOfDay());
+            net.minecraft.item.Item treat = com.villagepax.sim.games.HideAndSeek.treatOf(
+                    com.villagepax.core.culture.CultureManager.get(NORMAN));
+
+            Weddings.held(world, colony, day, groom, bride);
+            if (!Weddings.isFeast(colony, day, 11_500) || Weddings.isFeast(colony, day, 3_000)) {
+                context.throwGameTestException("Свадебный вечер не вечером");
+            }
+            Weddings.tick(world, manager, List.of(player), day, 11_500, new Random(1));
+            Weddings.tick(world, manager, List.of(player), day, 11_500, new Random(2));
+            if (player.getInventory().count(treat) != 1) {
+                context.throwGameTestException("Угощение гостю: " + player.getInventory().count(treat)
+                        + " вместо одного");
+            }
+            if (spoken(guestBody).filter(key -> key.startsWith(Weddings.CHEER + ".")).isEmpty()) {
+                context.throwGameTestException("Гость не крикнул «Горько!»: " + spoken(guestBody));
+            }
+            Weddings.tick(world, manager, List.of(player), day + 1, 11_500, new Random(3));
+            if (Weddings.tonight(colony, day).isPresent()) {
+                context.throwGameTestException("Свадьба не забыта наутро");
             }
             context.complete();
         } finally {

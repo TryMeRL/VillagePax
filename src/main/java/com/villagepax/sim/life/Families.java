@@ -7,6 +7,7 @@ import com.villagepax.sim.Citizen;
 import com.villagepax.sim.Founding;
 import com.villagepax.sim.Gender;
 import com.villagepax.sim.Settlement;
+import com.villagepax.sim.work.Schedule;
 import com.villagepax.sim.work.Housing;
 import com.villagepax.sim.work.Workplaces;
 import net.minecraft.server.world.ServerWorld;
@@ -118,6 +119,7 @@ public final class Families {
                 other.marry(one.id());
                 Life.tell(world, settlement, "villagepax.life.wedding",
                         one.fullName(), other.fullName());
+                Weddings.held(world, settlement, Schedule.dayOf(world.getTimeOfDay()), one, other);
                 return Optional.of(new Citizen[]{one, other});
             }
         }

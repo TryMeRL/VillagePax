@@ -438,6 +438,17 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
                 return besieged && !isFighter() && super.canStart();
             }
         });
+        // И от нечисти — всякий, кому не положено с ней драться: зомби,
+        // скелет, крипер у калитки. Прежде житель продолжал полоть грядку
+        // рядом с зомби, пока тот его не убивал, — «как робот». Стража
+        // не бежит: ей нечисть — работа (см. GuardJob).
+        goalSelector.add(3, new FleeEntityGoal<>(this, net.minecraft.entity.mob.HostileEntity.class,
+                MONSTER_FLEES, 0.7, 1.0, who -> !isFighter() && isThreat(who)) {
+            @Override
+            public boolean canStart() {
+                return !isFighter() && !isSleeping() && super.canStart();
+            }
+        });
         goalSelector.add(4, new CitizenWorkGoal(this));
         goalSelector.add(5, new WanderAroundFarGoal(this, 0.5));
         goalSelector.add(6, new LookAtEntityGoal(this, PlayerEntity.class, 6.0f));
@@ -1175,6 +1186,21 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
      * из колонии от отряда, которого в ней ещё нет.
      */
     private static final float COWARD_FLEES = FLEES * 2.0f;
+
+    /** От нечисти бегут, заметив её в стольких блоках. */
+    private static final float MONSTER_FLEES = 7.0f;
+
+    /**
+     * Опасна ли эта нечисть: живая, видимая и из тех, кто нападает.
+     * Эндермен на жителя не смотрит и бегства не стоит; зомби-пиглин
+     * мирен, пока его не тронули.
+     */
+    public static boolean isThreat(net.minecraft.entity.LivingEntity who) {
+        return who.isAlive() && !who.isInvisible()
+                && !(who instanceof net.minecraft.entity.mob.EndermanEntity)
+                && !(who instanceof net.minecraft.entity.mob.ZombifiedPiglinEntity zombified
+                && !zombified.hasAngerTime());
+    }
 
     /**
      * Подпись над жителем: имя и ремесло.

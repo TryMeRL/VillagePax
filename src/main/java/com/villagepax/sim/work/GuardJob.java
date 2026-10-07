@@ -5,6 +5,8 @@ import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Villages;
+import net.minecraft.entity.mob.CreeperEntity;
+import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
@@ -67,9 +69,19 @@ public class GuardJob implements Job {
             return Optional.of(enemy.getBlockPos());
         }
 
+        // Налётчиков нет — есть нечисть: зомби у околицы, скелет на крыше.
+        // Прежде стража видела только набег, а мертвецы ходили по деревне,
+        // как у себя дома.
+        HostileEntity monster = nearestMonster(context);
+        if (monster != null) {
+            context.body().setTarget(monster);
+            return Optional.of(monster.getBlockPos());
+        }
+
         // Врага нет — и цель надо снять руками: иначе страж будет гнаться
         // за тем, кого уже нет, до конца боевой цели.
-        if (context.body().getTarget() instanceof CitizenEntity gone && gone.isRaider()) {
+        if (context.body().getTarget() instanceof CitizenEntity gone && gone.isRaider()
+                || context.body().getTarget() instanceof HostileEntity) {
             context.body().setTarget(null);
         }
         BlockPos post = towerPost(context);
@@ -118,6 +130,28 @@ public class GuardJob implements Job {
         // не спросивший о жизни, полсекунды гонялся бы за покойником.
         for (CitizenEntity candidate : context.world().getEntitiesByClass(CitizenEntity.class,
                 around, alive -> alive.isRaider() && alive.isAlive())) {
+            double away = candidate.squaredDistanceTo(context.body());
+            if (away < bestAway) {
+                bestAway = away;
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Ближайшая нечисть на земле поселения.
+     * <p>
+     * Только в его границах: страж не уходит охотиться в лес. И не крипер:
+     * мечом его не взять, не дав взорваться, — от крипера бегут все.
+     */
+    public static HostileEntity nearestMonster(WorkContext context) {
+        Box around = context.body().getBoundingBox().expand(WATCH, 12, WATCH);
+        HostileEntity best = null;
+        double bestAway = Double.MAX_VALUE;
+        for (HostileEntity candidate : context.world().getEntitiesByClass(HostileEntity.class, around,
+                monster -> CitizenEntity.isThreat(monster) && !(monster instanceof CreeperEntity)
+                        && context.settlement().claims(monster.getBlockPos()))) {
             double away = candidate.squaredDistanceTo(context.body());
             if (away < bestAway) {
                 bestAway = away;

@@ -52,6 +52,7 @@ public final class ChatterTicker {
             HEARD.clear();
             Chatter.forget();
             Gossip.forget();
+            Weddings.forget();
         });
     }
 
@@ -62,6 +63,9 @@ public final class ChatterTicker {
         SettlementManager manager = SettlementManager.get(world);
         // Сплетни на вечерних площадях и ответы на них — тем же обходом.
         Gossip.replies(world, manager, now);
+        // И свадебный вечер: сердечки, «Горько!», угощение пришедшему.
+        Weddings.tick(world, manager, players, day, world.getTimeOfDay(),
+                new Random(world.getRandom().nextLong()));
         if (!players.isEmpty()) {
             for (Settlement settlement : List.copyOf(manager.all())) {
                 Gossip.tick(world, settlement, day, world.getTimeOfDay(), players,

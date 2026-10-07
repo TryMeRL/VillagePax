@@ -256,10 +256,14 @@ public final class WorkTicker {
         // может отстать от смены ремесла.
         body.label(citizen, Configs.get().citizenLabels());
 
-        if (part != Schedule.SLEEP && body.isSleeping()) {
+        // Раненый отлёживается: днём в постели раны затягиваются вдвое
+        // быстрее, и житель, которого крипер едва не убил, не идёт тут же
+        // полоть грядку. Будить такого с утра незачем.
+        boolean resting = mustRest(context);
+        if (part != Schedule.SLEEP && body.isSleeping() && !resting) {
             body.wakeUp();
         }
-        if (part != Schedule.SLEEP) {
+        if (part != Schedule.SLEEP && !resting) {
             body.setDozing(false);
         }
         leash(context, part);
@@ -280,9 +284,39 @@ public final class WorkTicker {
         if (com.villagepax.sim.games.Games.takesOver(context, part, day)) {
             return;
         }
+        // Свадебный вечер — молодым у ратуши; гости на своём вечернем круге.
+        if (com.villagepax.sim.life.Weddings.takesOver(context, part, day)) {
+            return;
+        }
+
+        if (resting) {
+            context.holdNothing();
+            goToBed(context);
+            return;
+        }
+
+        // В грозу по домам все, кроме стражи: под молнией в поле не стоят.
+        // А в дождь вечерний сбор — не на площади, а под своей крышей.
+        boolean guard = Jobs.forProfession(citizen.profession())
+                .filter(job -> job instanceof GuardJob).isPresent();
+        if (!guard && part != Schedule.SLEEP && shelters(context, part)) {
+            context.holdNothing();
+            shelter(context);
+            return;
+        }
 
         switch (part) {
             case SLEEP -> {
+                // Ночной дозор: страж встаёт с постели, если по деревне ходит
+                // нечисть, и ложится, когда её не станет.
+                if (guard && GuardJob.nearestMonster(context) != null) {
+                    if (body.isSleeping()) {
+                        body.wakeUp();
+                    }
+                    body.setDozing(false);
+                    work(context);
+                    return;
+                }
                 // Спать с топором в руке житель не должен: инструмент —
                 // это показ работы, а не часть одежды.
                 context.holdNothing();
@@ -302,6 +336,58 @@ public final class WorkTicker {
             case MORNING_WORK, DAY_WORK -> work(context);
         }
     }
+
+    /** Ниже этой доли здоровья житель отлёживается в постели, а не работает. */
+    static final float REST_BELOW = 0.4f;
+
+    /** До этой доли — и только тогда встаёт: полузаживший тут же слёг бы снова. */
+    static final float REST_UNTIL = 0.8f;
+
+    /**
+     * Пора ли отлежаться.
+     * <p>
+     * Только тому, у кого есть постель, и не в осаде: в бою раненый бежит,
+     * а не ложится. Уже лежащий встаёт, лишь поправившись по-настоящему.
+     */
+    static boolean mustRest(WorkContext context) {
+        CitizenEntity body = context.body();
+        if (body.isBesieged() || context.citizen().bed().isEmpty()) {
+            return false;
+        }
+        float health = body.getHealth() / body.getMaxHealth();
+        boolean lying = body.isSleeping() || body.isDozing();
+        return health < (lying ? REST_UNTIL : REST_BELOW);
+    }
+
+    /** Укрыться ли от непогоды в эту часть дня. */
+    private static boolean shelters(WorkContext context, Schedule part) {
+        if (context.citizen().bed().isEmpty() || context.body().isBesieged()) {
+            return false;
+        }
+        if (context.world().isThundering()) {
+            return true;
+        }
+        // Спрашивается погода над деревней, а не над головой: под крышей
+        // дождя не видно, и житель, укрывшийся дома, тут же шёл бы на площадь.
+        BlockPos square = context.settlement().center();
+        return part == Schedule.LEISURE && context.world().isRaining()
+                && context.world().getBiome(square).value().getPrecipitation(square)
+                != net.minecraft.world.biome.Biome.Precipitation.NONE;
+    }
+
+    /**
+     * Под свою крышу: к постели, но не в неё — день ещё не кончился,
+     * и непогода пройдёт раньше, чем захочется спать.
+     */
+    private static void shelter(WorkContext context) {
+        BlockPos bed = context.citizen().bed().orElseThrow();
+        // Дошёл — и стоит у постели, а не гуляет: прогулку держит привязь.
+        context.body().keepNear(bed, SHELTER_RANGE);
+        context.body().setWorkTarget(bed);
+    }
+
+    /** Насколько укрывшийся отходит от своей постели: в пределах дома. */
+    private static final int SHELTER_RANGE = 3;
 
     /** Досуг и безделье держат жителя у площади: круг вечернего сбора и немного сверх. */
     private static final int PLAZA_RANGE = 12;

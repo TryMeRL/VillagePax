@@ -122,6 +122,7 @@ public final class BuildCommand {
                         .then(literal("sites").executes(BuildCommand::sites))
                         .then(literal("status").executes(BuildCommand::status))
                         .then(literal("guide").executes(BuildCommand::guide))
+                        .then(literal("calendar").executes(BuildCommand::calendar))
                         // Доверие — хозяину колонии, а не оператору: своей
                         // землёй распоряжается тот, чья она.
                         .then(literal("trust")
@@ -290,6 +291,22 @@ public final class BuildCommand {
         player.getInventory().offerOrDrop(Guide.book());
         context.getSource().sendFeedback(
                 () -> Text.translatable("villagepax.guide.given"), false);
+        return 1;
+    }
+
+    /** Какой сегодня день, где рынок и у кого праздник. */
+    private static int calendar(CommandContext<ServerCommandSource> context) {
+        ServerCommandSource source = context.getSource();
+        long day = com.villagepax.sim.work.Schedule.dayOf(worldOf(source).getTimeOfDay());
+        List<Identifier> cultures = new ArrayList<>(CultureManager.ids());
+        Map<Identifier, com.villagepax.sim.Almanac.Feast> feasts = new java.util.HashMap<>();
+        for (Identifier culture : cultures) {
+            com.villagepax.core.festival.Festivals.of(culture).ifPresent(festival -> feasts.put(culture,
+                    new com.villagepax.sim.Almanac.Feast(festival.name(), festival.moonPhase())));
+        }
+        for (Text line : com.villagepax.sim.Almanac.lines(day, cultures, feasts)) {
+            source.sendFeedback(() -> line, false);
+        }
         return 1;
     }
 

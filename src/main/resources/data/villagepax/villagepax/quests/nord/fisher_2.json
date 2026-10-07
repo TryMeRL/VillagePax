@@ -20,5 +20,6 @@
       "count": 1
     }
   ],
-  "dialogue": "villagepax.quest.nord_fisher_2"
+  "dialogue": "villagepax.quest.nord_fisher_2",
+  "next": "villagepax:nord/fisher_3"
 }

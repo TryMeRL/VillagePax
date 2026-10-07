@@ -1,12 +1,12 @@
 {
   "giver": "villagepax:brewer",
   "culture": "villagepax:dwarf",
-  "min_reputation": 20,
+  "min_reputation": 40,
   "objectives": [
     {
       "type": "deliver",
-      "item": "minecraft:carrot",
-      "count": 24
+      "item": "minecraft:glow_berries",
+      "count": 12
     }
   ],
   "rewards": [
@@ -16,10 +16,14 @@
     },
     {
       "type": "item",
+      "item": "villagepax:dwarf_boots",
+      "count": 1
+    },
+    {
+      "type": "item",
       "item": "villagepax:coin",
-      "count": 12
+      "count": 18
     }
   ],
-  "dialogue": "villagepax.quest.dwarf_brewer_2",
-  "next": "villagepax:dwarf/brewer_3"
+  "dialogue": "villagepax.quest.dwarf_brewer_3"
 }

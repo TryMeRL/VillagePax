@@ -18,5 +18,6 @@
       "type": "settler"
     }
   ],
-  "dialogue": "villagepax.quest.nord_watcher_2"
+  "dialogue": "villagepax.quest.nord_watcher_2",
+  "next": "villagepax:nord/watcher_3"
 }

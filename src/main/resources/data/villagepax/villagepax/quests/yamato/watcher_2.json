@@ -18,5 +18,6 @@
       "type": "settler"
     }
   ],
-  "dialogue": "villagepax.quest.yamato_watcher_2"
+  "dialogue": "villagepax.quest.yamato_watcher_2",
+  "next": "villagepax:yamato/watcher_3"
 }

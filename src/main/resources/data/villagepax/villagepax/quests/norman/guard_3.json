@@ -19,5 +19,6 @@
       "profession": "villagepax:guard"
     }
   ],
-  "dialogue": "villagepax.quest.guard_3"
+  "dialogue": "villagepax.quest.guard_3",
+  "next": "villagepax:norman/guard_4"
 }

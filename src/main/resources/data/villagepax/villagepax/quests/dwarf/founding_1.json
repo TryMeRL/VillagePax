@@ -5,7 +5,7 @@
   "objectives": [
     {
       "type": "deliver",
-      "item": "minecraft:oak_log",
+      "item": "minecraft:spruce_log",
       "count": 16
     }
   ],

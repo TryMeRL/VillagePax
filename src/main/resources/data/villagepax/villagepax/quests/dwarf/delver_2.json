@@ -20,5 +20,6 @@
       "count": 12
     }
   ],
-  "dialogue": "villagepax.quest.dwarf_delver_2"
+  "dialogue": "villagepax.quest.dwarf_delver_2",
+  "next": "villagepax:dwarf/delver_3"
 }

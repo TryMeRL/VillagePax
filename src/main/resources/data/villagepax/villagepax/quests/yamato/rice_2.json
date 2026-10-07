@@ -20,5 +20,6 @@
       "count": 1
     }
   ],
-  "dialogue": "villagepax.quest.yamato_rice_2"
+  "dialogue": "villagepax.quest.yamato_rice_2",
+  "next": "villagepax:yamato/rice_3"
 }

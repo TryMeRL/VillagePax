@@ -19,5 +19,6 @@
       "profession": "villagepax:guard"
     }
   ],
-  "dialogue": "villagepax.quest.pony_watcher_2"
+  "dialogue": "villagepax.quest.pony_watcher_2",
+  "next": "villagepax:pony/watcher_3"
 }

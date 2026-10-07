@@ -108,8 +108,10 @@ public final class Charms {
         switch (worn) {
             case JADE_JAGUAR -> {
                 keep(wearer, StatusEffects.NIGHT_VISION, 0, 400, 220);
+                // Ягуар видит добычу: ночью нечисть вокруг светится сквозь
+                // стены. Быстрый шаг — у стёганого доспеха майя, не у оберега.
                 if (world.isNight()) {
-                    keep(wearer, StatusEffects.SPEED, 0, 40, 20);
+                    markPrey(wearer);
                 }
             }
             case LUCKY_HORSESHOE -> {
@@ -119,13 +121,19 @@ public final class Charms {
                 }
             }
             case ORE_GEM -> {
+                // Самоцвет чует руду и бережёт от огня глубин; сноровка
+                // в кирке — у гномьих лат, оберег её не повторяет.
                 if (wearer.getBlockY() < 60 || !world.isSkyVisible(wearer.getBlockPos().up())) {
                     keep(wearer, ModEffects.ORE_SENSE, 0, 60, 30);
-                    keep(wearer, StatusEffects.HASTE, 0, 40, 20);
+                    keep(wearer, StatusEffects.FIRE_RESISTANCE, 0, 60, 30);
                 }
             }
             case MOON_PENDANT -> {
-                keep(wearer, ModEffects.LIGHTNESS, 0, 40, 20);
+                // Лёгкость — у листовой кольчуги эльфов. Кулон кормит лунным
+                // светом: раз в двадцать секунд — кусок сытости.
+                if (wearer instanceof PlayerEntity player && world.getTime() % MOONLIGHT_EVERY < CHECK_EVERY) {
+                    player.getHungerManager().add(1, 0.5f);
+                }
                 if (world.isNight()) {
                     // Лечение тикает по своим часам: подновлять его каждые
                     // полсекунды значило бы лечить вчетверо быстрее.
@@ -146,6 +154,96 @@ public final class Charms {
             default -> {
             }
         }
+        if (inHarmony(wearer)) {
+            harmony(wearer, worn, world);
+        }
+    }
+
+    /** Как часто лунный кулон подкармливает: раз в двадцать секунд. */
+    static final int MOONLIGHT_EVERY = 20 * 20;
+
+    /** Как далеко ягуар видит добычу. */
+    static final double PREY_REACH = 24.0;
+
+    /** Ночью нечисть вокруг носящего ягуара светится. */
+    private static void markPrey(LivingEntity wearer) {
+        Box around = wearer.getBoundingBox().expand(PREY_REACH);
+        for (net.minecraft.entity.mob.HostileEntity prey : wearer.getWorld().getEntitiesByClass(
+                net.minecraft.entity.mob.HostileEntity.class, around, Entity::isAlive)) {
+            keep(prey, StatusEffects.GLOWING, 0, 40, 20);
+        }
+    }
+
+    /**
+     * Лад: полный набор народа и его оберег в левой руке.
+     * <p>
+     * Заказчик: «если я соберу сет, зачем амулет». Прежде незачем: набор
+     * майя давал быстрый шаг, а ягуар — быстрый шаг ночью; латы гномов —
+     * сноровку, а самоцвет — её же под камнем. Теперь у набора и оберега
+     * разные силы, а вместе они дают третью — лад народа, сильнее обеих:
+     * собравший всё своего народа получает то, чего не даёт ни одна вещь
+     * поодиночке.
+     */
+    public static boolean inHarmony(LivingEntity wearer) {
+        Charm worn = worn(wearer);
+        if (worn == null || worn.people() == null) {
+            return false;
+        }
+        com.villagepax.item.gear.Gear set = com.villagepax.item.gear.Gear.fullSetOn(wearer);
+        return set != null && set.id().equals(worn.people());
+    }
+
+    /** Сила лада — по народу. */
+    private static void harmony(LivingEntity wearer, Charm worn, World world) {
+        switch (worn) {
+            // Норманны: стена щитов в два ряда; ладанка — вдвое чаще.
+            case PILGRIM_RELIQUARY -> keep(wearer, StatusEffects.RESISTANCE, 1, 40, 20);
+            // Майя: ночная охота — сила и двойной шаг.
+            case JADE_JAGUAR -> {
+                if (world.isNight()) {
+                    keep(wearer, StatusEffects.STRENGTH, 0, 40, 20);
+                    keep(wearer, StatusEffects.SPEED, 1, 40, 20);
+                }
+            }
+            // Пони: радужный галоп — всегда быстр и вдвойне удачлив.
+            case LUCKY_HORSESHOE -> {
+                keep(wearer, StatusEffects.SPEED, 0, 40, 20);
+                keep(wearer, StatusEffects.LUCK, 1, 40, 20);
+            }
+            // Гномы: сердце горы — кирка вдвое быстрее под камнем.
+            case ORE_GEM -> {
+                if (wearer.getBlockY() < 60 || !world.isSkyVisible(wearer.getBlockPos().up())) {
+                    keep(wearer, StatusEffects.HASTE, 1, 40, 20);
+                }
+            }
+            // Эльфы: лунный лес — ночью быстры и лечатся вдвое.
+            case MOON_PENDANT -> {
+                if (world.isNight()) {
+                    keep(wearer, StatusEffects.SPEED, 0, 40, 20);
+                    keep(wearer, StatusEffects.REGENERATION, 1, 200, 60);
+                }
+            }
+            // Северяне: буря — сила всегда; руна — вдвое чаще.
+            case THUNDER_RUNE -> keep(wearer, StatusEffects.STRENGTH, 0, 40, 20);
+            // Ямато: путь тени — крадучись быстр и лечится.
+            case KITSUNE_CHARM -> {
+                if (wearer.isSneaking()) {
+                    keep(wearer, StatusEffects.SPEED, 0, 40, 20);
+                    keep(wearer, StatusEffects.REGENERATION, 0, 100, 40);
+                }
+            }
+            default -> {
+            }
+        }
+        if (world instanceof ServerWorld server && world.getTime() % 40 < CHECK_EVERY) {
+            server.spawnParticles(ParticleTypes.ENCHANT, wearer.getX(), wearer.getBodyY(0.6),
+                    wearer.getZ(), 3, 0.4, 0.5, 0.4, 0.4);
+        }
+    }
+
+    /** Сколько отдыхает оберег у этого носящего: в ладу — вдвое меньше. */
+    public static int cooldownOf(LivingEntity wearer, Charm charm) {
+        return inHarmony(wearer) && worn(wearer) == charm ? charm.cooldown() / 2 : charm.cooldown();
     }
 
     /**
@@ -199,7 +297,7 @@ public final class Charms {
         }
         player.addStatusEffect(new StatusEffectInstance(StatusEffects.ABSORPTION, 20 * 20, 1));
         player.addStatusEffect(new StatusEffectInstance(StatusEffects.REGENERATION, 20 * 5, 1));
-        player.getItemCooldownManager().set(reliquary, Charm.PILGRIM_RELIQUARY.cooldown());
+        player.getItemCooldownManager().set(reliquary, cooldownOf(player, Charm.PILGRIM_RELIQUARY));
         if (player.getWorld() instanceof ServerWorld world) {
             world.spawnParticles(ParticleTypes.END_ROD, player.getX(), player.getBodyY(0.6),
                     player.getZ(), 30, 0.4, 0.6, 0.4, 0.05);

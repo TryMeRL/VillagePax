@@ -20,5 +20,6 @@
       "count": 2
     }
   ],
-  "dialogue": "villagepax.quest.pony_herder_2"
+  "dialogue": "villagepax.quest.pony_herder_2",
+  "next": "villagepax:pony/herder_3"
 }

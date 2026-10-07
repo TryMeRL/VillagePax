@@ -226,10 +226,14 @@ public class WonderTests extends GameTestSupport {
             if (!wearer.hasStatusEffect(StatusEffects.LUCK)) {
                 context.throwGameTestException("Подкова не принесла удачи");
             }
-            wearer.equipStack(EquipmentSlot.OFFHAND, new ItemStack(Charms.itemOf(Charm.MOON_PENDANT)));
+            // Самоцвет под камнем: чутьё руды и защита от огня — не сноровка
+            // кирки, она у лат гномов.
+            wearer.clearStatusEffects();
+            wearer.equipStack(EquipmentSlot.OFFHAND, new ItemStack(Charms.itemOf(Charm.ORE_GEM)));
             Charms.empower(wearer);
-            if (!wearer.hasStatusEffect(ModEffects.LIGHTNESS)) {
-                context.throwGameTestException("Лунный кулон не дал лёгкости");
+            if (!wearer.hasStatusEffect(StatusEffects.FIRE_RESISTANCE)
+                    || wearer.hasStatusEffect(StatusEffects.HASTE)) {
+                context.throwGameTestException("Самоцвет под камнем не бережёт от огня или повторяет латы");
             }
             wearer.equipStack(EquipmentSlot.OFFHAND, new ItemStack(Charms.itemOf(Charm.KITSUNE_CHARM)));
             wearer.setSneaking(true);
@@ -244,6 +248,40 @@ public class WonderTests extends GameTestSupport {
             Charms.empower(wearer);
             if (wearer.hasStatusEffect(StatusEffects.NIGHT_VISION)) {
                 context.throwGameTestException("Оберег сработал из правой руки");
+            }
+        } finally {
+            wearer.discard();
+        }
+        context.complete();
+    }
+
+    /**
+     * Лад: полный набор народа и его оберег в левой руке дают третью силу,
+     * а чужой оберег — нет. Заказчик: «если я соберу сет, зачем амулет».
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "wonders")
+    public void aFullSetAndItsCharmAreInHarmony(TestContext context) {
+        ZombieEntity wearer = context.spawnMob(EntityType.ZOMBIE, new BlockPos(2, 2, 2));
+        try {
+            for (net.minecraft.item.Item piece : com.villagepax.item.gear.ModGear.armorOf(
+                    com.villagepax.item.gear.Gear.DWARF)) {
+                wearer.equipStack(((net.minecraft.item.ArmorItem) piece).getSlotType(), new ItemStack(piece));
+            }
+            wearer.equipStack(EquipmentSlot.OFFHAND, new ItemStack(Charms.itemOf(Charm.ORE_GEM)));
+            if (!Charms.inHarmony(wearer)) {
+                context.throwGameTestException("Латы гномов и рудный самоцвет не в ладу");
+            }
+            Charms.empower(wearer);
+            net.minecraft.entity.effect.StatusEffectInstance haste = wearer.getStatusEffect(StatusEffects.HASTE);
+            if (haste == null || haste.getAmplifier() < 1) {
+                context.throwGameTestException("Лад гномов не удвоил сноровку под камнем: " + haste);
+            }
+            wearer.equipStack(EquipmentSlot.OFFHAND, new ItemStack(Charms.itemOf(Charm.THUNDER_RUNE)));
+            if (Charms.inHarmony(wearer)) {
+                context.throwGameTestException("Чужой оберег оказался в ладу с латами гномов");
+            }
+            if (Charms.cooldownOf(wearer, Charm.THUNDER_RUNE) != Charm.THUNDER_RUNE.cooldown()) {
+                context.throwGameTestException("Без лада руна отдыхает меньше положенного");
             }
         } finally {
             wearer.discard();

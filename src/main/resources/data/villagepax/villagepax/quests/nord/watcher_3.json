@@ -1,0 +1,29 @@
+{
+  "giver": "villagepax:guard",
+  "culture": "villagepax:nord",
+  "min_reputation": 40,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:rotten_flesh",
+      "count": 16
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:nord_helmet",
+      "count": 1
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 18
+    }
+  ],
+  "dialogue": "villagepax.quest.nord_watcher_3"
+}

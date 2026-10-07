@@ -1,0 +1,29 @@
+{
+  "giver": "villagepax:guard",
+  "culture": "villagepax:norman",
+  "min_reputation": 55,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:bone",
+      "count": 16
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:norman_helmet",
+      "count": 1
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 18
+    }
+  ],
+  "dialogue": "villagepax.quest.norman_guard_4"
+}

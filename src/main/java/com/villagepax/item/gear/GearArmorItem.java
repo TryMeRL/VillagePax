@@ -66,5 +66,12 @@ public class GearArmorItem extends ArmorItem implements GeoItem {
                               TooltipContext context) {
         tooltip.add(Text.translatable("villagepax.gear.set", Text.translatable(gear.setKey()))
                 .formatted(Formatting.GRAY));
+        com.villagepax.item.charm.Charm charm = com.villagepax.item.charm.Charm.ofPeople(gear.id());
+        if (charm != null) {
+            tooltip.add(Text.translatable("villagepax.gear.harmony",
+                    Text.translatable("item.villagepax." + charm.id()),
+                    Text.translatable("villagepax.charm.harmony." + gear.id()))
+                    .formatted(Formatting.GOLD));
+        }
     }
 }

@@ -1,0 +1,29 @@
+{
+  "giver": "villagepax:brewer",
+  "culture": "villagepax:norman",
+  "min_reputation": 55,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:honey_bottle",
+      "count": 6
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:norman_boots",
+      "count": 1
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 18
+    }
+  ],
+  "dialogue": "villagepax.quest.norman_brewer_4"
+}

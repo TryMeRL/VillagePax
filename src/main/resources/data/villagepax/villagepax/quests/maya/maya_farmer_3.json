@@ -1,0 +1,29 @@
+{
+  "giver": "villagepax:farmer",
+  "culture": "villagepax:maya",
+  "min_reputation": 40,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:melon_slice",
+      "count": 16
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:maya_boots",
+      "count": 1
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 18
+    }
+  ],
+  "dialogue": "villagepax.quest.maya_maya_farmer_3"
+}

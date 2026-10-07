@@ -1,12 +1,12 @@
 {
   "giver": "villagepax:guard",
   "culture": "villagepax:elf",
-  "min_reputation": 20,
+  "min_reputation": 40,
   "objectives": [
     {
       "type": "deliver",
-      "item": "minecraft:flint",
-      "count": 12
+      "item": "minecraft:rotten_flesh",
+      "count": 16
     }
   ],
   "rewards": [
@@ -16,10 +16,14 @@
     },
     {
       "type": "item",
+      "item": "villagepax:elf_helmet",
+      "count": 1
+    },
+    {
+      "type": "item",
       "item": "villagepax:coin",
-      "count": 12
+      "count": 18
     }
   ],
-  "dialogue": "villagepax.quest.elf_watcher_2",
-  "next": "villagepax:elf/watcher_3"
+  "dialogue": "villagepax.quest.elf_watcher_3"
 }

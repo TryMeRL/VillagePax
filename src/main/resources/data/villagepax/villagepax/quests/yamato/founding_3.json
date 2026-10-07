@@ -5,7 +5,7 @@
   "objectives": [
     {
       "type": "deliver",
-      "item": "minecraft:bread",
+      "item": "minecraft:cooked_salmon",
       "count": 12
     }
   ],

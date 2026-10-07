@@ -19,5 +19,6 @@
       "profession": "villagepax:guard"
     }
   ],
-  "dialogue": "villagepax.quest.maya_guard_3"
+  "dialogue": "villagepax.quest.maya_guard_3",
+  "next": "villagepax:maya/maya_guard_4"
 }

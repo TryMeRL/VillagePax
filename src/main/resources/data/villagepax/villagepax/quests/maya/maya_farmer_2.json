@@ -25,5 +25,6 @@
       "amount": 25
     }
   ],
-  "dialogue": "villagepax.quest.maya_farmer_2"
+  "dialogue": "villagepax.quest.maya_farmer_2",
+  "next": "villagepax:maya/maya_farmer_3"
 }

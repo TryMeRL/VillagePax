@@ -19,5 +19,6 @@
       "profession": "villagepax:brewer"
     }
   ],
-  "dialogue": "villagepax.quest.brewer_3"
+  "dialogue": "villagepax.quest.brewer_3",
+  "next": "villagepax:norman/brewer_4"
 }

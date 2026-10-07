@@ -1,0 +1,29 @@
+{
+  "giver": "villagepax:guard",
+  "culture": "villagepax:maya",
+  "min_reputation": 55,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:spider_eye",
+      "count": 8
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:maya_helmet",
+      "count": 1
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 18
+    }
+  ],
+  "dialogue": "villagepax.quest.maya_maya_guard_4"
+}

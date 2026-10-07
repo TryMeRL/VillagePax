@@ -1,0 +1,29 @@
+{
+  "giver": "villagepax:farmer",
+  "culture": "villagepax:yamato",
+  "min_reputation": 30,
+  "objectives": [
+    {
+      "type": "deliver",
+      "item": "minecraft:bamboo",
+      "count": 32
+    }
+  ],
+  "rewards": [
+    {
+      "type": "reputation",
+      "amount": 15
+    },
+    {
+      "type": "item",
+      "item": "villagepax:yamato_boots",
+      "count": 1
+    },
+    {
+      "type": "item",
+      "item": "villagepax:coin",
+      "count": 18
+    }
+  ],
+  "dialogue": "villagepax.quest.yamato_rice_3"
+}

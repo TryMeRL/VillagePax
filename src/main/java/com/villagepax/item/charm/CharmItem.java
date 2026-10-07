@@ -46,7 +46,7 @@ public class CharmItem extends Item {
             }
             case THUNDER_RUNE, WIND_CHARM -> {
                 if (!world.isClient && Charms.act(player, charm)) {
-                    player.getItemCooldownManager().set(this, charm.cooldown());
+                    player.getItemCooldownManager().set(this, Charms.cooldownOf(player, charm));
                 }
                 return TypedActionResult.success(stack, world.isClient);
             }
@@ -94,5 +94,11 @@ public class CharmItem extends Item {
                         || charm == Charm.WIND_CHARM || charm == Charm.HOMEWARD_CHARM)
                         ? "villagepax.charm.use" : "villagepax.charm.wear")
                 .formatted(Formatting.DARK_GRAY));
+        if (charm.people() != null) {
+            tooltip.add(Text.translatable("villagepax.charm.harmony",
+                    Text.translatable("villagepax.culture." + charm.people()),
+                    Text.translatable("villagepax.charm.harmony." + charm.people()))
+                    .formatted(Formatting.GOLD));
+        }
     }
 }

@@ -171,7 +171,9 @@ public final class Villages {
         for (ServerPlayerEntity player : world.getPlayers()) {
             for (VillageSites.Site site : VillageSites.near(world, player.getBlockPos())) {
                 Safely.run(site.culture() + " у " + site.where().toShortString(),
-                        "Основание деревни", () -> found(world, site.culture(), site.where()));
+                        "Основание деревни", () -> found(world, site.culture(), site.where())
+                                .ifPresent(village -> develop(world, SettlementManager.get(world), village,
+                                        new Random(world.getSeed() ^ site.where().asLong() * 31L))));
             }
         }
     }
@@ -870,6 +872,66 @@ public final class Villages {
      * зал уже вырублен, — иначе основатель встал бы в камень, а потом
      * рядом с очагом.
      */
+    /** Какой встаёт деревня перед игроком: ступень и сколько зданий сверх начальных. */
+    public record Development(SettlementLevel level, int buildings) {
+    }
+
+    /**
+     * Насколько деревня развита, когда игрок впервые её видит: по месту,
+     * а не по часам. Треть — хутора, чуть больше — деревни, остальное —
+     * города. Чистое правило: тот же ответ на то же место.
+     */
+    public static Development developmentOf(Random random) {
+        int roll = random.nextInt(100);
+        if (roll < 30) {
+            return new Development(SettlementLevel.HAMLET, random.nextInt(3));
+        }
+        if (roll < 70) {
+            return new Development(SettlementLevel.VILLAGE, 5 + random.nextInt(4));
+        }
+        return new Development(SettlementLevel.TOWN, 10 + random.nextInt(6));
+    }
+
+    /**
+     * Дорастить только что вставшую деревню до её случайной ступени
+     * и заселить её по кроватям.
+     * <p>
+     * Заказчик: «пусть деревня уже хоть сколько-то будет развита, на рандом
+     * каждая деревня». Прежде каждая деревня мира вставала хутором из пяти
+     * человек и двух домов, и мир выглядел так, будто все народы пришли
+     * вчера вместе с игроком. Теперь одни — хутора, другие — деревни
+     * с храмом и пивоварней, третьи — города за стеной, и в каждом живут:
+     * пустой город — декорация.
+     * <p>
+     * Только при появлении перед игроком: {@link #found} сам по себе ставит
+     * хутор — им пользуются проверки и команда {@code raise}.
+     */
+    public static void develop(ServerWorld world, SettlementManager manager, Settlement village, Random random) {
+        Culture culture = CultureManager.get(village.culture());
+        if (culture == null) {
+            return;
+        }
+        Development development = developmentOf(random);
+        if (development.level() != SettlementLevel.HAMLET || development.buildings() > 0) {
+            growNow(world, manager, village, development.buildings(), development.level());
+        }
+        int beds = com.villagepax.sim.work.Housing.sleepingSpots(world, village).size();
+        // Кровать — про запас путнику, остальные заняты.
+        int settlers = Math.min(village.maxCitizens(), Math.max(village.population(), beds - 1));
+        while (village.population() < settlers) {
+            Citizen settler = hand(village, village.culture(), culture, random);
+            com.villagepax.sim.life.Ages.arrivedGrown(settler, random);
+            enrol(village, settler);
+            settler.setPosition(CitizenSpawner.arrival(world, village));
+            CitizenSpawner.spawnBody(world, village, settler);
+        }
+        com.villagepax.sim.work.Housing.assignBeds(world, village);
+        Workplaces.assign(world, village);
+        manager.markDirty();
+        VillagePax.LOGGER.info("Деревня {} встала развитой: {}, зданий {}, жителей {}", village.name(),
+                village.level().id(), village.buildings().size(), village.population());
+    }
+
     private static void enrol(Settlement village, Citizen citizen) {
         citizen.setPosition(Vec3d.ofBottomCenter(village.center().up()));
         village.addCitizen(citizen);

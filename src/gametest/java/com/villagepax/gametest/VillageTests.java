@@ -475,6 +475,56 @@ public class VillageTests extends GameTestSupport {
     }
 
     /**
+     * Деревня, встающая перед игроком, развита по своему месту и заселена
+     * по кроватям: не пять человек на хуторе, а люди в каждом доме.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "town_snapshot", tickLimit = 600)
+    public void aVillageAppearsDevelopedAndPeopled(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+        int reach = 48;
+        long seed = 0;
+        while (Villages.developmentOf(new java.util.Random(seed)).level()
+                != com.villagepax.sim.SettlementLevel.VILLAGE) {
+            seed++;
+        }
+        try {
+            for (int x = -reach; x <= reach; x++) {
+                for (int z = -reach; z <= reach; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала");
+                return;
+            }
+            int founders = village.population();
+            Villages.develop(world, manager, village, new java.util.Random(seed));
+            Settlement grown = manager.byId(village.id()).orElseThrow();
+            if (grown.level() != com.villagepax.sim.SettlementLevel.VILLAGE) {
+                context.throwGameTestException("Развили, а ступень " + grown.level().id());
+            }
+            if (grown.population() <= founders) {
+                context.throwGameTestException("Развитая деревня не заселена: жителей " + grown.population());
+            }
+            for (com.villagepax.sim.Citizen citizen : grown.citizens()) {
+                if (citizen.entityUuid().map(world::getEntity).isEmpty()) {
+                    context.throwGameTestException("У жителя " + citizen.fullName() + " нет тела");
+                }
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+        context.complete();
+    }
+
+    /**
      * Выросший город — город и на земле: фонари вдоль улиц, мощёная площадь
      * у ратуши, ставни на окнах, а поля — за домами, на выселках.
      * <p>

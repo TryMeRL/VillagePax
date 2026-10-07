@@ -164,6 +164,122 @@ class FoundingTest {
         }
     }
 
+    /**
+     * Жалоба заказчика: «пятнадцать одинаковых имён». Пока в именнике
+     * есть свободное имя, второго Рольфа в поселении не будет.
+     */
+    @Test
+    void newcomerTakesAFreeNameWhileThePoolHasOne() {
+        Culture culture = new Culture("villagepax.culture.norman", CultureKind.HISTORICAL,
+                new SpawnSettings("#minecraft:is_forest", 10, 48),
+                new NamePools(List.of("Rollo", "Robert", "Raoul", "Roger"),
+                        List.of("Emma", "Alix", "Ide", "Douce"), List.of()),
+                List.of(), List.of(), Map.of());
+
+        for (long seed = 0; seed < 20; seed++) {
+            Random random = new Random(seed);
+            List<Citizen> village = new java.util.ArrayList<>();
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            for (int i = 0; i < 8; i++) {
+                Citizen next = Founding.newCitizen(NORMAN, culture, random, village);
+                assertTrue(seen.add(next.firstName()),
+                        "имя " + next.firstName() + " повторилось при свободных, сид " + seed);
+                village.add(next);
+            }
+        }
+    }
+
+    /**
+     * Именник кончился — повторяется самое редкое имя, а не случайное:
+     * двух Рольфов терпеть можно, пятерых — нет.
+     */
+    @Test
+    void whenThePoolRunsOutTheRarestNameRepeats() {
+        Culture culture = new Culture("villagepax.culture.norman", CultureKind.HISTORICAL,
+                new SpawnSettings("#minecraft:is_forest", 10, 48),
+                new NamePools(List.of("Rollo", "Robert"), List.of("Emma", "Alix"), List.of()),
+                List.of(), List.of(), Map.of());
+
+        for (long seed = 0; seed < 20; seed++) {
+            Random random = new Random(seed);
+            List<Citizen> village = new java.util.ArrayList<>();
+            for (int i = 0; i < 12; i++) {
+                village.add(Founding.newCitizen(NORMAN, culture, random, village));
+            }
+            for (String name : List.of("Rollo", "Robert", "Emma", "Alix")) {
+                long times = village.stream().filter(one -> one.firstName().equals(name)).count();
+                assertEquals(3, times, name + " выпало " + times + " раз из 12, сид " + seed);
+            }
+        }
+    }
+
+    /**
+     * Мужчин и женщин поровну, насколько это в силах прибывающих:
+     * свадьбы — только между ними, и колония из одних мужчин не растёт.
+     */
+    @Test
+    void newcomersEvenOutMenAndWomen() {
+        Culture culture = norman();
+        for (long seed = 0; seed < 20; seed++) {
+            Random random = new Random(seed);
+            List<Citizen> village = new java.util.ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                village.add(Founding.newCitizen(NORMAN, culture, random, village));
+                long men = village.stream().filter(one -> one.gender() == Gender.MALE).count();
+                long women = village.size() - men;
+                assertTrue(Math.abs(men - women) <= 1,
+                        men + " мужчин на " + women + " женщин, сид " + seed);
+            }
+        }
+    }
+
+    /** Две «Кан» на карте путают компас: имя деревни не повторяется, пока есть другое. */
+    @Test
+    void settlementNameAvoidsNamesAlreadyOnTheMap() {
+        Culture culture = norman();
+        for (long seed = 0; seed < 20; seed++) {
+            String first = Founding.pickName(culture, new Random(seed), List.of());
+            String second = Founding.pickName(culture, new Random(seed), List.of(first));
+            assertTrue(!first.equals(second), "второе имя повторило первое, сид " + seed);
+        }
+    }
+
+    /**
+     * Мир, начатый до большого именника: двойники уже живут. На рассвете
+     * второй и следующий получают свободное имя своего пола, первый
+     * остаётся как был, отчество не трогается.
+     */
+    @Test
+    void twinsInAnOldWorldGetDistinctNames() {
+        Culture culture = new Culture("villagepax.culture.norman", CultureKind.HISTORICAL,
+                new SpawnSettings("#minecraft:is_forest", 10, 48),
+                new NamePools(List.of("Rollo", "Robert", "Raoul"), List.of("Emma", "Alix"), List.of()),
+                List.of(), List.of(), Map.of());
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", SOMEWHERE);
+        Citizen first = Citizen.newborn("Rollo", "", NORMAN, Gender.MALE);
+        Citizen twin = Citizen.newborn("Rollo", "", NORMAN, Gender.MALE);
+        Citizen son = Citizen.newborn("Rollo", "fils de Robert", NORMAN, Gender.MALE);
+        Citizen sister = Citizen.newborn("Emma", "", NORMAN, Gender.FEMALE);
+        Citizen another = Citizen.newborn("Emma", "", NORMAN, Gender.FEMALE);
+        for (Citizen one : List.of(first, twin, son, sister, another)) {
+            village.addCitizen(one);
+        }
+
+        List<Founding.Renamed> renamed = Founding.tellTwinsApart(village, culture, seeded());
+
+        assertEquals(2, renamed.size(), "переименованы ровно двойники: " + renamed);
+        assertEquals("Rollo", village.citizen(first.id()).orElseThrow().firstName(), "первый остаётся");
+        assertEquals("Rollo fils de Robert", village.citizen(son.id()).orElseThrow().fullName(),
+                "с отчеством он уже не двойник");
+        java.util.Set<String> names = new java.util.HashSet<>();
+        for (Citizen one : village.citizens()) {
+            assertTrue(names.add(one.fullName()), "двойник остался: " + one.fullName());
+        }
+        assertTrue(culture.namePools().male().contains(village.citizen(twin.id()).orElseThrow().firstName()));
+        assertTrue(culture.namePools().female().contains(village.citizen(another.id()).orElseThrow().firstName()));
+        assertTrue(Founding.tellTwinsApart(village, culture, seeded()).isEmpty(), "второй раз — нечего");
+    }
+
     @Test
     void fallsBackWhenCultureHasNoSettlementNames() {
         Culture nameless = new Culture(

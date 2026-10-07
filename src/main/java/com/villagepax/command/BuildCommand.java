@@ -253,7 +253,8 @@ public final class BuildCommand {
         Culture culture = CultureManager.get(colony.culture());
         Citizen hired = culture == null
                 ? Citizen.newborn("Безымянный", "", colony.culture(), Gender.MALE)
-                : Founding.newCitizen(colony.culture(), culture, new Random(world.getRandom().nextLong()));
+                : Founding.newCitizen(colony.culture(), culture, new Random(world.getRandom().nextLong()),
+                        colony.citizens());
         hired.setProfession(profession);
         hired.setPosition(player.getPos());
 

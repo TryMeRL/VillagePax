@@ -196,7 +196,7 @@ public final class Villages {
 
         Random random = new Random(world.getSeed() ^ site.asLong());
         Settlement village = Settlement.found(cultureId, Owner.AUTONOMOUS,
-                Founding.pickName(culture, random), site);
+                Founding.pickName(culture, random, Founding.namesOnTheMap(manager)), site);
 
         manager.remember(site);
         if (manager.conflictWith(village).isPresent()) {
@@ -209,15 +209,15 @@ public final class Villages {
         // Четверо сразу: без строителя не встанет ничего, без старейшины
         // не с кем говорить, без купца не с кем торговать, а один житель
         // на деревню — это не деревня.
-        enrol(village, Founding.firstBuilder(cultureId, culture, random));
-        enrol(village, elder(cultureId, culture, random));
-        enrol(village, tradesman(cultureId, culture, random));
+        enrol(village, Founding.firstBuilder(cultureId, culture, random, village.citizens()));
+        enrol(village, elder(village, cultureId, culture, random));
+        enrol(village, tradesman(village, cultureId, culture, random));
         enrol(village, hand(village, cultureId, culture, random));
         // Пятый — затейник, если народу есть где праздновать. Явно, как купец:
         // праздника без затейника не бывает, а пришлые приходят раз в день,
         // и ремесло с малым приоритетом досталось бы ему последним.
         if (BuildingTypes.workplaceOf(culture.buildings(), ENTERTAINER).isPresent()) {
-            enrol(village, entertainer(cultureId, culture, random));
+            enrol(village, entertainer(village, cultureId, culture, random));
         }
 
         // Чертог вскрывается уже при жителях, а не сразу за ратушей:
@@ -528,8 +528,9 @@ public final class Villages {
      * может заговорить. Колонии игрока он, наоборот, не нужен — некому
      * выдавать квесты самому себе, — и поэтому приоритет найма у него ноль.
      */
-    private static Citizen elder(Identifier cultureId, Culture culture, Random random) {
-        Citizen elder = Founding.newCitizen(cultureId, culture, random);
+    private static Citizen elder(Settlement village, Identifier cultureId, Culture culture,
+                                 Random random) {
+        Citizen elder = Founding.newCitizen(cultureId, culture, random, village.citizens());
         elder.setProfession(ELDER);
         return elder;
     }
@@ -540,8 +541,9 @@ public final class Villages {
      * Ждать, пока его наймут по приоритету, значило бы, что первая
      * встреченная деревня ничем не торгует.
      */
-    private static Citizen tradesman(Identifier cultureId, Culture culture, Random random) {
-        Citizen merchant = Founding.newCitizen(cultureId, culture, random);
+    private static Citizen tradesman(Settlement village, Identifier cultureId, Culture culture,
+                                     Random random) {
+        Citizen merchant = Founding.newCitizen(cultureId, culture, random, village.citizens());
         merchant.setProfession(MERCHANT);
         return merchant;
     }
@@ -558,7 +560,7 @@ public final class Villages {
      */
     private static Citizen hand(Settlement village, Identifier cultureId, Culture culture,
                                 Random random) {
-        Citizen hand = Founding.newCitizen(cultureId, culture, random);
+        Citizen hand = Founding.newCitizen(cultureId, culture, random, village.citizens());
         com.villagepax.sim.work.Housing.neededProfession(village, hand)
                 .ifPresent(hand::setProfession);
         return hand;
@@ -607,8 +609,9 @@ public final class Villages {
     }
 
     /** Затейник: ставится явно, как купец, — см. {@link #found}. */
-    private static Citizen entertainer(Identifier cultureId, Culture culture, Random random) {
-        Citizen entertainer = Founding.newCitizen(cultureId, culture, random);
+    private static Citizen entertainer(Settlement village, Identifier cultureId, Culture culture,
+                                       Random random) {
+        Citizen entertainer = Founding.newCitizen(cultureId, culture, random, village.citizens());
         entertainer.setProfession(ENTERTAINER);
         return entertainer;
     }

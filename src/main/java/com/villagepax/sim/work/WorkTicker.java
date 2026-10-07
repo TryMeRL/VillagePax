@@ -148,6 +148,7 @@ public final class WorkTicker {
         boolean firstSight = !settlement.hasSeenADay();
         manager.update(settlement.id(), state -> {
             state.setLastDay(today);
+            tellTwinsApart(world, state);
             if (firstSight) {
                 // В первый же тик кровати надо раздать, иначе только что
                 // основанная колония ночует под открытым небом целые сутки.
@@ -190,6 +191,31 @@ public final class WorkTicker {
                 }
             }
         });
+    }
+
+    /**
+     * Развести тёзок на рассвете: двойники из миров, начатых при коротком
+     * именнике, получают свободные имена. Хозяину колонии — по строке
+     * на каждого: житель, которого вчера звали иначе, без объяснения
+     * выглядел бы подменой.
+     */
+    private static void tellTwinsApart(ServerWorld world, Settlement settlement) {
+        com.villagepax.core.culture.Culture culture =
+                com.villagepax.core.culture.CultureManager.get(settlement.culture());
+        if (culture == null) {
+            return;
+        }
+        List<com.villagepax.sim.Founding.Renamed> renamed = com.villagepax.sim.Founding.tellTwinsApart(
+                settlement, culture, new java.util.Random(world.getRandom().nextLong()));
+        if (renamed.isEmpty()) {
+            return;
+        }
+        com.villagepax.VillagePax.LOGGER.info("В {} разведены тёзки: {}", settlement.name(), renamed);
+        settlement.owner().player()
+                .map(owner -> world.getServer().getPlayerManager().getPlayer(owner))
+                .ifPresent(player -> renamed.forEach(one -> player.sendMessage(
+                        net.minecraft.text.Text.translatable("villagepax.names.renamed",
+                                one.was(), one.now()), false)));
     }
 
     /**

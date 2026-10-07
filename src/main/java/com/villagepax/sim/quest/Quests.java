@@ -250,7 +250,11 @@ public final class Quests {
         java.util.Random random = new java.util.Random(village.id().getLeastSignificantBits()
                 ^ (colony.population() * 1_000_003L));
 
-        Citizen newcomer = Founding.newCitizen(village.culture(), culture, random);
+        Citizen newcomer = Founding.newCitizen(village.culture(), culture, random, colony.citizens());
+        // Пришёл взрослым — и стареет со всеми, как пришлый из притока.
+        // Без дня рождения он остался бы «без возраста», то есть бессмертным:
+        // единственный такой в колонии, где все остальные однажды умирают.
+        com.villagepax.sim.life.Ages.arrivedGrown(newcomer);
         settler.profession().ifPresent(newcomer::setProfession);
         colony.addCitizen(newcomer);
     }

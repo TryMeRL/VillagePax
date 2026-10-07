@@ -30,6 +30,7 @@
   "villagepax.citizen.hungry": "%s голодает: на складе нет еды. Ещё день — и уйдёт.",
   "villagepax.citizen.left": "%s ушёл из колонии: жить впроголодь никто не станет.",
   "villagepax.citizen.arrived": "В колонию пришёл новый житель: %s",
+  "villagepax.names.renamed": "%s теперь зовут %s — чтобы не путать с тёзкой.",
   "villagepax.profession.builder": "Строитель",
   "villagepax.profession.courier": "Курьер",
   "villagepax.profession.lumberjack": "Лесоруб",

@@ -157,7 +157,8 @@ public final class Families {
                 continue;
             }
 
-            Citizen child = Founding.newCitizen(settlement.culture(), culture, random);
+            Citizen child = Founding.newCitizen(settlement.culture(), culture, random,
+                    settlement.citizens());
             child.setLived(0);
             child.setParents(father.id(), mother.id());
             child.setLastName(patronymic(culture, father, child));

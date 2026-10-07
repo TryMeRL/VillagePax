@@ -30,6 +30,7 @@
   "villagepax.citizen.hungry": "%s is starving: no food in storage. One more day and they leave.",
   "villagepax.citizen.left": "%s has left the colony: nobody stays to starve.",
   "villagepax.citizen.arrived": "A new citizen has arrived: %s",
+  "villagepax.names.renamed": "%s is now called %s, so as not to be confused with a namesake.",
   "villagepax.profession.builder": "Builder",
   "villagepax.profession.courier": "Courier",
   "villagepax.profession.lumberjack": "Lumberjack",

@@ -184,7 +184,7 @@ public final class Housing {
         Culture culture = CultureManager.get(settlement.culture());
         Citizen newcomer = culture == null
                 ? Citizen.newborn("Пришлый", "", settlement.culture(), com.villagepax.sim.Gender.MALE)
-                : Founding.newCitizen(settlement.culture(), culture, random);
+                : Founding.newCitizen(settlement.culture(), culture, random, settlement.citizens());
 
         // Пришёл работником, а не младенцем: возраст ставится на грань
         // взросления. Оставить его без возраста было бы проще, но тогда

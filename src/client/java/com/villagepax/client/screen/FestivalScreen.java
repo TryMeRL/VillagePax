@@ -41,28 +41,13 @@ import org.jetbrains.annotations.NotNull;
  */
 public class FestivalScreen extends BaseOwoScreen<FlowLayout> {
 
-    private static final int PANEL_WIDTH = PanelMetrics.FESTIVAL_WIDTH;
-    private static final int PANEL_HEIGHT = PanelMetrics.FESTIVAL_HEIGHT;
-    private static final int PADDING = PanelMetrics.PADDING;
-    private static final int GAP = PanelMetrics.GAP;
-    private static final int HEADER_HEIGHT = PanelMetrics.HEADER;
-    private static final int STATUS_HEIGHT = PanelMetrics.STATUS;
-    private static final int BODY_HEIGHT =
-            PanelMetrics.bodyHeight(PANEL_HEIGHT, HEADER_HEIGHT, STATUS_HEIGHT);
-
-    /** Ширина текста в карточке: панель без отступов и ползунка. */
-    private static final int TEXT_WIDTH = PANEL_WIDTH - 2 * PADDING - 26;
-
-    /** Ширина названия состязания и товара в строке. */
     private static final int NAME_WIDTH = 150;
 
     private static final int BUTTON_WIDTH = 56;
 
     private FestivalView view;
-    private FlowLayout head;
-    private FlowLayout status;
-    private FlowLayout body;
-    private KeptScroll<FlowLayout> scroll;
+    /** Окно во весь экран. */
+    private Frame frame;
 
     public FestivalScreen(FestivalView view) {
         this.view = view;
@@ -84,28 +69,18 @@ public class FestivalScreen extends BaseOwoScreen<FlowLayout> {
 
     @Override
     protected void build(FlowLayout root) {
-        root.surface(Surface.VANILLA_TRANSLUCENT);
-        root.horizontalAlignment(HorizontalAlignment.CENTER);
-        root.verticalAlignment(VerticalAlignment.CENTER);
-
-        FlowLayout panel = Look.panel(PANEL_WIDTH, PANEL_HEIGHT, PADDING, GAP);
-
-        head = Containers.verticalFlow(Sizing.fill(100), Sizing.fixed(HEADER_HEIGHT));
-        panel.child(head);
-
-        status = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(STATUS_HEIGHT));
-        status.verticalAlignment(VerticalAlignment.CENTER);
-        panel.child(status);
-
-        body = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
-        body.gap(4);
-        scroll = new KeptScroll<>(Sizing.fill(100), Sizing.fixed(BODY_HEIGHT), body);
-        scroll.scrollbarThiccness(4);
-        scroll.padding(Insets.right(6));
-        panel.child(scroll);
-
-        root.child(panel);
+        frame = Frame.build(root, width, height, false);
         fill();
+    }
+
+    @Override
+    public void resize(MinecraftClient client, int width, int height) {
+        this.uiAdapter = null;
+        super.resize(client, width, height);
+    }
+
+    private int text() {
+        return frame.textWidth;
     }
 
     private void refresh(FestivalView fresh) {
@@ -113,37 +88,31 @@ public class FestivalScreen extends BaseOwoScreen<FlowLayout> {
             return;
         }
         this.view = fresh;
-        if (body != null) {
+        if (frame != null) {
             fill();
         }
     }
 
     private void fill() {
-        double kept = scroll == null ? 0 : scroll.where();
+        double kept = frame.scroll.where();
         fillHead();
         fillStatus();
         fillBody();
-        if (scroll != null) {
-            scroll.restore(kept);
-        }
+        frame.scroll.restore(kept);
     }
 
     private void fillHead() {
-        head.clearChildren();
-        FlowLayout row = Look.board(HEADER_HEIGHT - 8);
-        LabelComponent name = Components.label(Text.translatable(view.festival()));
-        name.color(Look.LIGHT);
-        name.shadow(true);
-        row.child(name);
-        row.child(Look.pill(Text.literal(view.villageName()), Look.LIGHT));
-        row.child(Look.pill(new ItemStack(ModFestivalItems.FESTIVAL_RIBBON),
+        frame.headerLeft.clearChildren();
+        frame.headerRight.clearChildren();
+        frame.title(Text.translatable(view.festival()));
+        frame.headerLeft.child(Look.pill(Text.literal(view.villageName()), Look.LIGHT));
+        frame.headerRight.child(Look.pill(new ItemStack(ModFestivalItems.FESTIVAL_RIBBON),
                 Text.literal(String.valueOf(view.ribbons())), view.ribbons() > 0 ? Look.LIGHT : Look.MUTED));
-        head.child(row);
+        frame.closeButton(button -> close());
     }
 
-    /** Строка под заголовком: сегодня ли праздник — или когда и почему нет. */
     private void fillStatus() {
-        status.clearChildren();
+        frame.footer.clearChildren();
         Text line;
         if (view.closed().isEmpty()) {
             line = Text.translatable("villagepax.festival.screen.open",
@@ -156,46 +125,55 @@ public class FestivalScreen extends BaseOwoScreen<FlowLayout> {
         LabelComponent label = Components.label(line);
         label.color(view.closed().isEmpty() ? Look.GOOD : Look.MUTED);
         label.shadow(false);
-        status.child(label);
+        frame.footer.child(label);
     }
 
     private void fillBody() {
-        body.clearChildren();
+        frame.clear();
         fillContests();
         fillStall();
     }
 
+    /**
+     * Состязания — каждое своей карточкой: название с картинкой, правило,
+     * кнопка «Начать» или причина, почему нельзя. Одной карточкой на всё
+     * они в широком окне стояли узкой полосой и обрезали кнопку.
+     */
     private void fillContests() {
-        FlowLayout card = Look.card("villagepax.festival.screen.contests", new ItemStack(Items.BOW));
         if (view.contests().isEmpty()) {
-            card.child(Look.nothing(Text.translatable("villagepax.festival.screen.none"), TEXT_WIDTH));
+            FlowLayout card = Look.card("villagepax.festival.screen.contests", new ItemStack(Items.BOW));
+            card.child(Look.nothing(Text.translatable("villagepax.festival.screen.none"), text()));
+            frame.place(card, 2);
         }
-        view.running().ifPresent(running -> card.child(Look.hint(
+        view.running().ifPresent(running -> frame.wide(Look.hint(
                 Text.translatable("villagepax.festival.screen.running", Text.translatable(running)),
-                TEXT_WIDTH)));
+                frame.bodyWidth)));
         for (int index = 0; index < view.contests().size(); index++) {
             FestivalView.ContestLine contest = view.contests().get(index);
+            FlowLayout card = Look.card(contest.name(), new ItemStack(switch (contest.kind()) {
+                case "archery" -> Items.BOW;
+                case "chase" -> Items.LEAD;
+                default -> Items.SPYGLASS;
+            }));
+            card.child(Look.hint(Text.translatable("villagepax.contest.rule." + contest.kind()), text()));
             FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
             row.verticalAlignment(VerticalAlignment.CENTER);
             row.gap(4);
-            LabelComponent name = Components.label(Text.translatable(contest.name()));
-            name.color(Look.INK);
-            name.shadow(false);
-            row.child(name.horizontalSizing(Sizing.fixed(NAME_WIDTH)));
-            if (contest.awarded()) {
-                row.child(Look.pill(Text.translatable("villagepax.festival.screen.awarded"), Look.GOOD));
-            }
             if (contest.refusal().isEmpty()) {
                 int chosen = index;
                 row.child(Look.action(Text.translatable("villagepax.festival.screen.start"), BUTTON_WIDTH,
                         pressed -> start(chosen)));
             }
-            card.child(row);
-            card.child(Look.hint(Text.translatable("villagepax.contest.rule." + contest.kind()), TEXT_WIDTH));
+            if (contest.awarded()) {
+                row.child(Look.pill(Text.translatable("villagepax.festival.screen.awarded"), Look.GOOD));
+            }
+            if (!row.children().isEmpty()) {
+                card.child(row);
+            }
             contest.refusal().filter(reason -> view.closed().isEmpty())
-                    .ifPresent(reason -> card.child(Look.hint(Text.translatable(reason), TEXT_WIDTH)));
+                    .ifPresent(reason -> card.child(Look.hint(Text.translatable(reason), text())));
+            frame.place(card, card.children().size() + 1);
         }
-        body.child(card);
     }
 
     /** Лавка: товар за ленты, и только в праздник. */
@@ -204,7 +182,7 @@ public class FestivalScreen extends BaseOwoScreen<FlowLayout> {
                 new ItemStack(ModFestivalItems.FESTIVAL_RIBBON));
         boolean open = view.stallOpen();
         if (!open) {
-            card.child(Look.hint(Text.translatable("villagepax.festival.screen.stall_closed"), TEXT_WIDTH));
+            card.child(Look.hint(Text.translatable("villagepax.festival.screen.stall_closed"), text()));
         }
         for (int index = 0; index < view.prizes().size(); index++) {
             FestivalView.PrizeLine prize = view.prizes().get(index);
@@ -231,7 +209,7 @@ public class FestivalScreen extends BaseOwoScreen<FlowLayout> {
             }
             card.child(row);
         }
-        body.child(card);
+        frame.place(card, card.children().size());
     }
 
     /** «Начать»: право считает сервер; экран закрывается — игра идёт на ярмарке, а не в меню. */

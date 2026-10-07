@@ -1234,6 +1234,44 @@ public class RaidTests extends GameTestSupport {
         context.complete();
     }
 
+    /**
+     * Окно ратуши деревни собирается для настоящей деревни и проходит
+     * через провод: доверие, нужды и дела с деревней — на месте.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "citizenship")
+    public void aVillageHallViewTravels(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(2, 30, 2));
+        BlockPos houseAt = context.getAbsolutePos(new BlockPos(8, 30, 2));
+        Settlement village = villageWithHouse(world, manager, centre, houseAt);
+        net.minecraft.entity.player.PlayerEntity player = context.createMockSurvivalPlayer();
+        manager.update(village.id(), state -> state.addReputation(player.getUuid(), Standing.FRIEND.from()));
+        try {
+            Settlement friendly = manager.byId(village.id()).orElseThrow();
+            com.villagepax.screen.VillageHallView view =
+                    com.villagepax.screen.VillageHallNet.viewOf(world, friendly, player);
+            if (view.trust().reputation() != Standing.FRIEND.from()
+                    || !view.trust().standing().equals(Standing.FRIEND.displayKey())) {
+                context.throwGameTestException("Доверие в окне не то: " + view.trust());
+            }
+            if (!view.ties().citizenship().equals("yes")) {
+                context.throwGameTestException("Другу не предложили дом: " + view.ties());
+            }
+            var encoded = com.villagepax.screen.VillageHallView.CODEC
+                    .encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, view).result().orElseThrow();
+            var decoded = com.villagepax.screen.VillageHallView.CODEC
+                    .parse(net.minecraft.nbt.NbtOps.INSTANCE, encoded).result().orElseThrow();
+            if (!decoded.equals(view)) {
+                context.throwGameTestException("Снимок ратуши деревни не пережил провода");
+            }
+        } finally {
+            manager.remove(village.id());
+            world.setBlockState(centre, Blocks.AIR.getDefaultState());
+        }
+        context.complete();
+    }
+
     @GameTest(templateName = EMPTY_STRUCTURE, batchId = "citizenship")
     public void aFriendIsGivenAHouse(TestContext context) {
         ServerWorld world = context.getWorld();

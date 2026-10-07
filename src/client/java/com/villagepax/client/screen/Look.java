@@ -391,4 +391,60 @@ public final class Look {
         centred.child(label.horizontalSizing(Sizing.fixed(width)));
         return centred;
     }
+
+    /**
+     * Ячейка склада: вещь на тёмной подложке, число в углу. Больше
+     * стопки — тоже числом: на складе ратуши «340 булыжника» — обычное дело.
+     */
+    public static Component slot(ItemStack stack, int count) {
+        FlowLayout cell = Containers.verticalFlow(Sizing.fixed(18), Sizing.fixed(18));
+        cell.surface(Surface.flat(0x30000000).and(Surface.outline(0x50000000)));
+        cell.padding(Insets.of(1));
+        ItemStack shown = stack.copy();
+        shown.setCount(Math.max(1, count));
+        ItemComponent picture = Components.item(shown);
+        picture.showOverlay(true);
+        picture.tooltip(java.util.List.of(stack.getName(),
+                Text.literal("× " + count).styled(style -> style.withColor(0xA0A0A0))));
+        cell.child(picture);
+        return cell;
+    }
+
+    /** Значок здания — по его делу: поле — мотыга, башня — меч, дом — кровать. */
+    public static ItemStack buildingIcon(Identifier type) {
+        String kind = type.getPath().substring(type.getPath().indexOf('/') + 1);
+        return new ItemStack(switch (kind) {
+            case "town_hall" -> com.villagepax.block.ModBlocks.TOWN_HALL.asItem();
+            case "house", "townhouse" -> net.minecraft.item.Items.RED_BED;
+            case "farm" -> net.minecraft.item.Items.WHEAT;
+            case "lumberjack" -> net.minecraft.item.Items.IRON_AXE;
+            case "warehouse" -> net.minecraft.item.Items.CHEST;
+            case "builder_hut" -> net.minecraft.item.Items.IRON_PICKAXE;
+            case "watchtower", "gatehouse" -> net.minecraft.item.Items.IRON_SWORD;
+            case "chapel", "shrine" -> net.minecraft.item.Items.CANDLE;
+            case "brewery" -> com.villagepax.item.ModItems.ALE;
+            case "weavery" -> com.villagepax.item.ModItems.CLOTH;
+            case "market", "market_stall" -> net.minecraft.item.Items.EMERALD;
+            case "fairground" -> net.minecraft.item.Items.FIREWORK_ROCKET;
+            default -> net.minecraft.item.Items.BRICKS;
+        });
+    }
+
+    public static ItemStack professionIcon(java.util.Optional<Identifier> profession) {
+        String craft = profession.map(Identifier::getPath).orElse("");
+        return new ItemStack(switch (craft) {
+            case "builder" -> net.minecraft.item.Items.IRON_PICKAXE;
+            case "courier" -> net.minecraft.item.Items.CHEST;
+            case "farmer" -> net.minecraft.item.Items.IRON_HOE;
+            case "lumberjack" -> net.minecraft.item.Items.IRON_AXE;
+            case "guard" -> net.minecraft.item.Items.IRON_SWORD;
+            case "elder" -> net.minecraft.item.Items.BELL;
+            case "merchant" -> net.minecraft.item.Items.EMERALD;
+            case "brewer" -> com.villagepax.item.ModItems.ALE;
+            case "weaver" -> com.villagepax.item.ModItems.CLOTH;
+            case "entertainer" -> com.villagepax.item.festival.ModFestivalItems.JUGGLING_BALLS;
+            default -> profession.isPresent() ? net.minecraft.item.Items.CRAFTING_TABLE : net.minecraft.item.Items.BREAD;
+        });
+    }
+
 }

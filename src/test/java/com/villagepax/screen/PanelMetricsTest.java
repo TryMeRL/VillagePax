@@ -129,4 +129,26 @@ class PanelMetricsTest {
     void tinyPanelClampsInsteadOfGoingNegative() {
         assertEquals(PanelMetrics.LEAST_BODY, PanelMetrics.bodyHeight(40, 32, 16));
     }
+
+    @org.junit.jupiter.api.Test
+    void theWindowFillsTheScreenWithinBounds() {
+        org.junit.jupiter.api.Assertions.assertEquals(640 - 2 * PanelMetrics.MARGIN,
+                PanelMetrics.fit(640, PanelMetrics.MOST_WIDTH, PanelMetrics.LEAST_WIDTH));
+        org.junit.jupiter.api.Assertions.assertEquals(PanelMetrics.MOST_WIDTH,
+                PanelMetrics.fit(1920, PanelMetrics.MOST_WIDTH, PanelMetrics.LEAST_WIDTH));
+        org.junit.jupiter.api.Assertions.assertEquals(200,
+                PanelMetrics.fit(200, PanelMetrics.MOST_HEIGHT, PanelMetrics.LEAST_HEIGHT));
+    }
+
+    @org.junit.jupiter.api.Test
+    void columnsFollowTheWidth() {
+        org.junit.jupiter.api.Assertions.assertEquals(1, PanelMetrics.columns(300));
+        org.junit.jupiter.api.Assertions.assertEquals(2, PanelMetrics.columns(500));
+        org.junit.jupiter.api.Assertions.assertEquals(3, PanelMetrics.columns(800));
+        org.junit.jupiter.api.Assertions.assertEquals(3, PanelMetrics.columns(2000));
+        int width = 500;
+        int columns = PanelMetrics.columns(width);
+        org.junit.jupiter.api.Assertions.assertTrue(
+                columns * PanelMetrics.columnWidth(width, columns) + (columns - 1) * PanelMetrics.GAP <= width);
+    }
 }

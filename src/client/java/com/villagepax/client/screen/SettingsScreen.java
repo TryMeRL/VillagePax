@@ -69,10 +69,10 @@ public class SettingsScreen extends BaseOwoScreen<FlowLayout> {
     private static final int CONTROL_WIDTH = 64;
 
     /** Текст внутри карточки: панель без отступов, ползунка и полей карточки. */
-    private static final int TEXT_WIDTH = WIDTH - 2 * PanelMetrics.PADDING - 26;
+
 
     /** Подпись поля — всё, что осталось в строке рядом с ним. */
-    private static final int NAME_WIDTH = TEXT_WIDTH - CONTROL_WIDTH - 8;
+
 
     /**
      * Ширина подсказки. Без переноса подсказка шла одной строкой и уходила
@@ -99,7 +99,7 @@ public class SettingsScreen extends BaseOwoScreen<FlowLayout> {
     /** Место под жалобу у каждого поля: пустое, пока жаловаться не на что. */
     private final Map<String, FlowLayout> complaints = new HashMap<>();
 
-    private FlowLayout body;
+    private Frame frame;
     private ButtonComponent done;
 
     public SettingsScreen(Screen parent) {
@@ -115,55 +115,37 @@ public class SettingsScreen extends BaseOwoScreen<FlowLayout> {
 
     @Override
     protected void build(FlowLayout root) {
-        root.surface(Surface.VANILLA_TRANSLUCENT);
-        root.horizontalAlignment(HorizontalAlignment.CENTER);
-        root.verticalAlignment(VerticalAlignment.CENTER);
+        frame = Frame.build(root, width, height, false);
+        frame.title(getTitle());
+        frame.closeButton(pressed -> close());
 
-        FlowLayout panel = Look.panel(WIDTH, HEIGHT, PanelMetrics.PADDING, PanelMetrics.GAP);
-
-        FlowLayout head = Containers.verticalFlow(Sizing.fill(100),
-                Sizing.fixed(PanelMetrics.HEADER));
-        FlowLayout board = Look.board(PanelMetrics.HEADER - 8);
-        LabelComponent title = Components.label(getTitle());
-        title.color(Look.LIGHT);
-        title.shadow(true);
-        board.child(title);
-        head.child(board);
-        panel.child(head);
-
-        body = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
-        body.gap(4);
-        KeptScroll<FlowLayout> scroll = new KeptScroll<>(Sizing.fill(100),
-                Sizing.fixed(BODY_HEIGHT), body);
-        scroll.scrollbarThiccness(4);
-        scroll.padding(Insets.right(6));
-        panel.child(scroll);
-
-        FlowLayout footer = Containers.horizontalFlow(Sizing.fill(100),
-                Sizing.fixed(PanelMetrics.FOOTER));
-        footer.gap(4);
-        footer.verticalAlignment(VerticalAlignment.CENTER);
-        footer.horizontalAlignment(HorizontalAlignment.RIGHT);
-        footer.child(Look.action(Text.translatable("villagepax.config.reset"), 110,
+        frame.footer.horizontalAlignment(HorizontalAlignment.RIGHT);
+        frame.footer.child(Look.action(Text.translatable("villagepax.config.reset"), 110,
                 pressed -> reset()));
-        footer.child(Look.action(ScreenTexts.CANCEL, 84, pressed -> close()));
+        frame.footer.child(Look.action(ScreenTexts.CANCEL, 84, pressed -> close()));
         done = Look.action(ScreenTexts.DONE, 84, pressed -> save());
-        footer.child(done);
-        panel.child(footer);
-
-        root.child(panel);
+        frame.footer.child(done);
         fillBody();
     }
 
-    /**
-     * Карточки по разделам: мир, жители, хозяйство, подсказки.
-     * <p>
-     * Раздел берётся из таблицы настроек, и новая карточка начинается там,
-     * где у следующей настройки другой раздел, — таблица для этого
-     * упорядочена по разделам.
-     */
+    @Override
+    public void resize(MinecraftClient client, int width, int height) {
+        this.uiAdapter = null;
+        super.resize(client, width, height);
+    }
+
+    /** Ширина текста в карточке колонки. */
+    private int text() {
+        return frame.textWidth;
+    }
+
+    /** Ширина имени настройки: строка без поля ввода. */
+    private int nameWidth() {
+        return text() - CONTROL_WIDTH - 8;
+    }
+
     private void fillBody() {
-        body.clearChildren();
+        frame.clear();
         complaints.clear();
 
         // На чужом сервере свой файл ничего не меняет: настройки мира
@@ -172,20 +154,17 @@ public class SettingsScreen extends BaseOwoScreen<FlowLayout> {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.world != null && !client.isIntegratedServerRunning()) {
             FlowLayout note = Look.card(null);
-            note.child(Look.hint(Text.translatable("villagepax.config.remote"), TEXT_WIDTH));
-            body.child(note);
+            note.child(Look.hint(Text.translatable("villagepax.config.remote"), frame.bodyWidth - 14));
+            frame.wide(note);
         }
 
-        FlowLayout card = null;
-        String group = null;
+        // Группы — карточками по колонкам; вес карточки — число настроек.
+        Map<String, FlowLayout> cards = new java.util.LinkedHashMap<>();
         for (Config.Setting setting : Config.SETTINGS) {
-            if (!setting.group().equals(group)) {
-                group = setting.group();
-                card = Look.card("villagepax.config.group." + group);
-                body.child(card);
-            }
-            card.child(row(setting));
+            cards.computeIfAbsent(setting.group(),
+                    group -> Look.card("villagepax.config.group." + group)).child(row(setting));
         }
+        cards.values().forEach(card -> frame.place(card, card.children().size() * 2));
         validate();
     }
 
@@ -204,7 +183,7 @@ public class SettingsScreen extends BaseOwoScreen<FlowLayout> {
         name.color(Look.INK);
         name.shadow(false);
         name.tooltip(explained);
-        line.child(name.horizontalSizing(Sizing.fixed(NAME_WIDTH)));
+        line.child(name.horizontalSizing(Sizing.fixed(nameWidth())));
 
         Component control = setting.bounds() instanceof Config.Flag
                 ? toggle(setting) : field(setting);
@@ -314,7 +293,7 @@ public class SettingsScreen extends BaseOwoScreen<FlowLayout> {
                 line.color(Look.BAD);
                 line.shadow(false);
                 line.lineHeight(9);
-                holder.child(line.horizontalSizing(Sizing.fixed(TEXT_WIDTH - 12)));
+                holder.child(line.horizontalSizing(Sizing.fixed(text() - 12)));
             }
         });
         if (done != null) {

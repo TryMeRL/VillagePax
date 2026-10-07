@@ -47,24 +47,11 @@ import java.util.List;
  */
 public class GameScreen extends BaseOwoScreen<FlowLayout> {
 
-    private static final int PANEL_WIDTH = PanelMetrics.GAME_WIDTH;
-    private static final int PANEL_HEIGHT = PanelMetrics.GAME_HEIGHT;
-    private static final int PADDING = PanelMetrics.PADDING;
-    private static final int GAP = PanelMetrics.GAP;
-    private static final int HEADER_HEIGHT = PanelMetrics.HEADER;
-    private static final int STATUS_HEIGHT = PanelMetrics.STATUS;
-    private static final int BODY_HEIGHT =
-            PanelMetrics.bodyHeight(PANEL_HEIGHT, HEADER_HEIGHT, STATUS_HEIGHT);
-
-    /** Ширина текста в карточке: панель без отступов и ползунка. */
-    private static final int TEXT_WIDTH = PANEL_WIDTH - 2 * PADDING - 26;
-
     private static final int NAME_WIDTH = 70;
     private static final int STAKE_WIDTH = 36;
     private static final int BUTTON_WIDTH = 64;
 
     /** Поле армрестлинга: полоса перевеса сверху, шкала с отметкой под ней. */
-    private static final int ARENA_WIDTH = TEXT_WIDTH;
     private static final int ARENA_HEIGHT = 40;
     private static final int TRACK_TOP = 10;
     private static final int TRACK_HEIGHT = 8;
@@ -72,10 +59,8 @@ public class GameScreen extends BaseOwoScreen<FlowLayout> {
     private static final int SCALE_HEIGHT = 10;
 
     private GameView view;
-    private FlowLayout head;
-    private FlowLayout status;
-    private FlowLayout body;
-    private KeptScroll<FlowLayout> scroll;
+    /** Окно во весь экран: стол игры посередине. */
+    private Frame frame;
     private FlowLayout arena;
 
     /** Закрыто сервером — сдавать нечего: партии уже нет. */
@@ -115,28 +100,19 @@ public class GameScreen extends BaseOwoScreen<FlowLayout> {
 
     @Override
     protected void build(FlowLayout root) {
-        root.surface(Surface.VANILLA_TRANSLUCENT);
-        root.horizontalAlignment(HorizontalAlignment.CENTER);
-        root.verticalAlignment(VerticalAlignment.CENTER);
-
-        FlowLayout panel = Look.panel(PANEL_WIDTH, PANEL_HEIGHT, PADDING, GAP);
-
-        head = Containers.verticalFlow(Sizing.fill(100), Sizing.fixed(HEADER_HEIGHT));
-        panel.child(head);
-
-        status = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(STATUS_HEIGHT));
-        status.verticalAlignment(VerticalAlignment.CENTER);
-        panel.child(status);
-
-        body = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
-        body.gap(4);
-        scroll = new KeptScroll<>(Sizing.fill(100), Sizing.fixed(BODY_HEIGHT), body);
-        scroll.scrollbarThiccness(4);
-        scroll.padding(Insets.right(6));
-        panel.child(scroll);
-
-        root.child(panel);
+        frame = Frame.build(root, width, height, false);
         fill();
+    }
+
+    @Override
+    public void resize(MinecraftClient client, int width, int height) {
+        this.uiAdapter = null;
+        super.resize(client, width, height);
+    }
+
+    /** Ширина текста в карточке во всю ширину тела. */
+    private int text() {
+        return frame.bodyWidth - 14;
     }
 
     private void refresh(GameView fresh) {
@@ -148,7 +124,7 @@ public class GameScreen extends BaseOwoScreen<FlowLayout> {
                 && view.bout().map(GameView.BoutLine::phase)
                 .equals(fresh.bout().map(GameView.BoutLine::phase));
         this.view = fresh;
-        if (body == null) {
+        if (frame == null) {
             return;
         }
         // Армрестлинг шлёт перевес раз в два тика: вёрстку тогда не трогаем —
@@ -161,32 +137,26 @@ public class GameScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     private void fill() {
-        double kept = scroll == null ? 0 : scroll.where();
+        double kept = frame.scroll.where();
         fillHead();
         fillStatus();
         fillBody();
-        if (scroll != null) {
-            scroll.restore(kept);
-        }
+        frame.scroll.restore(kept);
     }
 
     private void fillHead() {
-        head.clearChildren();
-        FlowLayout row = Look.board(HEADER_HEIGHT - 8);
-        LabelComponent name = Components.label(Text.literal(view.rivalName()));
-        name.color(Look.LIGHT);
-        name.shadow(true);
-        row.child(name);
-        view.rivalTitle().ifPresent(title -> row.child(Look.pill(Text.translatable(title), Look.LIGHT)));
-        row.child(Look.pill(Text.translatable("villagepax.nature." + view.nature()), Look.LIGHT));
-        row.child(Look.pill(Text.translatable("villagepax.games.screen.score", view.won(), view.lost()),
+        frame.headerLeft.clearChildren();
+        frame.headerRight.clearChildren();
+        frame.title(Text.literal(view.rivalName()));
+        view.rivalTitle().ifPresent(title -> frame.headerLeft.child(Look.pill(Text.translatable(title), Look.LIGHT)));
+        frame.headerLeft.child(Look.pill(Text.translatable("villagepax.nature." + view.nature()), Look.LIGHT));
+        frame.headerRight.child(Look.pill(Text.translatable("villagepax.games.screen.score", view.won(), view.lost()),
                 Look.LIGHT));
-        head.child(row);
+        frame.closeButton(button -> close());
     }
 
-    /** Строка под заголовком: на что играют — или что сейчас в партии. */
     private void fillStatus() {
-        status.clearChildren();
+        frame.footer.clearChildren();
         Text line;
         Color colour = Look.MUTED;
         GameView.BoutLine bout = view.bout().orElse(null);
@@ -209,7 +179,7 @@ public class GameScreen extends BaseOwoScreen<FlowLayout> {
         LabelComponent label = Components.label(line);
         label.color(colour);
         label.shadow(false);
-        status.child(label);
+        frame.footer.child(label);
     }
 
     private Text outcomeLine(GameView.BoutLine bout) {
@@ -223,11 +193,12 @@ public class GameScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     private void fillBody() {
-        body.clearChildren();
+        frame.clear();
         arena = null;
         GameView.BoutLine bout = view.bout().orElse(null);
         if (bout == null) {
             fillChoice();
+            fillRival();
         } else if (bout.kind().equals(Bouts.Kind.ARM.id())) {
             fillArm(bout);
         } else {
@@ -236,6 +207,21 @@ public class GameScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     /** Без партии: две игры и ставки к каждой; ставки, которой нет, окно не рисует. */
+    /** Кто сидит напротив: нрав и что он значит за столом, счёт, кошелёк. */
+    private void fillRival() {
+        FlowLayout card = Look.card("villagepax.games.screen.rival", new ItemStack(Items.PLAYER_HEAD));
+        card.child(Look.stat(Text.translatable("villagepax.screen.citizens.nature"),
+                Text.translatable("villagepax.nature." + view.nature()), text() / 2));
+        card.child(Look.hint(Text.translatable("villagepax.nature." + view.nature() + ".what"), text()));
+        card.child(Look.stat(Text.translatable("villagepax.games.screen.score_name"),
+                Text.translatable("villagepax.games.screen.score", view.won(), view.lost()), text() / 2));
+        if (view.coins()) {
+            card.child(Look.stat(Text.translatable("villagepax.games.screen.purse_name"),
+                    Text.literal(String.valueOf(view.purse())), text() / 2));
+        }
+        frame.wide(card);
+    }
+
     private void fillChoice() {
         FlowLayout card = Look.card("villagepax.games.screen.choose", new ItemStack(ModItems.COIN));
         for (Bouts.Kind kind : Bouts.Kind.values()) {
@@ -248,7 +234,7 @@ public class GameScreen extends BaseOwoScreen<FlowLayout> {
             row.child(name.horizontalSizing(Sizing.fixed(NAME_WIDTH)));
             if (view.stakes().isEmpty()) {
                 row.child(Look.hint(Text.translatable("villagepax.games.screen.no_stake"),
-                        TEXT_WIDTH - NAME_WIDTH - 4));
+                        text() - NAME_WIDTH - 4));
             }
             for (int stake : view.stakes()) {
                 Text label = view.coins()
@@ -259,9 +245,9 @@ public class GameScreen extends BaseOwoScreen<FlowLayout> {
             }
             card.child(row);
             card.child(Look.hint(Text.translatable("villagepax.games.screen." + kind.id() + "_rule"),
-                    TEXT_WIDTH));
+                    text()));
         }
-        body.child(card);
+        frame.wide(card);
     }
 
     /** Кости: свои и соперника, суммы, «Бросить» и «Хватит» — только в свой ход. */
@@ -285,7 +271,7 @@ public class GameScreen extends BaseOwoScreen<FlowLayout> {
             }
         }
         card.child(actions);
-        body.child(card);
+        frame.wide(card);
     }
 
     private FlowLayout diceRow(Text who, List<Integer> faces) {
@@ -311,7 +297,7 @@ public class GameScreen extends BaseOwoScreen<FlowLayout> {
     /** Армрестлинг: поле рисует кадр, здесь — только место под него и кнопки после итога. */
     private void fillArm(GameView.BoutLine bout) {
         FlowLayout card = Look.card("villagepax.games.screen.arm", new ItemStack(Items.IRON_INGOT));
-        arena = Containers.verticalFlow(Sizing.fixed(ARENA_WIDTH), Sizing.fixed(ARENA_HEIGHT));
+        arena = Containers.verticalFlow(Sizing.fixed(text()), Sizing.fixed(ARENA_HEIGHT));
         card.child(arena);
         // Как жать — сказано строкой над полем, пока партия идёт; после итога
         // на её месте итог, а здесь — «ещё» и «встать».
@@ -324,7 +310,7 @@ public class GameScreen extends BaseOwoScreen<FlowLayout> {
                     pressed -> close()));
             card.child(actions);
         }
-        body.child(card);
+        frame.wide(card);
     }
 
     @Override

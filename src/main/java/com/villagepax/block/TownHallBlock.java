@@ -83,10 +83,13 @@ public class TownHallBlock extends BlockWithEntity {
                 // Ратуша деревни народа — не сундук для прохожего. Прежде
                 // присевший игрок открывал её склад и выносил что хотел:
                 // «не моя деревня, но брать блоки могу оттуда». Теперь она
-                // говорит, что деревне нужно, и принимает помощь.
-                if (!VillageNeeds.donate(serverWorld, manager, colony, player,
-                        player.getStackInHand(hand))) {
-                    VillageNeeds.tell(serverWorld, colony, player);
+                // открывает окно деревни: доверие, цены, нужды с кнопкой
+                // «отдать», жители и летопись. С Shift и вещью в руке —
+                // отдать её сразу, не открывая окна.
+                if (player.isSneaking() && !player.getStackInHand(hand).isEmpty()) {
+                    VillageNeeds.donate(serverWorld, manager, colony, player, player.getStackInHand(hand));
+                } else if (player instanceof net.minecraft.server.network.ServerPlayerEntity server) {
+                    com.villagepax.screen.VillageHallNet.open(server, colony);
                 }
                 return ActionResult.CONSUME;
             } else if (colony != null && !colony.owner().mayBuild(player.getUuid())) {

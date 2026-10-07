@@ -128,4 +128,41 @@ public final class PanelMetrics {
         }
         return total == panelHeight;
     }
+
+    // --- окно во весь экран ---
+
+    /** Поля вокруг окна: экран почти весь, но край мира виден. */
+    public static final int MARGIN = 6;
+
+    /** Шире и выше этого окно не растёт: на мелком масштабе строки не разъезжаются. */
+    public static final int MOST_WIDTH = 1000;
+    public static final int MOST_HEIGHT = 600;
+
+    /** Меньше этого окно не сжимается: иначе в него не влезет ничего. */
+    public static final int LEAST_WIDTH = 300;
+    public static final int LEAST_HEIGHT = 200;
+
+    /** Ширина колонки вкладок слева. */
+    public static final int RAIL = 96;
+
+    /** Колонки карточек: не уже стольких точек. */
+    public static final int LEAST_COLUMN = 210;
+
+    /** Колонок не больше стольких: дальше глаз бегает слишком далеко. */
+    public static final int MOST_COLUMNS = 3;
+
+    /** Размер окна по размеру экрана: экран без полей, в разумных пределах. */
+    public static int fit(int screen, int most, int least) {
+        return Math.max(Math.min(least, screen), Math.min(most, screen - 2 * MARGIN));
+    }
+
+    /** Сколько колонок карточек влезает в тело этой ширины. */
+    public static int columns(int width) {
+        return Math.max(1, Math.min(MOST_COLUMNS, (width + GAP) / (LEAST_COLUMN + GAP)));
+    }
+
+    /** Ширина одной колонки при таком их числе. */
+    public static int columnWidth(int width, int columns) {
+        return (width - (columns - 1) * GAP) / columns;
+    }
 }

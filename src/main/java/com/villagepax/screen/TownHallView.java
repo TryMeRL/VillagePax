@@ -84,7 +84,38 @@ public record TownHallView(
         Optional<String> advice,
         Growth growth,
         FaithView faith,
-        Yoke yoke) {
+        Extras extras) {
+
+    /** Старый вид без новостей и летописи: ярмо — и только. */
+    public TownHallView(String name, Identifier culture, String level, int population, int maxCitizens,
+                        Household household, Optional<Construction> construction,
+                        List<BuildingLine> buildings, List<CitizenLine> citizens, ItemTally stock,
+                        List<Identifier> offers, List<ProfessionLine> professions,
+                        Optional<String> advice, Growth growth, FaithView faith, Yoke yoke) {
+        this(name, culture, level, population, maxCitizens, household, construction, buildings,
+                citizens, stock, offers, professions, advice, growth, faith,
+                new Extras(yoke, List.of(), List.of()));
+    }
+
+    /** Под чьим ярмом колония. */
+    public Yoke yoke() {
+        return extras.yoke();
+    }
+
+    /**
+     * То, что не влезло в шестнадцать полей кодека: ярмо, новости дня
+     * (готовым текстом, как при въезде) и последние строки летописи.
+     */
+    public record Extras(Yoke yoke, List<String> news, List<String> chronicle) {
+
+        public static final Extras NONE = new Extras(Yoke.NONE, List.of(), List.of());
+
+        public static final Codec<Extras> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Yoke.CODEC.optionalFieldOf("yoke", Yoke.NONE).forGetter(Extras::yoke),
+                Codec.STRING.listOf().optionalFieldOf("news", List.of()).forGetter(Extras::news),
+                Codec.STRING.listOf().optionalFieldOf("chronicle", List.of()).forGetter(Extras::chronicle)
+        ).apply(instance, Extras::new));
+    }
 
     /**
      * Вера колонии: кому здесь молятся и что уже выпросили.
@@ -285,7 +316,7 @@ public record TownHallView(
             // колонии, а не событие: о платеже игроку говорят в чат раз
             // в сутки, но «почему у меня каждое утро пропадает серебро»
             // обязано отвечать то же место, где он смотрит всё остальное.
-            Yoke.CODEC.optionalFieldOf("yoke", Yoke.NONE).forGetter(TownHallView::yoke)
+            Extras.CODEC.optionalFieldOf("extras", Extras.NONE).forGetter(TownHallView::extras)
     ).apply(instance, TownHallView::new));
 
     /**
@@ -441,7 +472,33 @@ public record TownHallView(
                 Advice.nextStep(world, settlement),
                 growthOf(settlement),
                 faithOf(world, settlement),
-                yokeOf(world, settlement));
+                new Extras(yokeOf(world, settlement), newsOf(world, settlement),
+                        chronicleOf(world, settlement)));
+    }
+
+    /** Сколько строк летописи показывает пульт: остальное — в книге. */
+    static final int CHRONICLE_SHOWN = 6;
+
+    /** Новости колонии на сегодня — те же, что при въезде, готовым текстом. */
+    private static List<String> newsOf(ServerWorld world, Settlement settlement) {
+        long today = Schedule.dayOf(world.getTimeOfDay());
+        List<String> lines = new java.util.ArrayList<>();
+        for (net.minecraft.text.Text line : com.villagepax.sim.life.Arrival.news(settlement, today)) {
+            lines.add(net.minecraft.text.Text.Serializer.toJson(line));
+        }
+        return lines;
+    }
+
+    /** Последние строки летописи, от новых к старым. */
+    private static List<String> chronicleOf(ServerWorld world, Settlement settlement) {
+        List<com.villagepax.sim.SettlementManager.ChronicleEntry> entries =
+                com.villagepax.sim.SettlementManager.get(world).chronicleOf(settlement.id());
+        List<String> lines = new java.util.ArrayList<>();
+        for (int i = entries.size() - 1; i >= 0 && lines.size() < CHRONICLE_SHOWN; i--) {
+            lines.add(net.minecraft.text.Text.Serializer.toJson(
+                    com.villagepax.sim.life.Chronicle.line(entries.get(i))));
+        }
+        return lines;
     }
 
     /**

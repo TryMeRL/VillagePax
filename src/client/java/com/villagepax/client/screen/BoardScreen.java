@@ -103,8 +103,32 @@ public class BoardScreen extends Screen {
 
     // --- раскладка ---
 
+    /**
+     * Во сколько раз доска крупнее своего чертежа — чтобы заняла экран.
+     * <p>
+     * Чертёж доски — листки по 96 точек, и на большом экране она была
+     * открыткой посреди тьмы, а буквы на листках — мельче травинки.
+     * Теперь доска растёт до краёв, шагом в полраза: дробный масштаб
+     * размазывал бы пиксельный шрифт.
+     */
+    private float zoom() {
+        int shown = Math.max(1, Math.min(3, view.sheets().size()));
+        int needWidth = shown * SHEET_W + (shown - 1) * GAP + 2 * (FRAME + PADDING) + 40;
+        float k = Math.min((width - 16f) / needWidth, (height - 16f) / boardHeight());
+        return Math.max(1f, Math.min(3f, (float) Math.floor(k * 2) / 2f));
+    }
+
+    /** Ширина и высота экрана в точках чертежа доски. */
+    private int virtualWidth() {
+        return (int) (width / zoom());
+    }
+
+    private int virtualHeight() {
+        return (int) (height / zoom());
+    }
+
     private int perPage() {
-        int room = width - 2 * (FRAME + PADDING) - 40;
+        int room = virtualWidth() - 2 * (FRAME + PADDING) - 40;
         return Math.max(1, Math.min(4, (room + GAP) / (SHEET_W + GAP)));
     }
 
@@ -122,18 +146,23 @@ public class BoardScreen extends Screen {
     }
 
     private int left() {
-        return (width - boardWidth()) / 2;
+        return (virtualWidth() - boardWidth()) / 2;
     }
 
     private int top() {
-        return Math.max(4, (height - boardHeight()) / 2);
+        return Math.max(4, (virtualHeight() - boardHeight()) / 2);
     }
 
     // --- отрисовка ---
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+    public void render(DrawContext context, int realX, int realY, float delta) {
         renderBackground(context);
+        float zoom = zoom();
+        int mouseX = (int) (realX / zoom);
+        int mouseY = (int) (realY / zoom);
+        context.getMatrices().push();
+        context.getMatrices().scale(zoom, zoom, 1f);
         stamps.clear();
         icons.clear();
         words.clear();
@@ -187,23 +216,24 @@ public class BoardScreen extends Screen {
             arrow(context, x + w + 4, y + h / 2, "›", page < pages() - 1, mouseX, mouseY);
         }
 
-        super.render(context, mouseX, mouseY, delta);
+        context.getMatrices().pop();
+        super.render(context, realX, realY, delta);
 
         for (Icon icon : icons) {
             if (icon.hit(mouseX, mouseY)) {
-                context.drawItemTooltip(textRenderer, icon.stack(), mouseX, mouseY);
+                context.drawItemTooltip(textRenderer, icon.stack(), realX, realY);
             }
         }
         for (Words said : words) {
             if (said.hit(mouseX, mouseY)) {
                 context.drawOrderedTooltip(textRenderer, textRenderer.wrapLines(said.full(), 200),
-                        mouseX, mouseY);
+                        realX, realY);
             }
         }
         for (Stamp stamp : stamps) {
             if (!stamp.active() && stamp.hit(mouseX, mouseY) && !stamp.sheet().trusted()) {
                 context.drawTooltip(textRenderer, Text.translatable("villagepax.board.no_trust.why"),
-                        mouseX, mouseY);
+                        realX, realY);
             }
         }
     }
@@ -373,7 +403,9 @@ public class BoardScreen extends Screen {
     // --- ввод ---
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(double realX, double realY, int button) {
+        double mouseX = realX / zoom();
+        double mouseY = realY / zoom();
         if (button == 0) {
             for (Stamp stamp : stamps) {
                 if (stamp.active() && stamp.hit(mouseX, mouseY)) {
@@ -396,7 +428,7 @@ public class BoardScreen extends Screen {
                 }
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(realX, realY, button);
     }
 
     @Override

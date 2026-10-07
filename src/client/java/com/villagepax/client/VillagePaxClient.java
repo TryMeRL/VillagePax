@@ -58,6 +58,7 @@ public class VillagePaxClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        com.villagepax.client.dev.ScreenShots.install();
         // Слоя модели больше нет: кости жителя приходят из geo-файла,
         // а не собираются кодом. Регистрировать надо только переменные
         // шага — до того, как GeckoLib прочтёт первый файл движений.
@@ -216,6 +217,13 @@ public class VillagePaxClient implements ClientModInitializer {
                     Optional<com.villagepax.screen.BoardView> view = com.villagepax.screen.BoardNet.read(buf);
                     client.execute(() -> view.ifPresent(fresh ->
                             com.villagepax.client.screen.BoardScreen.open(client, fresh)));
+                });
+        ClientPlayNetworking.registerGlobalReceiver(com.villagepax.screen.VillageHallNet.OPEN,
+                (client, handler, buf, sender) -> {
+                    Optional<com.villagepax.screen.VillageHallView> view =
+                            com.villagepax.screen.VillageHallNet.read(buf);
+                    client.execute(() -> view.ifPresent(fresh ->
+                            com.villagepax.client.screen.VillageHallScreen.open(client, fresh)));
                 });
     }
 

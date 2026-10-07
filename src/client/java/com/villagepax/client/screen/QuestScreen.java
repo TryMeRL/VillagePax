@@ -64,38 +64,21 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         Text title() {
             return Text.translatable("villagepax.quest.tab." + id);
         }
+
+        ItemStack icon() {
+            return new ItemStack(switch (this) {
+                case TALK -> Items.WRITABLE_BOOK;
+                case TRADE -> Items.EMERALD;
+                case PEOPLE -> Items.FILLED_MAP;
+            });
+        }
     }
-
-    private static final int PANEL_WIDTH = PanelMetrics.ELDER_WIDTH;
-    private static final int PANEL_HEIGHT = PanelMetrics.ELDER_HEIGHT;
-    private static final int PADDING = PanelMetrics.PADDING;
-    private static final int GAP = PanelMetrics.GAP;
-
-    private static final int HEADER_HEIGHT = PanelMetrics.HEADER;
-    private static final int TABS_HEIGHT = PanelMetrics.TABS;
-
-    private static final int BODY_HEIGHT =
-            PanelMetrics.bodyHeight(PANEL_HEIGHT, HEADER_HEIGHT, TABS_HEIGHT);
-
-    /** Ширина названия товара в строке прилавка. */
-    private static final int NAME_WIDTH = 130;
-
-    /** Ширина кнопки-вкладки: проверена {@link PanelMetrics#tabsFit}. */
-    private static final int TAB_WIDTH = PanelMetrics.ELDER_TAB;
-
-    /** Ширина названия народа в строке соседа. */
-    private static final int PEOPLE_WIDTH = 120;
-
-    /** Ширина текста внутри карточки: панель без отступов и ползунка. */
-    private static final int TEXT_WIDTH = PANEL_WIDTH - 2 * PADDING - 26;
 
     private QuestView view;
     private Tab tab = Tab.TALK;
 
-    private FlowLayout head;
-    private FlowLayout tabs;
-    private FlowLayout body;
-    private KeptScroll<FlowLayout> scroll;
+    /** Окно во весь экран. */
+    private Frame frame;
 
     public QuestScreen(QuestView view) {
         this.view = view;
@@ -128,46 +111,38 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
 
     @Override
     protected void build(FlowLayout root) {
-        root.surface(Surface.VANILLA_TRANSLUCENT);
-        root.horizontalAlignment(HorizontalAlignment.CENTER);
-        root.verticalAlignment(VerticalAlignment.CENTER);
-
-        FlowLayout panel = Look.panel(PANEL_WIDTH, PANEL_HEIGHT, PADDING, GAP);
-
-        head = Containers.verticalFlow(Sizing.fill(100), Sizing.fixed(HEADER_HEIGHT));
-        head.gap(3);
-        panel.child(head);
-
-        tabs = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(TABS_HEIGHT));
-        tabs.gap(3);
-        panel.child(tabs);
-
-        body = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
-        body.gap(4);
-
-        scroll = new KeptScroll<>(Sizing.fill(100), Sizing.fixed(BODY_HEIGHT), body);
-        scroll.scrollbarThiccness(4);
-        scroll.padding(Insets.right(6));
-        panel.child(scroll);
-
-        root.child(panel);
-
+        frame = Frame.build(root, width, height, true);
         fill();
+        frame.hint(Text.translatable("villagepax.screen.footer.elder"));
     }
 
-    /**
-     * Новый снимок с сервера.
-     * <p>
-     * Ничего не изменилось — не трогаем <b>ничего</b>: собранное заново
-     * тело мигает и сбрасывает прокрутку, а приходит снимок дважды
-     * в секунду. Это не оптимизация, а условие пользуемости меню.
-     */
+    /** Новый размер окна игры — собрать заново под него. */
+    @Override
+    public void resize(MinecraftClient client, int width, int height) {
+        double kept = frame == null ? 0 : frame.scroll.where();
+        this.uiAdapter = null;
+        super.resize(client, width, height);
+        if (frame != null) {
+            frame.scroll.restore(kept);
+        }
+    }
+
+    /** Ширина текста в карточке колонки. */
+    private int text() {
+        return frame.textWidth;
+    }
+
+    /** Карточку — в колонку; вес — число её строк. */
+    private void put(Component card) {
+        frame.place(card, card instanceof FlowLayout flow ? flow.children().size() : 1);
+    }
+
     private void refresh(QuestView fresh) {
         if (fresh.equals(view)) {
             return;
         }
         this.view = fresh;
-        if (body != null) {
+        if (frame != null) {
             fill();
         }
     }
@@ -175,13 +150,11 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
     private void fill() {
         // Прокрутка переживает пересборку: игрок, добравшийся до нижней
         // сделки, не должен искать её заново после каждой покупки.
-        double kept = scroll == null ? 0 : scroll.where();
+        double kept = frame.scroll.where();
 
         fillAll();
 
-        if (scroll != null) {
-            scroll.restore(kept);
-        }
+        frame.scroll.restore(kept);
     }
 
     private void fillAll() {
@@ -201,56 +174,39 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
     }
 
     private void fillHead() {
-        head.clearChildren();
+        frame.headerLeft.clearChildren();
+        frame.headerRight.clearChildren();
 
-        // Имя деревни — на доске, как вывеска над входом.
-        FlowLayout row = Look.board(HEADER_HEIGHT - 8);
+        frame.title(Text.literal(view.villageName()));
+        frame.headerLeft.child(Look.pill(Text.translatable(view.people().name()), Look.LIGHT));
 
-        LabelComponent name = Components.label(Text.literal(view.villageName()));
-        name.color(Look.LIGHT);
-        name.shadow(true);
-        row.child(name);
-
-        row.child(Look.pill(standingLine(), Look.LIGHT));
-
+        frame.headerRight.child(Look.pill(standingLine(), Look.LIGHT));
         if (view.trades()) {
-            // Кошель деревни в заголовке, а не во вкладке торга: по нему
-            // видно, есть ли смысл нести товар на продажу, ещё до того,
-            // как игрок туда заглянул.
-            row.child(Look.pill(new ItemStack(ModItems.COIN), Coins.spell(view.purse()),
+            frame.headerRight.child(Look.pill(new ItemStack(ModItems.COIN), Coins.spell(view.purse()),
                     view.purse() > 0 ? Look.LIGHT : Look.MUTED));
         }
-
-        head.child(row);
+        frame.closeButton(button -> close());
     }
 
     private void fillTabs() {
-        tabs.clearChildren();
+        frame.rail.clearChildren();
         for (Tab candidate : Tab.values()) {
             if (candidate == Tab.TRADE && !view.trades()) {
                 continue;
             }
-            // У прилавка одно дело. Купец не выдаёт квестов, не принимает
-            // подарков и не говорит о соседях — за этим к старейшине,
-            // и показывать пустые вкладки значило бы звать игрока туда,
-            // где ему всё равно ответят пустотой.
             if (candidate != Tab.TRADE && view.counter() && view.trades()) {
                 continue;
             }
-            tabs.child(Look.tab(candidate.title(), candidate == tab, TAB_WIDTH, pressed -> {
+            frame.tab(candidate.icon(), candidate.title(), candidate == tab, () -> {
                 tab = candidate;
-                // Новая вкладка начинается сверху: держать место от прошлой
-                // значило бы открывать торг с середины списка.
                 fillAll();
-                if (scroll != null) {
-                    scroll.restore(0);
-                }
-            }));
+                frame.scroll.restore(0);
+            });
         }
     }
 
     private void fillBody() {
-        body.clearChildren();
+        frame.clear();
         switch (tab) {
             case TALK -> fillTalk();
             case TRADE -> fillStalls();
@@ -276,22 +232,22 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
                 Text.translatable("villagepax.people.screen.trust",
                         Text.translatable(people.standing()),
                         Text.literal(String.valueOf(people.trust()))),
-                PEOPLE_WIDTH));
+                text() / 2));
         LabelComponent about = Components.label(
                 Text.translatable("villagepax.people.screen.about"));
         about.color(Look.MUTED);
         about.lineHeight(10);
-        who.child(about.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
-        body.child(who);
+        who.child(about.horizontalSizing(Sizing.fixed(text())));
+        put(who);
 
         if (!people.neighbours().isEmpty()) {
             FlowLayout others = Look.card("villagepax.people.screen.neighbours",
                     new ItemStack(Items.MAP));
             for (QuestView.Neighbour neighbour : people.neighbours()) {
                 others.child(Look.stat(Text.translatable(neighbour.name()),
-                        Text.translatable(neighbour.attitude()), PEOPLE_WIDTH));
+                        Text.translatable(neighbour.attitude()), text() / 2));
             }
-            body.child(others);
+            put(others);
         }
 
         fillWar();
@@ -319,13 +275,13 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         if (truce.resting()) {
             card.child(Look.stat(Text.translatable("villagepax.people.screen.truce"),
                     Text.translatable("villagepax.people.screen.truce_days",
-                            Text.literal(String.valueOf(truce.daysLeft()))), PEOPLE_WIDTH));
+                            Text.literal(String.valueOf(truce.daysLeft()))), text() / 2));
             LabelComponent why = Components.label(
                     Text.translatable("villagepax.people.screen.truce_about"));
             why.color(Look.MUTED);
             why.lineHeight(10);
-            card.child(why.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
-            body.child(card);
+            card.child(why.horizontalSizing(Sizing.fixed(text())));
+            put(card);
             return;
         }
 
@@ -334,7 +290,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
                         Text.literal(String.valueOf(truce.fighters()))));
         threat.color(Look.BAD);
         threat.lineHeight(10);
-        card.child(threat.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+        card.child(threat.horizontalSizing(Sizing.fixed(text())));
 
         FlowLayout row = Containers.horizontalFlow(Sizing.content(), Sizing.content());
         row.verticalAlignment(VerticalAlignment.CENTER);
@@ -350,7 +306,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
             row.tooltip(Text.translatable("villagepax.peace.reason.no_coin"));
         }
         card.child(row);
-        body.child(card);
+        put(card);
     }
 
     /**
@@ -377,9 +333,9 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
                     Text.translatable("villagepax.people.screen.pact_done"));
             done.color(Look.GOOD);
             done.lineHeight(10);
-            card.child(done.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            card.child(done.horizontalSizing(Sizing.fixed(text())));
             fillHome(card, pact);
-            body.child(card);
+            put(card);
             return;
         }
 
@@ -387,7 +343,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
                 Text.translatable("villagepax.people.screen.pact_about"));
         about.color(Look.MUTED);
         about.lineHeight(10);
-        card.child(about.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+        card.child(about.horizontalSizing(Sizing.fixed(text())));
 
         FlowLayout row = Containers.horizontalFlow(Sizing.content(), Sizing.content());
         row.verticalAlignment(VerticalAlignment.CENTER);
@@ -402,7 +358,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         pact.verdict().reasonKey().ifPresent(key -> row.tooltip(Text.translatable(key)));
         card.child(row);
         fillHome(card, pact);
-        body.child(card);
+        put(card);
     }
 
     /**
@@ -423,7 +379,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
                     Text.translatable("villagepax.people.screen.home_settled"));
             mine.color(Look.GOOD);
             mine.lineHeight(10);
-            card.child(mine.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            card.child(mine.horizontalSizing(Sizing.fixed(text())));
             return;
         }
 
@@ -431,7 +387,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
                 Text.translatable("villagepax.people.screen.home_about"));
         about.color(Look.MUTED);
         about.lineHeight(10);
-        card.child(about.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+        card.child(about.horizontalSizing(Sizing.fixed(text())));
 
         FlowLayout row = Containers.horizontalFlow(Sizing.content(), Sizing.content());
         row.verticalAlignment(VerticalAlignment.CENTER);
@@ -476,8 +432,8 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
                             Text.literal(String.valueOf(levy.days()))));
             days.color(Look.GOLD);
             days.lineHeight(10);
-            card.child(days.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
-            body.child(card);
+            card.child(days.horizontalSizing(Sizing.fixed(text())));
+            put(card);
             return;
         }
 
@@ -485,7 +441,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
                 Text.translatable("villagepax.people.screen.levy_about"));
         about.color(Look.MUTED);
         about.lineHeight(10);
-        card.child(about.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+        card.child(about.horizontalSizing(Sizing.fixed(text())));
 
         FlowLayout row = Containers.horizontalFlow(Sizing.content(), Sizing.content());
         row.verticalAlignment(VerticalAlignment.CENTER);
@@ -506,7 +462,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
                             Text.literal(String.valueOf(levy.march().fighters()))));
             cost.color(Look.MUTED);
             cost.lineHeight(10);
-            card.child(cost.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+            card.child(cost.horizontalSizing(Sizing.fixed(text())));
 
             FlowLayout war = Containers.horizontalFlow(Sizing.content(), Sizing.content());
             war.verticalAlignment(VerticalAlignment.CENTER);
@@ -520,7 +476,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
                     .ifPresent(key -> war.tooltip(Text.translatable(key)));
             card.child(war);
         }
-        body.child(card);
+        put(card);
     }
 
     /** «Пошли на них»: цену и право считает сервер, клиент — намерение. */
@@ -565,8 +521,8 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
                     Text.translatable("villagepax.gift.reason.empty_handed"));
             empty.color(Look.MUTED);
             empty.lineHeight(10);
-            card.child(empty.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
-            body.child(card);
+            card.child(empty.horizontalSizing(Sizing.fixed(text())));
+            put(card);
             return;
         }
 
@@ -582,7 +538,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         LabelComponent name = Components.label(Text.translatable("villagepax.trade.screen.goods",
                 gift.item().getName(), Text.literal(String.valueOf(gift.count()))));
         name.color(gift.ready() ? Look.INK : Look.MUTED);
-        row.child(name.horizontalSizing(Sizing.fixed(NAME_WIDTH)));
+        row.child(name.horizontalSizing(Sizing.fixed(text() - 112)));
 
         row.child(Look.pill(Text.translatable("villagepax.people.screen.worth",
                 Text.literal("+" + gift.trust())), gift.ready() ? Look.GOOD : Look.MUTED));
@@ -594,7 +550,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
 
         gift.verdict().reasonKey().ifPresent(key -> row.tooltip(Text.translatable(key)));
         card.child(row);
-        body.child(card);
+        put(card);
     }
 
     /** Строка доверия: ступень, число и сколько до следующей. */
@@ -613,8 +569,8 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         if (offer == null) {
             FlowLayout card = Look.card(null);
             card.child(Look.nothing(Text.translatable("villagepax.quest.screen.nothing"),
-                    TEXT_WIDTH));
-            body.child(card);
+                    text()));
+            put(card);
             return;
         }
 
@@ -622,15 +578,15 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         LabelComponent said = Components.label(Text.translatable(offer.dialogue()));
         said.color(Look.INK);
         said.lineHeight(10);
-        words.child(said.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
-        body.child(words);
+        words.child(said.horizontalSizing(Sizing.fixed(text())));
+        put(words);
 
         FlowLayout asks = Look.card("villagepax.quest.screen.asks",
                 new ItemStack(Items.CHEST));
         for (QuestView.Need need : offer.objectives()) {
             asks.child(needRow(need));
         }
-        body.child(asks);
+        put(asks);
 
         if (!offer.rewards().isEmpty()) {
             FlowLayout gives = Look.card("villagepax.quest.screen.gives",
@@ -638,7 +594,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
             for (QuestView.Prize prize : offer.rewards()) {
                 gives.child(prizeRow(prize));
             }
-            body.child(gives);
+            put(gives);
         }
 
         // Кнопка выключена, пока принесено не всё: отказ лучше показать
@@ -646,7 +602,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         ButtonComponent hand = Look.action(
                 Text.translatable("villagepax.quest.screen.hand_in"), 130, button -> handIn());
         hand.active(offer.ready());
-        body.child(hand);
+        put(hand);
     }
 
     /**
@@ -660,7 +616,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
                 Text.translatable("villagepax.trade.screen.prices"));
         about.color(Look.MUTED);
         about.lineHeight(10);
-        body.child(about.horizontalSizing(Sizing.fixed(TEXT_WIDTH)));
+        frame.wide(about.horizontalSizing(Sizing.fixed(frame.bodyWidth)));
 
         fillSide(true, "villagepax.trade.screen.sells");
         fillSide(false, "villagepax.trade.screen.buys");
@@ -678,7 +634,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
                 card.child(stallRow(stall));
             }
         }
-        body.child(card);
+        put(card);
     }
 
     /**
@@ -702,7 +658,7 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
         LabelComponent name = Components.label(Text.translatable("villagepax.trade.screen.goods",
                 stall.item().getName(), Text.literal(String.valueOf(stall.count()))));
         name.color(ready ? Look.INK : Look.MUTED);
-        row.child(name.horizontalSizing(Sizing.fixed(NAME_WIDTH)));
+        row.child(name.horizontalSizing(Sizing.fixed(text() - 112)));
 
         row.child(Look.pill(new ItemStack(ModItems.COIN), Coins.spell(stall.price()),
                 ready ? Look.INK : Look.MUTED));

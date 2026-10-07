@@ -2,7 +2,7 @@
   "display_name": "villagepax.culture.maya",
   "kind": "historical",
   "spawn": {
-    "biomes": "#minecraft:is_jungle",
+    "biomes": "#villagepax:maya_home",
     "weight": 10,
     "min_distance_chunks": 32
   },

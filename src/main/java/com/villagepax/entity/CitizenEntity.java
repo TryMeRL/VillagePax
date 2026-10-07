@@ -220,6 +220,23 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
      */
     private int waitedForMaterials;
 
+    /**
+     * С какого тика мира ремесленник снова может взяться за варку.
+     * <p>
+     * В теле, а не в записи: это темп рук, а не состояние хозяйства.
+     * После перезахода первая варка случится сразу — велика ли беда.
+     */
+    private long nextCraftAt;
+
+    /** Готов ли ремесленник к следующей варке — и если да, занять руки на столько тиков. */
+    public boolean readyToCraft(long now, int every) {
+        if (now < nextCraftAt) {
+            return false;
+        }
+        nextCraftAt = now + every;
+        return true;
+    }
+
     private final Map<BlockPos, Long> unreachable = new HashMap<>();
     private BlockPos stuckOn;
     private int stuckFor;

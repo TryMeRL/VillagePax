@@ -536,16 +536,25 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
      * и у незнакомого ремесла он всё равно будет общим. Общий — хлебная
      * корка: человек, который просто живёт.
      */
+    /**
+     * Значок ремесла — то, что житель этого ремесла держит в руках
+     * или делает: игрок узнаёт его в списке так же, как на улице.
+     * Без ремесла — хлеб: ест, а не работает.
+     */
     private static ItemStack toolOf(Optional<Identifier> profession) {
         String craft = profession.map(Identifier::getPath).orElse("");
         return new ItemStack(switch (craft) {
             case "builder" -> Items.IRON_PICKAXE;
             case "courier" -> Items.CHEST;
-            case "farmer" -> Items.WHEAT;
+            case "farmer" -> Items.IRON_HOE;
             case "lumberjack" -> Items.IRON_AXE;
             case "guard" -> Items.IRON_SWORD;
             case "elder" -> Items.BELL;
-            default -> Items.BREAD;
+            case "merchant" -> Items.EMERALD;
+            case "brewer" -> ModItems.ALE;
+            case "weaver" -> ModItems.CLOTH;
+            case "entertainer" -> com.villagepax.item.festival.ModFestivalItems.JUGGLING_BALLS;
+            default -> profession.isPresent() ? Items.CRAFTING_TABLE : Items.BREAD;
         });
     }
 
@@ -889,7 +898,9 @@ public class TownHallScreen extends BaseOwoHandledScreen<FlowLayout, TownHallScr
         if (citizen.leavingSoon() || citizen.mood() == Mood.STARVING) {
             return Look.BAD;
         }
-        return citizen.mood() == Mood.CONTENT ? Look.GOOD : Color.ofRgb(0xD0C070);
+        // Между «доволен» и «беда» — тёмный янтарь: светло-жёлтый на
+        // пергаменте не читался.
+        return citizen.mood() == Mood.CONTENT ? Look.GOOD : Look.GOLD;
     }
 
     private static Text number(int value) {

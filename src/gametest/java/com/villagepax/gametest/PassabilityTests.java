@@ -1190,6 +1190,11 @@ public class PassabilityTests extends GameTestSupport {
                 context.throwGameTestException("Эль взялся из воздуха: зерна было "
                         + wheat + ", осталось " + after.count(Items.WHEAT));
             }
+            // Восемь решений в один миг — одна варка: котёл не автомат.
+            if (after.count(ModItems.ALE) > 1) {
+                context.throwGameTestException("Пивовар сварил " + after.count(ModItems.ALE)
+                        + " эля в один миг: варка должна занимать время");
+            }
         } finally {
             if (brewer != null) {
                 discardBodies(world, colony);

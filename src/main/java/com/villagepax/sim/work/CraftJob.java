@@ -86,10 +86,22 @@ public final class CraftJob implements Job {
 
         if (context.position().squaredDistanceTo(Vec3d.ofCenter(bench)) <= REACH * REACH) {
             context.swing();
-            work(context, craft);
+            if (context.body().readyToCraft(context.world().getTime(), CRAFT_EVERY)) {
+                work(context, craft);
+            }
         }
         return Optional.of(bench);
     }
+
+    /**
+     * Одна варка — десять секунд у станка.
+     * <p>
+     * Прежде варка шла на каждом решении, раз в полсекунды: стопка зерна
+     * становилась элем за десять секунд, и склад пустел на глазах, а работа
+     * у котла выглядела автоматом. Десять секунд — это сорок с лишним варок
+     * за рабочий день: и заметно, и не бесконечно.
+     */
+    static final int CRAFT_EVERY = 200;
 
     /**
      * Первый рецепт, на который хватает припасов.

@@ -599,7 +599,20 @@ abstract class GameTestSupport implements FabricGameTest {
         }
 
         if (!site.isOperational()) {
-            complaints.add(id + ": не достроилось, шаг " + site.nextStep() + " из " + steps);
+            // Какой блок не встаёт и откуда к нему тянутся: без этого «шаг 658»
+            // ничего не говорит, и причину ищут перебором.
+            String detail = "";
+            if (site.nextStep() < steps) {
+                com.villagepax.sim.build.BuildStep step = schematic.plan().steps().get(site.nextStep());
+                BlockPos where = BuildJob.worldPos(site, schematic.size(), step.pos());
+                detail = ": " + schematic.blockAt(step.paletteIndex()).getBlock().getTranslationKey()
+                        + " в " + step.pos().toShortString() + " схемы, в мире "
+                        + world.getBlockState(where).getBlock().getTranslationKey()
+                        + ", стоять — " + BuilderJob.standingSpot(world, site)
+                        .map(BlockPos::toShortString).orElse("негде")
+                        + " (угол " + site.anchor().toShortString() + ")";
+            }
+            complaints.add(id + ": не достроилось, шаг " + site.nextStep() + " из " + steps + detail);
         }
         if (midair > 0) {
             complaints.add(id + ": " + midair + " раз стоять предлагалось там, "

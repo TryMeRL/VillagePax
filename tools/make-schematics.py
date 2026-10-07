@@ -2557,6 +2557,37 @@ def raise_bower(base, extra, crown=2):
         + leaf_crown(width, depth, crown)
 
 
+def with_loft(layers, plank, beds_x=(4, 5)):
+    """Полати в высоком зале: помост у задней стены и лестница к нему.
+
+    Гномы и эльфы этажей не надстраивают — над одними гора, у других место
+    в кроне одно на дом, — но высокий зал под полати у них есть, как
+    у северян. Пол полатей — третий слой, над двумя задними рядами; лестница —
+    у западной стены, в ряду перед ними; на полатях — ещё две постели.
+    """
+    out = [list(layer) for layer in layers]
+    width, depth = len(out[0][0]), len(out[0])
+
+    def put(y, x, z, ch):
+        row = list(out[y][z])
+        if row[x] != ".":
+            raise ValueError(f"полати: клетка {x},{y},{z} занята {row[x]!r}")
+        row[x] = ch
+        out[y][z] = "".join(row)
+
+    loft = (depth - 3, depth - 2)
+    for y in (1, 2, 3):
+        put(y, 1, depth - 4, "x")
+    for z in loft:
+        for x in range(1, width - 1):
+            put(3, x, z, plank)
+    for x in beds_x:
+        put(4, x, loft[0], "f")
+        put(4, x, loft[1], "h")
+    put(4, 2, loft[1], "O")
+    return out
+
+
 def deepen(base, extra):
     """Тот же зал со сводом выше на несколько блоков.
 
@@ -3293,6 +3324,12 @@ DWARF_HOUSE = chamber([
     "/-----/",
 ], height=5, door=(3, 0), grates=DWARF_GRATES)
 
+# --- высокий чертог гномов: городской дом ---
+#
+# Город гномов растёт не вверх, а вглубь: зал вдвое выше каморы, и у задней
+# стены — полати на четверых, по лестнице. Внизу — постели, стол и полка,
+# под полатями — лавка и кладовая.
+
 # --- жильё гномов, уровень 2 ---
 #
 # Свод выше на блок и ещё две лежанки: чертог растёт вглубь и вверх,
@@ -3307,6 +3344,16 @@ DWARF_HOUSE_2 = deepen([
      "-O.c.S-",
      "/-----/"],
 ] + DWARF_HOUSE[2:], 1)
+
+DWARF_TOWNHOUSE = with_loft(chamber([
+    "/--D--/",
+    "-ff.ff-",
+    "-hh.hh-",
+    "-..%..-",
+    "-..=.;-",
+    "-O...S-",
+    "/-----/",
+], height=8, door=(3, 0), grates=DWARF_GRATES), "P")
 
 # --- подземные грядки гномов, уровень 1: 7x7 ---
 #
@@ -3491,6 +3538,21 @@ ELF_HOUSE_2 = raise_bower([
      "{O.c.S{",
      "{{{{{{{"],
 ] + ELF_HOUSE[2:], 1)
+
+# --- высокие палаты эльфов: городской дом ---
+#
+# Стены вдвое выше гнездовья, и у задней стены — полати из берёзы
+# по лестнице, ещё на две постели. Палата стоит на том же стволе:
+# эльфы растут в высоту вместе с деревом, а не вширь.
+ELF_TOWNHOUSE = with_loft(bower([
+    "{{{D{{{",
+    "{ff.ff{",
+    "{hh.hh{",
+    "{..%..{",
+    "{..=.;{",
+    "{O...S{",
+    "{{{{{{{",
+], height=7, door=(3, 0), panes=ELF_PANES), "{")
 
 # --- висячий сад эльфов, уровень 1: 7x7 ---
 #
@@ -4968,6 +5030,7 @@ RAW_SCHEMATICS = {
     "dwarf/town_hall_lvl4": DWARF_TOWN_HALL_4,
     "dwarf/house_lvl1": DWARF_HOUSE,
     "dwarf/house_lvl2": DWARF_HOUSE_2,
+    "dwarf/townhouse_lvl1": DWARF_TOWNHOUSE,
     "dwarf/farm_lvl1": DWARF_FARM,
     "dwarf/warehouse_lvl1": DWARF_WAREHOUSE,
     "dwarf/builder_hut_lvl1": DWARF_BUILDER_HUT,
@@ -4982,6 +5045,7 @@ RAW_SCHEMATICS = {
     "elf/town_hall_lvl4": ELF_TOWN_HALL_4,
     "elf/house_lvl1": ELF_HOUSE,
     "elf/house_lvl2": ELF_HOUSE_2,
+    "elf/townhouse_lvl1": ELF_TOWNHOUSE,
     "elf/farm_lvl1": ELF_FARM,
     "elf/warehouse_lvl1": ELF_WAREHOUSE,
     "elf/builder_hut_lvl1": ELF_BUILDER_HUT,

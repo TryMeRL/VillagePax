@@ -353,6 +353,16 @@ public class SettlementManager extends PersistentState {
     }
 
     /** Всё убранство деревни — чтобы убрать его вместе с ней. */
+    /**
+     * Ключ, под которым лежат блоки городской стены поселения. Здесь, а не
+     * в {@code Streetscape}: тот при загрузке тянет за собой блоки мода,
+     * а забывать убранство нужно и там, где блоков нет.
+     */
+    public static UUID wallKey(UUID village) {
+        return UUID.nameUUIDFromBytes(("villagepax:wall/" + village)
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     /** Забыть убранство под этим ключом: старое кольцо стены снято. */
     public void forgetDecor(UUID key) {
         if (decor.remove(key) != null) {
@@ -369,7 +379,7 @@ public class SettlementManager extends PersistentState {
         // Убранство забывается вместе с деревней: сносящий зовёт decorOf
         // до remove, если хочет убрать и его.
         decor.remove(id);
-        decor.remove(Streetscape.wallKey(id));
+        decor.remove(wallKey(id));
         dressed.remove(id);
         festive.remove(id);
         awarded.remove(id);

@@ -277,8 +277,7 @@ public final class Streetscape {
     }
 
     public static UUID wallKey(UUID village) {
-        return UUID.nameUUIDFromBytes(("villagepax:wall/" + village)
-                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return SettlementManager.wallKey(village);
     }
 
     /** Полуширина кольца стены — для проверок. */

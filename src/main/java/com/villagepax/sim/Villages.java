@@ -335,6 +335,10 @@ public final class Villages {
      */
     private static void openForBusiness(ServerWorld world, Settlement village) {
         Warehouse warehouse = Warehouse.of(world, village);
+        // И хлеб в закромах: первая морковь поспеет через день-другой,
+        // а есть деревне надо с первого утра.
+        warehouse.addOrScatter(world, village.center().up(),
+                new ItemStack(net.minecraft.item.Items.BREAD, STARTING_BREAD));
         Coins.earn(warehouse.coins(), PURSE_CAP / 2).forEach(left ->
                 ItemScatterer.spawn(world, village.center().getX(), village.center().getY(),
                         village.center().getZ(), left));
@@ -379,6 +383,7 @@ public final class Villages {
             // что осталось, а не из того, что должна соседу.
             Citizenship.newDay(world, manager, village);
             deliver(world, village, warehouse);
+            keepAFarmer(world, village);
             // Чертоги, основанные до штолен, достают их сами на рассвете:
             // иначе гномы в старых мирах так и сидели бы замурованными.
             Galleries.cutAll(world, village);
@@ -417,6 +422,38 @@ public final class Villages {
                     ItemScatterer.spawn(world, village.center().getX(), village.center().getY(),
                             village.center().getZ(), left));
         }
+    }
+
+    /** Хлеба в закромах новой деревни: на четверых с запасом, пока растёт первая морковь. */
+    static final int STARTING_BREAD = 16;
+
+    /**
+     * У деревни с полем всегда есть фермер.
+     * <p>
+     * Деревни, вставшие до этой правки, жили без пахаря: поле стояло,
+     * еда кончалась, жители уходили, а новые не шли — приток ждёт еды.
+     * В сохранениях заказчика такие деревни пустели за несколько дней.
+     * Фермером становится тот, без кого деревня обойдётся: курьер, лесоруб
+     * или житель без дела, — не строитель, не старейшина, не купец.
+     */
+    public static void keepAFarmer(ServerWorld world, Settlement village) {
+        boolean hasFarm = village.buildings().stream().anyMatch(building -> building.isOperational()
+                && BuildingTypes.employs(building.type(), com.villagepax.sim.work.FarmJob.FARMER));
+        boolean hasFarmer = village.citizens().stream().anyMatch(citizen -> citizen.profession()
+                .filter(com.villagepax.sim.work.FarmJob.FARMER::equals).isPresent());
+        if (!hasFarm || hasFarmer) {
+            return;
+        }
+        java.util.Set<Identifier> needed = java.util.Set.of(Founding.PROFESSION_BUILDER, ELDER, MERCHANT,
+                ENTERTAINER);
+        village.citizens().stream()
+                .filter(citizen -> !com.villagepax.sim.life.Ages.isChild(citizen))
+                .filter(citizen -> citizen.profession().filter(needed::contains).isEmpty())
+                .min(java.util.Comparator.comparing((Citizen citizen) -> citizen.profession().isPresent()))
+                .ifPresent(citizen -> {
+                    citizen.setProfession(com.villagepax.sim.work.FarmJob.FARMER);
+                    Workplaces.assign(world, village);
+                });
     }
 
     /**
@@ -565,6 +602,13 @@ public final class Villages {
     private static Citizen hand(Settlement village, Identifier cultureId, Culture culture,
                                 Random random) {
         Citizen hand = Founding.newCitizen(cultureId, culture, random, village.citizens());
+        // Фермер — первым, если у народа есть поле: без него поле стоит,
+        // деревня голодает и пустеет. Курьер по приоритету найма выше, и
+        // прежде деревни вставали с полем и без единого пахаря.
+        if (BuildingTypes.workplaceOf(culture.buildings(), com.villagepax.sim.work.FarmJob.FARMER).isPresent()) {
+            hand.setProfession(com.villagepax.sim.work.FarmJob.FARMER);
+            return hand;
+        }
         com.villagepax.sim.work.Housing.neededProfession(village, hand)
                 .ifPresent(hand::setProfession);
         return hand;

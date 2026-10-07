@@ -912,4 +912,59 @@ public class VillageTests extends GameTestSupport {
         }
         context.complete();
     }
+
+    /**
+     * Деревня встаёт с фермером и хлебом в закромах — и не пустеет от голода.
+     * <p>
+     * В сохранениях заказчика деревни вставали с полем, но без пахаря:
+     * четвёртый основатель становился курьером, еда кончалась, жители
+     * уходили. Старой деревне без фермера он назначается на рассвете.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "needs")
+    public void aVillageFeedsItself(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(0, 9, 0));
+        List<BlockPos> meadow = new ArrayList<>();
+        Settlement village = null;
+        try {
+            for (int x = -24; x <= 24; x++) {
+                for (int z = -24; z <= 24; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 8, z));
+                    world.setBlockState(at, Blocks.GRASS_BLOCK.getDefaultState());
+                    meadow.add(at);
+                }
+            }
+            village = Villages.found(world, NORMAN, centre).orElse(null);
+            if (village == null) {
+                context.throwGameTestException("Деревня не встала");
+                return;
+            }
+            java.util.function.Predicate<com.villagepax.sim.Citizen> farmer = citizen -> citizen.profession()
+                    .filter(com.villagepax.sim.work.FarmJob.FARMER::equals).isPresent();
+            if (village.citizens().stream().noneMatch(farmer)) {
+                context.throwGameTestException("Деревня с полем встала без фермера: "
+                        + village.citizens().stream().map(c -> c.profession().map(Object::toString)
+                        .orElse("—")).toList());
+            }
+            if (!com.villagepax.sim.Warehouse.of(world, village).hasAny(com.villagepax.core.ModTags.CITIZEN_FOOD)) {
+                context.throwGameTestException("В закромах новой деревни нет еды");
+            }
+
+            // Старая деревня: фермера нет — он назначается из тех, без кого обойдутся.
+            village.citizens().stream().filter(farmer)
+                    .forEach(citizen -> citizen.setProfession(com.villagepax.sim.work.HaulJob.COURIER));
+            Villages.keepAFarmer(world, village);
+            if (village.citizens().stream().noneMatch(farmer)) {
+                context.throwGameTestException("Старой деревне без пахаря фермер так и не нашёлся");
+            }
+            if (village.citizens().stream().noneMatch(citizen -> citizen.profession()
+                    .filter(Villages.ELDER::equals).isPresent())) {
+                context.throwGameTestException("Фермером сделали старейшину");
+            }
+        } finally {
+            cleanUpVillage(world, manager, village, centre, meadow);
+        }
+        context.complete();
+    }
 }

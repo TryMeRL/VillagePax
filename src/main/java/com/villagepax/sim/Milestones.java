@@ -53,6 +53,8 @@ public final class Milestones {
                 colony.center().getX() + 0.5, colony.center().getY() + 1.5,
                 colony.center().getZ() + 0.5, 60, 1.5, 1.0, 1.5, 0.2);
 
+        com.villagepax.sim.life.Chronicle.note(world, colony, "villagepax.chronicle.level",
+                com.villagepax.sim.life.Chronicle.level(level));
         tell(world, colony, Text.translatable("villagepax.level.reached",
                         Text.literal(colony.name()),
                         Text.translatable(levelKey(level)))

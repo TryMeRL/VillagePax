@@ -283,6 +283,8 @@ public final class Happenings {
         Lines.sayKey(body, winner, "villagepax.happening.quarrel.won", true);
         settlement.citizen(loser).ifPresent(citizen -> bodyNow(world, citizen).ifPresent(other ->
                 Lines.sayKey(other, citizen, "villagepax.happening.quarrel.lost", true)));
+        Chronicle.note(world, settlement, "villagepax.chronicle.quarrel",
+                player.getName().getString(), winner.firstName(), loserName);
         player.sendMessage(Text.translatable("villagepax.happening.quarrel.settled",
                 winner.firstName(), loserName).formatted(Formatting.YELLOW), true);
         world.spawnParticles(ParticleTypes.HAPPY_VILLAGER, body.getX(), body.getY() + 2.0,

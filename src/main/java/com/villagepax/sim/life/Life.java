@@ -65,6 +65,7 @@ public final class Life {
      * принадлежит месту.
      */
     static void tell(ServerWorld world, Settlement settlement, String key, String... names) {
+        Chronicle.heard(world, settlement, key, names);
         Object[] args = new Object[names.length];
         for (int at = 0; at < names.length; at++) {
             args[at] = Text.literal(names[at]).formatted(Formatting.WHITE);

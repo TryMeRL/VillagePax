@@ -65,6 +65,8 @@ public final class Awards {
             give(player, new ItemStack(ModFestivalItems.FESTIVAL_RIBBON, ribbons));
             if (first) {
                 give(player, trophy(contest.name(), festival.name(), settlement.name(), day, who.name()));
+                com.villagepax.sim.life.Chronicle.note(world, settlement, "villagepax.chronicle.champion",
+                        who.name(), "#" + contest.name());
             }
             if (settlement.owner().isAutonomous()) {
                 trust(manager, settlement, who.id(),

@@ -82,6 +82,10 @@ public final class Conquest {
                 loser.name(), winner.name(), Tribute.DAYS);
         told(world, loser, winner, "villagepax.conquest.taken");
         told(world, winner, loser, "villagepax.conquest.took");
+        com.villagepax.sim.life.Chronicle.note(world, loser, "villagepax.chronicle.taken",
+                winner.name(), String.valueOf(Tribute.DAYS));
+        com.villagepax.sim.life.Chronicle.note(world, winner, "villagepax.chronicle.took",
+                loser.name(), String.valueOf(Tribute.DAYS));
         return true;
     }
 

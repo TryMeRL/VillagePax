@@ -419,6 +419,8 @@ public final class Raids {
             manager.byId(party.home()).ifPresent(lord ->
                     Conquest.free(world, manager, colony, Conquest.owedTo(lord), today));
             announce(world, colony, "villagepax.raid.repelled", Formatting.GREEN);
+            com.villagepax.sim.life.Chronicle.note(world, colony, "villagepax.chronicle.raid_repelled",
+                    manager.byId(party.home()).map(Settlement::name).orElse("?"));
             manager.byId(party.home()).ifPresent(home -> tell(world, colony,
                     Text.translatable("villagepax.raid.mourning", Text.literal(home.name()),
                                     Text.literal(String.valueOf(home.truceDaysLeft(today))))

@@ -123,6 +123,7 @@ public final class BuildCommand {
                         .then(literal("status").executes(BuildCommand::status))
                         .then(literal("guide").executes(BuildCommand::guide))
                         .then(literal("calendar").executes(BuildCommand::calendar))
+                        .then(literal("chronicle").executes(BuildCommand::chronicle))
                         // Доверие — хозяину колонии, а не оператору: своей
                         // землёй распоряжается тот, чья она.
                         .then(literal("trust")
@@ -291,6 +292,31 @@ public final class BuildCommand {
         player.getInventory().offerOrDrop(Guide.book());
         context.getSource().sendFeedback(
                 () -> Text.translatable("villagepax.guide.given"), false);
+        return 1;
+    }
+
+    /**
+     * Книга летописи: того поселения, где стоишь, а вне поселений — своей
+     * колонии.
+     */
+    private static int chronicle(CommandContext<ServerCommandSource> context)
+            throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayerOrThrow();
+        SettlementManager manager = SettlementManager.get(player.getServerWorld());
+        Optional<Settlement> where = manager.at(player.getBlockPos())
+                .or(() -> manager.all().stream()
+                        .filter(settlement -> settlement.owner().isOwnedBy(player.getUuid()))
+                        .findFirst());
+        if (where.isEmpty()) {
+            context.getSource().sendFeedback(
+                    () -> Text.translatable("villagepax.chronicle.none"), false);
+            return 0;
+        }
+        Settlement settlement = where.get();
+        player.getInventory().offerOrDrop(com.villagepax.sim.life.Chronicle.book(settlement,
+                manager.chronicleOf(settlement.id())));
+        context.getSource().sendFeedback(
+                () -> Text.translatable("villagepax.chronicle.given", settlement.name()), false);
         return 1;
     }
 

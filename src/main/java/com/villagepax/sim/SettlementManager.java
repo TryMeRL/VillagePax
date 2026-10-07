@@ -41,6 +41,10 @@ public class SettlementManager extends PersistentState {
     private static final String DRESSED_TAG = "dressed";
     private static final String FESTIVE_TAG = "festive";
     private static final String AWARDED_TAG = "awarded";
+    private static final String CHRONICLE_TAG = "chronicle";
+
+    /** Сколько записей летописи помнит поселение: последние, старые уходят. */
+    public static final int CHRONICLE_LENGTH = 60;
 
     private final Map<UUID, Settlement> settlements = new LinkedHashMap<>();
 
@@ -116,6 +120,23 @@ public class SettlementManager extends PersistentState {
     private record Awarded(long day, List<String> keys) {
     }
 
+    /**
+     * Летопись поселения: что в нём случилось, по дням.
+     * <p>
+     * Здесь, а не в самом поселении: у кодека поселения шестнадцать полей,
+     * и все они заняты. Хранится рядом, как память о призах, и уходит
+     * вместе с поселением.
+     */
+    private final Map<UUID, List<ChronicleEntry>> chronicles = new LinkedHashMap<>();
+
+    /**
+     * Запись летописи: день, ключ перевода и его аргументы. Аргумент,
+     * начатый с {@code #}, — сам ключ перевода (ступень, состязание),
+     * прочие — имена как есть.
+     */
+    public record ChronicleEntry(long day, String key, List<String> args) {
+    }
+
     public static SettlementManager get(ServerWorld world) {
         return world.getPersistentStateManager()
                 .getOrCreate(SettlementManager::fromNbt, SettlementManager::new, KEY);
@@ -179,6 +200,21 @@ public class SettlementManager extends PersistentState {
             }
             manager.awarded.put(entry.getUuid("village"),
                     new Awarded(entry.getLong("day"), List.copyOf(keys)));
+        }
+        for (NbtElement element : nbt.getList(CHRONICLE_TAG, NbtElement.COMPOUND_TYPE)) {
+            NbtCompound book = (NbtCompound) element;
+            List<ChronicleEntry> entries = new ArrayList<>();
+            for (NbtElement written : book.getList("entries", NbtElement.COMPOUND_TYPE)) {
+                NbtCompound entry = (NbtCompound) written;
+                List<String> args = new ArrayList<>();
+                NbtList saved = entry.getList("args", NbtElement.STRING_TYPE);
+                for (int i = 0; i < saved.size(); i++) {
+                    args.add(saved.getString(i));
+                }
+                entries.add(new ChronicleEntry(entry.getLong("day"), entry.getString("key"),
+                        List.copyOf(args)));
+            }
+            manager.chronicles.put(book.getUuid("village"), entries);
         }
         return manager;
     }
@@ -248,6 +284,24 @@ public class SettlementManager extends PersistentState {
             prizes.add(entry);
         });
         nbt.put(AWARDED_TAG, prizes);
+        NbtList books = new NbtList();
+        chronicles.forEach((village, entries) -> {
+            NbtCompound book = new NbtCompound();
+            book.putUuid("village", village);
+            NbtList written = new NbtList();
+            for (ChronicleEntry entry : entries) {
+                NbtCompound one = new NbtCompound();
+                one.putLong("day", entry.day());
+                one.putString("key", entry.key());
+                NbtList args = new NbtList();
+                entry.args().forEach(arg -> args.add(net.minecraft.nbt.NbtString.of(arg)));
+                one.put("args", args);
+                written.add(one);
+            }
+            book.put("entries", written);
+            books.add(book);
+        });
+        nbt.put(CHRONICLE_TAG, books);
         return nbt;
     }
 
@@ -311,6 +365,7 @@ public class SettlementManager extends PersistentState {
         dressed.remove(id);
         festive.remove(id);
         awarded.remove(id);
+        chronicles.remove(id);
         if (removed) {
             markDirty();
         }
@@ -355,6 +410,21 @@ public class SettlementManager extends PersistentState {
     }
 
     /** Брал ли игрок приз за это состязание в этот праздник. */
+    /** Вписать в летопись поселения; самое старое уходит, когда места нет. */
+    public void chronicle(UUID village, long day, String key, String... args) {
+        List<ChronicleEntry> entries = chronicles.computeIfAbsent(village, id -> new ArrayList<>());
+        entries.add(new ChronicleEntry(day, key, List.of(args)));
+        while (entries.size() > CHRONICLE_LENGTH) {
+            entries.remove(0);
+        }
+        markDirty();
+    }
+
+    /** Летопись поселения, от старого к новому. */
+    public List<ChronicleEntry> chronicleOf(UUID village) {
+        return List.copyOf(chronicles.getOrDefault(village, List.of()));
+    }
+
     public boolean awarded(UUID village, long day, UUID player, int contest) {
         Awarded memory = awarded.get(village);
         return memory != null && memory.day() == day && memory.keys().contains(prizeKey(player, contest));

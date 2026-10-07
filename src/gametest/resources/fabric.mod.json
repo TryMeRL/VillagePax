@@ -34,7 +34,8 @@
       "com.villagepax.gametest.GamesTests",
       "com.villagepax.gametest.HideAndSeekTests",
       "com.villagepax.gametest.BodyTests",
-      "com.villagepax.gametest.BoardTests"
+      "com.villagepax.gametest.BoardTests",
+      "com.villagepax.gametest.ChatterTests"
     ]
   },
   "depends": {

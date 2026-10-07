@@ -1,11 +1,28 @@
 package com.villagepax.sim.life;
 
 import com.villagepax.core.Named;
+import com.villagepax.entity.CitizenEntity;
+import com.villagepax.sim.Citizen;
+import com.villagepax.sim.Settlement;
 import com.villagepax.sim.Standing;
+import com.villagepax.sim.festival.FestivalDay;
+import com.villagepax.sim.festival.Matches;
+import com.villagepax.sim.games.Bouts;
+import com.villagepax.sim.games.HideAndSeek;
+import com.villagepax.sim.games.Lines;
+import com.villagepax.sim.work.BuilderJob;
+import com.villagepax.sim.work.Needs;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.Text;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
+import java.util.UUID;
 import java.util.function.IntUnaryOperator;
 
 /**
@@ -153,5 +170,76 @@ public final class Chatter {
     /** Одна тема из правдивых: случай по границе — номер от нуля до неё. */
     public static Topic choose(List<Topic> topics, IntUnaryOperator choose) {
         return topics.get(choose.applyAsInt(topics.size()));
+    }
+    // --- в мире ---
+
+    /** Житель говорит не чаще раза в столько тиков: минута. */
+    public static final int CITIZEN_EVERY = 1_200;
+
+    /** Набег «недавно» — не дальше стольких дней. */
+    static final int RAID_REMEMBERED = 2;
+
+    /** Когда житель говорил последний раз. Только сервер: голос, а не память. */
+    private static final Map<UUID, Long> SPOKE = new HashMap<>();
+
+    /** Положение жителя из мира — то, что правило спросит. */
+    public static Situation situation(ServerWorld world, Settlement settlement, Citizen citizen,
+                                      PlayerEntity player, long day) {
+        Optional<String> newborn = Families.childrenOf(settlement, citizen).stream()
+                .filter(child -> child.lived() >= 0 && child.lived() <= 1)
+                .map(Citizen::firstName)
+                .findFirst();
+        boolean raided = settlement.lastRaid() != Settlement.UNSEEN_DAY
+                && day - settlement.lastRaid() <= RAID_REMEMBERED && settlement.siege().isEmpty();
+        boolean newcomer = citizen.parents().isEmpty() && citizen.lived() >= 0
+                && citizen.lived() - Ages.grownAt() <= 1;
+        return new Situation(settlement.siege().isPresent(), Needs.isHungry(citizen), newborn, raided,
+                FestivalDay.isOn(settlement, day + 1), citizen.isHomeless(),
+                BuilderJob.nobodyBuilds(settlement), newcomer, world.isRaining(),
+                settlement.owner().isOwnedBy(player.getUuid()), settlement.reputationOf(player.getUuid()),
+                citizen.profession().map(net.minecraft.util.Identifier::getPath), Ages.isChild(citizen));
+    }
+
+    /** Занят ли житель так, что ему не до разговоров: спит, играет, прячется, состязается. */
+    static boolean busy(Settlement settlement, Citizen citizen, CitizenEntity body) {
+        return body.isSleeping() || body.isDozing()
+                || Bouts.rivalOf(citizen.id()).isPresent()
+                || HideAndSeek.at(settlement.id()).flatMap(game -> game.spotOf(citizen.id())).isPresent()
+                || Matches.at(settlement.id()).filter(match -> match.isRival(citizen.id())).isPresent();
+    }
+
+    /**
+     * Сказать что-нибудь правдивое рядом с игроком — если пора и не занят.
+     *
+     * @return о чём сказал; пусто — промолчал
+     */
+    public static Optional<Topic> speak(ServerWorld world, Settlement settlement, Citizen citizen,
+                                        CitizenEntity body, PlayerEntity player, long day,
+                                        Random random) {
+        long now = world.getTime();
+        Long last = SPOKE.get(citizen.id());
+        if (last != null && now - last < CITIZEN_EVERY || busy(settlement, citizen, body)) {
+            return Optional.empty();
+        }
+        Situation at = situation(world, settlement, citizen, player, day);
+        Topic topic = choose(topics(at), random::nextInt);
+        String base = topic == Topic.WORK
+                ? topic.base() + "." + at.trade().orElse("none")
+                : topic.base();
+        Object argument = topic == Topic.NEWBORN
+                ? Text.literal(at.newborn().orElse(""))
+                : player.getName();
+        if (!Lines.sayKey(body, citizen, base, false, argument)) {
+            return Optional.empty();
+        }
+        SPOKE.put(citizen.id(), now);
+        // Сказавший поворачивается к игроку: фраза — ему.
+        body.getLookControl().lookAt(player, 30f, 30f);
+        return Optional.of(topic);
+    }
+
+    /** Забыть, кто когда говорил: мир сменился. */
+    public static void forget() {
+        SPOKE.clear();
     }
 }

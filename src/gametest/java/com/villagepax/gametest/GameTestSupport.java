@@ -598,8 +598,11 @@ abstract class GameTestSupport implements FabricGameTest {
                 return complaints;
             }
             if (outcome == BuildJob.Outcome.WAITING_FOR_MATERIALS) {
+                String wanted = site.nextStep() < steps
+                        ? " (нужен " + schematic.blockAt(schematic.plan().steps().get(site.nextStep())
+                        .paletteIndex()).getBlock().getTranslationKey() + ")" : "";
                 complaints.add(id + ": не хватило материалов на шаге " + site.nextStep()
-                        + " из " + steps + ", хотя завезли всё по заявке");
+                        + " из " + steps + wanted + ", хотя завезли всё по заявке");
                 return complaints;
             }
         }
@@ -1686,6 +1689,19 @@ abstract class GameTestSupport implements FabricGameTest {
                 BuildProgress.PLANNED, List.of());
         colony.addBuilding(site);
         return site;
+    }
+
+    /**
+     * Завезти всё по заявке прямо на стройку, а не на склад.
+     * <p>
+     * Склад ратуши — сундук в двадцать семь ячеек, и городской дом с его
+     * двумя десятками материалов в него уже не влезает: последнее, что
+     * в заявке, — сундук или лавка, — оставалось за дверью, и проверка
+     * «всё ли строится» жаловалась на нехватку, которой у игрока нет.
+     */
+    static void stockSite(Building site, Schematic schematic) {
+        Materials.required(schematic).forEach((item, count) ->
+                site.stock().add(Registries.ITEM.getId(item), count));
     }
 
     static void stockFor(ServerWorld world, Settlement colony, Schematic schematic) {

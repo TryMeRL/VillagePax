@@ -1628,6 +1628,41 @@ MAYA_HOUSE_2 = storey(
     extra=((1, 1, 4, "x"), (2, 1, 4, "x")),
     roof=pyramid(7, "T"))
 
+
+def _put(layers, x, y, z, symbol):
+    """Дописать символ в воздух готового плана: занятую клетку не трогает."""
+    if layers[y][z][x] != ".":
+        raise ValueError(f"дописывание в занятую клетку {x},{y},{z}: {layers[y][z][x]!r}")
+    row = list(layers[y][z])
+    row[x] = symbol
+    layers[y][z] = "".join(row)
+
+
+# --- городской дом майя: три яруса под ступенчатой пирамидой ---
+#
+# Дом второго уровня, поднятый ещё на ярус: в городе майя живут выше,
+# как и их храмы. Лестница продолжается тем же столбцом у западной стены,
+# под пирамидой — настил, с которого строитель достаёт вершину.
+MAYA_TOWNHOUSE = [list(layer) for layer in MAYA_HOUSE_2[:6]]
+for _y in (4, 5):
+    _put(MAYA_TOWNHOUSE, 1, _y, 4, "x")
+MAYA_TOWNHOUSE += [
+    # y=6 — пол третьего яруса с лазом
+    list(MAYA_HOUSE_2[3]),
+    # y=7 — верхняя горница
+    ["VRRRRRV",
+     "R.....R",
+     "R.%.ffR",
+     "R.=.hhR",
+     "R.....R",
+     "R...O.R",
+     "VRRRRRV"],
+    # y=8 — окна верхней горницы
+    list(MAYA_HOUSE_2[5]),
+    # y=9 — настил под пирамидой
+    ["iiiiiii"] + ["uaaaaau"] * 5 + ["iiiiiii"],
+] + pyramid(7, "T")
+
 # --- террасная ферма майя, уровень 1 ---
 #
 # Вот ради чего у народа черта `terrace_farming`: поле идёт двумя
@@ -4140,14 +4175,17 @@ def minka(width, depth, inset, ground, upper, door, windows=(), posts="B",
 
 
 def upstairs(base, width, depth, floor_hole, ground, upper, windows=(), lanterns=(),
-             posts="B", extra_posts=()):
+             posts="B", extra_posts=(), keep=3):
     """Второй этаж дома с верандой: юбка-свес вокруг первого и свой ярус кровли.
 
     Низ дома — как был: первые три слоя берутся целиком. Над ним ложится
     перекрытие с лазом, а свес первой кровли становится юбкой вокруг
     второго этажа, как у городских домов-матия.
+
+    keep — сколько слоёв низа взять как есть: 3 — помост и стены первого
+    этажа; 6 — ещё и второй этаж, тогда сверху встаёт третий.
     """
-    layers = [list(layer) for layer in base[:3]]
+    layers = [list(layer) for layer in base[:keep]]
     grid = _grid(width, depth)
     for z in range(depth):
         for x in range(width):
@@ -4236,6 +4274,31 @@ for _y in (1, 2):
     _row = list(YAMATO_HOUSE_2[_y][6])
     _row[2] = "x"
     YAMATO_HOUSE_2[_y][6] = "".join(_row)
+
+# --- матия: городской дом ямато в три яруса ---
+#
+# Минка второго уровня, над которой встаёт ещё этаж со своей юбкой
+# черепицы: три свеса один над другим, как у пагоды, только жилой.
+# Лестница — тем же столбцом у западной стены сквозь оба перекрытия.
+YAMATO_TOWNHOUSE = upstairs(
+    YAMATO_HOUSE_2, 9, 9, (2, 6, "x"),
+    ["ии..S",
+     "йй...",
+     ".....",
+     "....O",
+     "....."],
+    [".....",
+     ".....",
+     ".....",
+     ".....",
+     "....."],
+    windows=((3, 1), (5, 1), (3, 7), (5, 7), (1, 4), (7, 4)),
+    lanterns=((4, 4),), keep=6)
+for _y in (4, 5):
+    _row = list(YAMATO_TOWNHOUSE[_y][6])
+    assert _row[2] == ".", _row
+    _row[2] = "x"
+    YAMATO_TOWNHOUSE[_y][6] = "".join(_row)
 
 # --- усадьба даймё, уровень 1: зал на красных столбах ---
 # Ирори — у восточной стены, между лавками: посреди комнаты он лежал над
@@ -4816,6 +4879,8 @@ RAW_SCHEMATICS = {
     "norman/townhouse_lvl1": NORMAN_TOWNHOUSE,
     "pony/townhouse_lvl1": PONY_TOWNHOUSE,
     "nord/townhouse_lvl1": NORD_TOWNHOUSE,
+    "maya/townhouse_lvl1": MAYA_TOWNHOUSE,
+    "yamato/townhouse_lvl1": YAMATO_TOWNHOUSE,
     "norman/lumberjack_lvl1": NORMAN_LUMBERJACK,
     "norman/farm_lvl1": NORMAN_FARM,
     "norman/farm_lvl2": NORMAN_FARM_2,

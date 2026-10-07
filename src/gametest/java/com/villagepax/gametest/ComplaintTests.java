@@ -2287,7 +2287,7 @@ public class ComplaintTests extends GameTestSupport {
                 colony.addBuilding(site);
 
                 try {
-                    stockFor(world, colony, schematic);
+                    stockSite(site, schematic);
                     complaints.addAll(raiseFromStandableSpots(world, manager, colony, site,
                             schematic, id));
                 } finally {

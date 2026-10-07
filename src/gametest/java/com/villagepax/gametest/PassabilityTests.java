@@ -2118,7 +2118,7 @@ public class PassabilityTests extends GameTestSupport {
                 colony.addBuilding(site);
 
                 try {
-                    stockFor(world, colony, schematic);
+                    stockSite(site, schematic);
                     BuildJob.Outcome outcome =
                             BuildJob.advance(world, manager, colony.id(), site.id(), 40_000);
                     if (outcome != BuildJob.Outcome.FINISHED) {

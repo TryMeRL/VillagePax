@@ -185,6 +185,9 @@ public final class WorkTicker {
                     // ничего не строится». Раз в день, и только когда стройка
                     // действительно ждёт.
                     BuilderJob.remindIfNobodyBuilds(world, state);
+                    // Бродячий торговец заходит только туда, где его увидят:
+                    // в незагруженной деревне он простоял бы сутки впустую.
+                    com.villagepax.sim.trade.Peddler.newDay(world, manager, state, today);
                 }
                 if (state.owner().isAutonomous()) {
                     // Деревня решает за себя сама: игрока, который разметил

@@ -249,7 +249,8 @@ public final class Caravans {
         // прогулку и без привязи ушла бы гулять по колонии — а игрок
         // пришёл бы к телеге и не нашёл торговца.
         body.setPositionTarget(guest.stands(), 4);
-        body.setCustomName(Text.translatable("villagepax.caravan.merchant",
+        body.setCustomName(Text.translatable(Peddler.isPeddler(guest)
+                        ? "villagepax.peddler.name" : "villagepax.caravan.merchant",
                 Text.translatable("villagepax.culture." + guest.culture().getPath())));
         body.setCustomNameVisible(true);
         body.equipStack(net.minecraft.entity.EquipmentSlot.MAINHAND,

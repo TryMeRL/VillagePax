@@ -5,14 +5,27 @@ import com.villagepax.core.building.BuildingTypes;
 import com.villagepax.entity.CitizenEntity;
 import com.villagepax.sim.Building;
 import com.villagepax.sim.Villages;
+import com.villagepax.sim.Settlement;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.mob.CreeperEntity;
 import net.minecraft.entity.mob.HostileEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.AxeItem;
+import net.minecraft.item.BowItem;
+import net.minecraft.item.CrossbowItem;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.item.SwordItem;
+import net.minecraft.potion.PotionUtil;
+import net.minecraft.potion.Potions;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 
-import java.util.Optional;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Стража: ходит по деревне, а на набег идёт с мечом.
@@ -35,6 +48,10 @@ import java.util.List;
  * менять правило ради одного из них значило бы завести два правила.
  * Настоящая цена стражи в другом: это житель, который не пашет и не
  * строит, но ест, — и в колонии на шесть человек лишний рот заметен.
+ * <p>
+ * Стража бывает трёх выучек ({@link GuardKind}): мечник идёт на врага,
+ * лучник бьёт издали (сам выстрел — у тела, {@code CitizenBowGoal}),
+ * лекарь не дерётся, а перевязывает раненых.
  */
 public class GuardJob implements Job {
 
@@ -48,9 +65,19 @@ public class GuardJob implements Job {
         return LOGIC;
     }
 
+    /** Сколько здоровья возвращает одна перевязка лекаря. */
+    public static final float CARE = 4.0f;
+
+    /** Пауза между перевязками, в тиках. */
+    public static final int CARE_EVERY = 40;
+
+    /** С какого расстояния лекарь перевязывает: надо подойти вплотную. */
+    private static final double CARE_REACH = 3.0;
+
     @Override
     public Optional<BlockPos> tick(WorkContext context) {
-        context.hold(com.villagepax.item.gear.ModGear.armsFor(context.settlement().culture()));
+        GuardKind kind = context.manager().guardKindOf(context.settlement(), context.citizen().id());
+        context.hold(toolOf(kind, context.settlement().culture()));
 
         // Страж всегда «в простое», и это не небрежность: фаза работы
         // означает привязку к зданию, а у стражи здания нет — есть
@@ -58,6 +85,10 @@ public class GuardJob implements Job {
         // кто был курьером до того, как ему дали меч.
         if (context.state().phase() != JobState.Phase.IDLE) {
             context.goIdle();
+        }
+
+        if (kind == GuardKind.MEDIC) {
+            return care(context);
         }
 
         CitizenEntity enemy = nearestRaider(context);
@@ -86,6 +117,80 @@ public class GuardJob implements Job {
         }
         BlockPos post = towerPost(context);
         return post != null ? Optional.of(post) : farthestCorner(context);
+    }
+
+    /** Что у стражника в руке: оружие народа, лук или целебное зелье. */
+    public static ItemStack toolOf(GuardKind kind, Identifier culture) {
+        return switch (kind) {
+            case SWORD -> com.villagepax.item.gear.ModGear.armsFor(culture);
+            case BOW -> new ItemStack(Items.BOW);
+            case MEDIC -> PotionUtil.setPotion(new ItemStack(Items.POTION), Potions.HEALING);
+        };
+    }
+
+    /**
+     * Чему учит вещь, данная стражнику в руки: меч или топор — мечник,
+     * лук или арбалет — лучник, целебное — лекарь.
+     */
+    public static Optional<GuardKind> taughtBy(ItemStack stack) {
+        Item item = stack.getItem();
+        if (item instanceof BowItem || item instanceof CrossbowItem) {
+            return Optional.of(GuardKind.BOW);
+        }
+        if (item instanceof SwordItem || item instanceof AxeItem
+                || com.villagepax.item.gear.GearWeapons.gearOf(stack).isPresent()) {
+            return Optional.of(GuardKind.SWORD);
+        }
+        if (item == Items.GOLDEN_APPLE || item == Items.GLISTERING_MELON_SLICE
+                || item == Items.POTION || item == Items.SPLASH_POTION) {
+            return Optional.of(GuardKind.MEDIC);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Дело лекаря: найти раненого, подойти и перевязать.
+     * <p>
+     * Раненые — свои жители и тот, за кого поселение держится: хозяин
+     * колонии и союзники деревни. Без раненых лекарь стоит у ратуши —
+     * там его и ищут, — а не ходит в обход: драться он не станет.
+     */
+    private static Optional<BlockPos> care(WorkContext context) {
+        if (context.body().getTarget() != null) {
+            context.body().setTarget(null);
+        }
+        LivingEntity patient = nearestWounded(context);
+        if (patient == null) {
+            return Optional.of(context.settlement().center());
+        }
+        if (patient.squaredDistanceTo(context.body()) <= CARE_REACH * CARE_REACH) {
+            context.body().tend(patient);
+        }
+        return Optional.of(patient.getBlockPos());
+    }
+
+    /** Ближайший раненый, о ком лекарь заботится. */
+    public static LivingEntity nearestWounded(WorkContext context) {
+        Settlement settlement = context.settlement();
+        Box around = context.body().getBoundingBox().expand(WATCH, 12, WATCH);
+        LivingEntity best = null;
+        double bestAway = Double.MAX_VALUE;
+        List<LivingEntity> wounded = new ArrayList<>();
+        wounded.addAll(context.world().getEntitiesByClass(CitizenEntity.class, around,
+                one -> one.isAlive() && !one.isRaider() && one.caravanId() == null
+                        && one.settlementId().filter(settlement.id()::equals).isPresent()
+                        && one.getHealth() < one.getMaxHealth() - 1.0f));
+        wounded.addAll(context.world().getEntitiesByClass(PlayerEntity.class, around,
+                one -> one.isAlive() && !one.isSpectator() && one.getHealth() < one.getMaxHealth() - 1.0f
+                        && (settlement.owner().isOwnedBy(one.getUuid()) || settlement.isAllyOf(one.getUuid()))));
+        for (LivingEntity candidate : wounded) {
+            double away = candidate.squaredDistanceTo(context.body());
+            if (away < bestAway) {
+                bestAway = away;
+                best = candidate;
+            }
+        }
+        return best;
     }
 
     /**

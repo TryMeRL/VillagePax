@@ -9,6 +9,7 @@ import com.villagepax.sim.Owner;
 import com.villagepax.sim.ItemTally;
 import com.villagepax.sim.Settlement;
 import com.villagepax.sim.SettlementManager;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.entity.ItemEntity;
@@ -27,6 +28,7 @@ import com.villagepax.core.quest.Quest;
 import com.villagepax.core.trade.Caravan;
 import com.villagepax.core.trade.TradeTable;
 import net.minecraft.inventory.SimpleInventory;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import com.villagepax.core.quest.QuestManager;
 import com.villagepax.sim.Standing;
@@ -1441,4 +1443,92 @@ public class EconomyTests extends GameTestSupport {
         context.complete();
     }
 
+
+    /**
+     * Бродячий торговец: приходит в колонию в свой день и один раз, везёт
+     * чужой народ и диковину, продаёт за монету и убавляет товар.
+     * Деревушке он не заходит: торговать там не с кем.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "caravan")
+    public void aPeddlerComesSellsAndLeavesNoDouble(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos centre = context.getAbsolutePos(new BlockPos(7, 2, 7));
+        List<BlockPos> floor = new ArrayList<>();
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Моя", centre);
+        Settlement hamlet = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Хутор",
+                context.getAbsolutePos(new BlockPos(1, 2, 1)));
+        manager.add(colony);
+        try {
+            for (int x = 0; x <= 14; x++) {
+                for (int z = 0; z <= 14; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+            for (long day = 0; day < com.villagepax.sim.trade.Peddler.EVERY_DAYS * 3; day++) {
+                if (com.villagepax.sim.trade.Peddler.dueAt(hamlet, day)) {
+                    context.throwGameTestException("Торговец зашёл в деревушку в день " + day);
+                }
+            }
+            long due = 0;
+            while (!com.villagepax.sim.trade.Peddler.dueAt(colony, due)) {
+                due++;
+            }
+            com.villagepax.sim.trade.Peddler.newDay(world, manager, manager.byId(colony.id()).orElseThrow(), due);
+            com.villagepax.sim.trade.Peddler.newDay(world, manager, manager.byId(colony.id()).orElseThrow(), due);
+            List<Caravan> peddlers = manager.byId(colony.id()).orElseThrow().visitors().stream()
+                    .filter(com.villagepax.sim.trade.Peddler::isPeddler).toList();
+            if (peddlers.size() != 1) {
+                context.throwGameTestException("Торговцев у ратуши: " + peddlers.size() + ", ждали одного");
+                return;
+            }
+            Caravan guest = peddlers.get(0);
+            if (guest.culture().equals(NORMAN)) {
+                context.throwGameTestException("Торговец своего же народа — какой он заморский");
+            }
+            if (guest.cargo().contents().size() < com.villagepax.sim.trade.Peddler.KINDS) {
+                context.throwGameTestException("Товара мало: " + guest.cargo().contents());
+            }
+            Item rarity = guest.cargo().contents().keySet().stream().map(Registries.ITEM::get)
+                    .filter(item -> com.villagepax.sim.trade.Peddler.priceOf(item)
+                            == com.villagepax.sim.trade.Peddler.RARITY_PRICE)
+                    .findFirst().orElse(null);
+            if (rarity == null) {
+                context.throwGameTestException("Диковины нет: " + guest.cargo().contents());
+                return;
+            }
+
+            PlayerEntity player = playerAt(context, centre);
+            QuestView poor = com.villagepax.sim.trade.Peddler.viewOf(guest, player);
+            if (poor.stalls().stream().anyMatch(stall -> stall.ready() == QuestView.Ready.YES)) {
+                context.throwGameTestException("Без монеты прилавок не должен быть готов");
+            }
+            if (com.villagepax.sim.trade.Peddler.sell(player, guest, rarity).isPresent()) {
+                context.throwGameTestException("Продал без денег");
+            }
+            Coins.earn(player.getInventory(), Coins.GOLD * 3);
+            Caravan fresh = com.villagepax.sim.trade.Peddler.sell(player, guest, rarity).orElse(null);
+            if (fresh == null) {
+                context.throwGameTestException("Не продал за три золотых");
+                return;
+            }
+            if (player.getInventory().count(rarity) != 1) {
+                context.throwGameTestException("Диковина не в сумке");
+            }
+            if (Coins.total(player.getInventory()) != Coins.GOLD * 3 - com.villagepax.sim.trade.Peddler.RARITY_PRICE) {
+                context.throwGameTestException("Сдача не та: " + Coins.total(player.getInventory()));
+            }
+            if (fresh.cargo().contents().containsKey(Registries.ITEM.getId(rarity))) {
+                context.throwGameTestException("Проданная диковина осталась в телеге");
+            }
+        } finally {
+            manager.remove(colony.id());
+            for (BlockPos at : floor) {
+                world.setBlockState(at, Blocks.AIR.getDefaultState());
+            }
+        }
+        context.complete();
+    }
 }

@@ -413,6 +413,9 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         // У мирного жителя цели не бывает — её ставят только тем, кто
         // воюет, — и потому эта цель для пахаря всё равно что нет её.
         goalSelector.add(1, new CitizenMeleeGoal(this));
+        // Лучник стражи стреляет, а не рубит: та же ступень, что и драка,
+        // но начинается только у лучника — а ближний бой только у прочих.
+        goalSelector.add(1, new CitizenBowGoal(this));
         // А трус бежит от того, кого прочие ещё не заметили. Выше общего
         // бегства, потому что иначе оба спорили бы за ноги: побеждает
         // старший, и старшим должен быть тот, у кого шире круг. Для всех
@@ -702,6 +705,12 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     /** Стража ли это тело: перечитывается раз в секунду, см. {@link #isGuard}. */
     private boolean guard;
 
+    /** Выучка стражника: перечитывается вместе с {@link #guard}. */
+    private com.villagepax.sim.work.GuardKind guardKind = com.villagepax.sim.work.GuardKind.SWORD;
+
+    /** Мировое время, раньше которого лекарь не перевязывает снова. */
+    private long nextCareAt;
+
     /**
      * Пришли ли к его деревне: перечитывается там же и тогда же.
      * <p>
@@ -854,6 +863,54 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         return guard;
     }
 
+    /** Выучка, если это стражник; у прочих — мечник, и спрашивать незачем. */
+    public com.villagepax.sim.work.GuardKind guardKind() {
+        return guardKind;
+    }
+
+    /** Лучник ли: стреляет, а не рубит. */
+    public boolean isArcher() {
+        return guard && guardKind == com.villagepax.sim.work.GuardKind.BOW;
+    }
+
+    /** Бьёт ли в ближнем бою: лучник стреляет, лекарь не дерётся. */
+    public boolean meleesAtAll() {
+        return !guard || guardKind == com.villagepax.sim.work.GuardKind.SWORD;
+    }
+
+    /**
+     * Перевязать раненого: здоровье, сердечки и звук. Не чаще раза
+     * в {@link com.villagepax.sim.work.GuardJob#CARE_EVERY} тиков.
+     *
+     * @return перевязал ли
+     */
+    public boolean tend(net.minecraft.entity.LivingEntity patient) {
+        long now = getWorld().getTime();
+        if (now < nextCareAt || !(getWorld() instanceof ServerWorld server)) {
+            return false;
+        }
+        nextCareAt = now + com.villagepax.sim.work.GuardJob.CARE_EVERY;
+        patient.heal(com.villagepax.sim.work.GuardJob.CARE);
+        swingHand(Hand.MAIN_HAND);
+        getLookControl().lookAt(patient);
+        server.spawnParticles(net.minecraft.particle.ParticleTypes.HEART, patient.getX(),
+                patient.getBodyY(0.8), patient.getZ(), 3, 0.3, 0.3, 0.3, 0.0);
+        server.playSound(null, patient.getBlockPos(), SoundEvents.ENTITY_GENERIC_DRINK,
+                net.minecraft.sound.SoundCategory.NEUTRAL, 0.6f, 1.2f);
+        return true;
+    }
+
+    /** Выучка этого стражника по данным поселения. */
+    private void readGuardKind(ServerWorld world) {
+        if (!guard || settlementId == null || citizenId == null) {
+            guardKind = com.villagepax.sim.work.GuardKind.SWORD;
+            return;
+        }
+        SettlementManager manager = SettlementManager.get(world);
+        guardKind = manager.byId(settlementId).map(home -> manager.guardKindOf(home, citizenId))
+                .orElse(com.villagepax.sim.work.GuardKind.SWORD);
+    }
+
     /** Перечитать ремесло с записи: зовётся из тика, не из предикатов. */
     private void refreshRole() {
         if (settlementId == null || citizenId == null
@@ -872,6 +929,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
             return;
         }
         guard = citizen.profession().filter(Villages.GUARD::equals).isPresent();
+        readGuardKind(serverWorld);
         // И облик заодно: ремесло игрок меняет на ходу, и человек должен
         // переодеться при жизни, а не в следующей. Тем же вызовом —
         // и рост: ребёнок однажды просто оказывается взрослым, и тело
@@ -1071,6 +1129,22 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
             return ActionResult.PASS;
         }
 
+        // Хозяин переучивает своего стражника вещью в руке: мечом, луком
+        // или целебным. Вещь остаётся у хозяина — это показ, а не подарок.
+        if (citizen.profession().filter(Villages.GUARD::equals).isPresent()
+                && village.owner().isOwnedBy(server.getUuid())) {
+            Optional<com.villagepax.sim.work.GuardKind> taught =
+                    com.villagepax.sim.work.GuardJob.taughtBy(server.getMainHandStack());
+            if (taught.isPresent()) {
+                manager.drill(citizen.id(), taught.get());
+                guardKind = taught.get();
+                label(citizen, Configs.get().citizenLabels());
+                server.sendMessage(Text.translatable("villagepax.guard.drilled", citizen.fullName(),
+                        Text.translatable(taught.get().key())), true);
+                return ActionResult.SUCCESS;
+            }
+        }
+
         // Случай дня — раньше дела: именинника поздравляют, спорщиков
         // рассуждают, и щелчок по ним сегодня значит это, а не торг.
         if (com.villagepax.sim.life.Happenings.answer(world, server, village, citizen, this,
@@ -1168,6 +1242,14 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     private boolean coward;
 
     public void applyFrom(Citizen citizen) {
+        // Ремесло сразу, раз запись всё равно в руках: иначе у только
+        // что появившегося стража была бы секунда, в которую он считает
+        // себя мирным и бежит от налётчика вместо того, чтобы выйти
+        // ему навстречу. И до подписи: она называет выучку стражника.
+        guard = citizen.profession().filter(Villages.GUARD::equals).isPresent();
+        if (getWorld() instanceof ServerWorld serverWorld) {
+            readGuardKind(serverWorld);
+        }
         label(citizen, Configs.get().citizenLabels());
         // Характер — тоже часть облика тела, и ставится он здесь по той же
         // причине, что и ремесло: у только что появившегося труса иначе
@@ -1176,11 +1258,6 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         setLook(Looks.of(citizen));
         setChild(Ages.isChild(citizen));
         setHealth(citizen.health());
-        // И ремесло сразу, раз запись всё равно в руках: иначе у только
-        // что появившегося стража была бы секунда, в которую он считает
-        // себя мирным и бежит от налётчика вместо того, чтобы выйти
-        // ему навстречу.
-        guard = citizen.profession().filter(Villages.GUARD::equals).isPresent();
     }
 
     /** Насколько далеко житель замечает налётчика и пускается бежать. */
@@ -1233,7 +1310,9 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
 
         Text name = titleKeyOf(citizen)
                 .map(title -> (Text) Text.translatable("villagepax.citizen.label", citizen.fullName(),
-                        Text.translatable(title)))
+                        guard ? Text.translatable("villagepax.guard.title", Text.translatable(title),
+                                Text.translatable(guardKind.key()))
+                                : Text.translatable(title)))
                 .orElse(Text.literal(citizen.fullName()));
 
         setCustomName(atWork(citizen).orElse(name));
@@ -1662,6 +1741,13 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     public boolean damage(DamageSource source, float amount) {
         if (getWorld() instanceof ServerWorld server && source.getAttacker() instanceof PlayerEntity player
                 && com.villagepax.sim.Protection.shieldOf(server, player, this).isPresent()) {
+            return false;
+        }
+        // Стрела своего лучника своих не ранит: стреляет он через головы
+        // жителей, и попавший под руку пахарь не должен за это платить.
+        if (source.isIn(net.minecraft.registry.tag.DamageTypeTags.IS_PROJECTILE)
+                && source.getAttacker() instanceof CitizenEntity shooter && shooter != this
+                && !shooter.isRaider() && !isRaider()) {
             return false;
         }
         boolean hurt = super.damage(source, amount);

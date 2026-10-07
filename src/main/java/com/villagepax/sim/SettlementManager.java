@@ -42,6 +42,7 @@ public class SettlementManager extends PersistentState {
     private static final String FESTIVE_TAG = "festive";
     private static final String AWARDED_TAG = "awarded";
     private static final String CHRONICLE_TAG = "chronicle";
+    private static final String DRILLS_TAG = "drills";
 
     /** Сколько записей летописи помнит поселение: последние, старые уходят. */
     public static final int CHRONICLE_LENGTH = 60;
@@ -81,6 +82,15 @@ public class SettlementManager extends PersistentState {
      * это уже не убранство, а мусор.
      */
     private final Map<UUID, List<Long>> decor = new LinkedHashMap<>();
+
+    /**
+     * Выучка стражников, данная игроком: опознаватель жителя — выучка.
+     * <p>
+     * Здесь, а не в записи жителя: у её кодека все шестнадцать полей
+     * заняты. Забытый житель оставляет строчку, которая никому не мешает:
+     * спрашивают её только по опознавателю живого стражника.
+     */
+    private final Map<UUID, com.villagepax.sim.work.GuardKind> drills = new LinkedHashMap<>();
 
     /** Что уже убрано: здания и сами деревни (их колодец). Убирается однажды. */
     private final Set<UUID> dressed = new HashSet<>();
@@ -216,6 +226,16 @@ public class SettlementManager extends PersistentState {
             }
             manager.chronicles.put(book.getUuid("village"), entries);
         }
+        NbtCompound drilled = nbt.getCompound(DRILLS_TAG);
+        for (String citizen : drilled.getKeys()) {
+            try {
+                UUID id = UUID.fromString(citizen);
+                com.villagepax.sim.work.GuardKind.byId(drilled.getString(citizen))
+                        .ifPresent(kind -> manager.drills.put(id, kind));
+            } catch (IllegalArgumentException broken) {
+                VillagePax.LOGGER.warn("Выучка стражника с битым опознавателем: {}", citizen);
+            }
+        }
         return manager;
     }
 
@@ -257,6 +277,9 @@ public class SettlementManager extends PersistentState {
             placed.add(entry);
         });
         nbt.put(DECOR_TAG, placed);
+        NbtCompound drilled = new NbtCompound();
+        drills.forEach((citizen, kind) -> drilled.putString(citizen.toString(), kind.id()));
+        nbt.put(DRILLS_TAG, drilled);
         NbtList done = new NbtList();
         dressed.forEach(id -> done.add(net.minecraft.nbt.NbtHelper.fromUuid(id)));
         nbt.put(DRESSED_TAG, done);
@@ -344,6 +367,26 @@ public class SettlementManager extends PersistentState {
         if (dressed.add(id)) {
             markDirty();
         }
+    }
+
+    /** Выучка, которую игрок дал этому стражнику, если давал. */
+    public Optional<com.villagepax.sim.work.GuardKind> drillOf(UUID citizen) {
+        return Optional.ofNullable(drills.get(citizen));
+    }
+
+    /** Переучить стражника. */
+    public void drill(UUID citizen, com.villagepax.sim.work.GuardKind kind) {
+        if (drills.put(citizen, kind) != kind) {
+            markDirty();
+        }
+    }
+
+    /** Выучка стражника этого поселения: данная игроком или по месту в строю. */
+    public com.villagepax.sim.work.GuardKind guardKindOf(Settlement settlement, UUID citizen) {
+        List<UUID> guards = settlement.citizens().stream()
+                .filter(one -> one.profession().filter(Villages.GUARD::equals).isPresent())
+                .map(Citizen::id).toList();
+        return com.villagepax.sim.work.GuardKind.of(guards, citizen, drillOf(citizen));
     }
 
     /** Запомнить блок убранства, поставленный деревне. */

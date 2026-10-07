@@ -36,8 +36,22 @@ public class CitizenMeleeGoal extends MeleeAttackGoal {
 
     private int wait;
 
+    private final CitizenEntity citizen;
+
     public CitizenMeleeGoal(CitizenEntity citizen) {
         super(citizen, 1.0, false);
+        this.citizen = citizen;
+    }
+
+    /** Лучник и лекарь в рукопашную не идут: у первого лук, у второго бинты. */
+    @Override
+    public boolean canStart() {
+        return citizen.meleesAtAll() && super.canStart();
+    }
+
+    @Override
+    public boolean shouldContinue() {
+        return citizen.meleesAtAll() && super.shouldContinue();
     }
 
     @Override

@@ -195,6 +195,12 @@ public final class QuestNet {
             return;
         }
 
+        if (com.villagepax.sim.trade.Peddler.isPeddler(guest)) {
+            // У бродячего торговца нет деревни: прилавок у него свой.
+            send(player, com.villagepax.sim.trade.Peddler.viewOf(guest, player));
+            return;
+        }
+
         Settlement home = manager.byId(guest.home()).orElse(null);
         if (home == null) {
             // Деревню снесли, пока обоз гостил. Торговать не с кем.
@@ -916,6 +922,20 @@ public final class QuestNet {
         }
         if (player.squaredDistanceTo(Vec3d.ofCenter(guest.stands())) > TALK_RANGE * TALK_RANGE) {
             player.sendMessage(Text.translatable("villagepax.quest.too_far"), true);
+            return;
+        }
+
+        if (com.villagepax.sim.trade.Peddler.isPeddler(guest)) {
+            // Торговец только продаёт: покупать ему не на что.
+            if (villageSells) {
+                com.villagepax.sim.trade.Peddler.sell(player, guest, Registries.ITEM.get(goods))
+                        .ifPresent(fresh -> {
+                            manager.update(host.id(), state -> state.restock(fresh));
+                            world.playSound(null, player.getBlockPos(), SoundEvents.ENTITY_WANDERING_TRADER_YES,
+                                    SoundCategory.NEUTRAL, 1.0f, 1.0f);
+                        });
+            }
+            openCaravan(player, world, host.id(), caravanId);
             return;
         }
 

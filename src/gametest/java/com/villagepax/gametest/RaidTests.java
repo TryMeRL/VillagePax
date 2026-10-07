@@ -431,6 +431,102 @@ public class RaidTests extends GameTestSupport {
     }
 
     /**
+     * Выучка стражи: лучник берёт цель с луком в руке, лекарь врага
+     * не трогает, а идёт к раненому и перевязывает его; хозяин
+     * переучивает стражника вещью в руке.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "guard")
+    public void archersShootAndMedicsHeal(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        List<BlockPos> floor = new ArrayList<>();
+        for (int x = 0; x <= 16; x++) {
+            for (int z = 0; z <= 6; z++) {
+                BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                world.setBlockState(at, Blocks.STONE.getDefaultState());
+                floor.add(at);
+            }
+        }
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Citizen bowman = evenNewborn("Osbern", "l'Archer", NORMAN, Gender.MALE);
+        bowman.setProfession(Villages.GUARD);
+        Citizen healer = evenNewborn("Emma", "la Mire", NORMAN, Gender.FEMALE);
+        healer.setProfession(Villages.GUARD);
+        Citizen hurt = evenNewborn("Raoul", "le Blessé", NORMAN, Gender.MALE);
+        manager.update(colony.id(), state -> {
+            state.addCitizen(bowman);
+            state.addCitizen(healer);
+            state.addCitizen(hurt);
+        });
+        manager.drill(bowman.id(), com.villagepax.sim.work.GuardKind.BOW);
+        manager.drill(healer.id(), com.villagepax.sim.work.GuardKind.MEDIC);
+
+        CitizenEntity archer = CitizenSpawner.spawnBody(world, colony, bowman);
+        CitizenEntity medic = CitizenSpawner.spawnBody(world, colony, healer);
+        CitizenEntity patient = CitizenSpawner.spawnBody(world, colony, hurt);
+        CitizenEntity raider = CitizenSpawner.spawnPuppet(world,
+                context.getAbsolutePos(new BlockPos(12, 2, 2)));
+
+        try {
+            if (archer == null || medic == null || patient == null || raider == null) {
+                context.throwGameTestException("Тела не появились");
+                return;
+            }
+            Settlement fresh = manager.byId(colony.id()).orElseThrow();
+            if (manager.guardKindOf(fresh, bowman.id()) != com.villagepax.sim.work.GuardKind.BOW) {
+                context.throwGameTestException("Выучка лучника не запомнилась");
+            }
+            UUID watched = UUID.randomUUID();
+            raider.linkRaid(colony.id(), watched);
+            rememberRaid(manager, colony, watched, raider.getBlockPos(), 1);
+
+            GuardJob guard = new GuardJob();
+            guard.tick(new WorkContext(world, manager, fresh, bowman, archer));
+            if (archer.getTarget() != raider) {
+                context.throwGameTestException("Лучник не взял налётчика на прицел");
+            }
+            if (!archer.getMainHandStack().isOf(net.minecraft.item.Items.BOW)) {
+                context.throwGameTestException("У лучника не лук, а " + archer.getMainHandStack());
+            }
+
+            patient.refreshPositionAndAngles(medic.getX() + 1, medic.getY(), medic.getZ(), 0, 0);
+            patient.setHealth(8.0f);
+            BlockPos goes = guard.tick(new WorkContext(world, manager, fresh, healer, medic)).orElse(null);
+            if (medic.getTarget() != null) {
+                context.throwGameTestException("Лекарь полез в драку с " + medic.getTarget());
+            }
+            if (goes == null || goes.getSquaredDistance(patient.getBlockPos()) > 2) {
+                context.throwGameTestException("Лекарь пошёл не к раненому, а в " + goes);
+            }
+            if (patient.getHealth() < 8.0f + com.villagepax.sim.work.GuardJob.CARE - 0.01f) {
+                context.throwGameTestException("Раненый не перевязан: " + patient.getHealth());
+            }
+
+            if (com.villagepax.sim.work.GuardJob.taughtBy(new net.minecraft.item.ItemStack(
+                    net.minecraft.item.Items.CROSSBOW)).orElse(null) != com.villagepax.sim.work.GuardKind.BOW
+                    || com.villagepax.sim.work.GuardJob.taughtBy(new net.minecraft.item.ItemStack(
+                    net.minecraft.item.Items.GOLDEN_APPLE)).orElse(null) != com.villagepax.sim.work.GuardKind.MEDIC
+                    || com.villagepax.sim.work.GuardJob.taughtBy(new net.minecraft.item.ItemStack(
+                    net.minecraft.item.Items.IRON_SWORD)).orElse(null) != com.villagepax.sim.work.GuardKind.SWORD) {
+                context.throwGameTestException("Вещи учат не тому");
+            }
+        } finally {
+            for (CitizenEntity one : java.util.Arrays.asList(archer, medic, patient, raider)) {
+                if (one != null) {
+                    one.discard();
+                }
+            }
+            cleanUpVillage(world, manager, colony, hall, floor);
+            world.setBlockState(hall, Blocks.AIR.getDefaultState());
+        }
+
+        context.complete();
+    }
+
+    /**
      * Налётчик берёт на прицел жителя осаждённой колонии — и только его.
      * <p>
      * Самая важная проверка всего набега: в ней вся его ставка. Отряд,

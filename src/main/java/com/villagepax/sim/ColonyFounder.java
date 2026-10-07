@@ -17,6 +17,7 @@ import net.minecraft.util.math.Vec3i;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 
@@ -69,6 +70,17 @@ public final class ColonyFounder {
         }
 
         SettlementManager manager = SettlementManager.get(world);
+
+        // Одна колония на игрока — во всём мире, а не в измерении: менеджер
+        // поселений у каждого измерения свой, и в Незере прежде вставала вторая.
+        for (ServerWorld other : world.getServer().getWorlds()) {
+            if (other != world) {
+                Optional<Settlement> elsewhere = Founding.colonyOf(SettlementManager.get(other), player);
+                if (elsewhere.isPresent()) {
+                    return FoundingOutcome.Refused.of(Founding.KEY_ALREADY_OWNER, elsewhere.get().name());
+                }
+            }
+        }
 
         FoundingOutcome outcome = Founding.attempt(
                 manager, player, cultureId, culture, target, new Random(world.getRandom().nextLong()));
@@ -127,6 +139,8 @@ public final class ColonyFounder {
     private static void settleFirstBuilder(ServerWorld world, Settlement settlement,
                                            Culture culture, Identifier cultureId) {
         Citizen builder = Founding.firstBuilder(cultureId, culture, new Random(world.getRandom().nextLong()));
+        // Первый строитель стареет, как все: см. Ages.arrivedGrown.
+        com.villagepax.sim.life.Ages.arrivedGrown(builder);
         builder.setPosition(CitizenSpawner.arrival(world, settlement));
         settlement.addCitizen(builder);
 

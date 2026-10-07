@@ -200,6 +200,12 @@ public final class Caravans {
             Safely.run(settlement.name(), "Обозы у поселения", () -> {
                 for (Caravan guest : List.copyOf(settlement.visitors())) {
                     if (today > guest.leavesOn() || !guest.hasAnything()) {
+                        // Непроданное едет домой. Прежде запись просто
+                        // забывалась, а товар и кошель обоз брал со склада
+                        // деревни по-настоящему: каждый выезд к игроку
+                        // обходился деревне до шестидесяти вещей и сорока
+                        // восьми медяков, и торговые деревни пустели.
+                        comeBack(world, manager, guest);
                         seeOff(world, manager, settlement, guest);
                         continue;
                     }
@@ -337,7 +343,27 @@ public final class Caravans {
         if (home == null || !world.isChunkLoaded(home.center())) {
             return;
         }
-        Warehouse warehouse = Warehouse.of(world, home);
+        unload(world, home, Warehouse.of(world, home), guest);
+    }
+
+    /**
+     * Обоз доехал домой: непроданное — обратно на склад деревни.
+     * <p>
+     * Склад достаётся так же, как брался в дорогу, — {@link Warehouse#reach},
+     * и цена та же: раз в несколько дней у деревни по соседству с игроком.
+     * Брать склад «на дальний конец мира» и не возвращать было бы тихой
+     * убылью, которую игрок видел бы как беднеющие деревни.
+     */
+    private static void comeBack(ServerWorld world, SettlementManager manager, Caravan guest) {
+        Settlement home = manager.byId(guest.home()).orElse(null);
+        if (home == null || !guest.hasAnything()) {
+            return;
+        }
+        unload(world, home, Warehouse.reach(world, home), guest);
+    }
+
+    private static void unload(ServerWorld world, Settlement home, Warehouse warehouse,
+                               Caravan guest) {
         guest.cargo().contents().forEach((item, count) -> {
             net.minecraft.item.Item what = Registries.ITEM.get(item);
             int left = count;

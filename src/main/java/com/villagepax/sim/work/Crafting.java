@@ -117,24 +117,38 @@ public final class Crafting {
             if (cost == null) {
                 continue;
             }
+            // Некуда положить сделанное — не делать. Прежде вещь падала
+            // у точки появления мира, а мастер докладывал «сделано»: билдер
+            // не находил её на складе и брался за работу снова, каждое
+            // решение, и брёвна колонии утекали на другой конец карты.
+            if (!warehouse.room(output.getItem(), output.getCount())) {
+                continue;
+            }
+            // И ещё раз «хватает ли» — прямо перед платой: вложенная работа
+            // (палки на барабан) могла съесть уже посчитанные доски.
+            if (!cost.entrySet().stream().allMatch(part ->
+                    warehouse.has(part.getKey(), part.getValue()))) {
+                continue;
+            }
 
+            Map<Item, Integer> taken = new java.util.LinkedHashMap<>();
             boolean paid = true;
             for (Map.Entry<Item, Integer> part : cost.entrySet()) {
                 if (!warehouse.take(part.getKey(), part.getValue())) {
                     paid = false;
                     break;
                 }
+                taken.put(part.getKey(), part.getValue());
             }
             if (!paid) {
                 // Списать всё сразу нельзя: часть уже ушла. Возвращаем
-                // и пробуем следующий рецепт — потерянные материалы хуже
-                // отказа.
-                cost.forEach((item, count) -> warehouse.addOrScatter(world,
-                        world.getSpawnPos(), new ItemStack(item, count)));
+                // ровно взятое — прежде возвращалась вся цена, и недостача
+                // оборачивалась прибавкой.
+                taken.forEach((item, count) -> warehouse.add(new ItemStack(item, count)));
                 continue;
             }
 
-            warehouse.addOrScatter(world, world.getSpawnPos(), output.copy());
+            warehouse.add(output.copy());
             return true;
         }
         return false;

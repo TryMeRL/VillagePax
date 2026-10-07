@@ -89,7 +89,8 @@ public final class Yoke {
             return 0;
         }
 
-        Warehouse theirs = Warehouse.of(world, lord);
+        // Склад господина — дотянуться: см. Tribute.pay.
+        Warehouse theirs = Warehouse.reach(world, lord);
         Coins.pay(purse, Tribute.RATE).forEach(change ->
                 ours.addOrScatter(world, colony.center(), change));
         Coins.earn(theirs.coins(), Tribute.RATE).forEach(left ->

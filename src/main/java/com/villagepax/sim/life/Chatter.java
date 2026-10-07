@@ -222,7 +222,14 @@ public final class Chatter {
             return Optional.empty();
         }
         Situation at = situation(world, settlement, citizen, player, day);
-        Topic topic = choose(topics(at), random::nextInt);
+        List<Topic> topics = new ArrayList<>(topics(at));
+        // Ремесло из датапака может прийти без своих слов — тогда о деле
+        // житель молчит, а не показывает над головой голый ключ словаря.
+        if (at.trade().filter(trade -> !net.minecraft.util.Language.getInstance()
+                .hasTranslation(Topic.WORK.base() + "." + trade + ".1")).isPresent()) {
+            topics.remove(Topic.WORK);
+        }
+        Topic topic = choose(topics, random::nextInt);
         String base = topic == Topic.WORK
                 ? topic.base() + "." + at.trade().orElse("none")
                 : topic.base();

@@ -34,9 +34,12 @@ public final class Greeting {
         if (!Configs.get().greetNewcomers()) {
             return;
         }
-        if (Founding.colonyOf(SettlementManager.get(player.getServerWorld()),
-                player.getUuid()).isPresent()) {
-            return;
+        // Колония может стоять в другом измерении: хозяин, вошедший в мир
+        // в Незере, — не новичок, и звать его к первой деревне незачем.
+        for (net.minecraft.server.world.ServerWorld world : player.getServer().getWorlds()) {
+            if (Founding.colonyOf(SettlementManager.get(world), player.getUuid()).isPresent()) {
+                return;
+            }
         }
 
         player.sendMessage(Text.translatable("villagepax.greeting.title")

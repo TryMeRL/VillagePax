@@ -1,10 +1,12 @@
 package com.villagepax.entity.festival;
 
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.LightningEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.passive.PigEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.world.World;
@@ -47,6 +49,15 @@ public class FestivalPigEntity extends PigEntity implements PenRunner {
     @Override
     public boolean isBreedingItem(ItemStack stack) {
         return false;
+    }
+
+    /**
+     * Молния поросёнка не трогает. Ванильная свинья от неё становится
+     * зомби-пиглином — вечным, с золотым мечом, — и после грозы или руны
+     * Громовержца у ярмарки бродили бы малыши-пиглины.
+     */
+    @Override
+    public void onStruckByLightning(ServerWorld world, LightningEntity lightning) {
     }
 
     @Override

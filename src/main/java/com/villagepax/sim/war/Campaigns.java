@@ -260,6 +260,9 @@ public final class Campaigns {
      * тем же кодом, которым уходит любой убитый житель. Кукле пришлось бы
      * считать потери отдельно — и однажды счёт разошёлся бы с людьми.
      */
+    /** Докуда боец похода отходит от места сбора: вся деревня противника. */
+    private static final int MUSTER_TETHER = 48;
+
     static void muster(ServerWorld world, SettlementManager manager, Settlement village,
                        WarParty party) {
         Settlement colony = manager.byId(party.home()).orElse(null);
@@ -277,7 +280,12 @@ public final class Campaigns {
             BlockPos where = Ground.spotNear(world, party.musters(), 0, 5);
             soldier.setPosition(Vec3d.ofBottomCenter(where == null ? party.musters() : where));
 
-            CitizenEntity body = CitizenSpawner.spawnBody(world, colony, soldier);
+            // У чужих ворот, а не у своей ратуши. Обычное рождение тела
+            // не верит позиции за границей колонии и ставит его у ратуши:
+            // поход тогда приходил домой, у ворот деревни не было никого,
+            // и к сроку она сдавалась «без боя».
+            CitizenEntity body = CitizenSpawner.spawnBodyAt(world, colony, soldier,
+                    soldier.position().orElseThrow(), party.musters(), MUSTER_TETHER);
             if (body == null) {
                 return;
             }
@@ -325,6 +333,24 @@ public final class Campaigns {
                 lost > 0 ? "villagepax.campaign.home_bloodied" : "villagepax.campaign.home_whole",
                 Text.literal(village.name()), Text.literal(String.valueOf(alive.size())),
                 Text.literal(String.valueOf(lost))).formatted(Formatting.GRAY));
+    }
+
+    /**
+     * Поход полёг целиком: вернуть колонию из похода и сказать об этом.
+     * <p>
+     * Тел нет — переносить домой некого; запись «в походе» снимается,
+     * иначе оставшаяся дома стража считалась бы ушедшей вечно, а новый
+     * поход колонии отвечал бы «уже в походе».
+     */
+    static void wipedOut(ServerWorld world, SettlementManager manager, Settlement village,
+                         WarParty party) {
+        Settlement colony = manager.byId(party.home()).orElse(null);
+        if (colony == null) {
+            return;
+        }
+        manager.update(colony.id(), Settlement::cameHome);
+        tell(world, colony, Text.translatable("villagepax.campaign.wiped_out",
+                Text.literal(village.name())).formatted(Formatting.RED));
     }
 
     /**

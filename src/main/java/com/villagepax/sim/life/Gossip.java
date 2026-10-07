@@ -162,10 +162,15 @@ public final class Gossip {
             return Optional.empty();
         }
 
+        // Судачат там, где игрок слышит: пара в другом конце деревни тратила
+        // бы двадцать секунд тишины на слова, которых никто не услышал.
+        PlayerEntity ear = listener;
         List<Citizen> adults = settlement.citizens().stream()
                 .filter(citizen -> !Ages.isChild(citizen))
                 .filter(citizen -> bodyOf(world, citizen)
-                        .filter(body -> !Chatter.busy(settlement, citizen, body)).isPresent())
+                        .filter(body -> !Chatter.busy(settlement, citizen, body))
+                        .filter(body -> body.squaredDistanceTo(ear) <= AUDIENCE * AUDIENCE)
+                        .isPresent())
                 .toList();
         List<Citizen[]> pairs = new ArrayList<>();
         for (int a = 0; a < adults.size(); a++) {
@@ -186,7 +191,9 @@ public final class Gossip {
 
         boolean raided = settlement.lastRaid() != Settlement.UNSEEN_DAY
                 && day - settlement.lastRaid() <= Chatter.RAID_REMEMBERED && settlement.siege().isEmpty();
+        // И не о том, кто слушает: «У Эммы прибавление!» — самой Эмме.
         List<Person> people = settlement.citizens().stream()
+                .filter(citizen -> !citizen.id().equals(hearer.id()))
                 .map(citizen -> personOf(settlement, citizen)).toList();
         List<Item> items = items(speaker.id(), people, FestivalDay.isOn(settlement, day + 1), raided,
                 Optional.of(listener.getName().getString()));

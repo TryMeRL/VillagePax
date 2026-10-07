@@ -108,18 +108,39 @@ public final class CitizenSpawner {
         return bodies.size();
     }
 
+    /**
+     * Тело жителя у его поселения, с привязью к ратуше: житель не должен
+     * уходить за границы своего поселения.
+     * <p>
+     * Дело не в реализме: тела появляются только в тех чанках, которые
+     * поселение считает своими, и ушедший за границу житель больше никогда
+     * не получил бы тела — он остался бы записью в данных, занимающей место
+     * в населении, но невидимой и недостижимой.
+     */
     public static CitizenEntity spawnBody(ServerWorld world, Settlement settlement, Citizen citizen) {
+        return spawnBodyAt(world, settlement, citizen, spawnPosition(world, settlement, citizen),
+                settlement.center(), tetherRange(settlement));
+    }
+
+    /**
+     * Тело там, где велено, — даже за границей поселения, — и с привязью
+     * к своему месту, а не к ратуше.
+     * <p>
+     * Нужно походу: боец стоит у чужих ворот, и {@link #spawnPosition},
+     * не верящий позициям за границей, вернул бы его домой.
+     */
+    public static CitizenEntity spawnBodyAt(ServerWorld world, Settlement settlement, Citizen citizen,
+                                            Vec3d where, BlockPos tetheredTo, int range) {
         CitizenEntity body = ModEntities.CITIZEN.create(world);
         if (body == null) {
             VillagePax.LOGGER.error("Не удалось создать тело жителя {}", citizen.fullName());
             return null;
         }
 
-        Vec3d where = spawnPosition(world, settlement, citizen);
         body.refreshPositionAndAngles(where.x, where.y, where.z, world.random.nextFloat() * 360f, 0f);
         body.link(settlement.id(), citizen.id());
         body.applyFrom(citizen);
-        tether(body, settlement);
+        body.setPositionTarget(tetheredTo, range);
 
         if (!world.spawnEntity(body)) {
             VillagePax.LOGGER.error("Мир отказался принять тело жителя {}", citizen.fullName());
@@ -172,18 +193,6 @@ public final class CitizenSpawner {
                 .map(world::getEntity)
                 .map(Entity::getPos)
                 .or(citizen::position);
-    }
-
-    /**
-     * Житель не должен уходить за границы своего поселения.
-     * <p>
-     * Дело не в реализме: тела появляются только в тех чанках, которые
-     * поселение считает своими, и ушедший за границу житель больше никогда
-     * не получил бы тела — он остался бы записью в данных, занимающей место
-     * в населении, но невидимой и недостижимой.
-     */
-    private static void tether(CitizenEntity body, Settlement settlement) {
-        body.setPositionTarget(settlement.center(), tetherRange(settlement));
     }
 
     /**

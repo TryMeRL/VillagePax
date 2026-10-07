@@ -256,6 +256,7 @@ public final class BuildCommand {
                 : Founding.newCitizen(colony.culture(), culture, new Random(world.getRandom().nextLong()),
                         colony.citizens());
         hired.setProfession(profession);
+        com.villagepax.sim.life.Ages.arrivedGrown(hired);
         hired.setPosition(player.getPos());
 
         manager.update(colony.id(), settlement -> settlement.addCitizen(hired));

@@ -118,12 +118,17 @@ public final class BoardNet {
         ServerWorld world = player.getServerWorld();
         SettlementManager manager = SettlementManager.get(world);
         Settlement village = manager.byId(villageId).orElse(null);
-        if (village == null || !world.getBlockState(board).isOf(ModBlocks.NOTICE_BOARD)
-                || !village.claims(board)) {
+        // Место прислал клиент: сперва дёшево и без мира — граница и расстояние, —
+        // и только потом блок. Иначе подложенный пакет заставлял сервер грузить
+        // и порождать чанк где угодно.
+        if (village == null || !village.claims(board)) {
             return;
         }
         if (player.squaredDistanceTo(Vec3d.ofCenter(board)) > REACH * REACH) {
             player.sendMessage(Text.translatable("villagepax.quest.too_far"), true);
+            return;
+        }
+        if (!world.isChunkLoaded(board) || !world.getBlockState(board).isOf(ModBlocks.NOTICE_BOARD)) {
             return;
         }
         Citizen author = village.citizens().stream()

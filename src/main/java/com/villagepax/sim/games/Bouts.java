@@ -231,6 +231,7 @@ public final class Bouts {
         }
         boolean withOwner = settlement.owner().player().filter(player.getUuid()::equals).isPresent();
         Bout bout = new Bout(world, player, settlement, rival, kind, stake, coins, withOwner, day);
+        bout.holdStake(player);
         BY_PLAYER.put(player.getUuid(), bout);
         Company.body(world, rival).ifPresent(body -> {
             body.greet();

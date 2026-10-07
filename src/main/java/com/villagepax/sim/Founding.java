@@ -171,7 +171,11 @@ public final class Founding {
                 continue;
             }
             others.add(other.name());
-            if (before && other.name().equals(settlement.name())) {
+            // Колонию игрока не переименовывают — значит, расходиться с ней
+            // обязана деревня, где бы та ни стояла в списке. Прежде деревню
+            // сверяли только с теми, кто раньше, и колония, получившая имя
+            // старой деревни, так и жила с ней одноимённой.
+            if ((before || !other.owner().isAutonomous()) && other.name().equals(settlement.name())) {
                 twin = true;
             }
         }
@@ -179,7 +183,10 @@ public final class Founding {
             return Optional.empty();
         }
         String name = rarest(culture.namePools().settlement(), others, random);
-        if (name.equals(settlement.name())) {
+        // Только на свободное. Когда народ исчерпал свой список, «самое
+        // редкое» — уже чьё-то: деревня переезжала бы с имени на имя каждый
+        // рассвет, снова оказываясь чьим-то близнецом.
+        if (name.equals(settlement.name()) || others.contains(name)) {
             return Optional.empty();
         }
         settlement.rename(name);

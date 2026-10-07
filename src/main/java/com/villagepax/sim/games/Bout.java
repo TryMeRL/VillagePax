@@ -68,6 +68,16 @@ public final class Bout {
     private boolean strained;
     private Integer settled;
 
+    /**
+     * Ставка игрока, взятая на стол при начале партии.
+     * <p>
+     * Прежде проигрыш списывался в конце — тем, что осталось в сумке.
+     * Выбросил монеты, пока соперник бросал, — проиграл даром; вышел
+     * из игры перед чужим «очком» — партию снимали без платы. Теперь
+     * ставка лежит на столе с первого броска.
+     */
+    private int escrow;
+
     Bout(ServerWorld world, PlayerEntity player, Settlement settlement, Citizen rival,
          Bouts.Kind kind, int stake, boolean coins, boolean withOwner, long day) {
         this.world = world.getRegistryKey();
@@ -200,7 +210,12 @@ public final class Bout {
         PlayerEntity who = playerOf(world);
         Settlement settlement = settlement(world).orElse(null);
         Citizen citizen = settlement == null ? null : settlement.citizen(rival).orElse(null);
-        int paid = who != null && settlement != null && coins ? payVillage(world, who, settlement, stake) : 0;
+        int paid = 0;
+        if (settlement != null && escrow > 0) {
+            deposit(world, settlement, escrow);
+            paid = escrow;
+            escrow = 0;
+        }
         if (who != null) {
             GamesLedger.get(world).record(rival, player, Rivalry.Result.WON, day);
             who.sendMessage(Text.translatable("villagepax.games.forfeit"), true);
@@ -308,9 +323,18 @@ public final class Bout {
             for (ItemStack rest : Coins.earn(inventory, amount)) {
                 inventory.offerOrDrop(rest);
             }
+            returnStake(who);
             moved = amount;
         } else if (coins && amount > 0 && result == Result.RIVAL) {
-            moved = -payVillage(world, who, settlement, amount);
+            // Ставка — со стола; сверх неё («очко» соперника вдвое) — из сумки,
+            // сколько есть.
+            int fromTable = Math.min(escrow, amount);
+            deposit(world, settlement, fromTable);
+            escrow -= fromTable;
+            moved = -(fromTable + payVillage(world, who, settlement, amount - fromTable));
+            returnStake(who);
+        } else {
+            returnStake(who);
         }
         ledger.record(rival, player, switch (result) {
             case PLAYER -> Rivalry.Result.LOST;
@@ -329,10 +353,47 @@ public final class Bout {
         Bouts.ended(world, this, Optional.empty());
     }
 
-    /** Снять без выплаты: игрок ушёл из игры, соперник пропал, сервер встаёт. */
+    /** Положить ставку на стол: она уже не в сумке игрока. */
+    void holdStake(PlayerEntity who) {
+        if (!coins || stake <= 0) {
+            return;
+        }
+        PlayerInventory inventory = who.getInventory();
+        int held = Math.min(stake, Coins.total(inventory));
+        for (ItemStack change : Coins.pay(inventory, held)) {
+            inventory.offerOrDrop(change);
+        }
+        escrow = held;
+    }
+
+    /** Вернуть ставку со стола игроку. */
+    private void returnStake(PlayerEntity who) {
+        if (escrow <= 0) {
+            return;
+        }
+        PlayerInventory inventory = who.getInventory();
+        for (ItemStack rest : Coins.earn(inventory, escrow)) {
+            inventory.offerOrDrop(rest);
+        }
+        escrow = 0;
+    }
+
+    /**
+     * Снять без выплаты: соперник пропал, сервер встаёт. Ставка — назад.
+     * <p>
+     * Ушедший из игры — другое дело: он встал из-за стола, и ставка
+     * остаётся деревне, как у всякого сдавшего.
+     */
     void cancel(ServerWorld world) {
         if (settled != null) {
             return;
+        }
+        PlayerEntity gone = playerOf(world);
+        if (gone != null) {
+            returnStake(gone);
+        } else if (escrow > 0) {
+            settlement(world).ifPresent(home -> deposit(world, home, escrow));
+            escrow = 0;
         }
         settled = 0;
         settlement(world).flatMap(s -> s.citizen(rival)).flatMap(c -> Company.body(world, c))
@@ -411,12 +472,25 @@ public final class Bout {
         for (ItemStack change : Coins.pay(inventory, paid)) {
             inventory.offerOrDrop(change);
         }
-        Warehouse warehouse = Warehouse.of(world, settlement);
-        net.minecraft.util.math.BlockPos spot = GameSpot.of(world, SettlementManager.get(world), settlement);
-        for (ItemStack stack : Coins.stacksFor(paid)) {
-            warehouse.addOrScatter(world, spot, stack);
-        }
+        deposit(world, settlement, paid);
         return paid;
+    }
+
+    /**
+     * Проигранное — на склад деревни, и только туда.
+     * <p>
+     * Прежде не влезшее в полный склад высыпалось у игорного стола, в двух
+     * шагах от проигравшего, — и проигрыш он подбирал с земли. Деревне
+     * некуда положить — значит, монета ушла на пиво: из игры, но не обратно.
+     */
+    private static void deposit(ServerWorld world, Settlement settlement, int amount) {
+        if (amount <= 0) {
+            return;
+        }
+        Warehouse warehouse = Warehouse.of(world, settlement);
+        for (ItemStack stack : Coins.stacksFor(amount)) {
+            warehouse.add(stack);
+        }
     }
 
     private Optional<Settlement> settlement(ServerWorld world) {

@@ -236,7 +236,7 @@ public final class Trading {
             if (!rest.isEmpty()) {
                 spill.accept(rest);
             }
-            Coins.earn(chest, price).forEach(spill);
+            Coins.earn(chest, price).forEach(keep(wares, spill));
         } else {
             if (carried.count(goods) < count) {
                 return Outcome.NO_GOODS;
@@ -248,14 +248,34 @@ public final class Trading {
                 return Outcome.NO_ROOM;
             }
 
+            // Товар — на склад первым, пока место, проверенное выше, ещё
+            // свободно: размен крупной монеты в сундуке деревни мог занять
+            // последний слот, и купленное у игрока пропадало в никуда.
             Stacks.take(carried, goods, count);
-            Coins.pay(chest, price).forEach(spill);
+            keep(wares, spill).accept(wares.add(new ItemStack(goods, count)));
+            Coins.pay(chest, price).forEach(keep(wares, spill));
             Coins.earn(carried, price).forEach(spill);
-            wares.add(new ItemStack(goods, count));
         }
 
         reward(village, player);
         return Outcome.DONE;
+    }
+
+    /**
+     * Своё деревня оставляет себе: сдача и выручка, не влезшие в сундук,
+     * ищут место на складе, а не в сумке игрока. Под ноги игроку — только
+     * если склад полон совсем: потерять вещь хуже, чем отдать.
+     */
+    private static Consumer<ItemStack> keep(Warehouse wares, Consumer<ItemStack> spill) {
+        return stack -> {
+            if (stack.isEmpty()) {
+                return;
+            }
+            ItemStack left = wares.add(stack);
+            if (!left.isEmpty()) {
+                spill.accept(left);
+            }
+        };
     }
 
     /** Доверие за сделку — до знакомства, не выше. */

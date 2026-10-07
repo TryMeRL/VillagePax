@@ -62,7 +62,18 @@ public class TownHallBlock extends BlockWithEntity {
 
         if (world instanceof ServerWorld serverWorld) {
             SettlementManager manager = SettlementManager.get(serverWorld);
-            Settlement colony = hall.settlementId().flatMap(manager::byId).orElse(null);
+            // Ратуша, поставленная заново после сноса, своей колонии не помнит:
+            // блок упал без записи. Колония же помнит, где её середина, — по ней
+            // и находится. Прежде отстроенная по совету «отстрой ратушу» ратуша
+            // была просто ящиком: пульт пропадал навсегда, а гость выносил склад.
+            Settlement colony = hall.settlementId().flatMap(manager::byId)
+                    .or(() -> manager.all().stream()
+                            .filter(settlement -> settlement.center().equals(pos)).findFirst())
+                    .orElse(null);
+            if (colony != null && hall.settlementId().isEmpty()) {
+                hall.setSettlementId(colony.id());
+                hall.markDirty();
+            }
             if (colony != null && TownHallConsole.yours(colony, player.getUuid())) {
                 if (!player.isSneaking()) {
                     player.openHandledScreen(new TownHallConsole(serverWorld, colony, pos));

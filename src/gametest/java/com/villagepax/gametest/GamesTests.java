@@ -720,7 +720,13 @@ public class GamesTests extends GameTestSupport {
         });
     }
 
-    /** Игрок пропал посреди партии — партия снята без выплаты, соперник свободен. */
+    /**
+     * Игрок пропал посреди партии — встал из-за стола: ставка со стола
+     * остаётся деревне, соперник свободен.
+     * <p>
+     * Прежде такую партию снимали без выплаты, и выйти из игры, увидев
+     * чужое «очко» на подходе, было бесплатным отказом от проигрыша.
+     */
     @GameTest(templateName = WIDE_STRUCTURE, batchId = "games_bout", tickLimit = 40)
     public void aBoutEndsWhenThePlayerIsGone(TestContext context) {
         ServerWorld world = context.getWorld();
@@ -734,8 +740,9 @@ public class GamesTests extends GameTestSupport {
                         || Bouts.rivalOf(table.rival().id()).isPresent()) {
                     context.throwGameTestException("Партия пережила ушедшего игрока");
                 }
-                if (coins(table.player()) != 10) {
-                    context.throwGameTestException("Снятая партия двинула монеты: " + coins(table.player()));
+                if (coins(table.player()) != 8) {
+                    context.throwGameTestException("Ушедший унёс ставку со стола: в сумке "
+                            + coins(table.player()) + " вместо 8");
                 }
             } finally {
                 clearTable(world, manager, table);

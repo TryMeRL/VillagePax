@@ -170,7 +170,11 @@ public final class Tribute {
             return 0;
         }
 
-        Warehouse ours = Warehouse.of(world, colony);
+        // Склад колонии — дотянуться, даже если игрок далеко от неё: платят
+        // при игроке у деревни, а его ратуша в это время обычно не загружена.
+        // Прежде пустой «склад невидимой колонии» не принимал ничего, и дань
+        // высыпалась на землю у ратуши, где через пять минут и исчезала.
+        Warehouse ours = Warehouse.reach(world, colony);
         Coins.pay(purse, RATE).forEach(change ->
                 theirs.addOrScatter(world, village.center(), change));
         Coins.earn(ours.coins(), RATE).forEach(left ->

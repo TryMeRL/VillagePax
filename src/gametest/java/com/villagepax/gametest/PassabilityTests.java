@@ -3074,16 +3074,19 @@ public class PassabilityTests extends GameTestSupport {
                 }
             }
 
-            // Отряд пришёл и лёг: тела убираются до срока ухода.
+            // Отряд пришёл и лёг в бою до последнего бойца. Осада снимается
+            // вместе с ним, и итог подводится в тот же миг — в день боя.
             manager.update(colony.id(), state -> state.besiege(band, 19L));
             Raids.watch(world, manager, 20L);
-            Raids.bodiesOf(world, band).forEach(CitizenEntity::discard);
-            Raids.watch(world, manager, 22L);
+            for (CitizenEntity fighter : Raids.bodiesOf(world, band)) {
+                Raids.fell(world, fighter, 20L);
+                fighter.discard();
+            }
 
             long beaten = manager.byId(village.id()).orElseThrow().beatenOn();
-            if (beaten != band.leavesOn()) {
+            if (beaten != 20L) {
                 context.throwGameTestException("День разгрома не записан: " + beaten
-                        + " вместо " + band.leavesOn() + ". Дань требовать будет не с чего");
+                        + " вместо 20. Дань требовать будет не с чего");
             }
 
             // А второй отряд уходит целым — и разгрома не случилось.
@@ -3097,6 +3100,19 @@ public class PassabilityTests extends GameTestSupport {
             if (manager.byId(village.id()).orElseThrow().beatenOn() != Settlement.UNSEEN_DAY) {
                 context.throwGameTestException("Ушедший целым отряд засчитан разгромом: "
                         + "дань можно было бы требовать после любого набега");
+            }
+
+            // Отряд, которого не нашли — игрока рядом не было, чанк выгружен, —
+            // битым не считается: право на дань даёт бой, а не отлучка.
+            WarParty unseen = new WarParty(UUID.randomUUID(), village.id(), MAYA, musters,
+                    1, 40L, 41L);
+            manager.update(village.id(), state -> state.beaten(Settlement.UNSEEN_DAY));
+            manager.update(colony.id(), state -> state.besiege(unseen, 39L));
+            Raids.watch(world, manager, 40L);
+            Raids.bodiesOf(world, unseen).forEach(CitizenEntity::discard);
+            Raids.watch(world, manager, 42L);
+            if (manager.byId(village.id()).orElseThrow().beatenOn() != Settlement.UNSEEN_DAY) {
+                context.throwGameTestException("Отряд без боя засчитан разгромом");
             }
         } finally {
             Raids.bodiesOf(world, band).forEach(CitizenEntity::discard);

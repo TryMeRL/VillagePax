@@ -100,8 +100,15 @@ public final class Siege {
             return false;
         }
 
+        // Шаг плана — на начало вместе с отметкой: у достроенного здания он
+        // стоит в конце, и билдер, ищущий «следующий шаг», не находил его
+        // у разорённого вовсе. Ремонт тогда не начинался никогда, а здание
+        // без отметки «готово» теряло кровати, сундуки и мастерскую.
         manager.update(colony.id(), state -> state.building(target.id())
-                .ifPresent(building -> building.setProgress(BuildProgress.DAMAGED)));
+                .ifPresent(building -> {
+                    building.setProgress(BuildProgress.DAMAGED);
+                    building.setNextStep(0);
+                }));
 
         tell(world, colony, "villagepax.raid.wrecked",
                 Text.translatable(BuildingTypes.displayName(target.type())));

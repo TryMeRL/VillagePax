@@ -124,7 +124,13 @@ public final class GatherJob implements Job {
 
     /** Какое дерево валить: сперва своя роща, потом дикий лес. */
     private Optional<BlockPos> tree(WorkContext context, Building hut, List<BlockPos> grove) {
-        Optional<BlockPos> inGrove = groveTree(context.world(), grove)
+        // Пустая грядка зовёт, только если есть что посадить. Без саженца
+        // лесоруб стоял над ней вечно, а дикий лес — откуда саженцы и
+        // берутся — так и оставался нетронутым: дерево колонии кончалось.
+        boolean canPlant = groveSapling(hut).map(sapling -> sapling.getBlock().asItem())
+                .filter(seed -> seed != Items.AIR && context.warehouse().has(seed, 1))
+                .isPresent();
+        Optional<BlockPos> inGrove = groveTree(context.world(), grove, canPlant)
                 .filter(base -> !context.body().isUnreachable(base));
 
         return inGrove.isPresent()
@@ -136,7 +142,7 @@ public final class GatherJob implements Job {
      * Выросшее дерево в роще: грядка, на которой вместо саженца уже бревно.
      * Или пустая грядка, куда пора посадить.
      */
-    private Optional<BlockPos> groveTree(ServerWorld world, List<BlockPos> grove) {
+    private Optional<BlockPos> groveTree(ServerWorld world, List<BlockPos> grove, boolean canPlant) {
         BlockPos empty = null;
 
         for (BlockPos tile : grove) {
@@ -146,7 +152,8 @@ public final class GatherJob implements Job {
             }
 
             BlockState state = world.getBlockState(tile);
-            if (empty == null && state.isAir() && world.getBlockState(tile.down()).isIn(BlockTags.DIRT)) {
+            if (canPlant && empty == null && state.isAir()
+                    && world.getBlockState(tile.down()).isIn(BlockTags.DIRT)) {
                 empty = tile;
             }
         }
@@ -243,11 +250,37 @@ public final class GatherJob implements Job {
         for (int dy = -4; dy <= 4; dy++) {
             BlockPos at = column.up(dy);
             if (world.getBlockState(at).isIn(BlockTags.LOGS)
-                    && !world.getBlockState(at.down()).isIn(BlockTags.LOGS)) {
+                    && !world.getBlockState(at.down()).isIn(BlockTags.LOGS)
+                    && crowned(world, at)) {
                 return at;
             }
         }
         return null;
+    }
+
+    /** Насколько высоко смотреть крону над подножием. */
+    private static final int TALLEST_TRUNK = 24;
+
+    /**
+     * Дерево ли это, а не столб: над стволом — дикая крона.
+     * <p>
+     * Бревно на бревне бывает и у игрока — сруб у колонии, столбы забора,
+     * — и лесоруб валил их на склад вместе с лесом. Живое дерево отличает
+     * листва, выросшая сама: посаженную рукой игра помечает «постоянной».
+     */
+    private static boolean crowned(ServerWorld world, BlockPos base) {
+        BlockPos top = base;
+        for (int up = 1; up <= TALLEST_TRUNK && world.getBlockState(top.up()).isIn(BlockTags.LOGS); up++) {
+            top = top.up();
+        }
+        for (BlockPos near : BlockPos.iterate(top.add(-1, 0, -1), top.add(1, 1, 1))) {
+            BlockState state = world.getBlockState(near);
+            if (state.isIn(BlockTags.LEAVES) && state.contains(LeavesBlock.PERSISTENT)
+                    && !state.get(LeavesBlock.PERSISTENT)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isInsideAnyBuilding(Settlement settlement, BlockPos pos) {

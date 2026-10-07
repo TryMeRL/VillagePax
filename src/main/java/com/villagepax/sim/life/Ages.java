@@ -143,4 +143,19 @@ public final class Ages {
     public static void arrivedGrown(Citizen citizen) {
         citizen.setLived(grownAt());
     }
+
+    /**
+     * Взрослый, пришедший с <b>разными</b> годами: от только что выросшего
+     * до середины зрелости.
+     * <p>
+     * Нужно основателям. Новые жители получали «возраста не помнит» —
+     * знак для тех, кто жил в мире до возрастов, — и строитель колонии,
+     * старейшина, купец и пахарь каждой деревни не старели и не умирали
+     * никогда. Ровесниками их делать тоже нельзя: деревня, основанная
+     * в один день, в один же день и осиротела бы.
+     */
+    public static void arrivedGrown(Citizen citizen, java.util.Random random) {
+        int spread = Math.max(1, (oldAt() - grownAt()) / 2);
+        citizen.setLived(grownAt() + random.nextInt(spread));
+    }
 }

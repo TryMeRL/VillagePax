@@ -16,6 +16,14 @@ public class FestivalFoxEntity extends FoxEntity implements PenRunner {
 
     public FestivalFoxEntity(EntityType<? extends FoxEntity> type, World world) {
         super(type, world);
+        // Ванильная лиса подбирает вещи, а лисёнок ловли исчезает с концом
+        // состязания — и брошенное у загона исчезало вместе с ним.
+        setCanPickUpLoot(false);
+    }
+
+    @Override
+    public boolean canPickupItem(ItemStack stack) {
+        return false;
     }
 
     @Override

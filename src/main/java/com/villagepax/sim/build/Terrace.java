@@ -196,6 +196,12 @@ public final class Terrace {
             }
             BlockState state = world.getBlockState(at);
             if (isFooting(world, at, state) && !state.hasBlockEntity()) {
+                // Только грунт: под ямой над пещерой первой твёрдой может
+                // оказаться руда или аметист, и насыпь из двенадцати алмазных
+                // блоков игрок выкапывал бы даром. Не грунт — земля.
+                if (!Grading.isEarth(state)) {
+                    return Blocks.DIRT.getDefaultState();
+                }
                 // Дёрн класть нельзя: под домом он потемнеет и станет
                 // землёй сам, а по дороге посеет траву в подполе.
                 return state.isOf(Blocks.GRASS_BLOCK) ? Blocks.DIRT.getDefaultState() : state;

@@ -254,10 +254,19 @@ public class CraftTests extends GameTestSupport {
                         + world.getBlockState(post).getBlock());
             }
 
-            // Дикое дерево за пределами следа здания, но в границах колонии.
+            // Дикое дерево за пределами следа здания, но в границах колонии:
+            // ствол и крона, выросшая сама.
             BlockPos wild = anchor.add(13, 1, 2);
             for (int dy = 0; dy < 3; dy++) {
                 world.setBlockState(wild.up(dy), Blocks.OAK_LOG.getDefaultState());
+            }
+            for (BlockPos leaf : BlockPos.iterate(wild.add(-1, 3, -1), wild.add(1, 3, 1))) {
+                world.setBlockState(leaf, Blocks.OAK_LEAVES.getDefaultState());
+            }
+            // А рядом — столб из брёвен без кроны: так ставит игрок, и это не лес.
+            BlockPos column = anchor.add(13, 1, 6);
+            for (int dy = 0; dy < 3; dy++) {
+                world.setBlockState(column.up(dy), Blocks.OAK_LOG.getDefaultState());
             }
 
             // Роща занята саженцами, так что лесоруб пойдёт в дикий лес.
@@ -273,6 +282,9 @@ public class CraftTests extends GameTestSupport {
             if (!world.getBlockState(post).isIn(BlockTags.LOGS)) {
                 context.throwGameTestException("Лесоруб разобрал столб собственной мастерской");
             }
+            if (!world.getBlockState(column).isIn(BlockTags.LOGS)) {
+                context.throwGameTestException("Лесоруб свалил бревенчатый столб игрока");
+            }
             for (BlockPos tile : GatherJob.groveTiles(hut)) {
                 if (!world.getBlockState(tile).isIn(BlockTags.SAPLINGS)) {
                     context.throwGameTestException("Лесоруб выдрал саженцы из своей рощи");
@@ -281,6 +293,10 @@ public class CraftTests extends GameTestSupport {
         } finally {
             for (int dy = 0; dy < 3; dy++) {
                 world.setBlockState(anchor.add(13, 1 + dy, 2), Blocks.AIR.getDefaultState());
+                world.setBlockState(anchor.add(13, 1 + dy, 6), Blocks.AIR.getDefaultState());
+            }
+            for (BlockPos leaf : BlockPos.iterate(anchor.add(12, 4, 1), anchor.add(14, 4, 3))) {
+                world.setBlockState(leaf, Blocks.AIR.getDefaultState());
             }
             demolish(world, hut, hutPlan);
             discardBodies(world, colony);

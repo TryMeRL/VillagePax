@@ -130,6 +130,29 @@ class SettlementPersistenceTest {
         assertEquals(1, lumberjack.workers().size(), "назначенный работник должен сохраниться");
     }
 
+    /**
+     * Здания, прочитанные без запаса, не делят один запас на всех, — и
+     * привезённое после загрузки переживает следующее сохранение.
+     * <p>
+     * Кодек отдавал им общий пустой запас по умолчанию: доски одной
+     * стройки «лежали» на всех, а при записи общий запас равнялся
+     * умолчанию и выбрасывался.
+     */
+    @Test
+    void loadedBuildingsDoNotShareTheirStock() {
+        Settlement after = roundTrip(sample());
+        Building townHall = after.buildings().get(0);
+        Building lumberjack = after.buildings().get(1);
+        Identifier planks = new Identifier("minecraft", "oak_planks");
+
+        townHall.stock().add(planks, 32);
+
+        assertEquals(0, lumberjack.stock().count(planks), "запас одной стройки виден у другой");
+        Settlement again = roundTrip(after);
+        assertEquals(32, again.buildings().get(0).stock().count(planks),
+                "привезённое после загрузки не пережило сохранения");
+    }
+
     @Test
     void citizensSurviveRoundTripIncludingAssignments() {
         Settlement after = roundTrip(sample());

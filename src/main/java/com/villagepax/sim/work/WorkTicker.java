@@ -22,6 +22,7 @@ import com.villagepax.core.Profiled;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.entity.Entity;
 import net.minecraft.server.world.ServerWorld;
+import com.villagepax.sim.Warehouse;
 import net.minecraft.util.math.BlockPos;
 
 import java.util.List;
@@ -395,6 +396,20 @@ public final class WorkTicker {
 
     private static void work(WorkContext context) {
         Job job = Jobs.forProfession(context.citizen().profession()).orElse(null);
+
+        // Груз прежнего ремесла — сперва на склад. Возвращают его только
+        // курьер и строитель, а курьера, переведённого в стражи или пахари,
+        // никто больше не спрашивал о сумке: два-три слота досок исчезали
+        // из колонии вместе со сменой ремесла.
+        if (context.state().isCarrying() && !(job instanceof HaulJob) && !(job instanceof BuilderJob)) {
+            BlockPos store = context.warehouse().nearest(context.body().getBlockPos())
+                    .map(Warehouse.Container::pos).orElse(null);
+            context.manager().update(context.settlement().id(), ignored -> Hauling.returnLoad(context));
+            context.body().setWorkTarget(store == null || !context.state().isCarrying()
+                    ? null : Standing.besideOrAt(context.world(), store));
+            return;
+        }
+
         if (job == null) {
             context.holdNothing();
             context.body().setWorkTarget(null);

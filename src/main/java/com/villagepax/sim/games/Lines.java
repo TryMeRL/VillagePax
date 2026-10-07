@@ -40,18 +40,25 @@ public final class Lines {
 
     /**
      * То же по любой базе ключа: так говорят и игры, и сама жизнь жителя
-     * ({@code villagepax.say.<тема>}). Правило одно — сперва запас нрава,
-     * потом общий, пропуск номера кончает запас.
+     * ({@code villagepax.say.<тема>}). Запас нрава и общий — <b>один</b>
+     * мешок: фразы нрава в нём первыми, пропуск номера кончает запас.
+     * <p>
+     * Прежде нрав, у которого был свой запас, говорил только из него, а
+     * запас этот у каждого нрава — одна фраза. Четыре голодных жителя
+     * из пяти твердили одно и то же раз в минуту, и «живые реплики»
+     * звучали заевшей пластинкой. Теперь нрав окрашивает речь, а не
+     * заменяет её.
      */
     public static String pickKey(String base, Nature nature, Predicate<String> known,
                                  IntUnaryOperator choose) {
         String own = base + "." + nature.id();
         int mine = count(own, known);
-        if (mine > 0) {
-            return own + "." + (1 + choose.applyAsInt(mine));
-        }
         int common = count(base, known);
-        return common > 0 ? base + "." + (1 + choose.applyAsInt(common)) : base + ".1";
+        if (mine + common == 0) {
+            return base + ".1";
+        }
+        int n = choose.applyAsInt(mine + common);
+        return n < mine ? own + "." + (n + 1) : base + "." + (n - mine + 1);
     }
 
     /** Сколько номеров подряд с единицы: пропуск кончает запас. */

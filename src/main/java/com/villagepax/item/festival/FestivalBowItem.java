@@ -103,6 +103,10 @@ public class FestivalBowItem extends BowItem {
         if (pull < 0.1f || archery == null || !archery.mayShoot(player)) {
             return;
         }
+        if (!archery.onTheLine(player)) {
+            player.sendMessage(Text.translatable("villagepax.festival_bow.to_the_line"), true);
+            return;
+        }
         PersistentProjectileEntity arrow = Archery.festivalArrow(server, player);
         arrow.setVelocity(player, player.getPitch(), player.getYaw(), 0.0f, pull * 3.0f, 1.0f);
         arrow.setCritical(pull >= 1.0f);

@@ -166,6 +166,17 @@ public final class Streetscape {
                     || BuildingTypes.isTownHall(building.type())) {
                 continue;
             }
+            Schematic plan = SchematicLoader.get(BuildJob.schematicId(building)).orElse(null);
+            if (plan != null) {
+                Vec3i around = BuildSite.rotatedSize(plan.size(), building.rotation());
+                // Убирают только видимое: дом на краю прогрузки подождёт
+                // следующего рассвета, а не затянет свои чанки в память
+                // посреди тика. Отметки «убран» у него тоже нет — до тех пор.
+                if (!world.isRegionLoaded(building.anchor().add(-AROUND - 1, 0, -AROUND - 1),
+                        building.anchor().add(around.getX() + AROUND + 1, 0, around.getZ() + AROUND + 1))) {
+                    continue;
+                }
+            }
             SchematicLoader.get(BuildJob.schematicId(building)).ifPresent(schematic -> {
                 // Дикий лес над крышей и у стен вырубается: дерево, нависшее
                 // над домом, прячет его от улицы, а у двери — загораживает вход.

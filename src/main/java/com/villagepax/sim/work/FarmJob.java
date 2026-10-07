@@ -124,6 +124,8 @@ public final class FarmJob implements Job {
     private static Optional<BlockPos> plotNeedingWork(WorkContext context, Building farm,
                                                       Schematic schematic) {
         ServerWorld world = context.world();
+        BlockState crop = cropOf(schematic).orElse(null);
+        BlockPos sowable = null;
 
         for (BlockPos plot : plots(farm, schematic)) {
             if (context.body().isUnreachable(plot)) {
@@ -133,11 +135,23 @@ public final class FarmJob implements Job {
             }
 
             BlockState state = world.getBlockState(plot);
-            if (isRipe(state) || isTrampled(world, plot, state) || isBareBed(world, plot, state)) {
+            if (isRipe(state) || isTrampled(world, plot, state)) {
                 return Optional.of(plot);
             }
+            // Пустая грядка — только та, которую и правда можно засеять:
+            // есть семя и всходам там жить. Прежде фермер вставал над первой
+            // пустой и стоял вечно — семян нет или грядка в тени, — а всё
+            // поле за ней поспевало и гнило несжатым. И сеять — после жатвы:
+            // жатва и приносит семена.
+            if (sowable == null && crop != null && isBareBed(world, plot, state)
+                    && crop.canPlaceAt(world, plot)) {
+                Item seed = seedOf(world, plot, crop);
+                if (seed != Items.AIR && context.warehouse().has(seed, 1)) {
+                    sowable = plot;
+                }
+            }
         }
-        return Optional.empty();
+        return Optional.ofNullable(sowable);
     }
 
     private static boolean isRipe(BlockState state) {

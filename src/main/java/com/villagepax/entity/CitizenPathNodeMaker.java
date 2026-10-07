@@ -4,7 +4,13 @@ import com.villagepax.core.ModTags;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.ai.pathing.LandPathNodeMaker;
 import net.minecraft.entity.ai.pathing.PathNode;
+import net.minecraft.entity.mob.MobEntity;
+import net.minecraft.world.chunk.ChunkCache;
 import net.minecraft.util.math.BlockPos;
+
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 
 /**
  * Житель предпочитает дорогу.
@@ -53,15 +59,37 @@ public class CitizenPathNodeMaker extends LandPathNodeMaker {
      */
     public static final float OFF_ROAD_PENALTY = 0.8f;
 
+    /**
+     * Узлы, уже получившие надбавку в этом поиске.
+     * <p>
+     * Узел у поиска один на клетку и приходит соседом от каждого из своих
+     * соседей; надбавка, прибавляемая при каждой встрече, копилась до пяти-
+     * шести блоков на клетку луга. Путь по открытому месту тогда петлял,
+     * а поиск обходил вдвое больше узлов.
+     */
+    private final Set<PathNode> charged = Collections.newSetFromMap(new IdentityHashMap<>());
+
     @Override
     public int getSuccessors(PathNode[] successors, PathNode node) {
         int count = super.getSuccessors(successors, node);
         for (int index = 0; index < count; index++) {
-            if (!isRoad(successors[index])) {
+            if (charged.add(successors[index]) && !isRoad(successors[index])) {
                 successors[index].penalty += OFF_ROAD_PENALTY;
             }
         }
         return count;
+    }
+
+    @Override
+    public void init(ChunkCache cachedWorld, MobEntity entity) {
+        charged.clear();
+        super.init(cachedWorld, entity);
+    }
+
+    @Override
+    public void clear() {
+        charged.clear();
+        super.clear();
     }
 
     /** Дорога — то, по чему житель идёт, а не то, на что он смотрит. */

@@ -219,6 +219,11 @@ public final class Villages {
         if (BuildingTypes.workplaceOf(culture.buildings(), ENTERTAINER).isPresent()) {
             enrol(village, entertainer(village, cultureId, culture, random));
         }
+        // Основатели стареют, как все: «возраста не помнит» — знак старожилов
+        // мира, живших до возрастов, а не тех, кто родился деревней сегодня.
+        for (Citizen founder : village.citizens()) {
+            com.villagepax.sim.life.Ages.arrivedGrown(founder, random);
+        }
 
         // Чертог вскрывается уже при жителях, а не сразу за ратушей:
         // зал рубят гномы, и пустому месту стройка не по силам — движок
@@ -444,11 +449,14 @@ public final class Villages {
         if (!hasFarm || hasFarmer) {
             return;
         }
-        java.util.Set<Identifier> needed = java.util.Set.of(Founding.PROFESSION_BUILDER, ELDER, MERCHANT,
-                ENTERTAINER);
+        // Отдать в пахари можно только того, без кого деревня обойдётся.
+        // Прежде годился любой, кроме четырёх названных, — и в пахари
+        // уходил единственный страж, пивовар или ткач.
+        java.util.Set<Identifier> spare = java.util.Set.of(com.villagepax.sim.work.HaulJob.COURIER,
+                com.villagepax.sim.work.GatherJob.LUMBERJACK);
         village.citizens().stream()
                 .filter(citizen -> !com.villagepax.sim.life.Ages.isChild(citizen))
-                .filter(citizen -> citizen.profession().filter(needed::contains).isEmpty())
+                .filter(citizen -> citizen.profession().map(spare::contains).orElse(true))
                 .min(java.util.Comparator.comparing((Citizen citizen) -> citizen.profession().isPresent()))
                 .ifPresent(citizen -> {
                     citizen.setProfession(com.villagepax.sim.work.FarmJob.FARMER);

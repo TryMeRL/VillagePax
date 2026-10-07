@@ -131,7 +131,12 @@ public class Building {
         this.progress = progress;
         this.workers = new ArrayList<>(workers);
         this.nextStep = Math.max(0, nextStep);
-        this.stock = stock;
+        // Своя копия, а не принятая: кодек отдаёт всем зданиям без поля
+        // «stock» ОДИН И ТОТ ЖЕ пустой запас по умолчанию. Доски, привезённые
+        // на одну стройку, оказывались у всех таких зданий разом, а при
+        // сохранении общий запас равнялся «умолчанию» и не писался вовсе:
+        // всё привезённое за сессию пропадало при перезаходе.
+        this.stock = new ItemTally(stock.contents());
     }
 
     public static Building planned(Identifier type, BlockPos anchor, BlockRotation rotation) {

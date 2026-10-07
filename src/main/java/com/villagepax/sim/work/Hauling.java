@@ -93,10 +93,15 @@ public final class Hauling {
      * требует людей» перестало бы что-либо значить.
      */
     public static boolean shouldFetchItself(WorkContext context) {
+        // Ожидание отмечается всегда, и курьер тут ни при чём: по этому
+        // счёту билдер и говорит игроку «стройка встала, нет того-то».
+        // Прежде без курьера счёт не шёл — и именно в новой колонии,
+        // где курьера ещё нет, игрок про недостающее стекло не слышал.
+        int waited = context.body().noteMaterialWait();
         if (nobodyElseWillCarry(context.settlement())) {
             return true;
         }
-        return context.body().noteMaterialWait() >= PATIENCE;
+        return waited >= PATIENCE;
     }
 
     /**

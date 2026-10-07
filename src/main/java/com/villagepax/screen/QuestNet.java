@@ -457,7 +457,8 @@ public final class QuestNet {
         ServerWorld world = player.getServerWorld();
         SettlementManager manager = SettlementManager.get(world);
         Settlement home = manager.byId(village).orElse(null);
-        if (home == null) {
+        // Дарят чужим: подарок своим доверия деревень мира не прибавляет.
+        if (home == null || !home.owner().isAutonomous()) {
             return;
         }
         if (nearbyGiver(player, home, giver) == null) {
@@ -798,7 +799,8 @@ public final class QuestNet {
     private static void handIn(ServerPlayerEntity player, UUID village, Identifier giver) {
         SettlementManager manager = SettlementManager.get(player.getServerWorld());
         Settlement colony = manager.byId(village).orElse(null);
-        if (colony == null) {
+        // Просьбы — только у деревень народов: см. CitizenEntity.interactMob.
+        if (colony == null || !colony.owner().isAutonomous()) {
             return;
         }
 

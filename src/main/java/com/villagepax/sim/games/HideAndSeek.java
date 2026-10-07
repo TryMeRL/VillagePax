@@ -93,6 +93,15 @@ public final class HideAndSeek {
     /** Когда в поселении звали последний раз. */
     private static final Map<UUID, Long> INVITED = new HashMap<>();
 
+    /**
+     * Кому в каком поселении в какой день уже дарили гостинец.
+     * <p>
+     * Гостинец — раз в день: прятки начинает и сам игрок, щелчком, и без
+     * этой отметки он собирал по два медяка и сласти каждые полминуты —
+     * больше, чем у купца в кошеле.
+     */
+    private static final Map<String, Long> GIFTED = new HashMap<>();
+
     /** Одни прятки: кто водит, кто где спрятался, кого нашли. */
     public static final class Session {
         private final RegistryKey<World> world;
@@ -396,7 +405,10 @@ public final class HideAndSeek {
             return;
         }
         if (Bouts.forCoins(settlement)) {
-            gift(world, session, settlement);
+            if (!Long.valueOf(session.day).equals(GIFTED.put(session.settlement + ":" + session.player,
+                    session.day))) {
+                gift(world, session, settlement);
+            }
         } else {
             GamesLedger ledger = GamesLedger.get(world);
             session.spots.keySet().forEach(id -> ledger.markCheer(id, session.day));

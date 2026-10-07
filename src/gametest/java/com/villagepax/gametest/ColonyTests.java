@@ -129,6 +129,7 @@ public class ColonyTests extends GameTestSupport {
         BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
         BlockPos chest = context.getAbsolutePos(new BlockPos(3, 1, 3));
         BlockPos door = context.getAbsolutePos(new BlockPos(5, 1, 3));
+        BlockPos ironDoor = context.getAbsolutePos(new BlockPos(5, 1, 5));
         net.minecraft.entity.player.PlayerEntity stranger = context.createMockSurvivalPlayer();
 
         Settlement colony = colonyWithBuilder(world, manager, hall);
@@ -145,9 +146,20 @@ public class ColonyTests extends GameTestSupport {
             if (use(world, stranger, chest) != net.minecraft.util.ActionResult.FAIL) {
                 context.throwGameTestException("Чужой открывает сундук колонии");
             }
-            if (use(world, stranger, door) != net.minecraft.util.ActionResult.PASS) {
+            // Дверь гость открывает — сам блок отвечает на щелчок.
+            if (!use(world, stranger, door).isAccepted()
+                    || !world.getBlockState(door).get(net.minecraft.block.DoorBlock.OPEN)) {
                 context.throwGameTestException("Чужому не открыть дверь: гость не может и войти");
             }
+            // А через железную дверь, которая на руку не отвечает, булыжник
+            // из руки не встаёт: щелчок по «безобидному» блоку — не стройка.
+            world.setBlockState(ironDoor, Blocks.IRON_DOOR.getDefaultState());
+            stranger.setStackInHand(net.minecraft.util.Hand.MAIN_HAND,
+                    new net.minecraft.item.ItemStack(net.minecraft.item.Items.COBBLESTONE));
+            if (use(world, stranger, ironDoor) != net.minecraft.util.ActionResult.FAIL) {
+                context.throwGameTestException("Гость ставит блок через железную дверь колонии");
+            }
+            stranger.setStackInHand(net.minecraft.util.Hand.MAIN_HAND, net.minecraft.item.ItemStack.EMPTY);
 
             // Доверенному — можно всё.
             manager.update(colony.id(), state ->
@@ -159,6 +171,8 @@ public class ColonyTests extends GameTestSupport {
             world.setBlockState(chest, Blocks.AIR.getDefaultState());
             world.setBlockState(door, Blocks.AIR.getDefaultState());
             world.setBlockState(door.up(), Blocks.AIR.getDefaultState());
+            world.setBlockState(ironDoor, Blocks.AIR.getDefaultState());
+            world.setBlockState(ironDoor.up(), Blocks.AIR.getDefaultState());
             cleanUpVillage(world, manager, colony, hall, List.of());
             world.setBlockState(hall, Blocks.AIR.getDefaultState());
         }

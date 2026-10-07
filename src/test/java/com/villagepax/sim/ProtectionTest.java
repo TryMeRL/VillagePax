@@ -47,6 +47,26 @@ class ProtectionTest {
         assertTrue(Protection.guardedAgainst(manager, FRIEND, new BlockPos(5, 64, 5)).isEmpty());
     }
 
+    /**
+     * Выросшие границы делят общие чанки по близости: ближе к ратуше
+     * колонии — её земля, и защищена она и там, где деревня в списке раньше.
+     */
+    @Test
+    void sharedLandBelongsToTheNearerCentre() {
+        SettlementManager manager = new SettlementManager();
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Кан", new BlockPos(160, 64, 0));
+        village.setLevel(SettlementLevel.CAPITAL);
+        manager.add(village);
+        Settlement colony = Settlement.found(NORMAN, Owner.of(OWNER), "Бовуар", new BlockPos(0, 64, 0));
+        colony.setLevel(SettlementLevel.TOWN);
+        manager.add(colony);
+
+        assertTrue(Protection.guardedAgainst(manager, STRANGER, new BlockPos(40, 64, 0)).isPresent(),
+                "земля у самой колонии досталась деревне");
+        assertTrue(Protection.guardedAgainst(manager, STRANGER, new BlockPos(120, 64, 0)).isEmpty(),
+                "земля у самой деревни досталась колонии");
+    }
+
     /** Деревни народов берут набегом, и порчей это не считается. */
     @Test
     void aVillageOfThePeoplesIsNotGuarded() {

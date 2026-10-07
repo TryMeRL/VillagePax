@@ -424,10 +424,26 @@ public class SettlementManager extends PersistentState {
         return settlements.size();
     }
 
-    /** Поселение, чьи границы накрывают точку. */
+    /**
+     * Поселение, чьи границы накрывают точку; если таких несколько — то,
+     * к чьей середине чанк ближе.
+     * <p>
+     * Границы растут со ступенью, а пересечение проверяется лишь при
+     * основании: выросшие колония и деревня делят общие чанки. Прежде
+     * земля доставалась тому, кто раньше в списке, — обычно деревне, — и
+     * колония на своей половине теряла защиту. Делёж по близости — тот,
+     * который и видно глазами: ближе к ратуше — её земля.
+     */
     public Optional<Settlement> at(BlockPos pos) {
         ChunkPos chunk = new ChunkPos(pos);
-        return settlements.values().stream().filter(settlement -> settlement.claims(chunk)).findFirst();
+        return settlements.values().stream()
+                .filter(settlement -> settlement.claims(chunk))
+                .min(java.util.Comparator.comparingInt(settlement -> {
+                    ChunkPos centre = settlement.centerChunk();
+                    int dx = chunk.x - centre.x;
+                    int dz = chunk.z - centre.z;
+                    return dx * dx + dz * dz;
+                }));
     }
 
     /**

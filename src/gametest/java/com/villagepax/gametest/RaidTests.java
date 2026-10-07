@@ -2249,6 +2249,97 @@ public class RaidTests extends GameTestSupport {
     }
 
     /**
+     * Поход стоит у чужих ворот, а не у своей ратуши, — и, полёгши весь,
+     * возвращает колонии её стражу.
+     * <p>
+     * Обе беды жили за пределами проверки выше: там деревня в четырнадцати
+     * шагах, внутри границы колонии, и тело вставало где надо случайно.
+     * Настоящая деревня — за сотни блоков, а тело, рождённое по общим
+     * правилам, не верило позиции за границей и появлялось дома. Отряда
+     * у ворот не было, и деревня сдавалась без боя.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "conquest")
+    public void aWarBandStandsAtTheEnemyGatesAndFallsThere(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        UUID player = UUID.randomUUID();
+
+        // Колония далеко: её чанки не нужны, походу нужна только запись.
+        BlockPos colonyAt = context.getAbsolutePos(new BlockPos(6, 60, 6)).add(400, 0, 0);
+        BlockPos villageAt = context.getAbsolutePos(new BlockPos(12, 60, 12));
+        List<BlockPos> floor = new ArrayList<>();
+
+        Settlement colony = Settlement.found(NORMAN, Owner.of(player), "Дальняя", colonyAt);
+        colony.setLevel(SettlementLevel.TOWN);
+        Settlement village = Settlement.found(MAYA, Owner.AUTONOMOUS, "Ушмаль", villageAt);
+        manager.add(colony);
+        manager.add(village);
+
+        try {
+            for (int x = 0; x <= 24; x++) {
+                for (int z = 0; z <= 24; z++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(x, 59, z));
+                    world.setBlockState(at, Blocks.STONE.getDefaultState());
+                    floor.add(at);
+                }
+            }
+            for (String name : List.of("Гийом", "Одон")) {
+                Citizen guard = evenNewborn(name, "", NORMAN, Gender.MALE);
+                guard.setProfession(Villages.GUARD);
+                guard.setPosition(Vec3d.ofBottomCenter(colonyAt));
+                colony.addCitizen(guard);
+            }
+
+            if (Campaigns.march(world, manager, colony, village, player, 10L)
+                    != Campaigns.Verdict.YES) {
+                context.throwGameTestException("Городу с двумя стражами не дали выступить");
+                return;
+            }
+            WarParty party = manager.byId(village.id()).orElseThrow().siege().orElseThrow();
+            Raids.watch(world, manager, 10L + Campaigns.MARCH_DAYS);
+
+            List<CitizenEntity> band = Raids.bodiesOf(world, party);
+            if (band.size() != 2) {
+                context.throwGameTestException("У ворот встало " + band.size() + " из двух");
+                return;
+            }
+            for (CitizenEntity fighter : band) {
+                if (fighter.getBlockPos().getSquaredDistance(party.musters()) > 16 * 16) {
+                    context.throwGameTestException("Боец встал не у ворот: "
+                            + fighter.getBlockPos().toShortString()
+                            + ", сбор " + party.musters().toShortString());
+                }
+            }
+
+            // Полегли все — колония больше не в походе. Тело уходит из мира
+            // после смертной секунды, поэтому и итог подводится после неё.
+            band.forEach(CitizenEntity::kill);
+        } catch (RuntimeException failed) {
+            manager.remove(colony.id());
+            manager.remove(village.id());
+            floor.forEach(at -> world.setBlockState(at, Blocks.AIR.getDefaultState()));
+            throw failed;
+        }
+
+        context.waitAndRun(30, () -> {
+            try {
+                Settlement home = manager.byId(colony.id()).orElseThrow();
+                if (home.marchingOn().isPresent()) {
+                    context.throwGameTestException("Поход полёг, а колония всё «в походе»");
+                }
+                if (manager.byId(village.id()).orElseThrow().siege().isPresent()) {
+                    context.throwGameTestException("Отряда нет, а осада стоит");
+                }
+            } finally {
+                manager.remove(colony.id());
+                manager.remove(village.id());
+                floor.forEach(at -> world.setBlockState(at, Blocks.AIR.getDefaultState()));
+            }
+            context.complete();
+        });
+    }
+
+    /**
      * Отряд уходит из дома, берёт деревню и возвращается.
      * <p>
      * Три обещания похода одной проверкой, потому что они об одном:

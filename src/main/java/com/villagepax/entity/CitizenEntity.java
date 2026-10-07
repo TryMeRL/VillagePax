@@ -1082,7 +1082,10 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         // с самим собой не разговор.
         Optional<Identifier> craft = citizen.profession();
         boolean hosts = craft.filter(Villages.ENTERTAINER::equals).isPresent();
-        boolean gives = craft.filter(id -> QuestManager.all().values().stream()
+        // Просьбы — тоже только у чужих: свой страж давал бы хозяину цепочку
+        // «дозорного» с наградой из воздуха и переселенцем в его же колонию.
+        boolean gives = village.owner().isAutonomous()
+                && craft.filter(id -> QuestManager.all().values().stream()
                 .anyMatch(quest -> quest.giver().equals(id))).isPresent();
         boolean trades = craft.filter(id -> id.equals(Villages.counterKeeper(village))).isPresent()
                 && village.owner().isAutonomous()
@@ -1455,6 +1458,13 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         if (getPrimeAdversary() instanceof PlayerEntity hitter) {
             return hitter;
         }
+        // Убил зверь или нечисть — крипер, скелет, волк: виновник есть,
+        // и он не игрок. Свидетель за чужую стрелу не отвечает: прежде
+        // крипер, гнавшийся за игроком, взрывал торговца, а доверие
+        // теряли игрок и все деревни его народа.
+        if (cause != null && cause.getAttacker() != null) {
+            return null;
+        }
         return world.getClosestPlayer(getX(), getY(), getZ(), WITNESS_REACH,
                 net.minecraft.predicate.entity.EntityPredicates.EXCEPT_SPECTATOR);
     }
@@ -1617,11 +1627,31 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
 
     @Override
     public boolean damage(DamageSource source, float amount) {
+        if (getWorld() instanceof ServerWorld server && source.getAttacker() instanceof PlayerEntity player
+                && com.villagepax.sim.Protection.shieldOf(server, player, this).isPresent()) {
+            return false;
+        }
         boolean hurt = super.damage(source, amount);
         if (hurt) {
             lastHurtAge = age;
         }
         return hurt;
+    }
+
+    /**
+     * В портал житель не ходит: тело в другом измерении — призрак с его
+     * именем, а сам житель остаётся без тела и без дела, пока его чанк
+     * не загрузится заново.
+     */
+    @Override
+    public boolean canUsePortals() {
+        return false;
+    }
+
+    /** И на поводок его не взять: увести колониста за границу — то же похищение. */
+    @Override
+    public boolean canBeLeashedBy(PlayerEntity player) {
+        return false;
     }
 
     /**

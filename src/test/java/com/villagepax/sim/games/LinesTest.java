@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Фраза выбирается из запаса нрава, а если нраву нечего сказать — из общего.
+ * Фраза выбирается из одного мешка: сперва фразы нрава, за ними общие.
  * Номера идут подряд с единицы: словарь пополняется дописыванием, без правки кода.
  */
 class LinesTest {
@@ -27,6 +27,19 @@ class LinesTest {
         Set<String> known = Set.of(BASE + ".ambitious.1", BASE + ".ambitious.2", BASE + ".1");
         assertEquals(BASE + ".ambitious.2",
                 Lines.pick(Say.WIN, Nature.AMBITIOUS, known::contains, bound -> 1));
+    }
+
+    /**
+     * Нрав окрашивает речь, а не заменяет её: общий запас звучит и у того,
+     * у кого есть свой. Иначе нрав с одной своей фразой твердил бы её вечно.
+     */
+    @Test
+    void theCommonPoolSpeaksForANatureToo() {
+        String base = "villagepax.say.hungry";
+        Set<String> known = Set.of(base + ".lazy.1", base + ".1", base + ".2", base + ".3");
+        assertEquals(base + ".3", Lines.pickKey(base, Nature.LAZY, known::contains, bound -> bound - 1));
+        assertEquals(base + ".1", Lines.pickKey(base, Nature.LAZY, known::contains, bound -> 1));
+        assertEquals(base + ".lazy.1", Lines.pickKey(base, Nature.LAZY, known::contains, bound -> 0));
     }
 
     @Test

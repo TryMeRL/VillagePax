@@ -555,8 +555,6 @@ public final class BuildJob {
             return StepResult.BLOCKED;
         }
 
-        salvage(world, warehouse, building, where, nearStorage);
-
         // Состояние досчитывается по окружению до установки, а соседей
         // уведомляем после: иначе стёкла и заборы встают несоединёнными —
         // setBlockState, в отличие от установки блока игроком, окружение
@@ -577,6 +575,12 @@ public final class BuildJob {
                     .addOrScatter(world, where, new ItemStack(item, 1)));
             return StepResult.OCCUPIED;
         }
+
+        // Добро со старого блока — только когда новый и правда встаёт.
+        // Прежде его отдавали до проверки «не стоит ли кто в клетке», и
+        // игрок, стоящий в костре на месте стены, получал цветок из той же
+        // клетки каждое решение строителя — бесконечно.
+        salvage(world, warehouse, building, where, nearStorage);
 
         world.setBlockState(where, laid,
                 step.category() == BuildCategory.SOWING ? SOWN : Block.NOTIFY_ALL);

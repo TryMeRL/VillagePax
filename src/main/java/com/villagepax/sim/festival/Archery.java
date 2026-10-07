@@ -32,7 +32,6 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -154,7 +153,11 @@ public final class Archery extends Match {
         if (!body.getMainHandStack().isOf(Items.BOW)) {
             body.equipStack(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
         }
-        List<UUID> ready = rivals().stream().filter(one -> shotsOf(one) > 0).toList();
+        // Очередь — только у тех, кто стоит на ногах: соперник, чьё тело
+        // убито или выгружено, держал очередь вечно, и никто больше
+        // не стрелял до конца минуты.
+        List<UUID> ready = rivals().stream()
+                .filter(one -> shotsOf(one) > 0 && standing(world, one)).toList();
         if (ready.isEmpty() || world.getTime() < nextShot) {
             return;
         }
@@ -220,10 +223,34 @@ public final class Archery extends Match {
 
     @Override
     protected boolean exhausted(ServerWorld world) {
-        List<UUID> everyone = new ArrayList<>(players());
-        everyone.addAll(rivals());
-        return everyone.stream().allMatch(one -> shotsOf(one) <= 0)
+        return players().stream().allMatch(one -> shotsOf(one) <= 0)
+                && rivals().stream().allMatch(one -> shotsOf(one) <= 0 || !standing(world, one))
                 && world.getTime() - lastShot >= LANDING;
+    }
+
+    /** Стоит ли соперник на ногах: тело в мире и живо. */
+    private boolean standing(ServerWorld world, UUID rival) {
+        return SettlementManager.get(world).byId(settlement())
+                .flatMap(home -> home.citizen(rival))
+                .map(citizen -> bodyOf(world, citizen) != null)
+                .orElse(false);
+    }
+
+    /**
+     * Стоит ли игрок у черты.
+     * <p>
+     * Очки считаются по дальности мишени от черты, а не от стрелка, и прежде
+     * игрок подходил к дальней мишени вплотную: втрое дороже и без промаха.
+     * Стреляют все от черты — и жители, и игрок.
+     */
+    public boolean onTheLine(PlayerEntity player) {
+        for (BlockPos spot : fair.shooting()) {
+            if (player.getPos().squaredDistanceTo(Vec3d.ofBottomCenter(spot))
+                    <= (ON_THE_LINE + 1) * (ON_THE_LINE + 1)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

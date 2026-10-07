@@ -186,7 +186,9 @@ public final class FarmJob implements Job {
         BlockState state = world.getBlockState(plot);
 
         if (isRipe(state)) {
-            harvest(world, context.warehouse(), plot, state);
+            harvest(world, context.warehouse(), plot, state,
+                    com.villagepax.sim.life.Happenings.harvestTimes(context.settlement(),
+                            Schedule.dayOf(world.getTimeOfDay())));
             return;
         }
         if (isTrampled(world, plot, state)) {
@@ -198,12 +200,19 @@ public final class FarmJob implements Job {
         }
     }
 
+    /** Снять спелое; {@code times} — во сколько раз щедрее обычного (щедрое поле). */
     private static void harvest(ServerWorld world, Warehouse warehouse, BlockPos plot,
-                                BlockState ripe) {
-        for (ItemStack drop : Block.getDroppedStacks(ripe, world, plot, null, null, hoe())) {
-            if (!drop.isEmpty()) {
-                warehouse.addOrScatter(world, plot, drop);
+                                BlockState ripe, int times) {
+        for (int i = 0; i < times; i++) {
+            for (ItemStack drop : Block.getDroppedStacks(ripe, world, plot, null, null, hoe())) {
+                if (!drop.isEmpty()) {
+                    warehouse.addOrScatter(world, plot, drop);
+                }
             }
+        }
+        if (times > 1) {
+            world.spawnParticles(net.minecraft.particle.ParticleTypes.HAPPY_VILLAGER,
+                    plot.getX() + 0.5, plot.getY() + 0.6, plot.getZ() + 0.5, 4, 0.3, 0.2, 0.3, 0.0);
         }
         Sounds.broke(world, plot, ripe);
         world.setBlockState(plot, Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);

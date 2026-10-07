@@ -289,6 +289,10 @@ public final class WorkTicker {
         if (com.villagepax.sim.life.Weddings.takesOver(context, part, day)) {
             return;
         }
+        // Ссора — двоим спорщикам к ратуше, лицом к лицу.
+        if (com.villagepax.sim.life.Happenings.takesOver(context, part, day)) {
+            return;
+        }
 
         if (resting) {
             context.holdNothing();

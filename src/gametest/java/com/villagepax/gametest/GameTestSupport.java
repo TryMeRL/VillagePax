@@ -99,6 +99,12 @@ import java.util.UUID;
  */
 abstract class GameTestSupport implements FabricGameTest {
 
+    static {
+        // Случай дня выводится из опознавателя поселения, а здесь он
+        // случаен: ссора или именины выпадали бы посреди чужой проверки.
+        com.villagepax.sim.life.Happenings.quiet();
+    }
+
     /** Сколько ждать, пока сущности на делянке оживут: дальше — как есть. */
     private static final long ENTITIES_WAKE_NANOS = 2_000_000_000L;
 

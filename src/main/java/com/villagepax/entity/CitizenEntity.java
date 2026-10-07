@@ -1071,6 +1071,13 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
             return ActionResult.PASS;
         }
 
+        // Случай дня — раньше дела: именинника поздравляют, спорщиков
+        // рассуждают, и щелчок по ним сегодня значит это, а не торг.
+        if (com.villagepax.sim.life.Happenings.answer(world, server, village, citizen, this,
+                Schedule.dayOf(world.getTimeOfDay()))) {
+            return ActionResult.SUCCESS;
+        }
+
         // Кому есть что сказать по щелчку своим делом.
         //
         // Затейник отвечает всегда — и в своей колонии, и в чужой деревне:

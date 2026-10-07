@@ -135,6 +135,7 @@ public final class Arrival {
                 "villagepax.arrival.wedding",
                 here.citizen(couple[0]).map(c -> c.firstName()).orElse("?"),
                 here.citizen(couple[1]).map(c -> c.firstName()).orElse("?"))));
+        Happenings.news(here, day).ifPresent(lines::add);
         if (here.owner().isAutonomous() && !here.level().isMax()) {
             lines.add(Text.translatable("villagepax.arrival.growth", here.population(),
                     here.maxCitizens(), Text.translatable(Milestones.levelKey(here.level().next()))));

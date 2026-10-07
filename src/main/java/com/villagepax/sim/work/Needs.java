@@ -40,6 +40,9 @@ public final class Needs {
 
     public static final int MAX_SATURATION = 40;
 
+    /** Сколько здоровья запись без тела набирает за ночь: половину. */
+    static final float OVERNIGHT_HEAL = 10.0f;
+
     /**
      * Сроки удвоены после первой игры (решение заказчика): четыре дня
      * до предупреждения, шесть до ухода. Числа живут в настройках —
@@ -152,6 +155,11 @@ public final class Needs {
 
         for (Citizen citizen : settlement.citizens()) {
             citizen.setSaturation(citizen.saturation() - DAILY_COST);
+            // Без тела раны затягиваются за ночь: тело лечится само, а запись
+            // жителя, которого никто не видел, иначе хранила бы рану вечно.
+            if (!com.villagepax.entity.CitizenSpawner.hasLiveBody(world, citizen)) {
+                citizen.setHealth(citizen.health() + OVERNIGHT_HEAL);
+            }
 
             if (citizen.saturation() <= 0) {
                 citizen.setHappiness(citizen.happiness() - HAPPINESS_STARVING);

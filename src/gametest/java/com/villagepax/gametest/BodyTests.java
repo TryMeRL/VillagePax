@@ -200,6 +200,35 @@ public class BodyTests extends GameTestSupport {
         }
     }
 
+    /** Раненый житель лечится сам: прежде рана копилась годами и убивала. */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "bodies", tickLimit = 300)
+    public void aWoundedCitizenHeals(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Citizen citizen = grown(colony, hall);
+        CitizenEntity body = CitizenSpawner.spawnBody(world, colony, citizen);
+        body.setHealth(8.0f);
+
+        context.runAtTick(230, () -> {
+            try {
+                if (body.getHealth() <= 8.0f) {
+                    context.throwGameTestException("Раненый житель не лечится: " + body.getHealth());
+                }
+                if (body.getSafeFallDistance() > 3) {
+                    context.throwGameTestException("Житель готов прыгать с высоты "
+                            + body.getSafeFallDistance());
+                }
+                context.complete();
+            } finally {
+                discardBodies(world, colony);
+                manager.remove(colony.id());
+                world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            }
+        });
+    }
+
     private static Citizen grown(Settlement colony, BlockPos hall) {
         Citizen citizen = evenNewborn("Тёзка", "", NORMAN, Gender.MALE);
         citizen.setLived(Ages.grownAt());

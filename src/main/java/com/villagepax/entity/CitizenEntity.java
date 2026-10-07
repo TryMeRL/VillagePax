@@ -1606,6 +1606,52 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
     /** Как часто проверяется, не стоит ли житель на заборе. */
     private static final int OFF_FENCE_EVERY = 10;
 
+    /** Лечится раз в столько тиков: пять секунд. */
+    private static final int REGEN_EVERY = 100;
+
+    /** Столько тиков после удара житель не лечится: в бою раны не затягиваются. */
+    private static final int CALM_AFTER = 200;
+
+    /** Возраст тела в тиках, когда его ударили последний раз. */
+    private int lastHurtAge = Integer.MIN_VALUE / 2;
+
+    @Override
+    public boolean damage(DamageSource source, float amount) {
+        boolean hurt = super.damage(source, amount);
+        if (hurt) {
+            lastHurtAge = age;
+        }
+        return hurt;
+    }
+
+    /**
+     * Раны затягиваются: единица здоровья раз в пять секунд, во сне — две.
+     * <p>
+     * Прежде житель не лечился никогда: здоровье лежит в записи и переживает
+     * выгрузку, и каждое падение с уступа на два-три блока копилось годами.
+     * В сохранениях заказчика деревни вымирали от «падения» целиком — не от
+     * одного обрыва, а от сотого прыжка с крыльца. Куклы набега и обоза
+     * не лечатся: отбиться от отряда должно быть можно.
+     */
+    private void recover() {
+        if (citizenId == null || raidId != null || !isAlive() || getHealth() >= getMaxHealth()
+                || age - lastHurtAge < CALM_AFTER) {
+            return;
+        }
+        heal(isSleeping() || isDozing() ? 2.0f : 1.0f);
+    }
+
+    /**
+     * С высоты житель не прыгает никогда — даже в бою.
+     * <p>
+     * Ваниль разрешает мобу с целью прыгать тем выше, чем больше у него
+     * здоровья: страж, гнавшийся за налётчиком, сигал с пирамиды майя.
+     */
+    @Override
+    public int getSafeFallDistance() {
+        return 3;
+    }
+
     /**
      * Докуда ищется твёрдая земля, чтобы сойти с забора.
      * <p>
@@ -1915,6 +1961,9 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
 
         if (!getWorld().isClient() && age % OFF_FENCE_EVERY == 0) {
             stepOutOfTrouble();
+        }
+        if (!getWorld().isClient() && age % REGEN_EVERY == 0) {
+            recover();
         }
         if (!getWorld().isClient() && age % ROLE_EVERY == 0) {
             if (getWorld() instanceof ServerWorld serverWorld) {

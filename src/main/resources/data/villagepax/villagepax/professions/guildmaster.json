@@ -1,0 +1,8 @@
+{
+  "display_name": "villagepax.profession.guildmaster",
+  "job": "villagepax:guild",
+  "needs_workplace": true,
+  "hiring_priority": 0,
+  "workplace": "guild",
+  "min_level": "village"
+}

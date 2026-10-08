@@ -4986,6 +4986,116 @@ def _walled_fair(style, grid, walled):
     return layers
 
 
+# --- гильдия авантюристов ---
+#
+# Заказчик: «создай новое здание гильдии авантюристов». Дом у площади
+# в два этажа: внизу конторка мастера гильдии с книгой заказов (место
+# мастера — у аналоя), общий стол с лавками, где ждут контракта, и
+# сундук; над столом — флаг гильдии. Наверху картохранилище: полки
+# с книгами и стол с картами. Снаружи — таунхаус своего народа, чтобы
+# гильдия стояла в улице, а не торчала чужой.
+GUILD_BODY = [
+    # y=0 — цоколь
+    ["CCCCCCC"] * 7,
+    # y=1 — конторка мастера, общий стол, сундук, лестница наверх
+    ["BMMDMMB",
+     "M.K...M",
+     "M.L.%:M",
+     "M...%:M",
+     "MS....M",
+     "Mx..O.M",
+     "BMMMMMB"],
+    # y=2 — окна, флаг гильдии на северной стене, факел
+    ["BMG.GMB",
+     "M....щM",
+     "G.....G",
+     "M.....M",
+     "G.....G",
+     "Mx.^..M",
+     "BMGMGMB"],
+    # y=3 — настил с лазом у западной стены
+    ["HHHHHHH",
+     "ZPPPPPZ",
+     "ZPPPPPZ",
+     "ZPPPPPZ",
+     "ZPPPPPZ",
+     "ZxPPPPZ",
+     "HHHHHHH"],
+    # y=4 — картохранилище: полки вдоль северной стены, стол с картами
+    ["BWWWWWB",
+     "Wbb.bbW",
+     "W.....W",
+     "W..%..W",
+     "W..=..W",
+     "Wx.^O.W",
+     "BWWWWWB"],
+    # y=5 — окна второго этажа
+    ["BXGWGXB",
+     "X.....X",
+     "G.....G",
+     "B.....B",
+     "G.....G",
+     "X.....X",
+     "BXGWGXB"],
+    # y=6 — настил под кровлей: с него строитель достаёт конёк
+    ["HHHHHHH"] + ["ZPPPPPZ"] * 5 + ["HHHHHHH"],
+]
+
+NORMAN_GUILD = GUILD_BODY + steep_gable(7, 7, "s", "n", "X", "7", beam="B", window="G")
+
+PONY_GUILD = restyle(GUILD_BODY, {
+    "B": "o", "M": "I", "W": "I", "X": "I", "H": "m", "Z": "N", "P": "I",
+}) + steep_gable(7, 7, "]", "[", "I", "_", beam="o", window="G")
+
+NORD_GUILD = restyle(GUILD_BODY, {
+    "B": "л", "M": "C", "H": "ж", "Z": "з", "P": "е",
+}, walls={"W": ("ж", "з"), "X": ("ж", "з")}) + dragon_roof(7, 7)
+
+# Майя: охра по извести, резной камень в углах, настил из дерева джунглей
+# и ступенчатая кровля-пирамида, как у их высоких домов.
+MAYA_GUILD = restyle(GUILD_BODY, {
+    "C": "M", "B": "V", "M": "R", "W": "R", "X": "R", "H": "i", "Z": "u", "P": "a",
+}) + pyramid(7, "T")
+
+# Ямато: дом на помосте с верандой; мастер у аналоя, у стены стол с лавкой.
+YAMATO_GUILD = minka(
+    9, 9, 1,
+    [".K.:S",
+     ".L.%;",
+     ".....",
+     "O...O",
+     "....."],
+    [".....",
+     ".....",
+     ".....",
+     ".....",
+     "....."],
+    door=(4, 1), windows=((2, 1), (6, 1), (1, 3), (1, 5), (7, 3), (7, 5), (3, 7), (5, 7)),
+    lanterns=((4, 4),))
+
+# Гномы: зал в скале с высоким сводом, полки с картами штолен.
+DWARF_GUILD = chamber([
+    "/--D--/",
+    "-bK..b-",
+    "-.L...-",
+    "-...%:-",
+    "-...%:-",
+    "-S..O.-",
+    "/-----/",
+], height=6, door=(3, 0), grates=DWARF_GRATES)
+
+# Эльфы: помост в кроне, полки и стол разведчиков.
+ELF_GUILD = bower([
+    "{{{D{{{",
+    "{bK..b{",
+    "{.L...{",
+    "{...%:{",
+    "{...%:{",
+    "{S..O.{",
+    "{{{{{{{",
+], height=6, door=(3, 0), panes=ELF_PANES)
+
+
 RAW_SCHEMATICS = {
     "norman/town_hall_lvl1": NORMAN_TOWN_HALL,
     "norman/town_hall_lvl2": NORMAN_TOWN_HALL_2,
@@ -5117,6 +5227,13 @@ RAW_SCHEMATICS = {
     "yamato/fairground_lvl1": fairground("yamato"),
     "dwarf/fairground_lvl1": fairground("dwarf"),
     "elf/fairground_lvl1": fairground("elf"),
+    "norman/guild_lvl1": NORMAN_GUILD,
+    "maya/guild_lvl1": MAYA_GUILD,
+    "pony/guild_lvl1": PONY_GUILD,
+    "nord/guild_lvl1": NORD_GUILD,
+    "yamato/guild_lvl1": YAMATO_GUILD,
+    "dwarf/guild_lvl1": DWARF_GUILD,
+    "elf/guild_lvl1": ELF_GUILD,
 }
 
 

@@ -1269,6 +1269,74 @@ public class ComplaintTests extends GameTestSupport {
     }
 
     /**
+     * Гильдия авантюристов: достроенной гильдии деревня ставит мастера
+     * из жителей без дела, и только одного; его контракт — по рангу
+     * игрока: чужаку работа новичка за серебро, другу — героя за золото.
+     * И бродячий торговец заходит туда, где гильдия, вдвое чаще.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void theGuildHiresAMasterAndRanksItsContracts(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos where = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Identifier guildType = new Identifier("villagepax", "norman/guild");
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", where);
+        Citizen idle = evenNewborn("Gautier", "le Hardi", NORMAN, Gender.MALE);
+        village.addCitizen(idle);
+        Building guild = Building.planned(guildType, where.east(4), BlockRotation.NONE);
+        guild.setProgress(BuildProgress.DONE);
+        village.addBuilding(guild);
+        manager.add(village);
+        Settlement colony = Settlement.found(NORMAN, Owner.of(UUID.randomUUID()), "Моя", where.south(4));
+        UUID player = UUID.randomUUID();
+
+        try {
+            Villages.staffTheGuild(world, village, new java.util.Random(7));
+            Villages.staffTheGuild(world, village, new java.util.Random(8));
+            long masters = village.citizens().stream()
+                    .filter(c -> c.profession().filter(Villages.GUILDMASTER::equals).isPresent()).count();
+            if (masters != 1 || idle.profession().filter(Villages.GUILDMASTER::equals).isEmpty()) {
+                context.throwGameTestException("Мастеров гильдии: " + masters + ", а бездельник — "
+                        + idle.profession());
+            }
+
+            Quest novice = Quests.task(village, player, Villages.GUILDMASTER, 5).orElseThrow().quest();
+            if (!novice.dialogue().startsWith("villagepax.contract.novice.")
+                    || novice.rewards().stream().noneMatch(r -> r instanceof Quest.Reward.Give give
+                    && give.item() == com.villagepax.item.ModItems.SILVER_COIN)) {
+                context.throwGameTestException("Чужаку не контракт новичка за серебро: " + novice);
+            }
+            village.addReputation(player, 60);
+            Quest hero = Quests.task(village, player, Villages.GUILDMASTER, 5).orElseThrow().quest();
+            if (!hero.dialogue().startsWith("villagepax.contract.hero.")
+                    || hero.rewards().stream().noneMatch(r -> r instanceof Quest.Reward.Give give
+                    && give.item() == com.villagepax.item.ModItems.GOLD_COIN)) {
+                context.throwGameTestException("Другу не контракт героя за золото: " + hero);
+            }
+
+            int plain = 0;
+            for (long day = 0; day < 24; day++) {
+                plain += com.villagepax.sim.trade.Peddler.dueAt(colony, day) ? 1 : 0;
+            }
+            Building own = Building.planned(guildType, where.south(8), BlockRotation.NONE);
+            own.setProgress(BuildProgress.DONE);
+            colony.addBuilding(own);
+            int guilded = 0;
+            for (long day = 0; day < 24; day++) {
+                guilded += com.villagepax.sim.trade.Peddler.dueAt(colony, day) ? 1 : 0;
+            }
+            if (guilded != plain * 2) {
+                context.throwGameTestException("С гильдией торговец заходит " + guilded
+                        + " раз за 24 дня, без неё " + plain + " — ждали вдвое чаще");
+            }
+        } finally {
+            manager.remove(village.id());
+        }
+
+        context.complete();
+    }
+
+    /**
      * Просьба дня не меняется, пока день тот же.
      * <p>
      * Это не придирка к чистоте, а условие работоспособности: окно

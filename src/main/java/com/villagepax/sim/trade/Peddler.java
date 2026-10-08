@@ -42,8 +42,9 @@ import java.util.UUID;
  * Края, — и одну диковину: оберег или часть доспеха чужого народа,
  * которые иначе достаются только друзьям этого народа. Дорого, но сразу.
  * <p>
- * Заходит раз в {@link #EVERY_DAYS} дней — у каждого поселения свой день —
- * и в колонию игрока, и в деревни народов от ступени «деревня»; стоит
+ * Заходит раз в {@link #EVERY_DAYS} дней (где есть гильдия — вдвое чаще),
+ * у каждого поселения свой день, — и в колонию игрока, и в деревни
+ * народов от ступени «деревня»; стоит
  * у ратуши до следующего утра. Только покупает игрок: торговец налегке,
  * монеты на закупки у него нет.
  * <p>
@@ -73,11 +74,24 @@ public final class Peddler {
         return HOME.equals(guest.home());
     }
 
-    /** Зайдёт ли он сегодня в это поселение. Чистое правило. */
+    /**
+     * Зайдёт ли он сегодня в это поселение. Чистое правило.
+     * <p>
+     * Где стоит гильдия авантюристов, там останавливаются странники:
+     * туда торговец заходит вдвое чаще. Это и есть польза гильдии
+     * в колонии игрока — контрактов своя гильдия хозяину не даёт.
+     */
     public static boolean dueAt(Settlement host, long day) {
         boolean welcome = !host.owner().isAutonomous()
                 || host.level().ordinal() >= SettlementLevel.VILLAGE.ordinal();
-        return welcome && Math.floorMod(day * 5 + host.id().hashCode(), EVERY_DAYS) == 0;
+        int every = hasGuild(host) ? EVERY_DAYS / 2 : EVERY_DAYS;
+        return welcome && Math.floorMod(day * 5 + host.id().hashCode(), every) == 0;
+    }
+
+    /** Стоит ли в поселении достроенная гильдия авантюристов. */
+    static boolean hasGuild(Settlement host) {
+        return host.buildings().stream().anyMatch(building -> building.isOperational()
+                && com.villagepax.core.building.BuildingTypes.employs(building.type(), Villages.GUILDMASTER));
     }
 
     /** Утро: не пора ли торговцу прийти. Зовётся из суточного обхода поселения. */

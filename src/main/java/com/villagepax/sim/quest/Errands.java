@@ -114,6 +114,17 @@ public final class Errands {
         return new Identifier(VillagePax.MOD_ID, "errand/" + giver.getPath() + "_" + today);
     }
 
+    /**
+     * Поручение на этот день для игрока с таким доверием: у мастера
+     * гильдии это контракт его ранга, у прочих — поручение ремесла.
+     */
+    public static Optional<Quest> forToday(Settlement village, Identifier giver, long today, int reputation) {
+        if (Contracts.gives(giver)) {
+            return Contracts.forToday(village, today, reputation);
+        }
+        return forToday(village, giver, today);
+    }
+
     /** Поручение этого ремесла на этот день — или ничего, если ремесло молчит. */
     public static Optional<Quest> forToday(Settlement village, Identifier giver, long today) {
         String people = village.culture().getPath();
@@ -209,6 +220,7 @@ public final class Errands {
                 keys.add("villagepax.errand." + people + "." + trade + "." + i);
             }
         }));
+        keys.addAll(Contracts.dialogueKeys());
         return keys.stream().sorted().toList();
     }
 

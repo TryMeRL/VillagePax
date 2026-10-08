@@ -152,6 +152,13 @@ public final class Villages {
      */
     public static final Identifier ENTERTAINER = new Identifier(VillagePax.MOD_ID, "entertainer");
 
+    /**
+     * Мастер гильдии авантюристов: даёт контракты на нечисть, разведку
+     * и добычу. Ставится явно, когда гильдия достроена, — приоритет найма
+     * у него ноль, как у старейшины: колония сама себе контрактов не даёт.
+     */
+    public static final Identifier GUILDMASTER = new Identifier(VillagePax.MOD_ID, "guildmaster");
+
     private Villages() {
     }
 
@@ -391,6 +398,8 @@ public final class Villages {
             Citizenship.newDay(world, manager, village);
             deliver(world, village, warehouse);
             keepAFarmer(world, village);
+            staffTheGuild(world, village, new Random(village.id().getMostSignificantBits()
+                    ^ Schedule.dayOf(world.getTimeOfDay())));
             // Чертоги, основанные до штолен, достают их сами на рассвете:
             // иначе гномы в старых мирах так и сидели бы замурованными.
             Galleries.cutAll(world, village);
@@ -464,6 +473,45 @@ public final class Villages {
                     citizen.setProfession(com.villagepax.sim.work.FarmJob.FARMER);
                     Workplaces.assign(world, village);
                 });
+    }
+
+    /**
+     * У достроенной гильдии есть мастер.
+     * <p>
+     * Мастером становится житель без дела, а нет такого — приходит
+     * пришлый, если деревне есть где его поселить. Забирать ремесленника
+     * нельзя: гильдия, ради которой встал пивовар, — плохой обмен.
+     */
+    public static void staffTheGuild(ServerWorld world, Settlement village, Random random) {
+        boolean guild = village.buildings().stream().anyMatch(building -> building.isOperational()
+                && BuildingTypes.employs(building.type(), GUILDMASTER));
+        boolean master = village.citizens().stream().anyMatch(citizen -> citizen.profession()
+                .filter(GUILDMASTER::equals).isPresent());
+        if (!guild || master) {
+            return;
+        }
+        Citizen idle = village.citizens().stream()
+                .filter(citizen -> citizen.profession().isEmpty()
+                        && !com.villagepax.sim.life.Ages.isChild(citizen))
+                .findFirst().orElse(null);
+        boolean newcomer = idle == null;
+        if (newcomer) {
+            Culture culture = CultureManager.get(village.culture());
+            if (culture == null || !village.hasRoomForCitizen()) {
+                return;
+            }
+            idle = Founding.newCitizen(village.culture(), culture, random, village.citizens());
+            com.villagepax.sim.life.Ages.arrivedGrown(idle, random);
+            idle.setPosition(CitizenSpawner.arrival(world, village));
+            village.addCitizen(idle);
+        }
+        idle.setProfession(GUILDMASTER);
+        if (newcomer) {
+            com.villagepax.sim.work.Housing.assignBeds(world, village);
+            CitizenSpawner.spawnBody(world, village, idle);
+        }
+        Workplaces.assign(world, village);
+        VillagePax.LOGGER.info("В гильдии {} теперь мастер: {}", village.name(), idle.fullName());
     }
 
     /**
@@ -927,6 +975,7 @@ public final class Villages {
         }
         com.villagepax.sim.work.Housing.assignBeds(world, village);
         Workplaces.assign(world, village);
+        staffTheGuild(world, village, random);
         manager.markDirty();
         VillagePax.LOGGER.info("Деревня {} встала развитой: {}, зданий {}, жителей {}", village.name(),
                 village.level().id(), village.buildings().size(), village.population());

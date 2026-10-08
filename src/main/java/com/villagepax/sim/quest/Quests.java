@@ -144,7 +144,7 @@ public final class Quests {
             // единственный предел, который поручениям нужен.
             return Optional.empty();
         }
-        return Errands.forToday(village, giver, today)
+        return Errands.forToday(village, giver, today, village.reputationOf(player))
                 .map(quest -> new Task(errand, quest, true));
     }
 

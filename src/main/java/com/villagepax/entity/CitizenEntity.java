@@ -1176,8 +1176,10 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         boolean hosts = craft.filter(Villages.ENTERTAINER::equals).isPresent();
         // Просьбы — тоже только у чужих: свой страж давал бы хозяину цепочку
         // «дозорного» с наградой из воздуха и переселенцем в его же колонию.
+        // Мастер гильдии писаных цепочек не ведёт — у него контракты.
         boolean gives = village.owner().isAutonomous()
-                && craft.filter(id -> QuestManager.all().values().stream()
+                && craft.filter(id -> com.villagepax.sim.quest.Contracts.gives(id)
+                || QuestManager.all().values().stream()
                 .anyMatch(quest -> quest.giver().equals(id))).isPresent();
         boolean trades = craft.filter(id -> id.equals(Villages.counterKeeper(village))).isPresent()
                 && village.owner().isAutonomous()

@@ -212,6 +212,7 @@
     "villagepax:maya/builder_hut",
     "villagepax:maya/brewery",
     "villagepax:maya/weavery",
+    "villagepax:maya/guild",
     "villagepax:maya/fairground"
   ],
   "road": [

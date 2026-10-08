@@ -1038,6 +1038,38 @@ def craft_entertainer(skin, parts, look, woman, people):
         draw_skirt(skin, look, colour=one, trim=other)
 
 
+def craft_guildmaster(skin, parts, look, woman, people):
+    """Мастер гильдии: дорожный плащ цвета мха, перевязь через грудь,
+    широкополая шляпа с пером народа и кожаная сумка с картами.
+
+    Его узнают издали не по кафтану, как купца, а по дороге: плащ
+    поношен, перевязь кожаная, перо на шляпе — цвета своего народа.
+    """
+    jacket = parts["jacket"]
+    cloak = rgb(0x4E5E3C)
+    for name in SIDES:
+        skin.weave(jacket[name], cloak, tone(cloak, 0.88), tone(cloak, 1.08), salt=31)
+    x, y, width, height = jacket["front"]
+    for dy in range(height):
+        skin.px(jacket["front"], min(width - 1, dy * (width - 1) // max(1, height - 1)), dy, LEATHER)
+    skin.band(jacket["front"], look["belt"], top=9, rows=1)
+    skin.px(jacket["front"], width // 2, 9, GOLD)
+    for name in SIDES:
+        skin.band(parts["sleeve"][name], cloak, rows=8)
+        skin.band(parts["sleeve"][name], LEATHER_DARK, top=7, rows=1)
+    hat = rgb(0x5A3C24)
+    skin.fill(parts["hat"]["top"], hat)
+    for name in SIDES:
+        skin.band(parts["hat"][name], hat, rows=2)
+        skin.band(parts["hat"][name], tone(hat, 0.7), top=2, rows=1)
+    skin.px(parts["hat"]["left"], 1, 0, look["accent"])
+    skin.px(parts["hat"]["left"], 2, 0, tone(look["accent"], 1.2))
+    region = REGIONS["purse"]
+    skin.cube(region, LEATHER)
+    skin.band(region["front"], LEATHER_DARK, rows=1)
+    skin.px(region["front"], 0, 1, rgb(0xE8DCB8))
+
+
 INK_MASK = rgb(0x1E1E1E)
 
 
@@ -1052,6 +1084,7 @@ CRAFTS = {
     "merchant": craft_merchant,
     "weaver": craft_weaver,
     "entertainer": craft_entertainer,
+    "guildmaster": craft_guildmaster,
 }
 
 
@@ -1125,6 +1158,7 @@ PONY_COATS = {
     (False, "merchant"): (0xA8E8C8, 0x7A3AA8, 0xA868D0, 0x5A2A80),
     (False, "weaver"): (0xF8C8B0, 0x4A7AD8, 0x7AA4F0, 0x3A5AA8),
     (False, "entertainer"): (0xF8D878, 0xE8408A, 0x70C8F0, 0x3A7AD0),
+    (False, "guildmaster"): (0xB8A888, 0x4E5E3C, 0x7A8A5A, 0x3A4A2A),
     (True, None): (0xF8B8D8, 0xD83A8A, 0xF070B0, 0x3A7AD0),
     (True, "builder"): (0xD0B8F0, 0x4A2E8A, 0x7050B8, 0x5A2E9A),
     (True, "farmer"): (0xF8E8A0, 0xF08AB0, 0xF8B0CC, 0x3AA0B8),
@@ -1136,6 +1170,7 @@ PONY_COATS = {
     (True, "merchant"): (0xE0C8F0, 0x2E9A9A, 0x5AC8C8, 0x2A6A8A),
     (True, "weaver"): (0xF8F4F0, 0x7A4AC8, 0xA07AE0, 0x3A60C8),
     (True, "entertainer"): (0xF8B8E0, 0xE0409A, 0xF870B8, 0x3A8AD8),
+    (True, "guildmaster"): (0xD8C8A0, 0x8A4A2A, 0xB8743E, 0x3A6A3A),
 }
 
 # Радужная грива — одна на весь народ: у курьерши, самой быстрой.
@@ -1155,6 +1190,7 @@ CUTIE_MARKS = {
     "merchant": [".Y.", "YOY", ".Y."],
     "weaver": [".P.", "PLP", ".P."],
     "entertainer": ["R.B", "...", ".Y."],
+    "guildmaster": ["B.B", ".Y.", "B.B"],
 }
 CUTIE_INK = {
     "R": rgb(0xE0405A), "S": rgb(0xA8B0B8), "W": rgb(0x8A5A2E), "G": rgb(0x4AA04A),
@@ -1336,6 +1372,11 @@ def pony_entertainer(skin, look):
             skin.px(ruff[name], dx, 0, GOLD)
 
 
+def pony_guildmaster(skin, look):
+    """Мастер гильдии: походные сумы цвета мха; знак — роза ветров."""
+    saddlebags(skin, rgb(0x4E5E3C), LEATHER)
+
+
 PONY_CRAFTS = {
     "builder": pony_builder,
     "farmer": pony_farmer,
@@ -1347,6 +1388,7 @@ PONY_CRAFTS = {
     "merchant": pony_merchant,
     "weaver": pony_weaver,
     "entertainer": pony_entertainer,
+    "guildmaster": pony_guildmaster,
 }
 
 

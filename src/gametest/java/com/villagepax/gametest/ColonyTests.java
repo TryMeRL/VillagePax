@@ -757,7 +757,8 @@ public class ColonyTests extends GameTestSupport {
             }
 
             CitizenEntity body = (CitizenEntity) world.getEntity(citizen.entityUuid().orElseThrow());
-            if (body.getPos().squaredDistanceTo(Vec3d.ofBottomCenter(colony.center().up())) > 1.0) {
+            // У ратуши — в пределах поиска сухого места вокруг неё (12 шагов).
+            if (body.getPos().squaredDistanceTo(Vec3d.ofBottomCenter(colony.center().up())) > 18 * 18) {
                 context.throwGameTestException("Житель появился не у ратуши: " + body.getPos());
             }
 

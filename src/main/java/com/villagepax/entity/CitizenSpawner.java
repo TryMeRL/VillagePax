@@ -222,8 +222,15 @@ public final class CitizenSpawner {
 
     private static boolean livesIn(ServerWorld world, Settlement settlement, Citizen citizen,
                                    ChunkPos chunk) {
-        return new ChunkPos(BlockPos.ofFloored(spawnPosition(world, settlement, citizen)))
-                .equals(chunk);
+        // Без своего места житель живёт у ратуши — в её чанке, даже если
+        // сухое место для него нашлось через границу чанка: место ищется
+        // только в загруженных чанках, и тело встанет там же, куда пришло бы.
+        BlockPos home = citizen.position()
+                .map(BlockPos::ofFloored)
+                .filter(settlement::claims)
+                .filter(pos -> !world.isChunkLoaded(pos) || world.getFluidState(pos).isEmpty())
+                .orElse(settlement.center());
+        return new ChunkPos(home).equals(chunk);
     }
 
     /** На сколько шагов от ратуши искать клетку, где жителю появиться. */

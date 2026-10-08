@@ -30,6 +30,11 @@ import java.util.List;
  * перекошенная, как вешают руками; на нём просьба ремесла, сколько уже
  * при себе, награда и печать «Отдать». Листков больше, чем влезает, —
  * доска листается стрелками или колесом.
+ * <p>
+ * Щелчок по шапке листка срывает его: листок дёргается с гвоздя
+ * и улетает вниз, к сумке, а в сумке появляется листок с заданием.
+ * На доске остаётся обрывок под гвоздём — и печать сдачи, если всё
+ * собрано.
  */
 public class BoardScreen extends Screen {
 
@@ -57,6 +62,30 @@ public class BoardScreen extends Screen {
 
     private BoardView view;
     private int page;
+
+    /** Сколько длится срывание листка, в миллисекундах. */
+    private static final long TEAR_MS = 520;
+
+    /** Листок, который сейчас срывают: чей и когда начали. */
+    private record Tearing(Identifier giver, long since) {
+    }
+
+    private Tearing tearing;
+
+    /** Сорванные, о которых сервер ещё не ответил: висят обрывком сразу. */
+    private final java.util.Set<Identifier> torn = new java.util.HashSet<>();
+
+    /** Записывать ли, где на экране лежат печати и вещи: летящий листок не ловит щелчков. */
+    private boolean recording = true;
+
+    /** Шапки листков: щелчок по ней срывает листок. */
+    private final List<Header> headers = new ArrayList<>();
+
+    private record Header(int x, int y, int w, int h, BoardView.Sheet sheet) {
+        boolean hit(double mx, double my) {
+            return mx >= x && mx < x + w && my >= y && my < y + h;
+        }
+    }
 
     /** Где на экране лежат печати и вещи этой отрисовки: для щелчка и подсказки. */
     private final List<Stamp> stamps = new ArrayList<>();
@@ -90,6 +119,7 @@ public class BoardScreen extends Screen {
     public static void open(MinecraftClient client, BoardView view) {
         if (client.currentScreen instanceof BoardScreen board && board.view.village().equals(view.village())) {
             board.view = view;
+            board.torn.clear();
             board.page = Math.min(board.page, Math.max(0, board.pages() - 1));
             return;
         }
@@ -166,6 +196,7 @@ public class BoardScreen extends Screen {
         stamps.clear();
         icons.clear();
         words.clear();
+        headers.clear();
 
         int x = left();
         int y = top();
@@ -204,8 +235,26 @@ public class BoardScreen extends Screen {
             int rowWidth = shown * SHEET_W + (shown - 1) * GAP;
             int sx = x + (w - rowWidth) / 2;
             for (int i = from; i < to; i++) {
-                drawSheet(context, sheets.get(i), sx + (i - from) * (SHEET_W + GAP), sheetsTop,
-                        mouseX, mouseY);
+                BoardView.Sheet sheet = sheets.get(i);
+                int at = sx + (i - from) * (SHEET_W + GAP);
+                if (tearing != null && tearing.giver().equals(sheet.giver())) {
+                    drawTaken(context, sheet, at, sheetsTop, mouseX, mouseY);
+                    drawTearing(context, sheet, at, sheetsTop, mouseX, mouseY);
+                } else if (sheet.taken() || torn.contains(sheet.giver())) {
+                    drawTaken(context, sheet, at, sheetsTop, mouseX, mouseY);
+                } else {
+                    drawSheet(context, sheet, at, sheetsTop, mouseX, mouseY);
+                }
+            }
+            // Подсказка — мелко слева внизу; там же номер страницы, если доска листается.
+            if (pages() == 1) {
+                Text hint = Text.translatable("villagepax.board.take_hint");
+                var matrices = context.getMatrices();
+                matrices.push();
+                matrices.translate(x + FRAME + 4, y + h - FRAME - 10, 0);
+                matrices.scale(0.75f, 0.75f, 1f);
+                context.drawText(textRenderer, hint, 0, 0, 0xCCD9C7A0, false);
+                matrices.pop();
             }
         }
 
@@ -235,6 +284,92 @@ public class BoardScreen extends Screen {
                 context.drawTooltip(textRenderer, Text.translatable("villagepax.board.no_trust.why"),
                         realX, realY);
             }
+        }
+        if (tearing == null) {
+            for (Header header : headers) {
+                if (header.hit(mouseX, mouseY)) {
+                    context.drawTooltip(textRenderer, Text.translatable("villagepax.board.take"), realX, realY);
+                }
+            }
+        }
+    }
+
+    /**
+     * Летящий листок: дёрнулся с гвоздя, качнулся и ушёл вниз, к сумке,
+     * уменьшаясь. Без анимации листок просто пропадал бы — и игрок
+     * не понял бы, куда.
+     */
+    private void drawTearing(DrawContext context, BoardView.Sheet sheet, int x, int y, int mouseX, int mouseY) {
+        float p = Math.min(1f, (net.minecraft.util.Util.getMeasuringTimeMs() - tearing.since()) / (float) TEAR_MS);
+        if (p >= 1f) {
+            finishTearing(sheet);
+            return;
+        }
+        // Первая четверть — рывок вверх и перекос, дальше — падение с разгоном.
+        float jerk = p < 0.25f ? p / 0.25f : 1f;
+        float fall = p < 0.25f ? 0f : (p - 0.25f) / 0.75f;
+        float cx = x + SHEET_W / 2f;
+        float cy = y + 4;
+        var matrices = context.getMatrices();
+        matrices.push();
+        matrices.translate(cx + fall * 30f, cy - 4f * jerk + fall * fall * (virtualHeight() - y), 200);
+        matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(-6f * jerk + 35f * fall));
+        float scale = 1f - 0.65f * fall;
+        matrices.scale(scale, scale, 1f);
+        matrices.translate(-cx, -cy, 0);
+        recording = false;
+        drawSheet(context, sheet, x, y, mouseX, mouseY);
+        recording = true;
+        matrices.pop();
+    }
+
+    private void finishTearing(BoardView.Sheet sheet) {
+        tearing = null;
+        torn.add(sheet.giver());
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeUuid(view.village());
+        buf.writeBlockPos(view.board());
+        buf.writeIdentifier(sheet.giver());
+        ClientPlayNetworking.send(BoardNet.TAKE, buf);
+        client.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.ENTITY_ITEM_PICKUP, 1.2f, 0.6f));
+    }
+
+    /**
+     * Сорванный листок: под гвоздём обрывок бумаги, ниже резьбой —
+     * «листок у вас», и печать сдачи прямо на доске, если всё собрано.
+     */
+    private void drawTaken(DrawContext context, BoardView.Sheet sheet, int x, int y, int mouseX, int mouseY) {
+        // Обрывок: полоска бумаги с рваным краем.
+        context.drawTexture(PAPER, x + 30, y, 30, 0, SHEET_W - 60, 9, SHEET_W, SHEET_H);
+        for (int tx = x + 30; tx < x + SHEET_W - 30; tx += 4) {
+            context.fill(tx, y + 9, tx + 2, y + 11, 0xFFE3D3A6);
+        }
+        context.fill(x + SHEET_W / 2 - 2, y + 2, x + SHEET_W / 2 + 2, y + 6, 0xFF4A4038);
+        context.fill(x + SHEET_W / 2 - 1, y + 2, x + SHEET_W / 2 + 1, y + 3, 0xFF8C8170);
+
+        Text trade = sheet.title().map(key -> (Text) Text.translatable(key))
+                .orElseGet(() -> Text.translatable("villagepax.profession." + sheet.giver().getPath()));
+        int ty = y + 22;
+        for (Text line : List.of(trade, Text.translatable("villagepax.board.taken"))) {
+            for (OrderedText part : textRenderer.wrapLines(line, SHEET_W - 8)) {
+                context.drawText(textRenderer, part, x + (SHEET_W - textRenderer.getWidth(part)) / 2, ty,
+                        CARVED, true);
+                ty += 11;
+            }
+        }
+
+        if (sheet.offer().ready() && sheet.trusted()) {
+            Text label = Text.translatable("villagepax.board.hand_in");
+            int sw = Math.max(54, textRenderer.getWidth(label) + 12);
+            int sx = x + (SHEET_W - sw) / 2;
+            int sy = y + SHEET_H - 20;
+            Stamp stamp = new Stamp(sx, sy, sw, 14, sheet, true);
+            boolean hover = stamp.hit(mouseX, mouseY);
+            context.fill(sx, sy, sx + sw, sy + 14, hover ? WAX_HOVER : WAX);
+            context.fill(sx + 1, sy + 1, sx + sw - 1, sy + 2, 0x33FFFFFF);
+            context.drawText(textRenderer, label, sx + (sw - textRenderer.getWidth(label)) / 2, sy + 3,
+                    0xFFF7E9D0, false);
+            stamps.add(stamp);
         }
     }
 
@@ -273,20 +408,33 @@ public class BoardScreen extends Screen {
     private void drawSheet(DrawContext context, BoardView.Sheet sheet, int x, int y,
                            int mouseX, int mouseY) {
         float angle = tilt(sheet);
+        Header header = new Header(x, y, SHEET_W, 30, sheet);
+        boolean lifted = recording && tearing == null && header.hit(mouseX, mouseY);
+        if (recording) {
+            headers.add(header);
+        }
         var matrices = context.getMatrices();
         matrices.push();
         matrices.translate(x + SHEET_W / 2f, y + 4, 0);
-        matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(angle));
-        matrices.translate(-SHEET_W / 2f, -4, 0);
+        // Под рукой листок приподнимается на гвозде: «меня можно снять».
+        matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(lifted ? angle * 2f - 2f : angle));
+        matrices.translate(-SHEET_W / 2f, lifted ? -5 : -4, 0);
 
+        if (lifted) {
+            context.fill(2, 3, SHEET_W + 2, SHEET_H + 3, 0x55000000);
+        }
         context.drawTexture(PAPER, 0, 0, 0, 0, SHEET_W, SHEET_H, SHEET_W, SHEET_H);
+        // Гвоздь, на котором листок висит.
+        context.fill(SHEET_W / 2 - 2, 2, SHEET_W / 2 + 2, 6, 0xFF4A4038);
+        context.fill(SHEET_W / 2 - 1, 2, SHEET_W / 2 + 1, 3, 0xFF8C8170);
 
         int inner = SHEET_W - 12;
         int ty = 12;
         Text trade = sheet.title().map(key -> (Text) Text.translatable(key))
                 .orElseGet(() -> Text.translatable("villagepax.profession." + sheet.giver().getPath()));
-        Text heading = trade.copy().formatted(Formatting.BOLD);
-        drawCentered(context, heading, ty, INK, 1f);
+        // Без жирного: у «ш» и «ж» штрихи через пиксель, и жирный сдвиг
+        // заливает их в сплошной квадрат. Шапку выделяет цвет и черта ниже.
+        drawCentered(context, trade, ty, INK, 1f);
         ty += 10;
         drawCentered(context, Text.literal(sheet.author()), ty, MUTED, 0.75f);
         ty += 8;
@@ -297,7 +445,7 @@ public class BoardScreen extends Screen {
         Text said = Text.translatable(offer.dialogue()).formatted(Formatting.ITALIC);
         int saidFrom = ty;
         ty = drawWrapped(context, said, 6, ty, inner, MUTED, 0.75f, 3);
-        if (textRenderer.wrapLines(said, (int) (inner / 0.75f)).size() > 3) {
+        if (recording && textRenderer.wrapLines(said, (int) (inner / 0.75f)).size() > 3) {
             words.add(new Words(x + 6, y + saidFrom, inner, ty - saidFrom, said));
         }
         ty += 3;
@@ -350,12 +498,14 @@ public class BoardScreen extends Screen {
         int sx = (SHEET_W - sw) / 2;
         int sy = SHEET_H - 20;
         Stamp stamp = new Stamp(x + sx, y + sy, sw, 14, sheet, active);
-        boolean hover = active && stamp.hit(mouseX, mouseY);
+        boolean hover = recording && active && stamp.hit(mouseX, mouseY);
         context.fill(sx, sy, sx + sw, sy + 14, active ? (hover ? WAX_HOVER : WAX) : WAX_DULL);
         context.fill(sx + 1, sy + 1, sx + sw - 1, sy + 2, 0x33FFFFFF);
         context.drawText(textRenderer, label, sx + (sw - textRenderer.getWidth(label)) / 2, sy + 3,
                 active ? 0xFFF7E9D0 : 0xFF6E6250, false);
-        stamps.add(stamp);
+        if (recording) {
+            stamps.add(stamp);
+        }
 
         matrices.pop();
     }
@@ -366,7 +516,9 @@ public class BoardScreen extends Screen {
         context.drawItem(stack, lx, ly);
         context.drawItemInSlot(textRenderer, stack, lx, ly);
         // Наклон мал, и подсказка ловится по ровной клетке — разница в пиксель.
-        icons.add(new Icon(sheetX + lx, sheetY + ly, 16, stack));
+        if (recording) {
+            icons.add(new Icon(sheetX + lx, sheetY + ly, 16, stack));
+        }
     }
 
     private void drawCentered(DrawContext context, Text text, int y, int colour, float scale) {
@@ -406,10 +558,18 @@ public class BoardScreen extends Screen {
     public boolean mouseClicked(double realX, double realY, int button) {
         double mouseX = realX / zoom();
         double mouseY = realY / zoom();
-        if (button == 0) {
+        if (button == 0 && tearing == null) {
             for (Stamp stamp : stamps) {
                 if (stamp.active() && stamp.hit(mouseX, mouseY)) {
                     handIn(stamp.sheet());
+                    return true;
+                }
+            }
+            for (Header header : headers) {
+                if (header.hit(mouseX, mouseY)) {
+                    tearing = new Tearing(header.sheet().giver(), net.minecraft.util.Util.getMeasuringTimeMs());
+                    client.getSoundManager().play(PositionedSoundInstance.master(
+                            SoundEvents.ITEM_BOOK_PAGE_TURN, 1.6f, 1.0f));
                     return true;
                 }
             }

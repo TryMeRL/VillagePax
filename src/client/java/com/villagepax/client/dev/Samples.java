@@ -53,9 +53,9 @@ final class Samples {
     static net.minecraft.client.gui.screen.Screen boardScreen() {
         com.villagepax.screen.QuestView.Offer offer = ScreenShots.elder().quest().orElseThrow();
         List<com.villagepax.screen.BoardView.Sheet> sheets = List.of(
-                new com.villagepax.screen.BoardView.Sheet(id("elder"), "Бертран Кан", Optional.empty(), offer, true),
-                new com.villagepax.screen.BoardView.Sheet(id("farmer"), "Эмма Мартен", Optional.empty(), offer, true),
-                new com.villagepax.screen.BoardView.Sheet(id("guard"), "Робер Дюпон", Optional.empty(), offer, false));
+                new com.villagepax.screen.BoardView.Sheet(id("elder"), "Бертран Кан", Optional.empty(), offer, true, false),
+                new com.villagepax.screen.BoardView.Sheet(id("farmer"), "Эмма Мартен", Optional.empty(), offer, true, true),
+                new com.villagepax.screen.BoardView.Sheet(id("guard"), "Робер Дюпон", Optional.empty(), offer, false, false));
         com.villagepax.screen.BoardView view = new com.villagepax.screen.BoardView(UUID.randomUUID(), "Бовуар",
                 BlockPos.ORIGIN, "villagepax.standing.known", 27, sheets);
         net.minecraft.client.MinecraftClient client = net.minecraft.client.MinecraftClient.getInstance();

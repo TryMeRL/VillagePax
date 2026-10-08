@@ -245,7 +245,7 @@ public final class ScreenShots {
 
     static QuestView elder() {
         QuestView.Offer offer = new QuestView.Offer("villagepax.quest.founding_3",
-                List.of(new QuestView.Need("villagepax.quest.screen.deliver", Optional.of(Items.BREAD),
+                List.of(new QuestView.Need("villagepax.quest.objective.deliver", Optional.of(Items.BREAD),
                         Optional.empty(), 8, 5)),
                 List.of(new QuestView.Prize(QuestView.Prize.TRUST, Optional.empty(), 20),
                         new QuestView.Prize(QuestView.Prize.GOODS,

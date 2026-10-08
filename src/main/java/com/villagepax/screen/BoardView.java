@@ -36,16 +36,18 @@ public record BoardView(UUID village, String name, BlockPos board, String standi
      * @param title     ключ имени ремесла у этого народа; пусто — общее имя
      * @param offer     сама просьба
      * @param trusted   хватает ли доверия, чтобы с игроком об этом говорили
+     * @param taken     листок этой просьбы уже сорван и лежит у игрока в сумке
      */
     public record Sheet(Identifier giver, String author, Optional<String> title,
-                        QuestView.Offer offer, boolean trusted) {
+                        QuestView.Offer offer, boolean trusted, boolean taken) {
 
         public static final Codec<Sheet> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Identifier.CODEC.fieldOf("giver").forGetter(Sheet::giver),
                 Codec.STRING.fieldOf("author").forGetter(Sheet::author),
                 Codec.STRING.optionalFieldOf("title").forGetter(Sheet::title),
                 QuestView.Offer.CODEC.fieldOf("offer").forGetter(Sheet::offer),
-                Codec.BOOL.optionalFieldOf("trusted", true).forGetter(Sheet::trusted)
+                Codec.BOOL.optionalFieldOf("trusted", true).forGetter(Sheet::trusted),
+                Codec.BOOL.optionalFieldOf("taken", false).forGetter(Sheet::taken)
         ).apply(instance, Sheet::new));
     }
 

@@ -189,6 +189,10 @@ public final class ModItems {
     public static final Item WATCHERS_EYE = register("watchers_eye",
             new ArtifactItem(Domain.WATCH, artifact()));
 
+    /** Листок, сорванный с доски заданий: просьба с собой. */
+    public static final Item QUEST_NOTE = register("quest_note",
+            new QuestNoteItem(new Item.Settings().maxCount(1)));
+
     /** Общие свойства артефакта: один в стопке, эпический, не горит. */
     private static Item.Settings artifact() {
         return new Item.Settings().maxCount(1).rarity(Rarity.EPIC).fireproof();

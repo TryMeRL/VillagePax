@@ -213,6 +213,8 @@ public final class Quests {
         }
 
         village.noteQuestDone(player, task.id());
+        // Сорванный с доски листок этой просьбы больше не нужен.
+        com.villagepax.item.QuestNoteItem.tearUp(carried, village.id(), task.id());
         for (Quest.Reward reward : quest.rewards()) {
             if (reward instanceof Quest.Reward.Trust trust) {
                 village.addReputation(player, trust.amount());

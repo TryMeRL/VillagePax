@@ -43,6 +43,7 @@ import net.minecraft.block.Block;
 import net.minecraft.item.BlockItem;
 import net.minecraft.item.Item;
 import net.minecraft.text.Text;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.client.render.entity.ChickenEntityRenderer;
@@ -299,6 +300,10 @@ public class VillagePaxClient implements ClientModInitializer {
      */
     private static void registerTooltips() {
         ItemTooltipCallback.EVENT.register((stack, context, lines) -> {
+            if (stack.isOf(ModItems.QUEST_NOTE)) {
+                noteTooltip(stack, lines);
+                return;
+            }
             if (stack.isOf(ModItems.TOWN_HALL_BLUEPRINT)) {
                 Identifier culture = TownHallBlueprintItem.cultureOf(stack);
                 lines.add(Text.translatable("villagepax.blueprint.culture",
@@ -321,6 +326,55 @@ public class VillagePaxClient implements ClientModInitializer {
                         .formatted(Formatting.DARK_GRAY));
             }
         });
+    }
+
+    /**
+     * Листок с доски: кто просит и какими словами, что принести и сколько
+     * из этого уже в сумке, что дадут и где сдавать.
+     */
+    private static void noteTooltip(net.minecraft.item.ItemStack stack, List<Text> lines) {
+        com.villagepax.item.QuestNoteItem.Note note = com.villagepax.item.QuestNoteItem.read(stack).orElse(null);
+        if (note == null) {
+            lines.add(Text.translatable("item.villagepax.quest_note.blank").formatted(Formatting.GRAY));
+            return;
+        }
+        MinecraftClient client = MinecraftClient.getInstance();
+        lines.add(Text.literal(note.author()).formatted(Formatting.GOLD));
+        for (String line : com.villagepax.item.QuestNoteItem.wrap(
+                Text.translatable(note.offer().dialogue()).getString())) {
+            lines.add(Text.literal(line).formatted(Formatting.GRAY, Formatting.ITALIC));
+        }
+        for (com.villagepax.screen.QuestView.Need need : note.offer().objectives()) {
+            Text about = need.item().map(item -> (Text) item.getName())
+                    .orElseGet(() -> Text.translatable(need.what().orElse("")));
+            if (need.item().isPresent() && client.player != null) {
+                int have = client.player.getInventory().count(need.item().get());
+                lines.add(Text.translatable("villagepax.note.carried", about, have, need.need())
+                        .formatted(have >= need.need() ? Formatting.GREEN : Formatting.WHITE));
+            } else {
+                lines.add(Text.translatable("villagepax.note.need", need.need(), about).formatted(Formatting.WHITE));
+            }
+        }
+        if (!note.offer().rewards().isEmpty()) {
+            net.minecraft.text.MutableText prizes = Text.translatable("villagepax.note.reward")
+                    .formatted(Formatting.DARK_GREEN);
+            boolean first = true;
+            for (com.villagepax.screen.QuestView.Prize prize : note.offer().rewards()) {
+                prizes.append(first ? " " : ", ");
+                first = false;
+                prizes.append(prize.goods()
+                        .map(item -> (Text) Text.translatable("villagepax.note.goods", prize.amount(),
+                                item.getName()))
+                        .orElseGet(() -> Text.translatable(prize.key(), Text.literal("+" + prize.amount()))));
+            }
+            lines.add(prizes);
+        }
+        lines.add(Text.translatable("villagepax.note.where", note.villageName(), note.author())
+                .formatted(Formatting.DARK_GRAY));
+        if (note.errand() && client.world != null
+                && com.villagepax.sim.work.Schedule.dayOf(client.world.getTimeOfDay()) > note.day()) {
+            lines.add(Text.translatable("villagepax.note.stale").formatted(Formatting.RED));
+        }
     }
 
     private static boolean isMarker(Block block) {

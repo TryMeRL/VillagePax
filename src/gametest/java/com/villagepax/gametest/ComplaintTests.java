@@ -1207,6 +1207,68 @@ public class ComplaintTests extends GameTestSupport {
     }
 
     /**
+     * Сорванный листок уносит просьбу: в нём её опознаватель и слова,
+     * доска видит его в сумке и висит обрывком, а сдача листок забирает.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void aTornSheetTravelsAndIsTakenAtHandIn(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos where = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement village = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", where);
+        Citizen elder = evenNewborn("Bertrand", "de Caen", NORMAN, Gender.MALE);
+        elder.setProfession(Villages.ELDER);
+        village.addCitizen(elder);
+        manager.add(village);
+        UUID player = UUID.randomUUID();
+
+        try {
+            chainDone(village, player);
+            Quests.Task task = Quests.task(village, player, Villages.ELDER, 30).orElseThrow();
+            SimpleInventory hands = new SimpleInventory(9);
+
+            com.villagepax.screen.BoardView before = com.villagepax.screen.BoardNet.viewOf(manager, village,
+                    where, player, hands, 30);
+            if (before.sheets().isEmpty() || before.sheets().get(0).taken()) {
+                context.throwGameTestException("Листок старейшины не висит целым: " + before.sheets());
+            }
+
+            ItemStack note = com.villagepax.item.QuestNoteItem.of(com.villagepax.screen.BoardNet.noteOf(manager,
+                    village, elder, Villages.ELDER, task, player, hands, 30));
+            com.villagepax.item.QuestNoteItem.Note written = com.villagepax.item.QuestNoteItem.read(note)
+                    .orElse(null);
+            if (written == null || !written.quest().equals(task.id()) || !written.errand()
+                    || written.offer().objectives().isEmpty()
+                    || !written.offer().dialogue().equals(task.quest().dialogue())) {
+                context.throwGameTestException("Листок записал не ту просьбу: " + written);
+                return;
+            }
+            hands.addStack(note);
+
+            com.villagepax.screen.BoardView after = com.villagepax.screen.BoardNet.viewOf(manager, village,
+                    where, player, hands, 30);
+            if (!after.sheets().get(0).taken()) {
+                context.throwGameTestException("Доска не видит сорванного листка в сумке");
+            }
+
+            Quest.Objective.Deliver ask = (Quest.Objective.Deliver) task.quest().objectives().get(0);
+            hands.addStack(new ItemStack(ask.item(), ask.count()));
+            List<ItemStack> paid = new ArrayList<>();
+            if (Quests.handIn(manager, village, null, player, Villages.ELDER, hands, 30,
+                    paid::add) != Quests.Handover.DONE) {
+                context.throwGameTestException("Поручение с листком не приняли");
+            }
+            if (hands.count(com.villagepax.item.ModItems.QUEST_NOTE) != 0) {
+                context.throwGameTestException("Сданный листок остался в сумке");
+            }
+        } finally {
+            manager.remove(village.id());
+        }
+
+        context.complete();
+    }
+
+    /**
      * Просьба дня не меняется, пока день тот же.
      * <p>
      * Это не придирка к чистоте, а условие работоспособности: окно

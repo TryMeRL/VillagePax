@@ -1106,6 +1106,44 @@ def parchment():
     return t
 
 
+def quest_note():
+    """Листок с доски заданий: бумага на гвозде, строчки чернил, сургуч.
+
+    Сорванный листок — тот же, что висел на доске: желтоватая бумага
+    с рваным низом, дырка от гвоздя вверху и печать ремесла в углу.
+    По ней его и узнают в сумке среди книг и карт.
+    """
+    t = Tex(CLEAR)
+    base = rgb(0xE8D9AE)
+    lit = rgb(0xF4EACB)
+    edge = rgb(0xC4B184)
+    ink = rgb(0x4A3B28)
+    t.rect(3, 1, 12, 13, base)
+    t.rect(3, 1, 12, 1, lit)
+    t.rect(3, 1, 3, 13, lit)
+    t.rect(12, 2, 12, 13, edge)
+    # Рваный низ: зубцы через пиксель.
+    for x in range(3, 13):
+        if x % 2 == 0:
+            t.set(x, 14, base)
+        else:
+            t.set(x, 13, edge)
+    # Дырка от гвоздя и сам гвоздь, вырванный вместе с бумагой.
+    t.set(7, 2, rgb(0x6E6250))
+    t.set(8, 2, rgb(0x8A7D66))
+    # Строчки просьбы — разной длины, как пишут рукой.
+    for y, x1 in ((4, 10), (6, 9), (8, 10), (10, 7)):
+        t.rect(5, y, x1, y, ink)
+    # Сургуч ремесла в правом нижнем углу.
+    wax = rgb(0x9C2A1E)
+    t.rect(9, 10, 11, 12, wax)
+    t.set(9, 10, CLEAR)
+    t.set(11, 12, rgb(0x7A1F16))
+    t.set(10, 10, rgb(0xBF3A28))
+    t.set(9, 11, rgb(0xBF3A28))
+    return t
+
+
 # --- угощения и праздник -------------------------------------------------------
 #
 # Заказчик: «добавь разнообразия, веселья». У каждого народа своё угощение
@@ -1401,6 +1439,7 @@ def main():
     made.append(purse().save("item", "purse"))
     made.append(purse_empty().save("item", "purse_empty"))
     made.append(blueprint().save("item", "town_hall_blueprint"))
+    made.append(quest_note().save("item", "quest_note"))
 
     made.append(altar_side().save("block", "altar_side"))
     made.append(altar_top().save("block", "altar_top"))

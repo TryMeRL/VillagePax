@@ -1148,6 +1148,65 @@ public class ComplaintTests extends GameTestSupport {
     }
 
     /**
+     * Поручения у каждого народа свои: норманнский пивовар и пивовар
+     * майя просят разного и разными словами, старейшина отдаривается
+     * питьём своего народа, а слова каждой просьбы есть в обоих словарях.
+     */
+    @GameTest(templateName = EMPTY_STRUCTURE, batchId = "quests")
+    public void eachPeopleAsksItsOwnErrands(TestContext context) {
+        Identifier brewer = new Identifier("villagepax", "brewer");
+        BlockPos where = context.getAbsolutePos(new BlockPos(1, 1, 1));
+        Settlement norman = Settlement.found(NORMAN, Owner.AUTONOMOUS, "Бовуар", where);
+        Settlement maya = Settlement.found(MAYA, Owner.AUTONOMOUS, "Тикаль", where);
+        UUID player = UUID.randomUUID();
+
+        java.util.Set<String> normanWords = new java.util.HashSet<>();
+        java.util.Set<String> mayaWords = new java.util.HashSet<>();
+        for (long day = 40; day < 44; day++) {
+            Quest ours = com.villagepax.sim.quest.Errands.forToday(norman, brewer, day).orElseThrow();
+            Quest theirs = com.villagepax.sim.quest.Errands.forToday(maya, brewer, day).orElseThrow();
+            normanWords.add(ours.dialogue());
+            mayaWords.add(theirs.dialogue());
+            if (!ours.dialogue().startsWith("villagepax.errand.norman.brewer.")) {
+                context.throwGameTestException("Норманнский пивовар говорит общими словами: " + ours.dialogue());
+            }
+            boolean treat = ours.rewards().stream().anyMatch(reward -> reward instanceof Quest.Reward.Give give
+                    && give.item() == com.villagepax.item.ModItems.ALE);
+            if (!treat) {
+                context.throwGameTestException("Пивовар не отдарился элем: " + ours.rewards());
+            }
+        }
+        if (normanWords.size() < 2) {
+            context.throwGameTestException("Четыре дня подряд одна просьба: " + normanWords);
+        }
+        if (!java.util.Collections.disjoint(normanWords, mayaWords)) {
+            context.throwGameTestException("Норманн и майя просят одними словами");
+        }
+
+        for (String lang : List.of("ru_ru", "en_us")) {
+            com.google.gson.JsonObject words;
+            try (java.io.InputStream in = ComplaintTests.class.getResourceAsStream(
+                    "/assets/villagepax/lang/" + lang + ".json")) {
+                words = com.google.gson.JsonParser.parseReader(new java.io.InputStreamReader(in,
+                        java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+            } catch (java.io.IOException | RuntimeException broken) {
+                context.throwGameTestException("Словарь " + lang + " не читается: " + broken);
+                return;
+            }
+            for (String key : com.villagepax.sim.quest.Errands.dialogueKeys()) {
+                if (!words.has(key)) {
+                    context.throwGameTestException("В словаре " + lang + " нет слов поручения " + key);
+                }
+            }
+        }
+        if (Quests.task(maya, player, Villages.ELDER, 3).isEmpty()) {
+            context.throwGameTestException("У старейшины майя нет ни цепочки, ни поручения");
+        }
+
+        context.complete();
+    }
+
+    /**
      * Просьба дня не меняется, пока день тот же.
      * <p>
      * Это не придирка к чистоте, а условие работоспособности: окно

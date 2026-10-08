@@ -32,16 +32,35 @@ import java.util.Optional;
  * Правдоподобие берётся не из склада, а из того, что просит каждое
  * ремесло по своему делу.
  * <p>
- * Награда мелкая и только монетой с крупицей доверия: цепочки строят
- * отношения, поручения — это торговля. Одна просьба в день на ремесло,
+ * У каждого народа свои просьбы и свои слова ({@link ErrandBook}):
+ * норманнский пивовар просит яблок на сидр, гномий — грибов на пиво.
+ * Общая таблица ниже — для народов и ремёсел, которых книга не знает.
+ * <p>
+ * Награда мелкая — монета с крупицей доверия, а у старейшины и пивовара
+ * ещё и питьё народа: цепочки строят отношения, поручения — это торговля. Одна просьба в день на ремесло,
  * и это же единственный предел: перемолоть отношения поручениями нельзя,
  * потому что день один.
  */
 public final class Errands {
 
     /** Что просит ремесло: предмет и сколько за раз. */
-    private record Ask(Item item, int count) {
+    record Ask(Item item, int count) {
     }
+
+    /**
+     * Чем деревня отдаривается сверх монеты: своим питьём или сладким.
+     * <p>
+     * Только у старейшины и пивовара — у тех, у кого это питьё в руках.
+     * Награда, которую узнаёшь по народу, и есть то, что отличает
+     * поручение у майя от поручения у гномов, сильнее любых слов.
+     */
+    private static final Map<String, Item> TREATS = Map.of(
+            "norman", ModItems.ALE, "nord", ModItems.ALE, "maya", ModItems.CACAO,
+            "pony", ModItems.RAINBOW_CUPCAKE, "dwarf", ModItems.DWARVEN_STOUT,
+            "elf", ModItems.ELVEN_NECTAR);
+
+    /** Ремёсла, которые отдариваются питьём народа. */
+    private static final java.util.Set<String> TREAT_GIVERS = java.util.Set.of("elder", "brewer");
 
     /**
      * Чего просит каждое ремесло.
@@ -97,39 +116,55 @@ public final class Errands {
 
     /** Поручение этого ремесла на этот день — или ничего, если ремесло молчит. */
     public static Optional<Quest> forToday(Settlement village, Identifier giver, long today) {
-        List<Ask> table = BY_TRADE.get(giver.getPath());
+        String people = village.culture().getPath();
+        String trade = giver.getPath();
+        List<Ask> own = ErrandBook.BY_PEOPLE.getOrDefault(people, Map.of()).get(trade);
+        List<Ask> table = own != null && !own.isEmpty() ? own : BY_TRADE.get(trade);
         if (table == null || table.isEmpty()) {
             // Ремесло, которому нечего просить, молчит — и это законно.
             // Придумывать просьбу за автора датапака мод не станет.
             return Optional.empty();
         }
 
-        Ask ask = table.get(Math.floorMod(seed(village, giver, today), table.size()));
+        // По кругу, со сдвигом у каждой деревни: соседние дни просят разное,
+        // а две деревни одного народа в один день — не обязательно одно.
+        int index = Math.floorMod(seed(village, giver) + today, table.size());
+        Ask ask = table.get(index);
         int count = scaled(village, ask.count());
 
+        List<Quest.Reward> rewards = new java.util.ArrayList<>();
+        rewards.add(new Quest.Reward.Give(ModItems.COIN, pay(ask.item(), count)));
+        Item treat = TREATS.get(people);
+        if (treat != null && TREAT_GIVERS.contains(trade)) {
+            rewards.add(new Quest.Reward.Give(treat, 1));
+        }
+        rewards.add(new Quest.Reward.Trust(ERRAND_TRUST));
+
+        // Своя просьба народа — своими словами; общая — общими.
+        String words = table == own
+                ? "villagepax.errand." + people + "." + trade + "." + index
+                : "villagepax.errand." + trade;
         return Optional.of(new Quest(
                 giver,
                 Optional.of(village.culture()),
                 0,
                 List.of(new Quest.Objective.Deliver(ask.item(), count)),
-                List.of(new Quest.Reward.Give(ModItems.COIN, pay(ask.item(), count)),
-                        new Quest.Reward.Trust(ERRAND_TRUST)),
-                "villagepax.errand." + giver.getPath(),
+                List.copyOf(rewards),
+                words,
                 Optional.empty()));
     }
 
     /**
-     * Смешение дня, деревни и ремесла в одно число.
+     * Смешение деревни и ремесла в одно число: с него начинается круг просьб.
      * <p>
      * Своё, а не {@code Random}: просьба обязана быть одинаковой у всех,
      * кто о ней спросит, — у экрана, у сдачи и у соседа по серверу. Любой
      * генератор с состоянием это правило нарушает, потому что зависит
      * от того, кто спросил первым.
      */
-    private static int seed(Settlement village, Identifier giver, long today) {
+    private static int seed(Settlement village, Identifier giver) {
         long mixed = village.id().getLeastSignificantBits() * 31L
-                + giver.toString().hashCode() * 131L
-                + today * 1_000_003L;
+                + giver.toString().hashCode() * 131L;
         return (int) (mixed ^ (mixed >>> 32));
     }
 
@@ -164,16 +199,23 @@ public final class Errands {
         return BY_TRADE.containsKey(giver.getPath());
     }
 
-    /** Ключи слов всех поручений: их проверяет словарь. */
+    /** Ключи слов всех поручений, общих и народных: их проверяет словарь. */
     public static List<String> dialogueKeys() {
-        return BY_TRADE.keySet().stream().sorted()
+        List<String> keys = new java.util.ArrayList<>(BY_TRADE.keySet().stream().sorted()
                 .map(trade -> "villagepax.errand." + trade)
-                .toList();
+                .toList());
+        ErrandBook.BY_PEOPLE.forEach((people, trades) -> trades.forEach((trade, asks) -> {
+            for (int i = 0; i < asks.size(); i++) {
+                keys.add("villagepax.errand." + people + "." + trade + "." + i);
+            }
+        }));
+        return keys.stream().sorted().toList();
     }
 
     /** Предметы всех поручений: по ним проверяют, что мод их знает. */
     public static List<Identifier> asked() {
-        return BY_TRADE.values().stream()
+        return java.util.stream.Stream.concat(BY_TRADE.values().stream(),
+                        ErrandBook.BY_PEOPLE.values().stream().flatMap(trades -> trades.values().stream()))
                 .flatMap(List::stream)
                 .map(ask -> Registries.ITEM.getId(ask.item()))
                 .distinct()

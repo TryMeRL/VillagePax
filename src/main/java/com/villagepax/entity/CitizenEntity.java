@@ -1205,6 +1205,16 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
             return ActionResult.SUCCESS;
         }
         if (!gives && !trades) {
+            // Житель деревни народа, которому самому сказать нечего, ведёт
+            // к делам деревни: окно её ратуши — кто ты здесь, что ей нужно,
+            // кто живёт. Прежде щелчок по нему не значил ничего, и что
+            // деревне надо, игрок узнавал только у блока ратуши, о котором
+            // мог и не догадаться.
+            if (village.owner().isAutonomous() && !Ages.isChild(citizen)) {
+                greet();
+                com.villagepax.screen.VillageHallNet.open(server, village);
+                return ActionResult.SUCCESS;
+            }
             return ActionResult.PASS;
         }
 
@@ -2112,6 +2122,7 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
 
         if (!getWorld().isClient() && age % OFF_FENCE_EVERY == 0) {
             stepOutOfTrouble();
+            climbOutOfWater();
         }
         if (!getWorld().isClient() && age % REGEN_EVERY == 0) {
             recover();
@@ -2162,6 +2173,94 @@ public class CitizenEntity extends PathAwareEntity implements GeoEntity {
         }
 
         return moveToSafety(null);
+    }
+
+    /** Сколько тиков подряд житель в воде и где он в неё вошёл. */
+    private int wetFor;
+    private Vec3d wetFrom;
+
+    /** Столько тиков барахтанья на месте — и житель выбирается на берег. */
+    static final int WET_LIMIT = 100;
+
+    /** Сдвинулся меньше этого за {@link #WET_LIMIT} — значит, не плывёт, а застрял. */
+    private static final double WET_PROGRESS = 3.0;
+
+    /** Как далеко искать сухой берег. */
+    private static final int SHORE_REACH = 8;
+
+    /**
+     * Выбраться из воды, если в ней застрял.
+     * <p>
+     * Жалоба заказчика: жители оказываются в воде и «застывают там, не могут
+     * выплыть». Ваниль держит моба на плаву, но выйти на берег выше блока
+     * над водой он не умеет, а путь из воды на такой берег не строится:
+     * житель так и качается у отвесного края пруда или реки. Плывущего
+     * не трогаем — переправа через реку длится дольше пяти секунд, — снимаем
+     * того, кто за пять секунд не сдвинулся и на три блока, и того, кто
+     * уже тонет. Переносим на ближайший сухой берег в восьми блоках,
+     * а нет его — к ратуше своего поселения.
+     *
+     * @return перенесли ли
+     */
+    public boolean climbOutOfWater() {
+        if (!isTouchingWater()) {
+            wetFor = 0;
+            wetFrom = null;
+            return false;
+        }
+        if (wetFrom == null) {
+            wetFrom = getPos();
+        }
+        wetFor += OFF_FENCE_EVERY;
+        boolean drowning = isSubmergedInWater() && getAir() < getMaxAir() / 2;
+        if (!drowning && wetFor < WET_LIMIT) {
+            return false;
+        }
+        boolean swimming = wetFrom.squaredDistanceTo(getPos()) >= WET_PROGRESS * WET_PROGRESS;
+        wetFor = 0;
+        wetFrom = getPos();
+        if (swimming && !drowning) {
+            return false;
+        }
+        BlockPos shore = nearestShore();
+        if (shore != null) {
+            getNavigation().stop();
+            refreshPositionAndAngles(shore.getX() + 0.5, shore.getY(), shore.getZ() + 0.5, getYaw(), getPitch());
+            return true;
+        }
+        if (getWorld() instanceof ServerWorld serverWorld && settlementId != null) {
+            Settlement home = SettlementManager.get(serverWorld).byId(settlementId).orElse(null);
+            if (home != null) {
+                Vec3d hall = CitizenSpawner.arrival(serverWorld, home);
+                getNavigation().stop();
+                refreshPositionAndAngles(hall.x, hall.y, hall.z, getYaw(), getPitch());
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Ближайшая сухая клетка, где можно стоять: кольцами, от воды вверх и вниз. */
+    private BlockPos nearestShore() {
+        BlockPos from = getBlockPos();
+        for (int radius = 1; radius <= SHORE_REACH; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
+                        continue;
+                    }
+                    for (int dy = -1; dy <= 3; dy++) {
+                        BlockPos spot = from.add(dx, dy, dz);
+                        if (getWorld().isChunkLoaded(spot) && isSafeFooting(spot)
+                                && getWorld().getFluidState(spot).isEmpty()
+                                && getWorld().getFluidState(spot.down()).isEmpty()) {
+                            return spot;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /**

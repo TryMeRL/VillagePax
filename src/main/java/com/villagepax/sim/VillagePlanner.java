@@ -102,8 +102,17 @@ public final class VillagePlanner {
         if (room && beds < people + SPARE_BEDS) {
             wishes.addAll(homes);
         }
+        // Призвание: любимое — вперёд, прочее — в своём для каждой деревни
+        // порядке. Иначе все деревни народа строились бы одним списком.
+        Calling calling = Calling.of(village.id());
+        others.sort(java.util.Comparator
+                .comparing((Identifier type) -> !types.apply(type)
+                        .map(kind -> calling.favours(type, kind)).orElse(false))
+                .thenComparingInt(type -> (type.toString() + village.id()).hashCode()));
+        // Пахари сеют гуще: поле на четверых, а не на пятерых.
+        int perFarm = calling == Calling.FARMERS ? PEOPLE_PER_FARM - 1 : PEOPLE_PER_FARM;
         long fields = farms.stream().mapToLong(type -> built.getOrDefault(type, 0L)).sum();
-        if (fields * PEOPLE_PER_FARM < Math.max(1, people)) {
+        if (fields * perFarm < Math.max(1, people)) {
             wishes.addAll(farms);
         }
         for (Identifier type : others) {

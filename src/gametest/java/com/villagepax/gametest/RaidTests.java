@@ -527,6 +527,67 @@ public class RaidTests extends GameTestSupport {
     }
 
     /**
+     * Житель в колодце с отвесными стенками выбраться сам не может:
+     * ваниль держит его на плаву, а пути на берег выше блока нет. Через
+     * пять секунд барахтанья на месте его переносят на сухое.
+     */
+    @GameTest(templateName = WIDE_STRUCTURE, batchId = "water", tickLimit = 400)
+    public void aCitizenStuckInWaterClimbsOut(TestContext context) {
+        ServerWorld world = context.getWorld();
+        SettlementManager manager = SettlementManager.get(world);
+        BlockPos hall = context.getAbsolutePos(new BlockPos(2, 2, 2));
+        List<BlockPos> placed = new ArrayList<>();
+        for (int x = 0; x <= 12; x++) {
+            for (int z = 0; z <= 8; z++) {
+                BlockPos at = context.getAbsolutePos(new BlockPos(x, 1, z));
+                world.setBlockState(at, Blocks.STONE.getDefaultState());
+                placed.add(at);
+            }
+        }
+        // Колодец 1×1 глубиной в два блока, стенки на три блока над водой.
+        for (int y = 2; y <= 5; y++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    BlockPos at = context.getAbsolutePos(new BlockPos(9 + dx, y, 4 + dz));
+                    boolean shaft = dx == 0 && dz == 0;
+                    world.setBlockState(at, shaft
+                            ? (y <= 3 ? Blocks.WATER.getDefaultState() : Blocks.AIR.getDefaultState())
+                            : Blocks.STONE.getDefaultState());
+                    placed.add(at);
+                }
+            }
+        }
+        BlockPos well = context.getAbsolutePos(new BlockPos(9, 2, 4));
+
+        Settlement colony = colonyWithBuilder(world, manager, hall);
+        Citizen swimmer = evenNewborn("Gilbert", "le Mouillé", NORMAN, Gender.MALE);
+        manager.update(colony.id(), state -> state.addCitizen(swimmer));
+        CitizenEntity body = CitizenSpawner.spawnBody(world, colony, swimmer);
+        if (body == null) {
+            context.throwGameTestException("Тело не появилось");
+            return;
+        }
+        body.refreshPositionAndAngles(well.getX() + 0.5, well.getY(), well.getZ() + 0.5, 0, 0);
+
+        context.waitAndRun(240, () -> {
+            try {
+                if (body.isTouchingWater()
+                        || !world.getFluidState(body.getBlockPos()).isEmpty()) {
+                    context.throwGameTestException("Житель так и сидит в колодце: " + body.getPos());
+                }
+            } finally {
+                body.discard();
+                cleanUpVillage(world, manager, colony, hall, List.of());
+                for (BlockPos at : placed) {
+                    world.setBlockState(at, Blocks.AIR.getDefaultState());
+                }
+                world.setBlockState(hall, Blocks.AIR.getDefaultState());
+            }
+            context.complete();
+        });
+    }
+
+    /**
      * Налётчик берёт на прицел жителя осаждённой колонии — и только его.
      * <p>
      * Самая важная проверка всего набега: в ней вся его ставка. Отряд,

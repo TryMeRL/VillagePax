@@ -190,6 +190,20 @@ public class QuestScreen extends BaseOwoScreen<FlowLayout> {
 
     private void fillTabs() {
         frame.rail.clearChildren();
+        fillTabsOfTalk();
+        // Окно ратуши деревни — отсюда же: старейшина говорит о просьбах,
+        // а что деревне нужно, кто в ней живёт и чем она славится, — в нём.
+        if (view.caravan().isEmpty()) {
+            frame.tab(new ItemStack(com.villagepax.block.ModBlocks.TOWN_HALL.asItem()),
+                    Text.translatable("villagepax.quest.screen.village_hall"), false, () -> {
+                        net.minecraft.network.PacketByteBuf buf = PacketByteBufs.create();
+                        buf.writeUuid(view.village());
+                        ClientPlayNetworking.send(com.villagepax.screen.VillageHallNet.ASK, buf);
+                    });
+        }
+    }
+
+    private void fillTabsOfTalk() {
         for (Tab candidate : Tab.values()) {
             if (candidate == Tab.TRADE && !view.trades()) {
                 continue;

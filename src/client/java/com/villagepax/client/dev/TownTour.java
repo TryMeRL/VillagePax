@@ -41,7 +41,7 @@ public final class TownTour {
             new View("east", 75, 35, 0, 90f, 25f),
             new View("above", 0, 110, 0, 0f, 90f));
 
-    private enum Step { TITLE, JOINING, MOVING, RAISING, VIEWING, DONE }
+    private enum Step { TITLE, JOINING, MOVING, RAISING, VIEWING, HALL, DONE }
 
     /** Сколько мест пробовать, прежде чем сдаться. */
     private static final int ATTEMPTS = 8;
@@ -147,6 +147,33 @@ public final class TownTour {
                 if (view < VIEWS.size()) {
                     goTo(client, VIEWS.get(view));
                 } else {
+                    // Напоследок — окно ратуши деревни: щелчок по блоку ратуши
+                    // тем же путём, каким щёлкает игрок, и снимок того, что открылось.
+                    command(client, "gamemode creative");
+                    client.options.hudHidden = false;
+                    command(client, String.format(java.util.Locale.ROOT, "tp @s %.1f %d %.1f 0 60",
+                            centre.getX() + 0.5, centre.getY() + 1, centre.getZ() + 0.5));
+                    step = Step.HALL;
+                }
+            }
+            case HALL -> {
+                waited++;
+                if (waited == 60 && client.interactionManager != null && client.player != null) {
+                    net.minecraft.util.hit.BlockHitResult hit = new net.minecraft.util.hit.BlockHitResult(
+                            net.minecraft.util.math.Vec3d.ofCenter(centre).add(0, 0.5, 0),
+                            net.minecraft.util.math.Direction.UP, centre, false);
+                    client.interactionManager.interactBlock(client.player, net.minecraft.util.Hand.MAIN_HAND, hit);
+                    VillagePax.LOGGER.info("Щелчок по ратуше {}: блок {}", centre.toShortString(),
+                            client.world.getBlockState(centre).getBlock());
+                }
+                if (waited == 140) {
+                    VillagePax.LOGGER.info("После щелчка по ратуше открыт экран: {}",
+                            client.currentScreen == null ? "ничего" : client.currentScreen.getClass().getSimpleName());
+                    ScreenshotRecorder.saveScreenshot(client.runDirectory,
+                            "tour/" + culture + "_" + level + "_hall.png", client.getFramebuffer(),
+                            message -> VillagePax.LOGGER.info("Снимок: {}", message.getString()));
+                }
+                if (waited >= 160) {
                     step = Step.DONE;
                     client.scheduleStop();
                 }

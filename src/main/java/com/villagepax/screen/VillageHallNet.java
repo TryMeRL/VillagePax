@@ -59,6 +59,7 @@ public final class VillageHallNet {
     public static final Identifier DONATE = new Identifier(VillagePax.MOD_ID, "village_hall_donate");
     public static final Identifier SETTLE = new Identifier(VillagePax.MOD_ID, "village_hall_settle");
     public static final Identifier CHRONICLE = new Identifier(VillagePax.MOD_ID, "village_hall_chronicle");
+    public static final Identifier ASK = new Identifier(VillagePax.MOD_ID, "village_hall_ask");
 
     /** Дальше этого от ратуши просить нельзя: окно открывают у неё. */
     static final double REACH = 8.0;
@@ -88,6 +89,12 @@ public final class VillageHallNet {
         ServerPlayNetworking.registerGlobalReceiver(CHRONICLE, (server, player, handler, buf, sender) -> {
             UUID village = buf.readUuid();
             server.execute(() -> chronicle(player, village));
+        });
+        // «Ратуша деревни» из окна старейшины: открыть окно деревни, где бы
+        // в ней игрок ни стоял.
+        ServerPlayNetworking.registerGlobalReceiver(ASK, (server, player, handler, buf, sender) -> {
+            UUID village = buf.readUuid();
+            server.execute(() -> near(player, village).ifPresent(found -> open(player, found)));
         });
     }
 
@@ -177,13 +184,20 @@ public final class VillageHallNet {
 
     // --- просьбы ---
 
-    /** Деревня, у ратуши которой стоит игрок; иначе ничего. */
+    /**
+     * Деревня, в которой стоит игрок — на её земле или у ратуши; иначе ничего.
+     * <p>
+     * На земле, а не только у ратуши: окно открывается и от старейшины,
+     * и от любого жителя, и отдать деревне нужное можно там же, где с ней
+     * говоришь. Издалека — нельзя: окно не почта.
+     */
     private static Optional<Settlement> near(ServerPlayerEntity player, UUID id) {
         Settlement village = SettlementManager.get(player.getServerWorld()).byId(id).orElse(null);
         if (village == null || !village.owner().isAutonomous()) {
             return Optional.empty();
         }
-        if (player.squaredDistanceTo(Vec3d.ofCenter(village.center())) > REACH * REACH) {
+        if (!village.claims(player.getBlockPos())
+                && player.squaredDistanceTo(Vec3d.ofCenter(village.center())) > REACH * REACH) {
             player.sendMessage(Text.translatable("villagepax.quest.too_far"), true);
             return Optional.empty();
         }

@@ -211,8 +211,12 @@ public final class CitizenSpawner {
      * поселения или правки данных руками), потерялся бы навсегда.
      */
     private static Vec3d spawnPosition(ServerWorld world, Settlement settlement, Citizen citizen) {
+        // И не в воде: тело, выгруженное посреди пруда, иначе так в нём
+        // и появлялось бы при каждом заходе игрока.
         return citizen.position()
                 .filter(pos -> settlement.claims(BlockPos.ofFloored(pos)))
+                .filter(pos -> !world.isChunkLoaded(BlockPos.ofFloored(pos))
+                        || world.getFluidState(BlockPos.ofFloored(pos)).isEmpty())
                 .orElseGet(() -> arrival(world, settlement));
     }
 
@@ -224,6 +228,12 @@ public final class CitizenSpawner {
 
     /** На сколько шагов от ратуши искать клетку, где жителю появиться. */
     private static final int ARRIVAL_REACH = 4;
+
+    /**
+     * А если у самой ратуши места нет — так далеко. Ратуша у пруда или
+     * на мостках оставляла бы иначе пришлого прямо в воде над ней.
+     */
+    private static final int ARRIVAL_FAR = 12;
 
     /**
      * Где житель появляется в поселении: на свободной клетке у ратуши.
@@ -243,14 +253,18 @@ public final class CitizenSpawner {
      */
     public static Vec3d arrival(ServerWorld world, Settlement settlement) {
         BlockPos above = settlement.center().up();
-        for (int radius = 0; radius <= ARRIVAL_REACH; radius++) {
+        for (int radius = 0; radius <= ARRIVAL_FAR; radius++) {
+            // Ближе — на уровне зала; дальше — с запасом по высоте: земля
+            // вокруг ратуши у воды и на склоне ниже или выше её пола.
+            int low = radius <= ARRIVAL_REACH ? -1 : -3;
+            int high = radius <= ARRIVAL_REACH ? 0 : 3;
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dz = -radius; dz <= radius; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != radius) {
                         continue;
                     }
-                    for (int down = 0; down <= 1; down++) {
-                        BlockPos feet = above.add(dx, -down, dz);
+                    for (int dy = high; dy >= low; dy--) {
+                        BlockPos feet = above.add(dx, dy, dz);
                         if (world.isChunkLoaded(feet) && isArrivalSpot(world, feet)) {
                             return Vec3d.ofBottomCenter(feet);
                         }
@@ -267,7 +281,8 @@ public final class CitizenSpawner {
         if (!world.getBlockState(below).isSolidBlock(world, below)
                 || !world.getBlockState(feet).getCollisionShape(world, feet).isEmpty()
                 || !world.getBlockState(feet.up()).getCollisionShape(world, feet.up()).isEmpty()
-                || !world.getFluidState(feet).isEmpty()) {
+                || !world.getFluidState(feet).isEmpty()
+                || !world.getFluidState(feet.up()).isEmpty()) {
             return false;
         }
         for (int dx = -1; dx <= 1; dx++) {

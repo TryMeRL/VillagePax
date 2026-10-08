@@ -137,4 +137,35 @@ class VillagePlannerTest {
         capital.setLevel(SettlementLevel.CAPITAL);
         assertFalse(VillagePlanner.readyToGrow(capital, 80, 20), "выше столицы");
     }
+
+    /**
+     * Призвание: деревня стражей ставит башню раньше пивоварни, деревня
+     * мастеров — наоборот; и у всякой деревни оно своё и навсегда.
+     */
+    @Test
+    void eachVillageFollowsItsCalling() {
+        Identifier tower = type("watchtower");
+        Identifier brewery = type("brewery");
+        Map<Identifier, BuildingType> kinds = Map.of(
+                tower, new BuildingType("", BuildingType.Role.WORKPLACE,
+                        Optional.of(new Identifier("villagepax", "guard")), false, SettlementLevel.HAMLET, List.of()),
+                brewery, new BuildingType("", BuildingType.Role.WORKPLACE,
+                        Optional.of(new Identifier("villagepax", "brewer")), false, SettlementLevel.HAMLET, List.of()));
+        java.util.Set<Calling> seen = java.util.EnumSet.noneOf(Calling.class);
+        for (int i = 0; i < 200; i++) {
+            Settlement village = village(3);
+            Calling calling = Calling.of(village.id());
+            seen.add(calling);
+            assertEquals(calling, Calling.of(village.id()), "призвание сменилось");
+            List<Identifier> wishes = VillagePlanner.wishes(village, List.of(brewery, tower), 99,
+                    type -> Optional.ofNullable(kinds.get(type)), type -> false);
+            if (calling == Calling.WARDENS) {
+                assertEquals(tower, wishes.get(0), "стражи ставят башню первой: " + wishes);
+            }
+            if (calling == Calling.CRAFTERS) {
+                assertEquals(brewery, wishes.get(0), "мастера ставят пивоварню первой: " + wishes);
+            }
+        }
+        assertEquals(java.util.EnumSet.allOf(Calling.class), seen, "не все призвания встречаются");
+    }
 }
